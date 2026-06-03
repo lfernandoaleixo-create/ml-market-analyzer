@@ -7,4 +7,8 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // Mercado Livre developer credentials (optional until user provides them).
+  // When both are present, the official OAuth-based data provider can be used.
+  mlAppId: process.env.ML_APP_ID ?? "",
+  mlClientSecret: process.env.ML_CLIENT_SECRET ?? "",
 };

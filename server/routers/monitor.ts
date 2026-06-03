@@ -1,0 +1,296 @@
+import { z } from "zod";
+import { parse as parseCookie } from "cookie";
+import { TRPCError } from "@trpc/server";
+import { COOKIE_NAME } from "@shared/const";
+import { protectedProcedure, router } from "../_core/trpc";
+import {
+  addMonitored,
+  addSnapshot,
+  findMonitored,
+  getAppConfig,
+  getCredentials,
+  getMonitoredById,
+  listAlerts,
+  listMonitored,
+  listSnapshots,
+  markAlertRead,
+  markAllAlertsRead,
+  removeMonitored,
+  upsertAppConfig,
+  upsertCredentials,
+} from "../dbMl";
+import { getProvider } from "../ml/provider";
+import { buildBackfillSnapshots, runMonitoringForUser } from "../ml/monitoring";
+import {
+  createHeartbeatJob,
+  deleteHeartbeatJob,
+  updateHeartbeatJob,
+} from "../_core/heartbeat";
+import { hasValidMlCredentialFormat } from "../ml/credentials";
+
+async function providerForUser(userId: number) {
+  const creds = await getCredentials(userId);
+  if (creds && creds.appId && creds.clientSecret) {
+    return getProvider({ appId: creds.appId, clientSecret: creds.clientSecret });
+  }
+  return getProvider(null);
+}
+
+export const monitorRouter = router({
+  /** List the user's monitored products with their latest values. */
+  list: protectedProcedure.query(async ({ ctx }) => {
+    return listMonitored(ctx.user.id);
+  }),
+
+  /** Start monitoring a product (and backfill demo history for charts). */
+  add: protectedProcedure
+    .input(
+      z.object({
+        itemId: z.string(),
+        trackKeyword: z.string().trim().optional(),
+        categoryId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await findMonitored(ctx.user.id, input.itemId);
+      if (existing) return existing;
+
+      const provider = await providerForUser(ctx.user.id);
+      const product = await provider.getProduct(input.itemId);
+      if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Produto não encontrado." });
+
+      const created = await addMonitored({
+        userId: ctx.user.id,
+        mlItemId: product.id,
+        title: product.title,
+        thumbnail: product.thumbnail,
+        permalink: product.permalink,
+        categoryId: input.categoryId ?? product.categoryId,
+        categoryName: product.categoryName,
+        sellerName: product.seller.nickname,
+        trackKeyword: input.trackKeyword ?? null,
+        lastPrice: product.price,
+        lastSoldQuantity: product.soldQuantity,
+        lastPosition: product.catalogPosition ?? null,
+        isActive: true,
+      });
+
+      // Backfill 14 days of synthetic history (demo mode) so charts render now.
+      if (created && provider.mode === "demo") {
+        const rows = buildBackfillSnapshots({
+          monitoredProductId: created.id,
+          itemId: product.id,
+          basePrice: product.price,
+          baseSold: product.soldQuantity,
+          basePosition: product.catalogPosition ?? 10,
+          baseRating: product.rating,
+          baseReviews: product.reviewsCount,
+          days: 14,
+        });
+        for (const r of rows) await addSnapshot(r);
+      }
+
+      return created;
+    }),
+
+  /** Stop monitoring (delete) a product. */
+  remove: protectedProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      await removeMonitored(ctx.user.id, input.id);
+      return { success: true };
+    }),
+
+  /** Historical snapshots for one monitored product. */
+  history: protectedProcedure
+    .input(z.object({ id: z.number().int(), days: z.number().int().min(1).max(365).optional() }))
+    .query(async ({ ctx, input }) => {
+      const mp = await getMonitoredById(input.id);
+      if (!mp || mp.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const since = input.days ? Date.now() - input.days * 24 * 60 * 60 * 1000 : undefined;
+      const snapshots = await listSnapshots(input.id, since);
+      return { product: mp, snapshots };
+    }),
+
+  /** Manually trigger a monitoring run for the current user ("Run now"). */
+  runNow: protectedProcedure.mutation(async ({ ctx }) => {
+    const config = await getAppConfig();
+    const thresholds = (config?.alertThresholds as any) ?? undefined;
+    return runMonitoringForUser(ctx.user.id, thresholds);
+  }),
+
+  // ---- Alerts ------------------------------------------------------------
+
+  alerts: protectedProcedure.query(async ({ ctx }) => {
+    return listAlerts(ctx.user.id);
+  }),
+
+  markAlertRead: protectedProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      await markAlertRead(ctx.user.id, input.id);
+      return { success: true };
+    }),
+
+  markAllAlertsRead: protectedProcedure.mutation(async ({ ctx }) => {
+    await markAllAlertsRead(ctx.user.id);
+    return { success: true };
+  }),
+
+  // ---- Credentials -------------------------------------------------------
+
+  getCredentials: protectedProcedure.query(async ({ ctx }) => {
+    const creds = await getCredentials(ctx.user.id);
+    if (!creds) {
+      return {
+        configured: false,
+        appId: "",
+        hasSecret: false,
+        status: "unconfigured" as const,
+        statusMessage: null as string | null,
+        siteId: "MLB",
+      };
+    }
+    return {
+      configured: hasValidMlCredentialFormat(creds.appId, creds.clientSecret),
+      appId: creds.appId,
+      hasSecret: Boolean(creds.clientSecret),
+      status: creds.status,
+      statusMessage: creds.statusMessage,
+      siteId: creds.siteId,
+    };
+  }),
+
+  saveCredentials: protectedProcedure
+    .input(
+      z.object({
+        appId: z.string().trim(),
+        clientSecret: z.string().trim(),
+        siteId: z.string().trim().default("MLB"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await upsertCredentials(ctx.user.id, {
+        appId: input.appId,
+        clientSecret: input.clientSecret,
+        siteId: input.siteId,
+        status: "unconfigured",
+        statusMessage: null,
+      });
+      return { success: true };
+    }),
+
+  /** Test the stored credentials against the ML OAuth endpoint. */
+  testCredentials: protectedProcedure.mutation(async ({ ctx }) => {
+    const creds = await getCredentials(ctx.user.id);
+    if (!creds || !hasValidMlCredentialFormat(creds.appId, creds.clientSecret)) {
+      await upsertCredentials(ctx.user.id, {
+        status: "error",
+        statusMessage: "Credenciais ausentes ou em formato inválido.",
+      });
+      return { ok: false, message: "Credenciais ausentes ou em formato inválido." };
+    }
+    try {
+      const body = new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: creds.appId,
+        client_secret: creds.clientSecret,
+      });
+      const res = await fetch("https://api.mercadolibre.com/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        body,
+      });
+      const json = (await res.json()) as { access_token?: string; error?: string };
+      if (json.access_token) {
+        await upsertCredentials(ctx.user.id, {
+          status: "connected",
+          statusMessage: "Conexão bem-sucedida.",
+          accessToken: json.access_token,
+          tokenExpiresAt: Date.now() + 3600 * 1000,
+        });
+        return { ok: true, message: "Conexão bem-sucedida com a API do Mercado Livre." };
+      }
+      await upsertCredentials(ctx.user.id, {
+        status: "error",
+        statusMessage: `Falha: ${json.error ?? "desconhecida"}`,
+      });
+      return { ok: false, message: `Falha na autenticação: ${json.error ?? "desconhecida"}` };
+    } catch (err) {
+      await upsertCredentials(ctx.user.id, {
+        status: "error",
+        statusMessage: String(err),
+      });
+      return { ok: false, message: `Erro de rede: ${String(err)}` };
+    }
+  }),
+
+  // ---- Monitoring schedule (Heartbeat cron) ------------------------------
+
+  getSchedule: protectedProcedure.query(async () => {
+    const config = await getAppConfig();
+    return {
+      enabled: Boolean(config?.monitoringCronTaskUid),
+      taskUid: config?.monitoringCronTaskUid ?? null,
+      thresholds: (config?.alertThresholds as any) ?? null,
+    };
+  }),
+
+  /**
+   * Enable/disable the recurring monitoring cron. The cron hits
+   * /api/scheduled/monitor on the deployed site. Requires the site to be
+   * deployed (dev sandboxes are unreachable by the platform).
+   */
+  setSchedule: protectedProcedure
+    .input(
+      z.object({
+        enabled: z.boolean(),
+        cron: z.string().default("0 0 */6 * * *"), // every 6 hours UTC
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      const config = await getAppConfig();
+      const existingUid = config?.monitoringCronTaskUid ?? null;
+
+      if (input.enabled) {
+        if (existingUid) {
+          await updateHeartbeatJob(existingUid, { cron: input.cron, enable: true }, sessionToken);
+          return { enabled: true, taskUid: existingUid };
+        }
+        const job = await createHeartbeatJob(
+          {
+            name: "ml-monitoring",
+            cron: input.cron,
+            path: "/api/scheduled/monitor",
+            description: "Monitoramento contínuo de produtos do Mercado Livre",
+          },
+          sessionToken,
+        );
+        await upsertAppConfig({ monitoringCronTaskUid: job.taskUid });
+        return { enabled: true, taskUid: job.taskUid };
+      } else {
+        if (existingUid) {
+          await deleteHeartbeatJob(existingUid, sessionToken);
+          await upsertAppConfig({ monitoringCronTaskUid: null });
+        }
+        return { enabled: false, taskUid: null };
+      }
+    }),
+
+  /** Persist alert thresholds. */
+  setThresholds: protectedProcedure
+    .input(
+      z.object({
+        priceChangePercent: z.number().min(1).max(100),
+        salesSurgePercent: z.number().min(1).max(500),
+        positionChange: z.number().int().min(1).max(50),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await upsertAppConfig({ alertThresholds: input });
+      return { success: true };
+    }),
+});

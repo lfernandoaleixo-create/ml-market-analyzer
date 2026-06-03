@@ -1,0 +1,45 @@
+# ML Market Analyzer - TODO
+
+## Fundação
+- [x] Definir design system elegante (cores, tipografia, espaçamento) no index.css e index.html
+- [x] Definir schema do banco de dados (produtos monitorados, snapshots históricos, alertas, config de credenciais)
+- [x] Gerar e aplicar migrações
+
+## Camada de Integração ML
+- [x] Serviço de integração com a API do Mercado Livre (busca, item, categorias, tendências)
+- [x] Configuração centralizada de credenciais (App ID/Secret) facilmente substituível
+- [x] Provedor plugável: OfficialApiProvider (OAuth, pronto p/ futuro) + DemoDataProvider (dados realistas agora)
+- [x] Seleção automática de provedor baseada em credenciais configuradas
+- [x] Algoritmo de cálculo de "potencial" (crescimento de vendas, relação preço/avaliação, demanda)
+
+## Backend (tRPC)
+- [x] Procedure de busca de produtos por palavra-chave/categoria
+- [x] Procedure de ranking de mais vendidos por categoria (filtros e ordenação)
+- [x] Procedure de identificação de produtos com alto potencial
+- [x] Procedure de comparação lado a lado de produtos similares
+- [x] Procedure de listagem de categorias e tendências
+- [x] Procedures de produtos monitorados (salvar, listar, remover)
+- [x] Procedures de histórico (snapshots) e alertas
+
+## Frontend
+- [x] Layout com navegação lateral (DashboardLayout) e tema sofisticado
+- [x] Página Home / Dashboard (visão geral, mais vendidos, oportunidades)
+- [x] Página de Busca de produtos com resultados detalhados
+- [x] Página de Categorias (navegação + tendências por categoria)
+- [x] Página de Oportunidades (produtos com alto potencial + explicação dos critérios)
+- [x] Página de Comparação lado a lado
+- [x] Página de Monitoramento (produtos salvos + gráficos históricos)
+- [x] Página de Alertas
+- [x] Página de Configurações (credenciais do ML + cron + limiares)
+
+## Monitoramento e Alertas
+- [x] Cron job (Heartbeat) que registra snapshots de preço/vendas/posição
+- [x] Detecção de variação significativa e geração de alertas
+- [x] Gráficos de tendência histórica (preço, vendas, posição)
+- [x] Backfill de histórico ao adicionar produto (modo demo) p/ gráficos imediatos
+
+## Qualidade
+- [x] Testes vitest para procedures principais (28 testes passando)
+- [x] Validação do fluxo de dados via caller tRPC (end-to-end demo)
+- [x] Ordenação server-side no ranking (vendas, preço, avaliação)
+- [x] Checkpoint e entrega
