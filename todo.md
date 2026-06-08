@@ -54,8 +54,14 @@
 - [x] Seleção automática do provedor oficial quando houver token válido
 - [x] Tela de Configurações: botão "Conectar ao Mercado Livre" + status da conexão (Pendente/Conectado)
 - [x] UI segura para inserir App ID + Client Secret (campos + salvar) na tela de Configurações
-- [ ] Usuário inserir o Client Secret real e salvar (pendente — secret não deve ser compartilhado no chat)
-- [ ] Usuário concluir o fluxo OAuth (botão Conectar) e validar dados ao vivo (pendente do usuário)
+- [x] Usuário inseriu o Client Secret real e salvou as credenciais
+- [x] Usuário concluiu o fluxo OAuth (autorizou no ML) — status "Conectado / Ao Vivo" confirmado
 - [x] Checkpoint da integração OAuth real
 - [x] Travar redirect_uri no domínio público canônico (corrige erro "não foi possível conectar")
 - [x] Corrigir erro de UI "removeChild" causado pela tradução automática do navegador (lang=pt-BR + notranslate + patch defensivo no DOM)
+
+## BUG CRÍTICO: busca exibe dados de demonstração apesar de OAuth conectado
+- [ ] Diagnosticar por que provider.search cai no fallback demo mesmo com token OAuth válido
+- [ ] Corrigir chamada real à API oficial (search/bestSellers/categories) e mapeamento
+- [ ] Garantir que o banner só diga "dados reais" quando os dados realmente vierem da API
+- [ ] Testar com dados reais e publicar

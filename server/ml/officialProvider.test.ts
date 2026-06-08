@@ -33,28 +33,39 @@ describe("OfficialProvider", () => {
     expect(provider.mode).toBe("demo");
   });
 
-  it("returns real results when the search endpoint succeeds", async () => {
+  it("returns real catalog results enriched with the cheapest live price", async () => {
     vi.stubGlobal(
       "fetch",
       mockFetch((url) => {
         if (url.includes("/oauth/token")) {
           return { body: { access_token: "TOKEN", expires_in: 3600 } };
         }
-        if (url.includes("/search")) {
+        if (url.includes("/products/search")) {
           return {
             body: {
               paging: { total: 1 },
               results: [
                 {
                   id: "MLB123",
-                  title: "Produto real",
-                  price: 100,
-                  currency_id: "BRL",
-                  thumbnail: "x",
-                  permalink: "y",
-                  category_id: "MLB1",
-                  seller: { id: 1, nickname: "loja" },
+                  name: "Produto real",
+                  pictures: [{ url: "https://img/x.jpg" }],
+                  attributes: [{ id: "BRAND", name: "Marca", value_name: "Acme" }],
                 },
+              ],
+            },
+          };
+        }
+        // product detail has no buy_box → forces /items enrichment
+        if (/\/products\/MLB123$/.test(url)) {
+          return { body: { id: "MLB123", name: "Produto real", buy_box_winner: null } };
+        }
+        if (url.includes("/products/MLB123/items")) {
+          return {
+            body: {
+              paging: { total: 2 },
+              results: [
+                { item_id: "MLBA", price: 250, currency_id: "BRL", condition: "new" },
+                { item_id: "MLBB", price: 199.9, currency_id: "BRL", condition: "new" },
               ],
             },
           };
@@ -67,16 +78,17 @@ describe("OfficialProvider", () => {
     const res = await provider.search({ keyword: "teste" });
     expect(res.products[0].id).toBe("MLB123");
     expect(res.products[0].title).toBe("Produto real");
+    // cheapest of the two live offers
+    expect(res.products[0].price).toBe(199.9);
   });
 
-  it("falls back to demo data when the search endpoint is forbidden (403)", async () => {
+  it("falls back to demo data when products/search is forbidden (403)", async () => {
     vi.stubGlobal(
       "fetch",
       mockFetch((url) => {
         if (url.includes("/oauth/token")) {
           return { body: { access_token: "TOKEN", expires_in: 3600 } };
         }
-        // Simulate ML restricting /search for client_credentials apps.
         return { ok: false, status: 403, body: { message: "forbidden" } };
       }),
     );
@@ -85,6 +97,37 @@ describe("OfficialProvider", () => {
     const res = await provider.search({ keyword: "notebook" });
     // Demo provider always returns a non-empty product list.
     expect(res.products.length).toBeGreaterThan(0);
+  });
+
+  it("builds best sellers from highlights and resolves product names", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url) => {
+        if (url.includes("/oauth/token")) {
+          return { body: { access_token: "TOKEN", expires_in: 3600 } };
+        }
+        if (url.includes("/highlights/")) {
+          return {
+            body: {
+              content: [
+                { id: "MLB1", position: 1, type: "PRODUCT" },
+                { id: "MLB2", position: 2, type: "USER_PRODUCT" },
+              ],
+            },
+          };
+        }
+        if (/\/products\/MLB1$/.test(url)) {
+          return { body: { id: "MLB1", name: "Top seller", buy_box_winner: { price: 99 } } };
+        }
+        return { ok: false, status: 404, body: {} };
+      }),
+    );
+
+    const provider = getProvider(VALID_CREDS);
+    const res = await provider.getBestSellers!({ categoryId: "MLB1051", limit: 5 });
+    expect(res.products.length).toBe(1);
+    expect(res.products[0].title).toBe("Top seller");
+    expect(res.products[0].price).toBe(99);
   });
 
   it("falls back to demo when getProduct fails on the official API", async () => {

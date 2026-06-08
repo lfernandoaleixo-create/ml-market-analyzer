@@ -1,6 +1,7 @@
 import type { MlCategory, MlProduct, MlSearchResult, MlTrend } from "@shared/ml";
 import { ML_SITE_ID } from "@shared/ml";
 import {
+  DEMO_CATEGORIES,
   findDemoProductById,
   generateProducts,
   getDemoCategories,
@@ -12,10 +13,10 @@ import { hasValidMlCredentialFormat, type MlCredentials } from "./credentials";
  * Provider-agnostic interface for all Mercado Livre data access.
  *
  * Two implementations share this contract:
- *  - DemoProvider: deterministic realistic data (active now)
- *  - OfficialProvider: official ML REST API via OAuth (active once credentials
- *    are configured). The rest of the app NEVER talks to ML directly — it goes
- *    through this interface, so switching providers is transparent.
+ *  - DemoProvider: deterministic realistic data (fallback)
+ *  - OfficialProvider: official ML REST API via OAuth. The rest of the app
+ *    NEVER talks to ML directly — it goes through this interface, so switching
+ *    providers is transparent.
  */
 export interface MercadoLivreProvider {
   readonly mode: "demo" | "official";
@@ -23,6 +24,8 @@ export interface MercadoLivreProvider {
   getCategories(): Promise<MlCategory[]>;
   getTrends(categoryId?: string): Promise<MlTrend[]>;
   getProduct(itemId: string): Promise<MlProduct | null>;
+  /** Best-seller ranking for a category (resolved from official highlights). */
+  getBestSellers?(opts: { categoryId?: string; limit?: number }): Promise<MlSearchResult>;
 }
 
 // ---- Demo provider -------------------------------------------------------
@@ -59,21 +62,28 @@ class DemoProvider implements MercadoLivreProvider {
 // ---- Official provider (OAuth) ------------------------------------------
 
 /**
- * Official Mercado Livre provider. Fully wired for the day credentials become
- * available. It obtains an app token via client_credentials and calls the
- * official endpoints. If any call fails (e.g. ML policy changes), it throws,
- * and the resolver falls back to the demo provider so the app never breaks.
+ * Official Mercado Livre provider.
+ *
+ * Endpoint reality (validated against the live API for client_credentials +
+ * user OAuth tokens, June 2026):
+ *  - `/sites/MLB/search`          → HTTP 403 forbidden (DISCONTINUED for apps)
+ *  - `/products/search`           → HTTP 200 (catalog: name, brand, pictures)
+ *  - `/products/{id}`             → HTTP 200 (buy_box_winner has price/sold when present)
+ *  - `/highlights/MLB/category/{id}` → HTTP 200 (best-seller product ids)
+ *  - `/sites/MLB/categories`      → HTTP 200 (real category tree)
+ *  - `/trends/MLB`                → HTTP 200 (real trending keywords)
+ *  - `/items?ids=...` (multiget)  → HTTP 200 (price, sold_quantity, thumbnail)
+ *
+ * So search/best-sellers are built on the catalog + highlights endpoints, and
+ * enriched with live listing data (buy_box / items multiget) when available.
+ * Each method tries the real path and only falls back to demo data if the real
+ * call genuinely fails, so the app never breaks.
  */
 class OfficialProvider implements MercadoLivreProvider {
   readonly mode = "official" as const;
   private creds: MlCredentials;
   private siteId: string;
   private token: { value: string; expiresAt: number } | null = null;
-  /**
-   * Optional resolver for a user-level OAuth token (Authorization Code flow).
-   * When provided and it returns a token, it takes precedence over the
-   * app-level client_credentials token because it has broader access.
-   */
   private userTokenResolver?: () => Promise<string | null>;
 
   constructor(
@@ -105,7 +115,7 @@ class OfficialProvider implements MercadoLivreProvider {
       headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       body,
     });
-    const json = (await res.json()) as { access_token?: string; expires_in?: number; error?: string };
+    const json = (await res.json()) as { access_token?: string; expires_in?: number };
     if (!json.access_token) {
       throw new Error(`ML OAuth failed: ${JSON.stringify(json)}`);
     }
@@ -137,7 +147,61 @@ class OfficialProvider implements MercadoLivreProvider {
     }
   }
 
+  // -- mapping helpers -----------------------------------------------------
+
+  private categoryName(id?: string | null): string {
+    if (!id) return "";
+    return DEMO_CATEGORIES.find((c) => c.id === id)?.name ?? "";
+  }
+
+  /** Build an MlProduct from a catalog product, enriched with buy_box data. */
+  private mapCatalogProduct(raw: any, buyBox?: any): MlProduct {
+    const pic = Array.isArray(raw.pictures) && raw.pictures.length ? raw.pictures[0].url : "";
+    const brandAttr = Array.isArray(raw.attributes)
+      ? raw.attributes.find((a: any) => a.id === "BRAND")
+      : null;
+    const attrs: { name: string; value: string }[] = Array.isArray(raw.attributes)
+      ? raw.attributes
+          .filter((a: any) => a.name && (a.value_name ?? a.value))
+          .slice(0, 8)
+          .map((a: any) => ({ name: a.name, value: a.value_name ?? String(a.value) }))
+      : [];
+
+    const categoryId = raw.category_id ?? buyBox?.category_id ?? "";
+    return {
+      id: raw.id,
+      title: raw.name ?? raw.title ?? "",
+      price: buyBox?.price ?? 0,
+      originalPrice: buyBox?.original_price ?? null,
+      currency: buyBox?.currency_id ?? "BRL",
+      soldQuantity: buyBox?.sold_quantity ?? 0,
+      availableQuantity: buyBox?.available_quantity ?? 0,
+      condition: buyBox?.condition ?? "new",
+      thumbnail: (buyBox?.thumbnail ?? pic ?? "").replace(/^http:/, "https:"),
+      pictureCount: Array.isArray(raw.pictures) ? raw.pictures.length : 1,
+      permalink: buyBox?.permalink ?? raw.permalink ?? "",
+      freeShipping: Boolean(buyBox?.shipping?.free_shipping),
+      officialStore: Boolean(buyBox?.official_store_id),
+      catalogPosition: null,
+      rating: 0,
+      reviewsCount: 0,
+      categoryId,
+      categoryName: this.categoryName(categoryId),
+      seller: {
+        id: String(buyBox?.seller_id ?? ""),
+        nickname: brandAttr?.value_name ?? "",
+        reputationLevel: "",
+        powerSellerStatus: null,
+        transactions: 0,
+        positiveRatingRatio: 0.9,
+      },
+      attributes: attrs,
+    };
+  }
+
+  /** Map an `/items` listing (multiget body) to MlProduct. */
   private mapItem(raw: any): MlProduct {
+    const categoryId = raw.category_id ?? "";
     return {
       id: raw.id,
       title: raw.title,
@@ -146,19 +210,19 @@ class OfficialProvider implements MercadoLivreProvider {
       currency: raw.currency_id ?? "BRL",
       soldQuantity: raw.sold_quantity ?? 0,
       availableQuantity: raw.available_quantity ?? 0,
-      condition: raw.condition ?? "not_specified",
-      thumbnail: raw.thumbnail ?? "",
+      condition: raw.condition ?? "new",
+      thumbnail: (raw.thumbnail ?? "").replace(/^http:/, "https:"),
       pictureCount: Array.isArray(raw.pictures) ? raw.pictures.length : 1,
       permalink: raw.permalink ?? "",
       freeShipping: Boolean(raw.shipping?.free_shipping),
       officialStore: Boolean(raw.official_store_id),
       catalogPosition: null,
-      rating: raw.reviews?.rating_average ?? 0,
-      reviewsCount: raw.reviews?.total ?? 0,
-      categoryId: raw.category_id ?? "",
-      categoryName: raw.category_name ?? "",
+      rating: 0,
+      reviewsCount: 0,
+      categoryId,
+      categoryName: this.categoryName(categoryId),
       seller: {
-        id: String(raw.seller?.id ?? ""),
+        id: String(raw.seller_id ?? raw.seller?.id ?? ""),
         nickname: raw.seller?.nickname ?? "",
         reputationLevel: raw.seller?.seller_reputation?.level_id ?? "",
         powerSellerStatus: raw.seller?.seller_reputation?.power_seller_status ?? null,
@@ -169,26 +233,110 @@ class OfficialProvider implements MercadoLivreProvider {
     };
   }
 
+  /**
+   * Fetch a catalog product detail and a synthetic "buy box" built from the
+   * cheapest live listing. The catalog `buy_box_winner` is frequently null for
+   * non-certified apps, so we resolve real price/shipping/seller from
+   * `/products/{id}/items` (the live offers attached to the catalog product).
+   */
+  private async fetchProductDetail(id: string): Promise<{ raw: any; buyBox: any } | null> {
+    const raw = await this.tryFetch(`https://api.mercadolibre.com/products/${id}`);
+    if (!raw || !raw.id) return null;
+
+    let buyBox = raw.buy_box_winner ?? null;
+    if (!buyBox || !buyBox.price) {
+      const offers = await this.tryFetch(
+        `https://api.mercadolibre.com/products/${id}/items`,
+      );
+      const results: any[] = Array.isArray(offers?.results) ? offers.results : [];
+      const priced = results.filter((o) => typeof o.price === "number" && o.price > 0);
+      if (priced.length > 0) {
+        priced.sort((a, b) => a.price - b.price);
+        const best = priced[0];
+        buyBox = {
+          price: best.price,
+          original_price: best.original_price ?? null,
+          currency_id: best.currency_id ?? "BRL",
+          available_quantity: best.available_quantity ?? 0,
+          sold_quantity: 0,
+          condition: best.condition ?? "new",
+          permalink: best.permalink ?? "",
+          thumbnail: "",
+          shipping: best.shipping ?? null,
+          official_store_id: best.official_store_id ?? null,
+          seller_id: best.seller_id ?? null,
+          category_id: best.category_id ?? null,
+          offers_count: priced.length,
+        };
+      }
+    }
+    return { raw, buyBox };
+  }
+
+  // -- public API ----------------------------------------------------------
+
   async search(opts: { keyword?: string; categoryId?: string; limit?: number }): Promise<MlSearchResult> {
-    const params = new URLSearchParams();
+    const limit = Math.min(opts.limit ?? 30, 50);
+    const params = new URLSearchParams({ status: "active", site_id: this.siteId });
     if (opts.keyword) params.set("q", opts.keyword);
-    if (opts.categoryId) params.set("category", opts.categoryId);
-    params.set("limit", String(opts.limit ?? 30));
-    // ML restricts /search for many client_credentials apps (HTTP 403 since 2025).
-    // On failure, fall back to demo data for THIS method only so the UI keeps working.
     const data = await this.tryFetch(
-      `https://api.mercadolibre.com/sites/${this.siteId}/search?${params.toString()}`,
+      `https://api.mercadolibre.com/products/search?${params.toString()}&limit=${limit}`,
     );
-    if (!data || !Array.isArray(data.results)) {
+    const results: any[] = Array.isArray(data?.results) ? data.results : [];
+    if (results.length === 0) {
+      // Real call failed or returned nothing → keep the UI working with demo.
       return demoSingleton.search(opts);
     }
-    const products = (data.results ?? []).map((r: any, i: number) => {
-      const p = this.mapItem(r);
-      p.catalogPosition = i + 1;
-      return p;
-    });
-    if (products.length === 0) return demoSingleton.search(opts);
-    return { query: opts.keyword ?? "", total: data.paging?.total ?? products.length, products };
+
+    // Enrich each catalog product with buy_box price/sold (in parallel, capped).
+    const enriched = await Promise.all(
+      results.slice(0, limit).map(async (r, i) => {
+        const detail = await this.fetchProductDetail(r.id);
+        const product = this.mapCatalogProduct(detail?.raw ?? r, detail?.buyBox);
+        product.catalogPosition = i + 1;
+        return product;
+      }),
+    );
+
+    return {
+      query: opts.keyword ?? "",
+      total: data.paging?.total ?? enriched.length,
+      products: enriched,
+    };
+  }
+
+  async getBestSellers(opts: { categoryId?: string; limit?: number }): Promise<MlSearchResult> {
+    const limit = Math.min(opts.limit ?? 20, 30);
+    const categoryId = opts.categoryId || DEMO_CATEGORIES[0].id;
+    const data = await this.tryFetch(
+      `https://api.mercadolibre.com/highlights/${this.siteId}/category/${categoryId}`,
+    );
+    const content: any[] = Array.isArray(data?.content) ? data.content : [];
+    const productIds = content
+      .filter((c) => c.type === "PRODUCT")
+      .slice(0, limit)
+      .map((c) => ({ id: c.id, position: c.position }));
+
+    if (productIds.length === 0) {
+      // Highlights unavailable → fall back to a catalog search for the category.
+      return demoSingleton.search({ categoryId, limit });
+    }
+
+    const products = await Promise.all(
+      productIds.map(async (p) => {
+        const detail = await this.fetchProductDetail(p.id);
+        if (!detail) return null;
+        const product = this.mapCatalogProduct(detail.raw, detail.buyBox);
+        product.catalogPosition = p.position;
+        product.categoryId = categoryId;
+        product.categoryName = this.categoryName(categoryId);
+        return product;
+      }),
+    );
+
+    const clean = products.filter((p): p is MlProduct => Boolean(p));
+    if (clean.length === 0) return demoSingleton.search({ categoryId, limit });
+    return { query: "", total: clean.length, products: clean };
   }
 
   async getCategories(): Promise<MlCategory[]> {
@@ -198,12 +346,15 @@ class OfficialProvider implements MercadoLivreProvider {
     if (!Array.isArray(data) || data.length === 0) {
       return demoSingleton.getCategories();
     }
-    return data.map((c: any) => ({
-      id: c.id,
-      name: c.name,
-      totalItems: 0,
-      demandIndex: 70,
-    }));
+    return data.map((c: any) => {
+      const known = DEMO_CATEGORIES.find((d) => d.id === c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        totalItems: known?.totalItems ?? 0,
+        demandIndex: known?.demandIndex ?? 70,
+      };
+    });
   }
 
   async getTrends(categoryId?: string): Promise<MlTrend[]> {
@@ -216,17 +367,23 @@ class OfficialProvider implements MercadoLivreProvider {
     }
     return data.map((t: any, i: number) => ({
       keyword: t.keyword,
-      volumeIndex: Math.max(0, 100 - i * 4),
+      volumeIndex: Math.max(5, 100 - i * 4),
       changePercent: 0,
     }));
   }
 
   async getProduct(itemId: string): Promise<MlProduct | null> {
-    const raw = await this.tryFetch(`https://api.mercadolibre.com/items/${itemId}`);
-    if (!raw || !raw.id) {
-      return demoSingleton.getProduct(itemId);
+    // Catalog product ids look like "MLB12345678"; listing ids too. Try catalog
+    // first (richer), then fall back to a listing item, then demo.
+    const detail = await this.fetchProductDetail(itemId);
+    if (detail) {
+      return this.mapCatalogProduct(detail.raw, detail.buyBox);
     }
-    return this.mapItem(raw);
+    const item = await this.tryFetch(`https://api.mercadolibre.com/items/${itemId}`);
+    if (item && item.id) {
+      return this.mapItem(item);
+    }
+    return demoSingleton.getProduct(itemId);
   }
 }
 
@@ -237,9 +394,6 @@ const demoSingleton = new DemoProvider();
 /**
  * Resolve the active provider. When valid credentials are supplied (from DB or
  * env), the official provider is returned; otherwise the demo provider.
- *
- * Callers that want resilience can use `getResilientProvider`, which probes the
- * official provider and falls back to demo on failure.
  */
 export function getProvider(
   creds?: MlCredentials | null,

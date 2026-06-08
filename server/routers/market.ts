@@ -34,6 +34,22 @@ function categoryById(id?: string | null): MlCategory {
   return DEMO_CATEGORIES.find((c) => c.id === id) ?? DEMO_CATEGORIES[0];
 }
 
+/**
+ * List products for a category. When the official provider is active it uses
+ * the real best-seller ranking (highlights); otherwise it uses search. Both
+ * paths already fall back to demo data internally if the live call fails.
+ */
+async function listByCategory(
+  provider: Awaited<ReturnType<typeof providerForUser>>,
+  categoryId?: string,
+  limit = 30,
+) {
+  if (provider.mode === "official" && typeof provider.getBestSellers === "function") {
+    return provider.getBestSellers({ categoryId, limit });
+  }
+  return provider.search({ categoryId, limit });
+}
+
 export const marketRouter = router({
   /** Provider mode + credential status, used to show the data-source banner. */
   status: publicProcedure.query(async ({ ctx }) => {
@@ -109,10 +125,7 @@ export const marketRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const provider = await providerForUser(ctx.user?.id);
-      const result = await provider.search({
-        categoryId: input.categoryId,
-        limit: input.limit ?? 20,
-      });
+      const result = await listByCategory(provider, input.categoryId, input.limit ?? 20);
       const ranked = [...result.products];
       switch (input.sortBy) {
         case "price_asc":
@@ -154,10 +167,7 @@ export const marketRouter = router({
     .query(async ({ ctx, input }) => {
       const provider = await providerForUser(ctx.user?.id);
       const category = categoryById(input.categoryId);
-      const result = await provider.search({
-        categoryId: input.categoryId,
-        limit: 30,
-      });
+      const result = await listByCategory(provider, input.categoryId, 30);
       const ranked = rankByPotential(result.products, category);
       return {
         category,
@@ -173,7 +183,7 @@ export const marketRouter = router({
       const product = await provider.getProduct(input.itemId);
       if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Produto não encontrado." });
       const category = categoryById(input.categoryId ?? product.categoryId);
-      const result = await provider.search({ categoryId: category.id, limit: 30 });
+      const result = await listByCategory(provider, category.id, 30);
       const ranked = rankByPotential([product, ...result.products], category);
       const found = ranked.find((a) => a.product.id === product.id) ?? ranked[0];
       return found;
