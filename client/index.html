@@ -1,11 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 
   <head>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- A interface já está em português. Desabilitamos a tradução automática do navegador
+         porque ela manipula os nós de texto do DOM e entra em conflito com o React 19,
+         causando erros do tipo "NotFoundError: removeChild". -->
+    <meta name="google" content="notranslate" />
     <title>Mercato — Inteligência de Mercado para o Mercado Livre</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

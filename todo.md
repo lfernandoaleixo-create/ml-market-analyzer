@@ -57,3 +57,5 @@
 - [ ] Usuário inserir o Client Secret real e salvar (pendente — secret não deve ser compartilhado no chat)
 - [ ] Usuário concluir o fluxo OAuth (botão Conectar) e validar dados ao vivo (pendente do usuário)
 - [x] Checkpoint da integração OAuth real
+- [x] Travar redirect_uri no domínio público canônico (corrige erro "não foi possível conectar")
+- [x] Corrigir erro de UI "removeChild" causado pela tradução automática do navegador (lang=pt-BR + notranslate + patch defensivo no DOM)
