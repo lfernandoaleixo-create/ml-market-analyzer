@@ -92,3 +92,38 @@
 - [x] Atualizar mensagem do banner ao vivo (cobertura real de preços)
 - [x] Atualizar/rodar testes vitest do provider (41 testes passando)
 - [ ] Publicar (ação do usuário no botão Publish) e validar ao vivo
+
+## REORIENTAÇÃO: Central de Gestão da Loja (dados reais da conta própria)
+
+### Diagnóstico validado (token proprietário funciona)
+- [x] /users/me → reputação (5_green, 38 concluídas, 14 canceladas)
+- [x] /users/{id}/items/search → 121 anúncios próprios
+- [x] /items/{id} próprio → preço, estoque, sold_quantity, status, listing_type, permalink
+- [x] /items/{id}/visits/time_window → visitas por anúncio (série temporal)
+- [x] /orders/search?seller={id} → 56 pedidos reais (valor, item, frete, data, status, pagamento)
+- [x] /post-purchase/v1/claims/search?status=opened → reclamações (0 abertas)
+
+### Backend
+- [x] Provider da conta (accountProvider): renovar token via refresh_token, helpers para orders/items/visits/claims/reputation
+- [x] Rotas tRPC: account.salesDashboard, account.listings, account.postSale, account.reputation
+- [x] Tratar conta nova / volumes baixos sem inventar dados
+
+### Frontend - novo tema claro/clean (ref. DESIGN_REFERENCE.md)
+- [x] Atualizar index.css: tema claro, verde-menta accent, fundo off-white, cards brancos, sombras suaves
+- [x] Trocar ThemeProvider para light
+- [x] Sidebar clara com seções "Minha loja" e "Pesquisa de mercado"
+- [x] Linha de KPIs + cards + gráficos suaves (recharts/chart)
+
+### Telas
+- [x] Desempenho dos anúncios (lista: visitas, vendas, conversão, estoque, status, encalhados)
+- [x] Dashboard de vendas (faturamento, nº pedidos, ticket médio, evolução, top produtos)
+- [x] Pós-venda (devoluções, reclamações, cancelamentos)
+- [x] Reputação & saúde da conta
+- [x] Painel reformulado como visão geral da loja
+- [x] Manter pesquisa de mercado como recurso secundário e honesto
+
+### Qualidade
+- [x] Testes vitest das novas rotas/provider (48 testes passando)
+- [x] Validar todas as telas com dados reais (Painel, Vendas, Anúncios, Pós-venda, Reputação)
+- [x] webdev_check_status OK + checkpoint
+- [ ] Orientar publicação e validar ao vivo

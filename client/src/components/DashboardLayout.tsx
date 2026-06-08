@@ -33,23 +33,55 @@ import {
   Settings,
   Sparkles,
   TrendingUp,
+  Store,
+  ShoppingBag,
+  Package,
+  Undo2,
+  Award,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 
-const menuItems = [
-  { icon: LayoutGrid, label: "Painel", path: "/" },
-  { icon: Search, label: "Buscar produtos", path: "/buscar" },
-  { icon: TrendingUp, label: "Mais vendidos", path: "/mais-vendidos" },
-  { icon: Sparkles, label: "Oportunidades", path: "/oportunidades" },
-  { icon: GitCompareArrows, label: "Comparar", path: "/comparar" },
-  { icon: BarChart3, label: "Categorias", path: "/categorias" },
-  { icon: LineChart, label: "Monitoramento", path: "/monitoramento" },
-  { icon: Bell, label: "Alertas", path: "/alertas" },
-  { icon: Settings, label: "Configurações", path: "/configuracoes" },
+type MenuItem = { icon: typeof LayoutGrid; label: string; path: string };
+type MenuGroup = { title: string | null; items: MenuItem[] };
+
+const menuGroups: MenuGroup[] = [
+  {
+    title: null,
+    items: [{ icon: LayoutGrid, label: "Painel", path: "/" }],
+  },
+  {
+    title: "Minha loja",
+    items: [
+      { icon: ShoppingBag, label: "Vendas", path: "/vendas" },
+      { icon: Package, label: "Meus anúncios", path: "/anuncios" },
+      { icon: Undo2, label: "Pós-venda", path: "/pos-venda" },
+      { icon: Award, label: "Reputação", path: "/reputacao" },
+    ],
+  },
+  {
+    title: "Pesquisa de mercado",
+    items: [
+      { icon: TrendingUp, label: "Mais vendidos", path: "/mais-vendidos" },
+      { icon: Search, label: "Buscar produtos", path: "/buscar" },
+      { icon: Sparkles, label: "Oportunidades", path: "/oportunidades" },
+      { icon: GitCompareArrows, label: "Comparar", path: "/comparar" },
+      { icon: BarChart3, label: "Categorias", path: "/categorias" },
+      { icon: LineChart, label: "Monitoramento", path: "/monitoramento" },
+    ],
+  },
+  {
+    title: null,
+    items: [
+      { icon: Bell, label: "Alertas", path: "/alertas" },
+      { icon: Settings, label: "Configurações", path: "/configuracoes" },
+    ],
+  },
 ];
+
+const menuItems: MenuItem[] = menuGroups.flatMap((g) => g.items);
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 268;
@@ -91,16 +123,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen surface-grain">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full animate-rise">
           <Wordmark />
           <div className="flex flex-col items-center gap-3">
-            <h1 className="text-3xl font-display font-600 tracking-tight text-center">
-              Inteligência de mercado para o Mercado Livre
+            <h1 className="text-3xl font-display font-700 tracking-tight text-center">
+              Central de gestão da sua loja no Mercado Livre
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm leading-relaxed">
-              Descubra os produtos mais vendidos, identifique oportunidades de
-              curto prazo e entenda por que um anúncio vende mais que o outro.
+              Acompanhe vendas, desempenho dos seus anúncios, pós-venda e
+              reputação — com dados reais da sua conta, em um só lugar.
             </p>
           </div>
           <Button
@@ -192,28 +224,37 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-3 gap-0.5">
-              {menuItems.map((item) => {
-                const isActive = location === item.path;
-                const showBadge = item.path === "/alertas" && unread > 0;
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className="h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
-                    >
-                      <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
-                      <span>{item.label}</span>
-                      {showBadge && (
-                        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
-                          {unread}
-                        </span>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {menuGroups.map((group, gi) => (
+                <div key={gi} className="mb-1">
+                  {group.title && !isCollapsed && (
+                    <p className="px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+                      {group.title}
+                    </p>
+                  )}
+                  {group.items.map((item) => {
+                    const isActive = location === item.path;
+                    const showBadge = item.path === "/alertas" && unread > 0;
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => setLocation(item.path)}
+                          tooltip={item.label}
+                          className="h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
+                        >
+                          <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                          <span>{item.label}</span>
+                          {showBadge && (
+                            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+                              {unread}
+                            </span>
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </div>
+              ))}
             </SidebarMenu>
           </SidebarContent>
 

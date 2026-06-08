@@ -72,3 +72,33 @@ export function scoreColor(score: number): string {
   if (score >= 50) return "text-amber-500";
   return "text-muted-foreground";
 }
+
+/** Percentage from a 0..1 fraction (e.g. conversion). Returns em dash when null. */
+export function formatRatePct(value: number | null | undefined, digits = 1): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${(value * 100).toFixed(digits)}%`;
+}
+
+export function formatDateShort(ms: number): string {
+  return new Date(ms).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+export function formatDateTime(ms: number): string {
+  return new Date(ms).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** Map an ISO date (yyyy-mm-dd) to a short pt-BR label. */
+export function isoDateToShort(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+  });
+}

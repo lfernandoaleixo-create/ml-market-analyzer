@@ -6,6 +6,10 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import DashboardLayout from "./components/DashboardLayout";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Painel from "./pages/Painel";
+import Vendas from "./pages/Vendas";
+import Anuncios from "./pages/Anuncios";
+import PosVenda from "./pages/PosVenda";
+import Reputacao from "./pages/Reputacao";
 import Buscar from "./pages/Buscar";
 import MaisVendidos from "./pages/MaisVendidos";
 import Oportunidades from "./pages/Oportunidades";
@@ -20,6 +24,10 @@ function Router() {
     <DashboardLayout>
       <Switch>
         <Route path="/" component={Painel} />
+        <Route path="/vendas" component={Vendas} />
+        <Route path="/anuncios" component={Anuncios} />
+        <Route path="/pos-venda" component={PosVenda} />
+        <Route path="/reputacao" component={Reputacao} />
         <Route path="/buscar" component={Buscar} />
         <Route path="/mais-vendidos" component={MaisVendidos} />
         <Route path="/oportunidades" component={Oportunidades} />
@@ -38,7 +46,7 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
           <Router />

@@ -1,208 +1,279 @@
-import { DataSourceBanner, PageContainer, PageHeader, ScoreRing } from "@/components/market/Common";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { formatBRL, formatCompact, formatPercent, verdictMeta } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
 import {
+  PageShell,
+  PageHeader,
+  KpiCard,
+  KpiSkeletonRow,
+  SectionCard,
+  NotConnected,
+} from "@/components/account/AccountUI";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import {
+  formatBRL,
+  formatNumber,
+  formatCompact,
+  isoDateToShort,
+  reputationLabel,
+  reputationColor,
+} from "@/lib/format";
+import {
+  Area,
+  AreaChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from "recharts";
+import {
+  DollarSign,
+  ShoppingBag,
+  Package,
+  Star,
   ArrowUpRight,
-  Bell,
-  Flame,
-  LineChart,
-  Sparkles,
-  TrendingUp,
+  AlertCircle,
+  Search,
 } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Painel() {
-  const opportunities = trpc.market.opportunities.useQuery({ limit: 4 });
-  const bestSellers = trpc.market.bestSellers.useQuery({ limit: 5 });
-  const trends = trpc.market.trends.useQuery(undefined);
-  const monitored = trpc.monitor.list.useQuery();
-  const alerts = trpc.monitor.alerts.useQuery();
+  const conn = trpc.account.connection.useQuery();
+  const connected = conn.data?.connected === true;
 
-  const unread = (alerts.data ?? []).filter((a) => !a.isRead).length;
+  const sales = trpc.account.salesDashboard.useQuery({ days: 60 }, { enabled: connected });
+  const listings = trpc.account.listings.useQuery({ lastDays: 30 }, { enabled: connected });
+  const rep = trpc.account.reputation.useQuery(undefined, { enabled: connected });
+
+  if (conn.isLoading) {
+    return (
+      <PageShell>
+        <Skeleton className="h-9 w-72" />
+        <KpiSkeletonRow count={4} />
+      </PageShell>
+    );
+  }
+  if (conn.data && !connected) return <NotConnected />;
+
+  const k = sales.data?.kpis;
+  const s = listings.data?.summary;
+  const r = rep.data;
+  const chartData =
+    sales.data?.daily.map((d) => ({ ...d, label: isoDateToShort(d.date) })) ?? [];
+  const loadingSales = sales.isLoading;
 
   return (
-    <PageContainer>
+    <PageShell>
       <PageHeader
-        eyebrow="Visão geral"
-        title="Painel de inteligência"
-        description="Um panorama do mercado: oportunidades de curto prazo, líderes de venda, tendências de busca e o estado do seu monitoramento."
+        title={`Olá${conn.data?.nickname ? `, ${conn.data.nickname}` : ""}`}
+        subtitle="Visão geral da sua loja no Mercado Livre — vendas, anúncios e reputação em tempo real."
       />
 
-      <DataSourceBanner />
-
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          icon={Sparkles}
-          label="Oportunidades"
-          value={opportunities.isLoading ? null : String(opportunities.data?.analyses.length ?? 0)}
-          hint="alto potencial detectado"
-          to="/oportunidades"
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          label="Faturamento (60d)"
+          value={loadingSales ? "" : formatBRL(k?.revenue ?? 0)}
+          loading={loadingSales}
+          icon={DollarSign}
+          accent="emerald"
         />
-        <StatCard
-          icon={LineChart}
-          label="Monitorados"
-          value={monitored.isLoading ? null : String(monitored.data?.length ?? 0)}
-          hint="produtos acompanhados"
-          to="/monitoramento"
+        <KpiCard
+          label="Pedidos (60d)"
+          value={loadingSales ? "" : formatNumber(k?.orders ?? 0)}
+          loading={loadingSales}
+          icon={ShoppingBag}
+          accent="primary"
         />
-        <StatCard
-          icon={Bell}
-          label="Alertas"
-          value={alerts.isLoading ? null : String(unread)}
-          hint="não lidos"
-          to="/alertas"
+        <KpiCard
+          label="Anúncios ativos"
+          value={listings.isLoading ? "" : `${formatNumber(s?.active ?? 0)} / ${formatNumber(s?.total ?? 0)}`}
+          loading={listings.isLoading}
+          icon={Package}
+          accent="blue"
         />
-        <StatCard
-          icon={Flame}
-          label="Tendências"
-          value={trends.isLoading ? null : String(trends.data?.length ?? 0)}
-          hint="termos em alta"
-          to="/categorias"
+        <KpiCard
+          label="Reputação"
+          value={rep.isLoading ? "" : (r?.levelId ? reputationLabel(r.levelId).split(" ")[0] : "—")}
+          loading={rep.isLoading}
+          icon={Star}
+          accent="violet"
+          sublabel={r ? `${formatNumber(r.transactionsCompleted)} concluídas` : undefined}
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Opportunities */}
-        <Card className="lg:col-span-2 p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <h2 className="font-display text-lg font-600">Oportunidades em destaque</h2>
-            </div>
-            <Link href="/oportunidades" className="text-sm text-primary hover:underline">
-              Ver todas
+      <div className="grid gap-4 lg:grid-cols-3">
+        <SectionCard
+          title="Faturamento dos últimos 60 dias"
+          className="lg:col-span-2"
+          actions={
+            <Link href="/vendas" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              Ver vendas <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
-          </div>
-          <div className="space-y-3">
-            {opportunities.isLoading
-              ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
-              : opportunities.data?.analyses.map((a) => {
-                  const meta = verdictMeta(a.verdict);
-                  return (
-                    <div
-                      key={a.product.id}
-                      className="flex items-center gap-3 rounded-lg border border-border/70 p-3 transition-colors hover:bg-accent/40"
-                    >
-                      <ScoreRing score={a.potentialScore} size={48} />
-                      <img
-                        src={a.product.thumbnail}
-                        alt=""
-                        className="h-12 w-12 rounded-md object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{a.product.title}</p>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{formatBRL(a.product.price)}</span>
-                          <span>·</span>
-                          <span className="text-emerald-500">
-                            {formatPercent(a.salesGrowthPercent)} vendas
-                          </span>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className={meta.className}>
-                        {meta.label}
-                      </Badge>
-                    </div>
-                  );
-                })}
-          </div>
-        </Card>
+          }
+        >
+          {loadingSales ? (
+            <Skeleton className="h-56 w-full" />
+          ) : chartData.length === 0 ? (
+            <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
+              Sem vendas registradas no período.
+            </div>
+          ) : (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="revHome" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={28}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => [formatBRL(Number(v)), "Faturamento"]}
+                    contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", fontSize: 12 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="var(--primary)"
+                    strokeWidth={2.5}
+                    fill="url(#revHome)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </SectionCard>
 
-        {/* Trends */}
-        <Card className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            <h2 className="font-display text-lg font-600">Termos em alta</h2>
-          </div>
-          <div className="space-y-2.5">
-            {trends.isLoading
-              ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)
-              : trends.data?.slice(0, 9).map((t, i) => (
-                  <div key={t.keyword} className="flex items-center gap-3">
-                    <span className="w-4 text-xs font-medium text-muted-foreground">{i + 1}</span>
-                    <span className="flex-1 truncate text-sm capitalize">{t.keyword}</span>
-                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${t.volumeIndex}%` }} />
-                    </div>
-                  </div>
-                ))}
-          </div>
-        </Card>
+        <SectionCard
+          title="Saúde da conta"
+          actions={
+            <Link href="/reputacao" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              Detalhes <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          }
+        >
+          {rep.isLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Nível atual</p>
+                <p className="font-display text-lg tracking-tight">
+                  {r?.levelId ? reputationLabel(r.levelId) : "—"}
+                </p>
+                <div className="mt-2 flex gap-1">
+                  {["1_red", "2_orange", "3_yellow", "4_light_green", "5_green"].map((lvl) => (
+                    <div
+                      key={lvl}
+                      className={`h-2 flex-1 rounded-full ${lvl === r?.levelId ? reputationColor(lvl) : "bg-secondary"}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <MiniStat label="Concluídas" value={formatNumber(r?.transactionsCompleted ?? 0)} />
+                <MiniStat label="Canceladas" value={formatNumber(r?.transactionsCanceled ?? 0)} />
+                <MiniStat label="Positivas" value={formatNumber(r?.ratingsPositive ?? 0)} />
+                <MiniStat label="Negativas" value={formatNumber(r?.ratingsNegative ?? 0)} />
+              </div>
+            </div>
+          )}
+        </SectionCard>
       </div>
 
-      {/* Best sellers */}
-      <Card className="p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Flame className="h-4 w-4 text-primary" />
-            <h2 className="font-display text-lg font-600">Mais vendidos agora</h2>
-          </div>
-          <Link href="/mais-vendidos" className="text-sm text-primary hover:underline">
-            Ver ranking
-          </Link>
-        </div>
-        <div className="space-y-2">
-          {bestSellers.isLoading
-            ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)
-            : bestSellers.data?.products.map((p, i) => (
-                <div key={p.id} className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent/40">
-                  <span className="w-6 text-center font-display text-lg font-600 text-muted-foreground">
-                    {i + 1}
-                  </span>
-                  <img src={p.thumbnail} alt="" className="h-11 w-11 rounded-md object-cover" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <SectionCard
+          title="Top produtos (60 dias)"
+          className="lg:col-span-2"
+          actions={
+            <Link href="/anuncios" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              Meus anúncios <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          }
+        >
+          {loadingSales ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (sales.data?.topProducts.length ?? 0) === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Ainda sem vendas no período.
+            </p>
+          ) : (
+            <div className="divide-y">
+              {sales.data!.topProducts.slice(0, 5).map((p, i) => (
+                <div key={p.itemId} className="flex items-center gap-3 py-2.5">
+                  <span className="w-5 text-center text-sm font-semibold text-muted-foreground">{i + 1}</span>
+                  {p.thumbnail ? (
+                    <img src={p.thumbnail} alt="" className="h-10 w-10 rounded-lg object-cover bg-secondary" />
+                  ) : (
+                    <div className="h-10 w-10 rounded-lg bg-secondary" />
+                  )}
                   <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.title}</p>
-                  <div className="hidden text-right sm:block">
-                    <p className="text-sm font-medium">
-                      {p.priceAvailable !== false && p.price > 0 ? formatBRL(p.price) : "Sob consulta"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.salesAvailable !== false ? `${formatCompact(p.soldQuantity)} vendidos` : "Vendas —"}
-                    </p>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold">{formatBRL(p.revenue)}</p>
+                    <p className="text-xs text-muted-foreground">{formatCompact(p.unitsSold)} un.</p>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </SectionCard>
+
+        <div className="space-y-4">
+          {!listings.isLoading && (s?.stagnant ?? 0) > 0 && (
+            <Card className="card-soft border-0 rounded-2xl p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+                  <AlertCircle className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">{formatNumber(s!.stagnant)} anúncios sem vendas</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Têm estoque mas não venderam. Revise preço, título e fotos.
+                  </p>
+                  <Link href="/anuncios" className="mt-2 inline-block text-xs text-primary hover:underline">
+                    Revisar anúncios →
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          )}
+          <Card className="card-soft border-0 rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Search className="h-4.5 w-4.5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Pesquisa de mercado</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Explore mais vendidos, tendências e preços de catálogo do Mercado Livre.
+                </p>
+                <Link href="/mais-vendidos" className="mt-2 inline-block text-xs text-primary hover:underline">
+                  Explorar mercado →
+                </Link>
+              </div>
+            </div>
+          </Card>
         </div>
-      </Card>
-    </PageContainer>
+      </div>
+    </PageShell>
   );
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  to,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string | null;
-  hint: string;
-  to: string;
-}) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <Link href={to}>
-      <Card className="group p-4 transition-all hover:shadow-md hover:-translate-y-0.5">
-        <div className="flex items-center justify-between">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="h-4 w-4" />
-          </div>
-          <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-        </div>
-        <div className="mt-3">
-          {value === null ? (
-            <Skeleton className="h-8 w-12" />
-          ) : (
-            <p className="font-display text-3xl font-600 tracking-tight">{value}</p>
-          )}
-          <p className="text-sm font-medium">{label}</p>
-          <p className="text-xs text-muted-foreground">{hint}</p>
-        </div>
-      </Card>
-    </Link>
+    <div className="rounded-xl bg-secondary/60 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-display text-lg leading-tight tracking-tight">{value}</p>
+    </div>
   );
 }
