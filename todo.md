@@ -45,14 +45,15 @@
 - [x] Checkpoint e entrega
 
 ## Integração OAuth real com a API oficial do Mercado Livre
-- [ ] Rota de conexão OAuth (`/api/oauth/ml/connect`) que redireciona para a tela de autorização do ML
-- [ ] Rota de callback (`/api/oauth/ml/callback`) que troca o code por access_token + refresh_token
-- [ ] Armazenamento seguro do token (tabela ml_tokens) com expiração
-- [ ] Renovação automática do access_token via refresh_token
-- [ ] Provedor de dados oficial: busca, item, categorias, tendências usando a API ao vivo
-- [ ] Mapeamento dos dados ao vivo para os tipos de domínio (MlProduct, etc.)
-- [ ] Seleção automática do provedor oficial quando houver token válido
-- [ ] Tela de Configurações: botão "Conectar ao Mercado Livre" + status da conexão
-- [ ] Inserir App ID / Secret Key nos secrets (ML_APP_ID, ML_CLIENT_SECRET)
-- [ ] Testar conexão ao vivo e validar busca/ranking/categorias com dados reais
-- [ ] Checkpoint da integração OAuth real
+- [x] Rota de conexão OAuth (`/api/oauth/ml/connect`) que redireciona para a tela de autorização do ML
+- [x] Rota de callback (`/api/oauth/ml/callback`) que troca o code por access_token + refresh_token
+- [x] Armazenamento seguro do token (na tabela ml_credentials: accessToken/refreshToken/tokenExpiresAt) com expiração
+- [x] Renovação automática do access_token via refresh_token (ensureUserAccessToken)
+- [x] Provedor de dados oficial: busca, item, categorias, tendências usando a API ao vivo (com fallback granular)
+- [x] Mapeamento dos dados ao vivo para os tipos de domínio (MlProduct, etc.)
+- [x] Seleção automática do provedor oficial quando houver token válido
+- [x] Tela de Configurações: botão "Conectar ao Mercado Livre" + status da conexão (Pendente/Conectado)
+- [x] UI segura para inserir App ID + Client Secret (campos + salvar) na tela de Configurações
+- [ ] Usuário inserir o Client Secret real e salvar (pendente — secret não deve ser compartilhado no chat)
+- [ ] Usuário concluir o fluxo OAuth (botão Conectar) e validar dados ao vivo (pendente do usuário)
+- [x] Checkpoint da integração OAuth real

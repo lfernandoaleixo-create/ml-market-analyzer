@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Clock,
   KeyRound,
+  Link2,
   Loader2,
   Plug,
   SlidersHorizontal,
@@ -84,6 +85,30 @@ function CredentialsCard() {
   });
 
   const status = creds.data?.status ?? "unconfigured";
+  const oauthConnected = creds.data?.oauthConnected ?? false;
+  const canConnect = creds.data?.configured ?? false;
+
+  // Handle the OAuth callback redirect (?ml=conectado|erro|sem-credenciais).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ml = params.get("ml");
+    if (!ml) return;
+    if (ml === "conectado")
+      toast.success("Mercado Livre conectado! Os dados agora vêm da API oficial.");
+    else if (ml === "erro")
+      toast.error("Não foi possível concluir a conexão com o Mercado Livre.");
+    else if (ml === "sem-credenciais")
+      toast.error("Salve o App ID e o Client Secret antes de conectar.");
+    utils.monitor.getCredentials.invalidate();
+    utils.market.status.invalidate();
+    window.history.replaceState({}, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleConnect = () => {
+    const origin = window.location.origin;
+    window.location.href = `/api/oauth/ml/connect?origin=${encodeURIComponent(origin)}`;
+  };
 
   return (
     <Card className="p-5">
@@ -166,13 +191,47 @@ function CredentialsCard() {
             disabled={test.isPending}
           >
             {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
-            Testar conexão
+            Testar credenciais
           </Button>
         </div>
+
+        {/* Etapa 2: autorizar via OAuth para liberar dados ao vivo. */}
+        <div className="rounded-lg border border-border/70 p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">Conexão OAuth (dados ao vivo)</p>
+            {oauthConnected ? (
+              <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-500">
+                <CheckCircle2 className="h-3 w-3" /> Conectado
+              </Badge>
+            ) : (
+              <Badge variant="outline">Pendente</Badge>
+            )}
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
+            Salve as credenciais acima e clique em conectar. Você será levado ao Mercado Livre
+            para autorizar o acesso (escopo de leitura + offline_access). O acesso é renovado
+            automaticamente.
+          </p>
+          <Button
+            className="w-full"
+            variant={oauthConnected ? "outline" : "default"}
+            onClick={handleConnect}
+            disabled={!canConnect}
+          >
+            <Link2 className="h-4 w-4" />
+            {oauthConnected ? "Reconectar ao Mercado Livre" : "Conectar ao Mercado Livre"}
+          </Button>
+          {!canConnect && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Salve um App ID e um Client Secret válidos para habilitar a conexão.
+            </p>
+          )}
+        </div>
+
         <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground leading-relaxed">
-          Enquanto não houver credenciais válidas, a plataforma opera com dados de demonstração
-          realistas. Ao salvar e testar credenciais válidas, todos os dados passam a vir da API
-          oficial automaticamente — sem mudar nenhuma tela.
+          Enquanto não houver uma conexão OAuth ativa, a plataforma opera com dados de
+          demonstração realistas. Após conectar, todos os dados passam a vir da API oficial
+          automaticamente — sem mudar nenhuma tela.
         </p>
       </div>
     </Card>

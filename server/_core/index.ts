@@ -5,6 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
+import { registerMlOAuthRoutes } from "../ml/oauthMl";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -37,6 +38,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerMlOAuthRoutes(app);
   // Scheduled (Heartbeat cron) callbacks — must be registered before Vite/static fallthrough.
   app.post("/api/scheduled/monitor", monitorScheduledHandler);
   // tRPC API

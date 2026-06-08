@@ -5,16 +5,25 @@ import { compareProducts, rankByPotential } from "../ml/analysis";
 import { DEMO_CATEGORIES } from "../ml/demoData";
 import { getProvider } from "../ml/provider";
 import { getCredentials } from "../dbMl";
+import { ensureUserAccessToken } from "../ml/oauthMl";
 import type { MlCategory } from "@shared/ml";
 
 /**
  * Resolve the active provider for a given user, honoring DB-stored credentials.
+ * When the user has completed the OAuth (Authorization Code) flow, the official
+ * provider receives a resolver that returns a fresh user token (auto-refreshed).
  */
 async function providerForUser(userId?: number) {
   if (userId) {
     const creds = await getCredentials(userId);
     if (creds && creds.appId && creds.clientSecret) {
-      return getProvider({ appId: creds.appId, clientSecret: creds.clientSecret });
+      return getProvider(
+        { appId: creds.appId, clientSecret: creds.clientSecret },
+        {
+          siteId: creds.siteId || "MLB",
+          userTokenResolver: () => ensureUserAccessToken(userId),
+        },
+      );
     }
   }
   return getProvider(null);
@@ -29,12 +38,20 @@ export const marketRouter = router({
   /** Provider mode + credential status, used to show the data-source banner. */
   status: publicProcedure.query(async ({ ctx }) => {
     const provider = await providerForUser(ctx.user?.id);
+    let oauthConnected = false;
+    if (ctx.user?.id && provider.mode === "official") {
+      const token = await ensureUserAccessToken(ctx.user.id);
+      oauthConnected = Boolean(token);
+    }
     return {
       mode: provider.mode,
+      oauthConnected,
       message:
         provider.mode === "demo"
           ? "Operando com dados de demonstração realistas. Conecte suas credenciais do Mercado Livre para dados ao vivo."
-          : "Conectado à API oficial do Mercado Livre.",
+          : oauthConnected
+            ? "Conectado à API oficial do Mercado Livre via OAuth (dados ao vivo)."
+            : "Credenciais configuradas. Conclua a conexão OAuth para dados ao vivo.",
     };
   }),
 

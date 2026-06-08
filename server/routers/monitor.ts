@@ -151,6 +151,7 @@ export const monitorRouter = router({
         status: "unconfigured" as const,
         statusMessage: null as string | null,
         siteId: "MLB",
+        oauthConnected: false,
       };
     }
     return {
@@ -160,6 +161,9 @@ export const monitorRouter = router({
       status: creds.status,
       statusMessage: creds.statusMessage,
       siteId: creds.siteId,
+      oauthConnected: Boolean(
+        creds.refreshToken && creds.accessToken,
+      ),
     };
   }),
 

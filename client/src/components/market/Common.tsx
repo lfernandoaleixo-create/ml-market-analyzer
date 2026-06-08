@@ -36,18 +36,23 @@ export function DataSourceBanner() {
   const { data } = trpc.market.status.useQuery();
   if (!data) return null;
   const isDemo = data.mode === "demo";
+  const isLive = !isDemo && (data as any).oauthConnected === true;
+  const tone = isDemo
+    ? "border-amber-500/25 bg-amber-500/8 text-amber-600 dark:text-amber-400"
+    : isLive
+      ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400"
+      : "border-sky-500/25 bg-sky-500/8 text-sky-600 dark:text-sky-400";
+  const label = isDemo ? "Demonstração" : isLive ? "Ao vivo" : "Conectar";
   return (
-    <div
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${
-        isDemo
-          ? "border-amber-500/25 bg-amber-500/8 text-amber-600 dark:text-amber-400"
-          : "border-emerald-500/25 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400"
-      }`}
-    >
-      {isDemo ? <Database className="h-4 w-4 shrink-0" /> : <Radio className="h-4 w-4 shrink-0" />}
+    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${tone}`}>
+      {isDemo ? (
+        <Database className="h-4 w-4 shrink-0" />
+      ) : (
+        <Radio className="h-4 w-4 shrink-0" />
+      )}
       <span className="leading-snug">{data.message}</span>
       <Badge variant="outline" className="ml-auto shrink-0 capitalize">
-        {isDemo ? "Demonstração" : "Ao vivo"}
+        {label}
       </Badge>
     </div>
   );

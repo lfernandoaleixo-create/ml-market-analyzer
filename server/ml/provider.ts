@@ -69,13 +69,29 @@ class OfficialProvider implements MercadoLivreProvider {
   private creds: MlCredentials;
   private siteId: string;
   private token: { value: string; expiresAt: number } | null = null;
+  /**
+   * Optional resolver for a user-level OAuth token (Authorization Code flow).
+   * When provided and it returns a token, it takes precedence over the
+   * app-level client_credentials token because it has broader access.
+   */
+  private userTokenResolver?: () => Promise<string | null>;
 
-  constructor(creds: MlCredentials, siteId = ML_SITE_ID) {
+  constructor(
+    creds: MlCredentials,
+    siteId = ML_SITE_ID,
+    userTokenResolver?: () => Promise<string | null>,
+  ) {
     this.creds = creds;
     this.siteId = siteId;
+    this.userTokenResolver = userTokenResolver;
   }
 
   private async getToken(): Promise<string> {
+    // Prefer a user OAuth token when available (live, refreshable access).
+    if (this.userTokenResolver) {
+      const userToken = await this.userTokenResolver();
+      if (userToken) return userToken;
+    }
     if (this.token && this.token.expiresAt > Date.now() + 30_000) {
       return this.token.value;
     }
@@ -225,9 +241,12 @@ const demoSingleton = new DemoProvider();
  * Callers that want resilience can use `getResilientProvider`, which probes the
  * official provider and falls back to demo on failure.
  */
-export function getProvider(creds?: MlCredentials | null): MercadoLivreProvider {
+export function getProvider(
+  creds?: MlCredentials | null,
+  opts?: { siteId?: string; userTokenResolver?: () => Promise<string | null> },
+): MercadoLivreProvider {
   if (creds && hasValidMlCredentialFormat(creds.appId, creds.clientSecret)) {
-    return new OfficialProvider(creds);
+    return new OfficialProvider(creds, opts?.siteId ?? ML_SITE_ID, opts?.userTokenResolver);
   }
   return demoSingleton;
 }
