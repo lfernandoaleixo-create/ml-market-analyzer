@@ -52,6 +52,10 @@ export type MlProduct = {
   salesAvailable?: boolean;
   /** Whether rating/reviews are available from the API. */
   ratingAvailable?: boolean;
+  /** Number of live offers found for this catalog product (via /products/{id}/items). */
+  offersCount?: number;
+  /** When true, the displayed price is the lowest among multiple live offers. */
+  priceIsFrom?: boolean;
 };
 
 export type MlCategory = {

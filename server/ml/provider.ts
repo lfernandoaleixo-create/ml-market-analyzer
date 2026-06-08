@@ -201,6 +201,8 @@ class OfficialProvider implements MercadoLivreProvider {
       priceAvailable: hasPrice,
       salesAvailable: hasSales,
       ratingAvailable: false,
+      offersCount: typeof buyBox?.offers_count === "number" ? buyBox.offers_count : (hasPrice ? 1 : 0),
+      priceIsFrom: Boolean(buyBox?.price_is_from),
     };
   }
 
@@ -275,6 +277,7 @@ class OfficialProvider implements MercadoLivreProvider {
           seller_id: best.seller_id ?? null,
           category_id: best.category_id ?? null,
           offers_count: priced.length,
+          price_is_from: priced.length > 1,
         };
       }
     }
@@ -296,7 +299,7 @@ class OfficialProvider implements MercadoLivreProvider {
       return demoSingleton.search(opts);
     }
 
-    // Enrich each catalog product with buy_box price/sold (in parallel, capped).
+    // Enrich each catalog product with live offer price (in parallel, capped).
     const enriched = await Promise.all(
       results.slice(0, limit).map(async (r, i) => {
         const detail = await this.fetchProductDetail(r.id);
@@ -306,11 +309,29 @@ class OfficialProvider implements MercadoLivreProvider {
       }),
     );
 
+    // Many free-text catalog products have no active offer (price ~10% coverage).
+    // Surface the useful ones first: products WITH a real price lead the list,
+    // while "no active offer" products are kept (clearly flagged) at the end.
+    const ordered = this.sortPricedFirst(enriched);
+
     return {
       query: opts.keyword ?? "",
-      total: data.paging?.total ?? enriched.length,
-      products: enriched,
+      total: data.paging?.total ?? ordered.length,
+      products: ordered,
     };
+  }
+
+  /** Stable sort: products with a real price come first, preserving order. */
+  private sortPricedFirst(products: MlProduct[]): MlProduct[] {
+    return products
+      .map((p, idx) => ({ p, idx }))
+      .sort((a, b) => {
+        const ap = a.p.priceAvailable ? 0 : 1;
+        const bp = b.p.priceAvailable ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        return a.idx - b.idx;
+      })
+      .map((x) => x.p);
   }
 
   async getBestSellers(opts: { categoryId?: string; limit?: number }): Promise<MlSearchResult> {

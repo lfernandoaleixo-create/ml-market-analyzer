@@ -168,6 +168,59 @@ describe("OfficialProvider", () => {
     expect(res.products[0].price).toBe(99);
   });
 
+  it("orders priced products before no-offer ones and flags offers/priceIsFrom", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url) => {
+        if (url.includes("/oauth/token")) {
+          return { body: { access_token: "TOKEN", expires_in: 3600 } };
+        }
+        if (url.includes("/products/search")) {
+          return {
+            body: {
+              paging: { total: 2 },
+              results: [
+                { id: "NOOFFER", name: "Sem oferta" },
+                { id: "PRICED", name: "Com oferta" },
+              ],
+            },
+          };
+        }
+        if (/\/products\/NOOFFER$/.test(url)) {
+          return { body: { id: "NOOFFER", name: "Sem oferta", buy_box_winner: null } };
+        }
+        if (/\/products\/PRICED$/.test(url)) {
+          return { body: { id: "PRICED", name: "Com oferta", buy_box_winner: null } };
+        }
+        if (url.includes("/products/NOOFFER/items")) {
+          return { ok: false, status: 404, body: { message: "No winners found" } };
+        }
+        if (url.includes("/products/PRICED/items")) {
+          return {
+            body: {
+              paging: { total: 2 },
+              results: [
+                { item_id: "A", price: 120, currency_id: "BRL", condition: "new" },
+                { item_id: "B", price: 99.9, currency_id: "BRL", condition: "new" },
+              ],
+            },
+          };
+        }
+        return { ok: false, status: 404, body: {} };
+      }),
+    );
+
+    const provider = getProvider(VALID_CREDS);
+    const res = await provider.search({ keyword: "x" });
+    // priced product must come first even though it was second in the catalog
+    expect(res.products[0].id).toBe("PRICED");
+    expect(res.products[0].price).toBe(99.9);
+    expect(res.products[0].offersCount).toBe(2);
+    expect(res.products[0].priceIsFrom).toBe(true);
+    expect(res.products[1].id).toBe("NOOFFER");
+    expect(res.products[1].priceAvailable).toBe(false);
+  });
+
   it("falls back to demo when getProduct fails on the official API", async () => {
     vi.stubGlobal(
       "fetch",

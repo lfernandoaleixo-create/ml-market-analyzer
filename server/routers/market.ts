@@ -66,7 +66,7 @@ export const marketRouter = router({
         provider.mode === "demo"
           ? "Operando com dados de demonstração realistas. Conecte suas credenciais do Mercado Livre para dados ao vivo."
           : oauthConnected
-            ? "Conectado à API oficial do Mercado Livre (dados reais de catálogo, ranking e tendências). Preços e vendas de alguns produtos podem aparecer como \"sob consulta\" até a liberação dos endpoints de itens pelo Mercado Livre."
+            ? "Conectado à API oficial do Mercado Livre. Catálogo, ranking de mais vendidos, tendências e preços reais (a partir das ofertas ativas). Alguns itens do catálogo sem oferta ativa aparecem como \"sob consulta\", e o volume de vendas de terceiros não é exposto pela API do ML."
             : "Credenciais configuradas. Conclua a conexão OAuth para dados ao vivo.",
     };
   }),

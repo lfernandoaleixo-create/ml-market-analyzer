@@ -90,16 +90,25 @@ export function ProductCard({ product, rank, selected, onToggleSelect, categoryI
           <div>
             {priceKnown ? (
               <>
+                {product.priceIsFrom && (
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">A partir de</div>
+                )}
                 <div className="text-lg font-display font-600 tracking-tight">{formatBRL(product.price)}</div>
                 {product.originalPrice && product.originalPrice > product.price && (
                   <div className="text-xs text-muted-foreground line-through">
                     {formatBRL(product.originalPrice)}
                   </div>
                 )}
+                {typeof product.offersCount === "number" && product.offersCount > 1 && (
+                  <div className="text-[11px] text-muted-foreground">{product.offersCount} ofertas</div>
+                )}
               </>
             ) : (
-              <div className="text-sm font-display font-600 tracking-tight text-muted-foreground">
-                Preço sob consulta
+              <div className="space-y-0.5">
+                <div className="text-sm font-display font-600 tracking-tight text-muted-foreground">
+                  Preço sob consulta
+                </div>
+                <div className="text-[11px] text-muted-foreground/80">Sem oferta ativa no catálogo</div>
               </div>
             )}
           </div>
