@@ -102,9 +102,23 @@ class OfficialProvider implements MercadoLivreProvider {
 
   private async authedFetch(url: string): Promise<any> {
     const token = await this.getToken();
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error(`ML API ${res.status} on ${url}`);
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`ML API ${res.status} on ${url}: ${text.slice(0, 200)}`);
+    }
     return res.json();
+  }
+
+  /** Like authedFetch but returns null on failure (for optional enrichments). */
+  private async tryFetch(url: string): Promise<any | null> {
+    try {
+      return await this.authedFetch(url);
+    } catch {
+      return null;
+    }
   }
 
   private mapItem(raw: any): MlProduct {
@@ -144,22 +158,31 @@ class OfficialProvider implements MercadoLivreProvider {
     if (opts.keyword) params.set("q", opts.keyword);
     if (opts.categoryId) params.set("category", opts.categoryId);
     params.set("limit", String(opts.limit ?? 30));
-    const data = await this.authedFetch(
+    // ML restricts /search for many client_credentials apps (HTTP 403 since 2025).
+    // On failure, fall back to demo data for THIS method only so the UI keeps working.
+    const data = await this.tryFetch(
       `https://api.mercadolibre.com/sites/${this.siteId}/search?${params.toString()}`,
     );
+    if (!data || !Array.isArray(data.results)) {
+      return demoSingleton.search(opts);
+    }
     const products = (data.results ?? []).map((r: any, i: number) => {
       const p = this.mapItem(r);
       p.catalogPosition = i + 1;
       return p;
     });
+    if (products.length === 0) return demoSingleton.search(opts);
     return { query: opts.keyword ?? "", total: data.paging?.total ?? products.length, products };
   }
 
   async getCategories(): Promise<MlCategory[]> {
-    const data = await this.authedFetch(
+    const data = await this.tryFetch(
       `https://api.mercadolibre.com/sites/${this.siteId}/categories`,
     );
-    return (data ?? []).map((c: any) => ({
+    if (!Array.isArray(data) || data.length === 0) {
+      return demoSingleton.getCategories();
+    }
+    return data.map((c: any) => ({
       id: c.id,
       name: c.name,
       totalItems: 0,
@@ -171,8 +194,11 @@ class OfficialProvider implements MercadoLivreProvider {
     const url = categoryId
       ? `https://api.mercadolibre.com/trends/${this.siteId}/${categoryId}`
       : `https://api.mercadolibre.com/trends/${this.siteId}`;
-    const data = await this.authedFetch(url);
-    return (data ?? []).map((t: any, i: number) => ({
+    const data = await this.tryFetch(url);
+    if (!Array.isArray(data) || data.length === 0) {
+      return demoSingleton.getTrends(categoryId);
+    }
+    return data.map((t: any, i: number) => ({
       keyword: t.keyword,
       volumeIndex: Math.max(0, 100 - i * 4),
       changePercent: 0,
@@ -180,12 +206,11 @@ class OfficialProvider implements MercadoLivreProvider {
   }
 
   async getProduct(itemId: string): Promise<MlProduct | null> {
-    try {
-      const raw = await this.authedFetch(`https://api.mercadolibre.com/items/${itemId}`);
-      return this.mapItem(raw);
-    } catch {
-      return null;
+    const raw = await this.tryFetch(`https://api.mercadolibre.com/items/${itemId}`);
+    if (!raw || !raw.id) {
+      return demoSingleton.getProduct(itemId);
     }
+    return this.mapItem(raw);
   }
 }
 

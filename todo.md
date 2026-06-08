@@ -43,3 +43,16 @@
 - [x] Validação do fluxo de dados via caller tRPC (end-to-end demo)
 - [x] Ordenação server-side no ranking (vendas, preço, avaliação)
 - [x] Checkpoint e entrega
+
+## Integração OAuth real com a API oficial do Mercado Livre
+- [ ] Rota de conexão OAuth (`/api/oauth/ml/connect`) que redireciona para a tela de autorização do ML
+- [ ] Rota de callback (`/api/oauth/ml/callback`) que troca o code por access_token + refresh_token
+- [ ] Armazenamento seguro do token (tabela ml_tokens) com expiração
+- [ ] Renovação automática do access_token via refresh_token
+- [ ] Provedor de dados oficial: busca, item, categorias, tendências usando a API ao vivo
+- [ ] Mapeamento dos dados ao vivo para os tipos de domínio (MlProduct, etc.)
+- [ ] Seleção automática do provedor oficial quando houver token válido
+- [ ] Tela de Configurações: botão "Conectar ao Mercado Livre" + status da conexão
+- [ ] Inserir App ID / Secret Key nos secrets (ML_APP_ID, ML_CLIENT_SECRET)
+- [ ] Testar conexão ao vivo e validar busca/ranking/categorias com dados reais
+- [ ] Checkpoint da integração OAuth real
