@@ -11,4 +11,8 @@ export const ENV = {
   // When both are present, the official OAuth-based data provider can be used.
   mlAppId: process.env.ML_APP_ID ?? "",
   mlClientSecret: process.env.ML_CLIENT_SECRET ?? "",
+  // Canonical public origin used to build the ML OAuth redirect_uri. This MUST
+  // match exactly the redirect URI registered in the ML DevCenter, regardless
+  // of whether the flow is started from the preview or the published domain.
+  mlPublicOrigin: process.env.ML_PUBLIC_ORIGIN ?? "https://mlmarketanl-kcmkt5tl.manus.space",
 };

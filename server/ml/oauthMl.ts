@@ -1,7 +1,6 @@
 import type { Express, Request, Response } from "express";
-import { parse as parseCookie } from "cookie";
-import { COOKIE_NAME } from "@shared/const";
 import { sdk } from "../_core/sdk";
+import { ENV } from "../_core/env";
 import { getCredentials, upsertCredentials } from "../dbMl";
 
 /**
@@ -44,12 +43,19 @@ async function resolveUserId(req: Request): Promise<number | null> {
   }
 }
 
-/** Build the redirect URI from the incoming request origin (origin-safe). */
-function redirectUriFor(req: Request): string {
-  // Prefer the configured public origin via forwarded headers; fall back to host.
-  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "https";
-  const host = (req.headers["x-forwarded-host"] as string) || req.headers.host;
-  return `${proto}://${host}/api/oauth/ml/callback`;
+/**
+ * Canonical public origin (e.g. https://mlmarketanl-kcmkt5tl.manus.space).
+ * We always use this for the redirect_uri so it matches exactly what is
+ * registered in the ML DevCenter — even if the flow is started from the
+ * preview/sandbox domain. ML rejects any redirect_uri that is not registered.
+ */
+function publicOrigin(): string {
+  return (ENV.mlPublicOrigin || "").replace(/\/$/, "");
+}
+
+/** Build the redirect URI from the canonical public origin. */
+function redirectUriFor(_req?: Request): string {
+  return `${publicOrigin()}/api/oauth/ml/callback`;
 }
 
 export function registerMlOAuthRoutes(app: Express) {
@@ -74,12 +80,10 @@ export function registerMlOAuthRoutes(app: Express) {
     const authBase = ML_AUTH_BASE[siteId] ?? ML_AUTH_BASE.MLB;
     const redirectUri = redirectUriFor(req);
 
-    // Encode userId + return origin in state (base64 JSON).
-    const origin =
-      (getQueryParam(req, "origin") as string) ||
-      `${(req.headers["x-forwarded-proto"] as string) || "https"}://${
-        (req.headers["x-forwarded-host"] as string) || req.headers.host
-      }`;
+    // Always return to the canonical public origin. The callback runs on the
+    // published domain (that is the registered redirect_uri), so bouncing the
+    // user back there keeps the session/cookies consistent.
+    const origin = publicOrigin();
     const state = Buffer.from(JSON.stringify({ userId, origin })).toString("base64url");
 
     const params = new URLSearchParams({
@@ -114,7 +118,7 @@ export function registerMlOAuthRoutes(app: Express) {
     }
 
     const settingsUrl = (status: string) =>
-      `${origin || ""}/configuracoes?ml=${status}`;
+      `${origin || publicOrigin()}/configuracoes?ml=${status}`;
 
     if (oauthError) {
       if (userId) {
