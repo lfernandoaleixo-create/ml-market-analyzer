@@ -34,6 +34,7 @@ import {
   Sparkles,
   TrendingUp,
   Store,
+  Radar,
   ShoppingBag,
   Package,
   Undo2,
@@ -64,6 +65,7 @@ const menuGroups: MenuGroup[] = [
   {
     title: "Pesquisa de mercado",
     items: [
+      { icon: Radar, label: "Radar de concorrentes", path: "/radar" },
       { icon: TrendingUp, label: "Mais vendidos", path: "/mais-vendidos" },
       { icon: Search, label: "Buscar produtos", path: "/buscar" },
       { icon: Sparkles, label: "Oportunidades", path: "/oportunidades" },

@@ -126,4 +126,29 @@
 - [x] Testes vitest das novas rotas/provider (48 testes passando)
 - [x] Validar todas as telas com dados reais (Painel, Vendas, Anúncios, Pós-venda, Reputação)
 - [x] webdev_check_status OK + checkpoint
-- [ ] Orientar publicação e validar ao vivo
+- [x] Orientar publicação e validar ao vivo (entregue ao usuário)
+
+## MÓDULO: Radar de Concorrentes (Caminho B - Unwrangle, isolado da conta ML)
+
+### Segurança (regra de ouro: conta ML NUNCA exposta)
+- [x] Cliente Unwrangle em módulo separado (server/competitors/) sem acesso ao token ML
+- [x] API key como secret (UNWRANGLE_API_KEY) - nunca no código/frontend
+- [x] Garantir que nenhuma chamada externa envie token/CNPJ/user_id/cookies da conta ML (teste de isolamento dedicado)
+
+### Backend
+- [x] Tipos compartilhados (shared/competitors.ts): Competitor, CompetitorSet, Diagnosis
+- [x] Cliente unwrangle.ts: search por palavra/categoria + detalhe de produto (com estado "não configurado")
+- [x] Lógica de diagnóstico "por que ele vende mais" (reputação, Full, tipo anúncio, parcelas, fotos, preço)
+- [x] Rotas tRPC: competitors.status, competitors.search, competitors.sellers, competitors.detail, competitors.diagnose
+- [x] Estado "API não configurada" tratado com elegância (sem quebrar)
+
+### Frontend
+- [x] Tela "Radar de Concorrentes" (busca ativa + lista ordenada por força)
+- [x] Painel "Diagnóstico" (meu anúncio vs concorrente, fatores além do preço)
+- [x] Entrada no menu "Pesquisa de mercado"
+- [x] Estado vazio/banner explicando que requer configuração da API
+
+### Qualidade
+- [x] Testes vitest do cliente e do diagnóstico (com mocks) — 14 testes passando (62 no total)
+- [x] webdev_check_status + checkpoint
+- [ ] Criar campo de secret para o usuário inserir a chave quando tiver (aguardando cadastro do usuário na Unwrangle)

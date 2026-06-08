@@ -10,6 +10,8 @@ import Vendas from "./pages/Vendas";
 import Anuncios from "./pages/Anuncios";
 import PosVenda from "./pages/PosVenda";
 import Reputacao from "./pages/Reputacao";
+import RadarConcorrentes from "./pages/RadarConcorrentes";
+import Diagnostico from "./pages/Diagnostico";
 import Buscar from "./pages/Buscar";
 import MaisVendidos from "./pages/MaisVendidos";
 import Oportunidades from "./pages/Oportunidades";
@@ -28,6 +30,8 @@ function Router() {
         <Route path="/anuncios" component={Anuncios} />
         <Route path="/pos-venda" component={PosVenda} />
         <Route path="/reputacao" component={Reputacao} />
+        <Route path="/radar" component={RadarConcorrentes} />
+        <Route path="/diagnostico" component={Diagnostico} />
         <Route path="/buscar" component={Buscar} />
         <Route path="/mais-vendidos" component={MaisVendidos} />
         <Route path="/oportunidades" component={Oportunidades} />
