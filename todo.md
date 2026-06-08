@@ -86,9 +86,9 @@
 - [x] Medir cobertura: busca livre ~10% com preço; mais vendidos/destaques 90-100% com preço
 - [x] Documento de solicitação ao ML com 3 versões + texto p/ assessor de conta + DPP (SOLICITACAO_ML_SUPORTE.md)
 - [x] Melhorar provider: ordenação estável que prioriza produtos COM preço real na busca (sortPricedFirst)
-- [ ] (Melhoria futura opcional) Cruzar busca livre com destaques/highlights por categoria para elevar cobertura de preço acima dos ~10% atuais
+- [x] Cruzar busca por categoria com destaques/highlights para elevar cobertura de preço (de-dup + priced first) + teste dedicado
 - [x] Garantir menor-preço entre ofertas (offersCount/priceIsFrom) e marcar claramente "sem oferta ativa"
 - [x] UI: ProductCard mostra "A partir de", nº de ofertas e "sem oferta ativa"
 - [x] Atualizar mensagem do banner ao vivo (cobertura real de preços)
-- [x] Atualizar/rodar testes vitest do provider (40 testes passando)
-- [ ] Publicar e validar
+- [x] Atualizar/rodar testes vitest do provider (41 testes passando)
+- [ ] Publicar (ação do usuário no botão Publish) e validar ao vivo

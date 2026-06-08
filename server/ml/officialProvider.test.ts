@@ -221,6 +221,50 @@ describe("OfficialProvider", () => {
     expect(res.products[1].priceAvailable).toBe(false);
   });
 
+  it("cross-references category highlights to add priced products to a category search", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url) => {
+        if (url.includes("/oauth/token")) {
+          return { body: { access_token: "TOKEN", expires_in: 3600 } };
+        }
+        // free-text/category catalog search → one product WITHOUT offer
+        if (url.includes("/products/search")) {
+          return {
+            body: {
+              paging: { total: 1 },
+              results: [{ id: "CATALOG_NOOFFER", name: "Catálogo sem oferta" }],
+            },
+          };
+        }
+        // highlights for the category → one best-seller product id
+        if (url.includes("/highlights/")) {
+          return { body: { content: [{ id: "HL1", position: 1, type: "PRODUCT" }] } };
+        }
+        if (/\/products\/CATALOG_NOOFFER$/.test(url)) {
+          return { body: { id: "CATALOG_NOOFFER", name: "Catálogo sem oferta", buy_box_winner: null } };
+        }
+        if (url.includes("/products/CATALOG_NOOFFER/items")) {
+          return { ok: false, status: 404, body: { message: "No winners found" } };
+        }
+        // highlight product HAS a priced buy box
+        if (/\/products\/HL1$/.test(url)) {
+          return { body: { id: "HL1", name: "Mais vendido", buy_box_winner: { price: 149.9 } } };
+        }
+        return { ok: false, status: 404, body: {} };
+      }),
+    );
+
+    const provider = getProvider(VALID_CREDS);
+    const res = await provider.search({ keyword: "x", categoryId: "MLB1051" });
+    // The priced highlight product must be present and lead the list.
+    expect(res.products.some((p) => p.id === "HL1")).toBe(true);
+    expect(res.products[0].id).toBe("HL1");
+    expect(res.products[0].price).toBe(149.9);
+    // The no-offer catalog product is still present, but after the priced one.
+    expect(res.products.some((p) => p.id === "CATALOG_NOOFFER")).toBe(true);
+  });
+
   it("falls back to demo when getProduct fails on the official API", async () => {
     vi.stubGlobal(
       "fetch",

@@ -310,9 +310,26 @@ class OfficialProvider implements MercadoLivreProvider {
     );
 
     // Many free-text catalog products have no active offer (price ~10% coverage).
+    // When a category is provided, cross-reference with the category highlights
+    // (best sellers), which have 90-100% real-price coverage, to lift the share
+    // of priced products. Highlights (priced) lead; free-text results fill the
+    // rest. De-duplicate by product id and keep priced products first.
+    let merged = enriched;
+    if (opts.categoryId) {
+      const highlights = await this.getBestSellers({
+        categoryId: opts.categoryId,
+        limit: Math.min(limit, 20),
+      }).catch(() => null);
+      if (highlights && highlights.products.length > 0) {
+        const seen = new Set(enriched.map((p) => p.id));
+        const extra = highlights.products.filter((p) => !seen.has(p.id));
+        merged = [...enriched, ...extra];
+      }
+    }
+
     // Surface the useful ones first: products WITH a real price lead the list,
     // while "no active offer" products are kept (clearly flagged) at the end.
-    const ordered = this.sortPricedFirst(enriched);
+    const ordered = this.sortPricedFirst(merged).slice(0, limit);
 
     return {
       query: opts.keyword ?? "",
