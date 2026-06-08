@@ -9,7 +9,7 @@ import {
   reputationColor,
 } from "@/lib/format";
 import type { MlProduct } from "@shared/ml";
-import { Check, Plus, Star, Store, Truck } from "lucide-react";
+import { Check, ExternalLink, Plus, Star, Store, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 type Props = {
@@ -33,6 +33,12 @@ export function ProductCard({ product, rank, selected, onToggleSelect, categoryI
     },
     onError: (e) => toast.error(e.message),
   });
+
+  // Availability flags: default to true (demo data) unless the provider
+  // explicitly marks a field as unavailable (non-certified ML app limitation).
+  const priceKnown = product.priceAvailable !== false && product.price > 0;
+  const salesKnown = product.salesAvailable !== false;
+  const ratingKnown = product.ratingAvailable !== false && product.rating > 0;
 
   return (
     <Card className="group relative overflow-hidden p-0 transition-all hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5">
@@ -82,28 +88,49 @@ export function ProductCard({ product, rank, selected, onToggleSelect, categoryI
 
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-lg font-display font-600 tracking-tight">{formatBRL(product.price)}</div>
-            {product.originalPrice && product.originalPrice > product.price && (
-              <div className="text-xs text-muted-foreground line-through">
-                {formatBRL(product.originalPrice)}
+            {priceKnown ? (
+              <>
+                <div className="text-lg font-display font-600 tracking-tight">{formatBRL(product.price)}</div>
+                {product.originalPrice && product.originalPrice > product.price && (
+                  <div className="text-xs text-muted-foreground line-through">
+                    {formatBRL(product.originalPrice)}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-sm font-display font-600 tracking-tight text-muted-foreground">
+                Preço sob consulta
               </div>
             )}
           </div>
-          <div className="flex items-center gap-1 text-sm">
-            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-            <span className="font-medium">{product.rating.toFixed(1)}</span>
-            <span className="text-xs text-muted-foreground">({formatCompact(product.reviewsCount)})</span>
-          </div>
+          {ratingKnown && (
+            <div className="flex items-center gap-1 text-sm">
+              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+              <span className="font-medium">{product.rating.toFixed(1)}</span>
+              <span className="text-xs text-muted-foreground">({formatCompact(product.reviewsCount)})</span>
+            </div>
+          )}
         </div>
 
         {!compact && (
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{formatCompact(product.soldQuantity)} vendidos</span>
+            <span>{salesKnown ? `${formatCompact(product.soldQuantity)} vendidos` : "Vendas —"}</span>
             <span className="flex items-center gap-1.5">
               <span className={`h-2 w-2 rounded-full ${reputationColor(product.seller.reputationLevel)}`} />
               {powerSellerLabel(product.seller.powerSellerStatus) ?? product.seller.nickname}
             </span>
           </div>
+        )}
+
+        {!compact && !priceKnown && product.permalink && (
+          <a
+            href={product.permalink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" /> Ver preço no Mercado Livre
+          </a>
         )}
 
         {!compact && (

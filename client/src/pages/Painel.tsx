@@ -156,8 +156,12 @@ export default function Painel() {
                   <img src={p.thumbnail} alt="" className="h-11 w-11 rounded-md object-cover" />
                   <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.title}</p>
                   <div className="hidden text-right sm:block">
-                    <p className="text-sm font-medium">{formatBRL(p.price)}</p>
-                    <p className="text-xs text-muted-foreground">{formatCompact(p.soldQuantity)} vendidos</p>
+                    <p className="text-sm font-medium">
+                      {p.priceAvailable !== false && p.price > 0 ? formatBRL(p.price) : "Sob consulta"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.salesAvailable !== false ? `${formatCompact(p.soldQuantity)} vendidos` : "Vendas —"}
+                    </p>
                   </div>
                 </div>
               ))}

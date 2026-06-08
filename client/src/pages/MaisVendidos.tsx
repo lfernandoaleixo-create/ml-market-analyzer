@@ -99,26 +99,40 @@ export default function MaisVendidos() {
                   </div>
                 </div>
 
-                <div className="hidden text-right text-sm font-medium sm:block">{formatBRL(p.price)}</div>
+                <div className="hidden text-right text-sm font-medium sm:block">
+                  {p.priceAvailable !== false && p.price > 0 ? (
+                    formatBRL(p.price)
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Sob consulta</span>
+                  )}
+                </div>
 
                 <div className="hidden sm:block">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${(p.soldQuantity / maxSold) * 100}%` }}
-                      />
+                  {p.salesAvailable !== false ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${(p.soldQuantity / maxSold) * 100}%` }}
+                        />
+                      </div>
+                      <span className="w-12 text-right text-xs text-muted-foreground">
+                        {formatCompact(p.soldQuantity)}
+                      </span>
                     </div>
-                    <span className="w-12 text-right text-xs text-muted-foreground">
-                      {formatCompact(p.soldQuantity)}
-                    </span>
-                  </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-end gap-1 text-sm">
-                  <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                  <span className="font-medium">{p.rating.toFixed(1)}</span>
-                </div>
+                {p.ratingAvailable !== false && p.rating > 0 ? (
+                  <div className="flex items-center justify-end gap-1 text-sm">
+                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                    <span className="font-medium">{p.rating.toFixed(1)}</span>
+                  </div>
+                ) : (
+                  <div className="text-right text-sm text-muted-foreground">—</div>
+                )}
               </div>
             ))}
       </Card>

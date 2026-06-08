@@ -42,6 +42,16 @@ export type MlProduct = {
   seller: MlSeller;
   /** Optional list of attribute name/value pairs. */
   attributes?: { name: string; value: string }[];
+  /**
+   * Whether the live price could be resolved from the ML API. Non-certified
+   * apps cannot read listing prices for many catalog products, so the UI must
+   * show "Preço sob consulta" instead of a fake R$ 0,00 when this is false.
+   */
+  priceAvailable?: boolean;
+  /** Whether sales volume (sold_quantity) is available from the API. */
+  salesAvailable?: boolean;
+  /** Whether rating/reviews are available from the API. */
+  ratingAvailable?: boolean;
 };
 
 export type MlCategory = {

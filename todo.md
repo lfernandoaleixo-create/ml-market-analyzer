@@ -61,7 +61,21 @@
 - [x] Corrigir erro de UI "removeChild" causado pela tradução automática do navegador (lang=pt-BR + notranslate + patch defensivo no DOM)
 
 ## BUG CRÍTICO: busca exibe dados de demonstração apesar de OAuth conectado
-- [ ] Diagnosticar por que provider.search cai no fallback demo mesmo com token OAuth válido
-- [ ] Corrigir chamada real à API oficial (search/bestSellers/categories) e mapeamento
-- [ ] Garantir que o banner só diga "dados reais" quando os dados realmente vierem da API
-- [ ] Testar com dados reais e publicar
+- [x] Diagnosticar: endpoint /sites/MLB/search descontinuado (403); migrado para /products/search
+- [x] Corrigir chamada real à API oficial (products/search, highlights, categories, trends) e mapeamento
+- [x] Banner reflete a fonte real dos dados
+- [x] Busca retorna produtos reais (nome, marca, imagem) — confirmado ao vivo
+
+## Descoberta: limitação de preços pela permissão da app ML
+- [x] Diagnosticado: /items, /items?ids=, /sites/MLB/search => 403 access_denied; /products/{id}/items => 404 "No winners" na maioria
+- [x] Conclusão: app "não certificada" libera catálogo (nome/imagem/ranking/tendências) mas bloqueia preço/vendas de anúncios
+- [x] Pesquisa confirmou caso público idêntico (Reclame Aqui jan/2026): exige liberação via suporte ML
+
+## Caminho A: liberação de preços/itens no Mercado Livre + UI honesta
+- [x] Tratar preço/vendas/avaliação ausentes no provedor (flags priceAvailable/salesAvailable/ratingAvailable)
+- [x] UI: quando preço indisponível, mostrar "Preço sob consulta" + link "Ver no Mercado Livre" (ProductCard)
+- [x] UI: não exibir "0 vendidos"/"0,0" quando o dado não existir; mostrar "—" (ProductCard, MaisVendidos, Painel)
+- [x] Banner: deixar claro que preços dependem de liberação ML
+- [x] Teste do comportamento honesto de preço (priceAvailable=false)
+- [x] Guia (documento) de como solicitar a liberação no ML, com texto pronto (GUIA_LIBERACAO_ML.md)
+- [ ] Publicar e validar

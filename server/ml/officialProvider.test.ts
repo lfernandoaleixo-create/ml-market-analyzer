@@ -82,6 +82,44 @@ describe("OfficialProvider", () => {
     expect(res.products[0].price).toBe(199.9);
   });
 
+  it("marks priceAvailable=false when catalog product has no buy box nor live offers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url) => {
+        if (url.includes("/oauth/token")) {
+          return { body: { access_token: "TOKEN", expires_in: 3600 } };
+        }
+        if (url.includes("/products/search")) {
+          return {
+            body: {
+              paging: { total: 1 },
+              results: [
+                {
+                  id: "MLB777",
+                  name: "Tênis sem oferta",
+                  pictures: [{ url: "https://img/y.jpg" }],
+                  permalink: "https://produto.mercadolivre.com.br/MLB777",
+                },
+              ],
+            },
+          };
+        }
+        if (/\/products\/MLB777$/.test(url)) {
+          return { body: { id: "MLB777", name: "Tênis sem oferta", buy_box_winner: null, permalink: "https://produto.mercadolivre.com.br/MLB777" } };
+        }
+        // /products/MLB777/items → 404 "No winners found"
+        return { ok: false, status: 404, body: { message: "No winners found" } };
+      }),
+    );
+
+    const provider = getProvider(VALID_CREDS);
+    const res = await provider.search({ keyword: "tenis" });
+    expect(res.products[0].id).toBe("MLB777");
+    expect(res.products[0].price).toBe(0);
+    expect(res.products[0].priceAvailable).toBe(false);
+    expect(res.products[0].permalink).toContain("MLB777");
+  });
+
   it("falls back to demo data when products/search is forbidden (403)", async () => {
     vi.stubGlobal(
       "fetch",

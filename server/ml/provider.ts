@@ -168,6 +168,8 @@ class OfficialProvider implements MercadoLivreProvider {
       : [];
 
     const categoryId = raw.category_id ?? buyBox?.category_id ?? "";
+    const hasPrice = typeof buyBox?.price === "number" && buyBox.price > 0;
+    const hasSales = typeof buyBox?.sold_quantity === "number" && buyBox.sold_quantity > 0;
     return {
       id: raw.id,
       title: raw.name ?? raw.title ?? "",
@@ -196,6 +198,9 @@ class OfficialProvider implements MercadoLivreProvider {
         positiveRatingRatio: 0.9,
       },
       attributes: attrs,
+      priceAvailable: hasPrice,
+      salesAvailable: hasSales,
+      ratingAvailable: false,
     };
   }
 
@@ -230,6 +235,9 @@ class OfficialProvider implements MercadoLivreProvider {
         positiveRatingRatio:
           raw.seller?.seller_reputation?.transactions?.ratings?.positive ?? 0.9,
       },
+      priceAvailable: typeof raw.price === "number" && raw.price > 0,
+      salesAvailable: typeof raw.sold_quantity === "number" && raw.sold_quantity > 0,
+      ratingAvailable: false,
     };
   }
 
