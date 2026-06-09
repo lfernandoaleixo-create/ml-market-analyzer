@@ -9,6 +9,7 @@ import {
   UnwrangleError,
 } from "../competitors/unwrangle";
 import { diagnoseCompetitor } from "../competitors/diagnosis";
+import { getSourcesStatus, searchAllSources } from "../competitors/orchestrator";
 import type { MyListingBaseline } from "@shared/competitors";
 
 /**
@@ -57,6 +58,44 @@ export const competitorsRouter = router({
   status: publicProcedure.query(() => {
     return { configured: isConfigured() } as const;
   }),
+
+  /**
+   * Multi-source status: which of the 4 sources are configured. Public so the
+   * Radar can render the source panel even before a search.
+   */
+  sourcesStatus: publicProcedure.query(() => {
+    return getSourcesStatus();
+  }),
+
+  /**
+   * Triangulated competitor search across ALL configured sources. Per-source
+   * failures are isolated, so a result is returned as long as ANY source
+   * answers; the response carries per-source health + per-field consensus.
+   */
+  searchMulti: protectedProcedure
+    .input(z.object({ query: z.string().min(2, "Digite ao menos 2 caracteres.") }))
+    .query(async ({ input }) => {
+      const result = await searchAllSources(input.query.trim());
+      if (
+        result.competitors.length === 0 &&
+        result.sourcesUsed.every((s) => !s.configured || s.health !== "ok")
+      ) {
+        const anyConfigured = result.sourcesUsed.some((s) => s.configured);
+        if (!anyConfigured) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Nenhuma fonte de dados de concorrentes está configurada no momento.",
+          });
+        }
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message:
+            "As fontes de dados estão temporariamente indisponíveis. Tente novamente em instantes.",
+        });
+      }
+      return result;
+    }),
 
   /** Active competitor search by keyword / category term. */
   search: protectedProcedure

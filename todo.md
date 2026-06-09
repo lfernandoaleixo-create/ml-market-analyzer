@@ -173,3 +173,21 @@
 - [x] Remover import órfão estimateSalesGrowth em monitoring.ts
 - [x] Atualizar testes de analysis.ts (fatores reais + cenários de disponibilidade) e rodar suíte completa (69 testes passando)
 - [x] webdev_check_status (TS/LSP limpos) + checkpoint
+
+
+## Arquitetura de 4 fontes + triangulação (09/06)
+- [x] Modelo normalizado de produto/concorrente compartilhado (shared/sources.ts): UnifiedCompetitor + FieldConsensus + SourceStatus
+- [x] Camada agregadora server/competitors/aggregator.ts: normaliza, faz match de itens entre fontes e calcula consenso por campo (preço, frete, reputação, etc.) + score de força
+- [x] Selo de confiança por concordância (Alta/Média/Baixa/single) + rastreio de origem por campo
+- [x] Testes do agregador (match, consenso numérico/textual/booleano, score) — 16 testes passando
+- [x] Provedor Oxylabs isolado (server/competitors/oxylabs.ts) com estado "não configurado" + retry
+- [x] Provedor ScrapingBee isolado (server/competitors/scrapingbee.ts) com estado "não configurado" + retry
+- [x] Adaptador da API oficial do ML como 4ª fonte para busca pública (server/competitors/officialSource.ts)
+- [x] Integrar as 4 fontes no agregador (executa em paralelo apenas as configuradas; tolerante a falhas)
+- [x] Rotas tRPC: competitors.sourcesStatus (status das 4) + busca triangulada (searchMulti)
+- [~] Detalhe triangulado adiado: o detalhe por produto exige IDs por fonte (custo alto de créditos). Mantemos o detalhe via Unwrangle; a triangulação fica na busca. Reavaliar após ativar Oxylabs/ScrapingBee.
+- [x] UI Radar: valor consolidado + selo de concordância + "ver detalhes" por fonte + painel de fontes (SourcesPanel) + RadarBanner multi-fonte
+- [ ] Secrets: OXYLABS_USERNAME/OXYLABS_PASSWORD e SCRAPINGBEE_API_KEY (ativação gradual)
+- [x] Testes da triangulação (orchestrator: fault isolation/triangulação) e dos provedores (oxylabs/scrapingbee/officialSource — fetch mockado, isolamento) — 124 testes passando
+- [x] webdev_check_status (TS/LSP limpos) + checkpoint
+- [ ] Solicitar chaves de Oxylabs/ScrapingBee ao usuário e entregar

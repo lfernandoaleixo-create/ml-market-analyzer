@@ -20,4 +20,12 @@ export const ENV = {
   // account: no ML OAuth token, CNPJ, cookies or user identity ever reach this
   // provider. Empty string until the user provides it via project secrets.
   unwrangleApiKey: process.env.UNWRANGLE_API_KEY ?? "",
+  // Oxylabs Web Scraper API credentials (basic auth user:password). Used ONLY
+  // by the server/competitors module, fully isolated from the ML seller account
+  // (no token, CNPJ, cookies or identity ever reach it). Empty until provided.
+  oxylabsUsername: process.env.OXYLABS_USERNAME ?? "",
+  oxylabsPassword: process.env.OXYLABS_PASSWORD ?? "",
+  // ScrapingBee API key. Same isolation guarantees as the other scrapers.
+  // Empty string until the user provides it via project secrets.
+  scrapingBeeApiKey: process.env.SCRAPINGBEE_API_KEY ?? "",
 };
