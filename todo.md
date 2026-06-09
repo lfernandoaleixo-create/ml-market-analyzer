@@ -160,8 +160,8 @@
 - [x] Aviso amigável "serviço de dados temporariamente instável" no Radar e no Diagnóstico (BAD_GATEWAY) com botão Tentar novamente
 - [x] Teste ao vivo resiliente: valida que a chave é válida (não 403) sem falhar quando o provedor está em 504
 - [x] Suíte completa passando (64 testes)
-- [ ] BLOQUEIO EXTERNO: bug 504/parser no scraper Mercado Livre da Unwrangle — aguardando correção do provedor (suporte acionado, resposta em até 4h)
-- [ ] Quando o provedor voltar: rodar busca real e primeira análise de concorrente com o usuário
+- [x] SUPERADO: Unwrangle deixou de ser o caminho crítico — Oxylabs+ScrapingBee passaram a entregar produtos reais (Fases 1-2). Unwrangle segue como fonte complementar com estado honesto quando instável.
+- [x] SUPERADO: busca real triangulada validada ao vivo com Oxylabs+ScrapingBee (não depende mais do retorno da Unwrangle)
 
 ## Confiabilidade da Pesquisa de Mercado (09/06)
 - [x] Oportunidades: recalcular score apenas com fatores reais (preço competitivo, presença nos mais vendidos, reputação do vendedor, frete+fotos); avaliação só quando disponível
@@ -192,25 +192,25 @@
 - [x] webdev_check_status (TS/LSP limpos) + checkpoint
 - [ ] Solicitar chaves de Oxylabs/ScrapingBee ao usuário e entregar
 
-## Ajuste Oxylabs (validação com credenciais reais)
-- [ ] Oxylabs: trocar alvo de HTML da busca do ML (parser 12002, HTML parcial) para a API pública do ML (api.mercadolibre.com/sites/MLB/search) via source=universal, parse JSON
-- [ ] Manter isolamento: só keyword pública + credenciais Oxylabs; sem token/CNPJ/cookies do ML
-- [ ] Atualizar testes unitários do oxylabs para a nova forma de resposta (items via search results)
-- [ ] Revalidar com teste live (credenciais reais) retornando ofertas > 0
-- [ ] Rodar suíte completa + checkpoint
+## Ajuste Oxylabs (validação com credenciais reais) — SUPERADO pela Fase 1 (ver seção "Robustez total")
+- [x] RESOLVIDO de forma diferente: a API pública JSON do ML retorna VAZIO via Oxylabs (status 613). Solução real: render JS + browser_instructions + parser de poly-cards compartilhado (Fase 1)
+- [x] Isolamento mantido (teste dedicado): só keyword pública + credenciais Oxylabs
+- [x] Testes unitários do oxylabs atualizados para HTML renderizado
+- [x] Teste live: 60 ofertas reais
+- [x] Suíte completa + checkpoint (b99c7a02)
 
 
 ## Decisão estratégica (09/jun): triangular as 4 APIs públicas, SEM OAuth oficial do ML
 - [x] Avaliação da Seconds concluída: a robustez dela vem da integração OFICIAL do ML (parceira certificada), não de scraping melhor. Usuário decidiu NÃO buscar autorização oficial.
 - [x] Rumo confirmado: triangular Oxylabs + ScrapingBee + Unwrangle + busca pública do ML, de forma segura e tolerante a falhas.
-- [ ] Oxylabs: definir alvo que retorna produtos reais. Testar nesta ordem: (a) endpoint interno de busca do ML que devolve JSON (polycard/search API), (b) render JS do HTML do ML com seletores, (c) parser dedicado se existir. Validar ao vivo > 0 ofertas.
-- [ ] ScrapingBee: render=true + wait/wait_for + extract_rules ou JSON interno do ML; validar produtos reais ao vivo > 0 ofertas.
-- [ ] Unwrangle: revalidar (estava 504/instável). Usar ML Search + ML Sellers (vendas passadas) quando voltar.
-- [ ] Busca pública ML: localizar endpoint que ainda funciona sem token (frontend/mobile internal API) como 4ª fonte.
-- [ ] Orquestrador: confirmar paralelismo só com fontes configuradas, consenso de preço, dedupe por título/MLB id, e degradação graciosa.
-- [ ] Segurança (regra de ouro): testes garantem que NENHUMA credencial da conta ML do usuário (token/CNPJ/cookies/Bearer) trafega aos provedores; só keyword pública + chave do provedor.
-- [ ] UI: status honesto por fonte (não configurada / ativa / instável / alvo sem suporte) + selo de consenso.
-- [ ] Suíte completa (unit + live gated por env) + checkpoint final.
+- [x] Oxylabs: alvo definido = render JS (browser_instructions) + parser de poly-cards. Ao vivo: 60 ofertas (Fase 1).
+- [x] ScrapingBee: render + wait=1500 + parser compartilhado + retry em página vazia. Ao vivo: 60 ofertas (Fase 2).
+- [x] Unwrangle: revalidada — chave válida, provedor intermitente; tratada com retry + estado honesto (Fase 2).
+- [~] Busca pública ML como 4ª fonte: oficialSource existe, mas a busca pública sem token é instável; mantida como "não configurada" com transparência na UI. Oxylabs+ScrapingBee já dão triangulação real.
+- [x] Orquestrador: paralelismo só com fontes configuradas, dedupe por MLB id/nome, timeout 150s, degradação graciosa (Fase 3).
+- [x] Segurança: teste de isolamento garante que nenhuma credencial da conta ML trafega aos provedores (Fase 3).
+- [x] UI: status honesto por fonte + "Fontes desta busca" + selo de consenso nos cards (Fase 4).
+- [x] Suíte completa (136 unit + live gated) + checkpoint final b99c7a02 (Fase 5).
 
 
 ## Correção do dashboard de vendas (09/jun) — dados reais
@@ -264,7 +264,9 @@
 - [x] Validado ao vivo: "creatina" → 62 concorrentes triangulados, produtos corroborados marcados como "Alta"
 ### Qualidade (Fase 5)
 - [x] Suíte completa de unit verde: 136 testes, 16 arquivos; TS/LSP limpos
-- [x] Testes live gated por env verdes (oxylabs, scrapingbee, orchestrator) — triangulação real confirmada
+- [x] Testes live gated por env verdes (evidência direta 09/jun 19:53): oxylabs.live=60 ofertas; scrapingbee.live=60 ofertas; orchestrator.live=62 concorrentes, triangulated=true, 58 corroborados por 2 fontes (oxylabs:ok+scrapingbee:ok)
+- [x] Robustez sob contenção corrigida: timeout por fonte 150s→240s (ScrapingBee pior caso ~165s sob contenção); antes dava corroborated=0, agora corroborated=58
+- [ ] NOTA DE ROBUSTEZ FUTURA (opcional): job de coleta é fire-and-forget; em Cloud Run min-instances=0 considerar worker/heartbeat dedicado para garantir conclusão mesmo se a instância escalar a zero após a request
 - [x] webdev_check_status: dev server running, sem erros de build/TS/LSP
-- [ ] Checkpoint final + entrega
+- [x] Checkpoint final + entrega (version b99c7a02)
 - [x] Validado ao vivo: "creatina" → 62 concorrentes triangulados, corroboração Oxylabs+ScrapingBee = "Alta"
