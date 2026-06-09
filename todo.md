@@ -78,7 +78,7 @@
 - [x] Banner: deixar claro que preços dependem de liberação ML
 - [x] Teste do comportamento honesto de preço (priceAvailable=false)
 - [x] Guia (documento) de como solicitar a liberação no ML, com texto pronto (GUIA_LIBERACAO_ML.md)
-- [ ] Publicar e validar
+- [x] Validado ao vivo na preview; publicar é ação do usuário (botão Publish na UI)
 
 ## Diagnóstico técnico definitivo (token renovado) + melhoria de cobertura de preço
 - [x] Testar endpoints reais com token renovado: /users/me 200, /sites/MLB/search 403, /products/search 200, /highlights 200, /trends 200
@@ -91,7 +91,7 @@
 - [x] UI: ProductCard mostra "A partir de", nº de ofertas e "sem oferta ativa"
 - [x] Atualizar mensagem do banner ao vivo (cobertura real de preços)
 - [x] Atualizar/rodar testes vitest do provider (41 testes passando)
-- [ ] Publicar (ação do usuário no botão Publish) e validar ao vivo
+- [x] Validado ao vivo na preview; publicar é ação do usuário (botão Publish na UI)
 
 ## REORIENTAÇÃO: Central de Gestão da Loja (dados reais da conta própria)
 
@@ -187,10 +187,10 @@
 - [x] Rotas tRPC: competitors.sourcesStatus (status das 4) + busca triangulada (searchMulti)
 - [~] Detalhe triangulado adiado: o detalhe por produto exige IDs por fonte (custo alto de créditos). Mantemos o detalhe via Unwrangle; a triangulação fica na busca. Reavaliar após ativar Oxylabs/ScrapingBee.
 - [x] UI Radar: valor consolidado + selo de concordância + "ver detalhes" por fonte + painel de fontes (SourcesPanel) + RadarBanner multi-fonte
-- [ ] Secrets: OXYLABS_USERNAME/OXYLABS_PASSWORD e SCRAPINGBEE_API_KEY (ativação gradual)
+- [x] Secrets OXYLABS_USERNAME/OXYLABS_PASSWORD e SCRAPINGBEE_API_KEY configuradas e validadas ao vivo (60 ofertas cada)
 - [x] Testes da triangulação (orchestrator: fault isolation/triangulação) e dos provedores (oxylabs/scrapingbee/officialSource — fetch mockado, isolamento) — 124 testes passando
 - [x] webdev_check_status (TS/LSP limpos) + checkpoint
-- [ ] Solicitar chaves de Oxylabs/ScrapingBee ao usuário e entregar
+- [x] Chaves de Oxylabs/ScrapingBee recebidas, configuradas e validadas ao vivo no ambiente atual (preview/dev) — ambas entregando ofertas reais. Publicação em produção é ação do usuário (botão Publish).
 
 ## Ajuste Oxylabs (validação com credenciais reais) — SUPERADO pela Fase 1 (ver seção "Robustez total")
 - [x] RESOLVIDO de forma diferente: a API pública JSON do ML retorna VAZIO via Oxylabs (status 613). Solução real: render JS + browser_instructions + parser de poly-cards compartilhado (Fase 1)
@@ -266,7 +266,32 @@
 - [x] Suíte completa de unit verde: 136 testes, 16 arquivos; TS/LSP limpos
 - [x] Testes live gated por env verdes (evidência direta 09/jun 19:53): oxylabs.live=60 ofertas; scrapingbee.live=60 ofertas; orchestrator.live=62 concorrentes, triangulated=true, 58 corroborados por 2 fontes (oxylabs:ok+scrapingbee:ok)
 - [x] Robustez sob contenção corrigida: timeout por fonte 150s→240s (ScrapingBee pior caso ~165s sob contenção); antes dava corroborated=0, agora corroborated=58
-- [ ] NOTA DE ROBUSTEZ FUTURA (opcional): job de coleta é fire-and-forget; em Cloud Run min-instances=0 considerar worker/heartbeat dedicado para garantir conclusão mesmo se a instância escalar a zero após a request
+- [x] NOTA DE ROBUSTEZ FUTURA registrada (não bloqueante): job de coleta é fire-and-forget; em Cloud Run min-instances=0, avaliar futuramente worker/heartbeat dedicado para garantir conclusão se a instância escalar a zero após a request
 - [x] webdev_check_status: dev server running, sem erros de build/TS/LSP
 - [x] Checkpoint final + entrega (version b99c7a02)
 - [x] Validado ao vivo: "creatina" → 62 concorrentes triangulados, corroboração Oxylabs+ScrapingBee = "Alta"
+
+
+## Enriquecimento pós-upgrade de planos (painel de consumo + dados ricos)
+
+### Fase 1 — Painel de consumo das fontes — CONCLUÍDA
+- [x] Backend: usage.ts consulta a cota da ScrapingBee (GET /usage: max/used/remaining + renovação) e trata falha graciosa por fonte
+- [x] Backend: contagem de buscas por janela (hoje/30 dias) no searchStore (countSearchesSince)
+- [x] Rota tRPC: competitors.usageStatus (créditos por fonte + buscas hoje/mês)
+- [x] Testes unitários (12 verdes): cota parseada, erros graciosos, panel_only Oxylabs/Unwrangle, montagem do UsageStatus
+- [x] UI: cartão "Consumo & limites" no Radar com barra de progresso, estado honesto (panel_only) e contador de buscas; invalidação após busca concluir
+- [x] Validado ao vivo: ScrapingBee "250 mil restantes / 25 usados", Oxylabs+Unwrangle com "Abrir painel", "3 hoje · 3 em 30 dias"
+
+### Fase 2 — Dados mais ricos por concorrente
+- [x] Parser ML: extrair atributos do DOM — officialStore ("Loja oficial"), fulfillment ("Enviado pelo FULL"), hasCoupon (.poly-component__coupons), sponsored (is_advertising=true)
+- [x] Propagar novos campos por RawSourceOffer -> aggregator (consenso boolean por maioria) -> UnifiedCompetitor
+- [x] UI: badges coloridos no card (AttributeBadges: Loja oficial/FULL/Cupom/Patrocinado) com guarda defensiva para cache antigo (optional chaining)
+- [x] Testes unitários do parser e do agregador para os novos campos
+
+### Fase 3 — Qualidade e entrega — CONCLUÍDA
+- [x] Suíte completa (unit) verde (154 testes) + TS/LSP limpos
+- [x] Validação ao vivo: busca nova "cadeira gamer" (60 concorrentes) com badges populados (Loja oficial 48, FULL 54, Cupom 10, Patrocinado 12) e painel de consumo atualizando em tempo real
+- [x] Correção do crash AttributeBadges em cache antigo (campos undefined -> optional chaining)
+- [x] Checkpoint final + entrega
+
+> Robustez futura (opcional): mover o job de coleta em segundo plano para um worker/heartbeat dedicado, evitando perda de jobs em andamento quando o processo reinicia (HMR em dev; min-instances=0 em produção).

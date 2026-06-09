@@ -78,7 +78,20 @@ export function parseMlSearchHtml(html: string, source: SourceId): RawSourceOffe
     const shippingText = card.find(".poly-component__shipping").first().text().trim();
     const freeShipping = shippingText ? /gr[áa]tis|free/i.test(shippingText) : null;
 
-    const seller = str(card.find(".poly-component__seller").first().text());
+    const sellerEl = card.find(".poly-component__seller").first();
+    const seller = str(sellerEl.text());
+
+    // ── Enrichment fields (only what ML's search DOM reliably exposes) ──
+    // Official brand store: ML renders an icon with aria-label="Loja oficial".
+    const officialStore = card.find('[aria-label="Loja oficial"]').length > 0;
+    // FULL fulfillment: an icon/label with aria-label "Enviado pelo FULL".
+    const fulfillment = card.find('[aria-label*="Full" i]').length > 0;
+    // Coupon/discount pill present on the card.
+    const hasCoupon = card.find(".poly-component__coupons").length > 0;
+    // Sponsored/paid placement: the product link carries is_advertising=true.
+    const sponsored =
+      card.find('a[href*="is_advertising=true"]').length > 0 ||
+      card.find('[aria-label*="Patrocinado" i]').length > 0;
 
     if (!name && !url) return;
 
@@ -94,6 +107,10 @@ export function parseMlSearchHtml(html: string, source: SourceId): RawSourceOffe
       brand,
       freeShipping,
       sellerReputation: seller,
+      officialStore,
+      fulfillment,
+      hasCoupon,
+      sponsored,
     });
   });
 

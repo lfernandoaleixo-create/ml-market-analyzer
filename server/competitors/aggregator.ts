@@ -279,6 +279,10 @@ export function mergeCluster(cluster: RawSourceOffer[]): UnifiedCompetitor {
   const brand = stringConsensus(contrib((o) => o.brand));
   const sellerReputation = stringConsensus(contrib((o) => o.sellerReputation));
   const freeShipping = booleanConsensus(contrib((o) => o.freeShipping));
+  const officialStore = booleanConsensus(contrib((o) => o.officialStore));
+  const fulfillment = booleanConsensus(contrib((o) => o.fulfillment));
+  const hasCoupon = booleanConsensus(contrib((o) => o.hasCoupon));
+  const sponsored = booleanConsensus(contrib((o) => o.sponsored));
 
   const name = pickByPriority(cluster, (o) => o.name, DISPLAY_PRIORITY) ?? cluster[0].name;
   const url = pickByPriority(cluster, (o) => o.url, DISPLAY_PRIORITY);
@@ -298,6 +302,10 @@ export function mergeCluster(cluster: RawSourceOffer[]): UnifiedCompetitor {
     brand,
     freeShipping,
     sellerReputation,
+    officialStore,
+    fulfillment,
+    hasCoupon,
+    sponsored,
     sources,
     overallConsensus: "none",
   };

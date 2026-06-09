@@ -106,6 +106,11 @@ async function unwrangleOffers(query: string): Promise<RawSourceOffer[]> {
     brand: c.brand,
     freeShipping: null,
     sellerReputation: null,
+    // Unwrangle's ML Search payload does not expose these card badges.
+    officialStore: null,
+    fulfillment: null,
+    hasCoupon: null,
+    sponsored: null,
   }));
 }
 

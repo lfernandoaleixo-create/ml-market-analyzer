@@ -18,6 +18,7 @@ import {
   normalizeQuery,
 } from "../competitors/searchStore";
 import { launchSearchJob } from "../competitors/searchJob";
+import { getUsageStatus } from "../competitors/usage";
 import type { MyListingBaseline } from "@shared/competitors";
 
 /**
@@ -166,6 +167,16 @@ export const competitorsRouter = router({
       }
       return view;
     }),
+
+  /**
+   * Consumption panel: per-source quota/state (ScrapingBee credits, Oxylabs /
+   * Unwrangle panel-only) plus the user's own search counts (today / 30 days).
+   * Each search consumes the paid sources, so this gives the team visibility
+   * over the "tank" before it runs low.
+   */
+  usageStatus: protectedProcedure.query(async ({ ctx }) => {
+    return getUsageStatus(ctx.user!.id);
+  }),
 
   /** The user's most recent searches (for the "recent searches" panel). */
   recentSearches: protectedProcedure

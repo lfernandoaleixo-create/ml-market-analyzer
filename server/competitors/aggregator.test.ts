@@ -28,6 +28,10 @@ function offer(source: SourceId, over: Partial<RawSourceOffer> = {}): RawSourceO
     brand: "XYZ",
     freeShipping: true,
     sellerReputation: "MercadoLíder",
+    officialStore: null,
+    fulfillment: null,
+    hasCoupon: null,
+    sponsored: null,
     ...over,
   };
 }
@@ -155,6 +159,34 @@ describe("merge + strength", () => {
     expect(u.price.consensus).toBe("high");
     expect(u.overallConsensus === "high" || u.overallConsensus === "medium").toBe(true);
     expect(u.matchKey).toBe("MLB1234567890");
+  });
+
+  it("merges enrichment badges with boolean consensus (official + FULL + coupon + sponsored)", () => {
+    const cluster = [
+      offer("oxylabs", { officialStore: true, fulfillment: true, hasCoupon: true, sponsored: false }),
+      offer("scrapingbee", { officialStore: true, fulfillment: true, hasCoupon: false, sponsored: false }),
+    ];
+    const u = mergeCluster(cluster);
+    // Both sources agree it's an official store + FULL → unanimous (2/2) = high.
+    expect(u.officialStore.value).toBe(true);
+    expect(u.officialStore.consensus).toBe("high");
+    expect(u.fulfillment.value).toBe(true);
+    expect(u.fulfillment.consensus).toBe("high");
+    // Sources disagree on coupon (true vs false) → no majority, value falls to most common.
+    expect(u.hasCoupon.consensus === "low" || u.hasCoupon.consensus === "medium").toBe(true);
+    // Both agree it is NOT sponsored.
+    expect(u.sponsored.value).toBe(false);
+  });
+
+  it("ignores sources that don't report a badge (null) without lowering consensus", () => {
+    const cluster = [
+      offer("oxylabs", { officialStore: true }),
+      offer("unwrangle", { officialStore: null }),
+    ];
+    const u = mergeCluster(cluster);
+    // Only one source reported the badge → single (null is skipped, not counted as disagreement).
+    expect(u.officialStore.value).toBe(true);
+    expect(u.officialStore.consensus).toBe("single");
   });
 
   it("strength rewards corroboration and social proof", () => {

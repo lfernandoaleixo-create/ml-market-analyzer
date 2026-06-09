@@ -9,7 +9,7 @@
  * All timestamps are stored as UTC unix-ms (bigint) at the API/DB layer.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import {
   competitorResults,
   competitorSearches,
@@ -215,6 +215,29 @@ export async function getSearchView(
     view.competitors = await getResults(id);
   }
   return view;
+}
+
+/**
+ * Count how many searches a user has STARTED since a given unix-ms instant.
+ * Used by the consumption panel to show "buscas hoje / no mês". Counts every
+ * started search (each one triggers the paid sources), regardless of outcome.
+ */
+export async function countSearchesSince(
+  userId: number,
+  sinceMs: number,
+): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(competitorSearches)
+    .where(
+      and(
+        eq(competitorSearches.userId, userId),
+        gte(competitorSearches.createdAt, new Date(sinceMs)),
+      ),
+    );
+  return Number(rows[0]?.n ?? 0);
 }
 
 /** List the user's most recent searches (for the "recent searches" panel). */

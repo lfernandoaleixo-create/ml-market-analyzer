@@ -55,6 +55,12 @@ export function mapOfficialProduct(p: MlProduct): RawSourceOffer | null {
       p.attributes?.find((a) => /marca|brand/i.test(a.name))?.value ?? null,
     freeShipping: typeof p.freeShipping === "boolean" ? p.freeShipping : null,
     sellerReputation: reputation,
+    // The public search API response does not carry these card-level badges;
+    // leave them null so triangulation simply skips them for this source.
+    officialStore: typeof p.officialStore === "boolean" ? p.officialStore : null,
+    fulfillment: null,
+    hasCoupon: null,
+    sponsored: null,
   };
 }
 

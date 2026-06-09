@@ -1,6 +1,7 @@
 import { EmptyState, PageContainer, PageHeader } from "@/components/market/Common";
 import { RadarBanner } from "@/components/competitors/RadarBanner";
 import { SourcesPanel } from "@/components/competitors/SourcesPanel";
+import { UsagePanel } from "@/components/competitors/UsagePanel";
 import { ConsensusBadge } from "@/components/competitors/ConsensusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,10 @@ import {
   History,
   Loader2,
   Database,
+  BadgeCheck,
+  Zap,
+  Ticket,
+  Megaphone,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -57,6 +62,13 @@ export default function RadarConcorrentes() {
     { limit: 12 },
     { enabled: anyConfigured },
   );
+
+  // Consumption panel: per-source quota + the user's search counts. Refetched
+  // when the window regains focus so the "tank" stays reasonably fresh.
+  const usage = trpc.competitors.usageStatus.useQuery(undefined, {
+    enabled: anyConfigured,
+    staleTime: 60_000,
+  });
 
   const startSearch = trpc.competitors.startSearch.useMutation();
 
@@ -115,6 +127,9 @@ export default function RadarConcorrentes() {
     if (lastSettledRef.current === key) return;
     lastSettledRef.current = key;
     utils.competitors.recentSearches.invalidate();
+    // A finished collection consumes paid-source credits and bumps the daily
+    // search count, so refresh the consumption panel too.
+    utils.competitors.usageStatus.invalidate();
   }, [view, utils]);
 
   return (
@@ -136,6 +151,11 @@ export default function RadarConcorrentes() {
           configuredCount={sources.data.configuredCount}
         />
       ) : null}
+
+      {/* Consumption & limits (paid-source quota + this user's search counts) */}
+      {anyConfigured && (
+        <UsagePanel data={usage.data} isLoading={usage.isLoading} />
+      )}
 
       {/* Search bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -483,6 +503,7 @@ function CompetitorRow({
               </a>
             )}
           </div>
+          <AttributeBadges c={c} />
         </div>
         <div className="shrink-0 text-right">
           <p className="font-display text-base font-600 tabular-nums">
@@ -553,6 +574,55 @@ function CompetitorRow({
         </CollapsibleContent>
       </Collapsible>
     </Card>
+  );
+}
+
+/**
+ * Compact row of honest attribute badges. Only renders a badge when the
+ * triangulated consensus value is explicitly true (null/false are hidden so we
+ * never imply a signal the sources didn't actually report).
+ */
+function AttributeBadges({ c }: { c: UnifiedCompetitor }) {
+  const items: { show: boolean; icon: typeof BadgeCheck; label: string; cls: string }[] = [
+    {
+      show: c.officialStore?.value === true,
+      icon: BadgeCheck,
+      label: "Loja oficial",
+      cls: "text-blue-600 border-blue-200 bg-blue-50",
+    },
+    {
+      show: c.fulfillment?.value === true,
+      icon: Zap,
+      label: "FULL",
+      cls: "text-emerald-700 border-emerald-200 bg-emerald-50",
+    },
+    {
+      show: c.hasCoupon?.value === true,
+      icon: Ticket,
+      label: "Cupom",
+      cls: "text-rose-600 border-rose-200 bg-rose-50",
+    },
+    {
+      show: c.sponsored?.value === true,
+      icon: Megaphone,
+      label: "Patrocinado",
+      cls: "text-amber-700 border-amber-200 bg-amber-50",
+    },
+  ];
+  const visible = items.filter((i) => i.show);
+  if (visible.length === 0) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      {visible.map((i) => (
+        <span
+          key={i.label}
+          className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${i.cls}`}
+        >
+          <i.icon className="h-3 w-3" />
+          {i.label}
+        </span>
+      ))}
+    </div>
   );
 }
 

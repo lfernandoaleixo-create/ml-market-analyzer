@@ -106,6 +106,14 @@ export interface UnifiedCompetitor {
   freeShipping: FieldConsensus<boolean>;
   /** Sellers' reputation label when available (e.g. "MercadoLíder"). */
   sellerReputation: FieldConsensus<string>;
+  /** True when the listing belongs to an official brand store ("Loja oficial"). */
+  officialStore: FieldConsensus<boolean>;
+  /** True when fulfilled by Mercado Livre logistics ("Enviado pelo FULL"). */
+  fulfillment: FieldConsensus<boolean>;
+  /** True when the listing currently advertises a coupon/discount pill. */
+  hasCoupon: FieldConsensus<boolean>;
+  /** True when the listing is a paid/sponsored placement (is_advertising). */
+  sponsored: FieldConsensus<boolean>;
   /** Which sources contributed ANY field to this competitor. */
   sources: SourceId[];
   /**
@@ -126,6 +134,41 @@ export interface UnifiedSearchResult {
   triangulated: boolean;
 }
 
+/**
+ * Credit/quota usage reported by a paid source provider.
+ * `kind` distinguishes how to present it honestly in the UI:
+ *  - "quota"        → provider exposes max/used credits (e.g. ScrapingBee)
+ *  - "panel_only"   → configured, but provider has no public usage endpoint
+ *                     (consumption is visible only on the provider dashboard,
+ *                     e.g. Oxylabs)
+ *  - "unconfigured" → no credentials on the server
+ *  - "error"        → configured but the usage probe failed
+ */
+export interface SourceUsage {
+  id: SourceId;
+  label: string;
+  kind: "quota" | "panel_only" | "unconfigured" | "error";
+  /** Total credits in the plan (null unless kind = "quota"). */
+  maxCredits: number | null;
+  /** Credits already consumed this cycle (null unless kind = "quota"). */
+  usedCredits: number | null;
+  /** Convenience: maxCredits - usedCredits (null unless kind = "quota"). */
+  remainingCredits: number | null;
+  /** Plan renewal date as unix-ms (null when unknown). */
+  renewalAt: number | null;
+  /** Short PT-BR note for the UI (e.g. "Consumo visível no painel da Oxylabs"). */
+  note: string | null;
+}
+
+/** Consumption panel payload: per-source quota + the user's search counts. */
+export interface UsageStatus {
+  sources: SourceUsage[];
+  /** Searches the user STARTED today (since local midnight, server-computed UTC window). */
+  searchesToday: number;
+  /** Searches the user STARTED in the last 30 days. */
+  searchesLast30Days: number;
+}
+
 /** A raw, per-source normalized offer BEFORE triangulation (internal). */
 export interface RawSourceOffer {
   source: SourceId;
@@ -139,4 +182,12 @@ export interface RawSourceOffer {
   brand: string | null;
   freeShipping: boolean | null;
   sellerReputation: string | null;
+  /** True when the listing belongs to an official brand store. */
+  officialStore: boolean | null;
+  /** True when fulfilled by Mercado Livre logistics (FULL). */
+  fulfillment: boolean | null;
+  /** True when a coupon/discount pill is shown on the card. */
+  hasCoupon: boolean | null;
+  /** True when the card is a sponsored/advertising placement. */
+  sponsored: boolean | null;
 }
