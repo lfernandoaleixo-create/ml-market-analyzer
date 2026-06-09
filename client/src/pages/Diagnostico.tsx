@@ -30,6 +30,8 @@ import {
   AlertTriangle,
   MinusCircle,
   HelpCircle,
+  ServerCrash,
+  RefreshCw,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
@@ -201,11 +203,30 @@ export default function Diagnostico() {
           {diagnose.isPending ? (
             <Skeleton className="h-80 w-full rounded-xl" />
           ) : diagnose.error ? (
-            <EmptyState
-              icon={AlertTriangle}
-              title="Não foi possível diagnosticar"
-              description={diagnose.error.message}
-            />
+            diagnose.error.data?.code === "BAD_GATEWAY" ? (
+              <EmptyState
+                icon={ServerCrash}
+                title="Serviço de dados temporariamente instável"
+                description="O provedor de dados de concorrentes está com instabilidade momentânea e não respondeu agora. Isso é temporário e não afeta a sua conta nem os seus créditos. Aguarde alguns minutos e rode o diagnóstico novamente."
+                action={
+                  <Button
+                    variant="outline"
+                    onClick={runDiagnosis}
+                    disabled={diagnose.isPending}
+                    className="gap-1.5"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${diagnose.isPending ? "animate-spin" : ""}`} />
+                    Tentar novamente
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={AlertTriangle}
+                title="Não foi possível diagnosticar"
+                description={diagnose.error.message}
+              />
+            )
           ) : result ? (
             <DiagnosisResult result={result} />
           ) : (

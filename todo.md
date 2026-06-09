@@ -151,4 +151,14 @@
 ### Qualidade
 - [x] Testes vitest do cliente e do diagnóstico (com mocks) — 14 testes passando (62 no total)
 - [x] webdev_check_status + checkpoint
-- [ ] Criar campo de secret para o usuário inserir a chave quando tiver (aguardando cadastro do usuário na Unwrangle)
+- [x] Criar campo de secret para o usuário inserir a chave quando tiver — chave recebida e configurada
+
+### Ativação da chave + resiliência ao provedor (09/06)
+- [x] Chave UNWRANGLE_API_KEY recebida do usuário e configurada como secret
+- [x] Retry automático no cliente Unwrangle (até 5 tentativas, backoff) para erros 5xx/rede/success:false
+- [x] Delay de retry configurável via env (UNWRANGLE_RETRY_DELAY_MS) para testes rápidos
+- [x] Aviso amigável "serviço de dados temporariamente instável" no Radar e no Diagnóstico (BAD_GATEWAY) com botão Tentar novamente
+- [x] Teste ao vivo resiliente: valida que a chave é válida (não 403) sem falhar quando o provedor está em 504
+- [x] Suíte completa passando (64 testes)
+- [ ] BLOQUEIO EXTERNO: bug 504/parser no scraper Mercado Livre da Unwrangle — aguardando correção do provedor (suporte acionado, resposta em até 4h)
+- [ ] Quando o provedor voltar: rodar busca real e primeira análise de concorrente com o usuário

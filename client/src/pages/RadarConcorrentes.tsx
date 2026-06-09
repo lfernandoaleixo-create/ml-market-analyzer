@@ -16,6 +16,8 @@ import {
   ExternalLink,
   Microscope,
   Lock,
+  ServerCrash,
+  RefreshCw,
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -39,6 +41,12 @@ export default function RadarConcorrentes() {
   };
 
   const results = search.data?.results ?? [];
+
+  // The third-party provider (Unwrangle) occasionally returns a transient
+  // upstream/parser failure (mapped to BAD_GATEWAY on the server). When that
+  // happens we show a friendly "provider unstable" notice instead of a raw
+  // technical error, with a one-click retry.
+  const isUpstreamHiccup = search.error?.data?.code === "BAD_GATEWAY";
 
   return (
     <PageContainer>
@@ -95,11 +103,29 @@ export default function RadarConcorrentes() {
           ))}
         </div>
       ) : search.error ? (
-        <EmptyState
-          icon={SearchX}
-          title="Não foi possível buscar"
-          description={search.error.message}
-        />
+        isUpstreamHiccup ? (
+          <EmptyState
+            icon={ServerCrash}
+            title="Serviço de dados temporariamente instável"
+            description="O provedor de dados de concorrentes está com instabilidade momentânea e não respondeu agora. Isso é temporário e não afeta a sua conta nem os seus créditos. Aguarde alguns minutos e tente novamente."
+            action={
+              <Button
+                variant="outline"
+                onClick={() => search.refetch()}
+                disabled={search.isFetching}
+              >
+                <RefreshCw className={`h-4 w-4 ${search.isFetching ? "animate-spin" : ""}`} />
+                Tentar novamente
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={SearchX}
+            title="Não foi possível buscar"
+            description={search.error.message}
+          />
+        )
       ) : results.length === 0 ? (
         <EmptyState
           icon={SearchX}

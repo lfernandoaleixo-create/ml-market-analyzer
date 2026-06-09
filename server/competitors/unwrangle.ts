@@ -43,8 +43,30 @@ export function isConfigured(): boolean {
 type FetchLike = typeof fetch;
 
 /**
+ * Unwrangle's Mercado Livre scraper occasionally returns a transient parser /
+ * upstream failure (the support team explicitly recommends retrying up to a
+ * handful of times). We retry on:
+ *  - network errors (fetch throws)
+ *  - HTTP 5xx
+ *  - HTTP 200 with `{ success: false }` (their soft parser error)
+ * We do NOT retry on 400 (bad input), 403 (auth/credits) — those are terminal.
+ */
+const MAX_ATTEMPTS = 5;
+// Base backoff between retries. Overridable via env so tests can run with no
+// real wait (set UNWRANGLE_RETRY_DELAY_MS=0); production keeps the real delay.
+const BASE_DELAY_MS = (() => {
+  const raw = process.env.UNWRANGLE_RETRY_DELAY_MS;
+  const parsed = raw !== undefined ? Number(raw) : NaN;
+  return Number.isFinite(parsed) ? parsed : 600;
+})();
+
+const sleep = (ms: number) =>
+  ms > 0 ? new Promise(resolve => setTimeout(resolve, ms)) : Promise.resolve();
+
+/**
  * Internal low-level GET against the Unwrangle getter endpoint.
  * `fetchImpl` is injectable so tests can mock the network with no real key.
+ * Transient failures are retried automatically with a short backoff.
  */
 async function getJson(
   params: Record<string, string | number | undefined>,
@@ -65,47 +87,79 @@ async function getJson(
     }
   }
 
-  let res: Response;
-  try {
-    res = await fetchImpl(url.toString(), {
-      method: "GET",
-      headers: {
-        Authorization: `Token ${apiKey}`,
-        Accept: "application/json",
-      },
-    });
-  } catch (err) {
-    throw new UnwrangleError(
-      "upstream",
-      "Não foi possível contatar o serviço de inteligência. Tente novamente em instantes.",
-    );
+  let lastTransient: UnwrangleError | null = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res: Response;
+    try {
+      res = await fetchImpl(url.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Token ${apiKey}`,
+          Accept: "application/json",
+        },
+      });
+    } catch (err) {
+      // Network-level failure — transient, retry.
+      lastTransient = new UnwrangleError(
+        "upstream",
+        "Não foi possível contatar o serviço de inteligência. Tente novamente em instantes.",
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(BASE_DELAY_MS * attempt);
+        continue;
+      }
+      throw lastTransient;
+    }
+
+    // Terminal errors — do not retry.
+    if (res.status === 403) {
+      throw new UnwrangleError(
+        "credits",
+        "Chave inválida ou créditos esgotados na API de inteligência de concorrentes.",
+      );
+    }
+    if (res.status === 400) {
+      throw new UnwrangleError("bad_input", "Requisição inválida para a API de inteligência.");
+    }
+
+    // 5xx — transient, retry.
+    if (res.status >= 500) {
+      lastTransient = new UnwrangleError(
+        "upstream",
+        "O serviço de inteligência está temporariamente indisponível. Tente novamente.",
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(BASE_DELAY_MS * attempt);
+        continue;
+      }
+      throw lastTransient;
+    }
+
+    const data = await res.json().catch(() => null);
+
+    // Soft parser error: HTTP 200 but success:false — transient, retry.
+    if (!data || data.success === false) {
+      lastTransient = new UnwrangleError(
+        "upstream",
+        (data && (data.message as string)) ||
+          "O serviço de inteligência retornou uma resposta inesperada. Tente novamente.",
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(BASE_DELAY_MS * attempt);
+        continue;
+      }
+      throw lastTransient;
+    }
+
+    return data;
   }
 
-  if (res.status === 403) {
-    throw new UnwrangleError(
-      "credits",
-      "Chave inválida ou créditos esgotados na API de inteligência de concorrentes.",
-    );
-  }
-  if (res.status === 400) {
-    throw new UnwrangleError("bad_input", "Requisição inválida para a API de inteligência.");
-  }
-  if (res.status >= 500) {
-    throw new UnwrangleError(
-      "upstream",
-      "O serviço de inteligência está temporariamente indisponível. Tente novamente.",
-    );
-  }
-
-  const data = await res.json().catch(() => null);
-  if (!data || data.success === false) {
-    throw new UnwrangleError(
-      "upstream",
-      (data && (data.message as string)) ||
-        "O serviço de inteligência retornou uma resposta inesperada.",
-    );
-  }
-  return data;
+  // Exhausted all attempts.
+  throw (
+    lastTransient ??
+    new UnwrangleError("unknown", "Falha ao consultar o serviço de inteligência.")
+  );
 }
 
 function num(v: unknown): number | null {

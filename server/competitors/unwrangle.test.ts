@@ -7,6 +7,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  * and the request goes to the Unwrangle host with just the public keyword/URL.
  */
 
+// Make retries instant in tests (no real backoff wait).
+process.env.UNWRANGLE_RETRY_DELAY_MS = "0";
+
 const ORIGINAL_KEY = process.env.UNWRANGLE_API_KEY;
 
 afterEach(() => {
@@ -96,12 +99,43 @@ describe("unwrangle client — search", () => {
     expect(serialized.toLowerCase()).not.toContain("cookie");
   });
 
-  it("maps 403 to a credits/auth error", async () => {
+  it("maps 403 to a credits/auth error WITHOUT retrying", async () => {
     const mod = await loadModule();
     const fakeFetch = vi.fn().mockResolvedValue(jsonResponse({}, 403));
     await expect(mod.searchProducts("x", 1, fakeFetch as any)).rejects.toMatchObject({
       code: "credits",
     });
+    // 403 is terminal — must be called exactly once (no retry).
+    expect(fakeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries on a transient success:false and then succeeds", async () => {
+    const mod = await loadModule();
+    const fakeFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ success: false, error: "Parsing error" }))
+      .mockResolvedValueOnce(jsonResponse({ success: false, error: "Parsing error" }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          results: [
+            { name: "Ok", url: "u", rating: 4.5, total_ratings: 100, price: 10, currency: "BRL", currency_symbol: "R$" },
+          ],
+        }),
+      );
+    const res = await mod.searchProducts("celular", 1, fakeFetch as any);
+    expect(res.results.length).toBe(1);
+    expect(fakeFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries on 5xx and eventually throws upstream after max attempts", async () => {
+    const mod = await loadModule();
+    const fakeFetch = vi.fn().mockResolvedValue(jsonResponse({}, 503));
+    await expect(mod.searchProducts("x", 1, fakeFetch as any)).rejects.toMatchObject({
+      code: "upstream",
+    });
+    // Should have retried up to the max attempt count.
+    expect(fakeFetch).toHaveBeenCalledTimes(5);
   });
 });
 
