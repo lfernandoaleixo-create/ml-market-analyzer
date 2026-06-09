@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { parse as parseCookie } from "cookie";
+import { COOKIE_NAME } from "@shared/const";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { getAppConfig, upsertAppConfig } from "../dbMl";
+import {
+  createHeartbeatJob,
+  deleteHeartbeatJob,
+  updateHeartbeatJob,
+} from "../_core/heartbeat";
 import {
   isConfigured,
   searchProducts,
@@ -253,6 +261,66 @@ export const competitorsRouter = router({
         return diagnoseCompetitor(baseline, competitor);
       } catch (err) {
         toTRPC(err);
+      }
+    }),
+
+  // ---- Background-sweep schedule (Heartbeat cron) ------------------------
+  // Keeps the Radar resilient to server restarts: a recurring job hits
+  // /api/scheduled/radarSweep on the DEPLOYED site and fails any collection
+  // orphaned by an instance recycle. The platform can only reach the published
+  // domain, so this must be enabled AFTER deploy (dev sandboxes are unreachable).
+
+  /** Current state of the background-sweep cron. */
+  getSweepSchedule: protectedProcedure.query(async () => {
+    const config = await getAppConfig();
+    return {
+      enabled: Boolean(config?.radarSweepCronTaskUid),
+      taskUid: config?.radarSweepCronTaskUid ?? null,
+    };
+  }),
+
+  /** Enable/disable the recurring background-sweep cron. */
+  setSweepSchedule: protectedProcedure
+    .input(
+      z.object({
+        enabled: z.boolean(),
+        // Every 2 minutes UTC — frequent enough to clear stuck searches fast.
+        cron: z.string().default("0 */2 * * * *"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const sessionToken =
+        parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      const config = await getAppConfig();
+      const existingUid = config?.radarSweepCronTaskUid ?? null;
+
+      if (input.enabled) {
+        if (existingUid) {
+          await updateHeartbeatJob(
+            existingUid,
+            { cron: input.cron, enable: true },
+            sessionToken,
+          );
+          return { enabled: true, taskUid: existingUid };
+        }
+        const job = await createHeartbeatJob(
+          {
+            name: "radar-sweep",
+            cron: input.cron,
+            path: "/api/scheduled/radarSweep",
+            description:
+              "Recupera buscas de concorrentes interrompidas por reinício do servidor",
+          },
+          sessionToken,
+        );
+        await upsertAppConfig({ radarSweepCronTaskUid: job.taskUid });
+        return { enabled: true, taskUid: job.taskUid };
+      } else {
+        if (existingUid) {
+          await deleteHeartbeatJob(existingUid, sessionToken);
+          await upsertAppConfig({ radarSweepCronTaskUid: null });
+        }
+        return { enabled: false, taskUid: null };
       }
     }),
 });

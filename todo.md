@@ -307,7 +307,11 @@
 - [x] Handler montado em server/_core/index.ts antes do fallthrough
 - [x] Coluna app_config.radarSweepCronTaskUid (migração aplicada)
 - [x] Testes unitários: isStalled (4) + handler do sweep (5) verdes
-- [ ] Após deploy: criar cron de projeto via manus-heartbeat (a cada 1-2 min)
+- [x] Controle do cron pela própria UI: procedures get/setSweepSchedule (espelhando o monitor) + SweepScheduleCard (switch "Robustez da coleta", a cada 2 min, com nota honesta de que requer publicação)
+- [x] Testes do fluxo de schedule (6): create/update/delete + estado (175 testes no total, verdes)
+- [x] Implementação completa do cron entregável via UI
+
+> Nota de fluxo (ação do usuário, não de implementação): após publicar o app, basta ativar o switch "Robustez da coleta" no Radar para registrar o cron no domínio publicado. Antes da publicação o switch fica disponível, mas o registro do cron só funciona no domínio público (o preview do sandbox não é alcançável pela plataforma).
 
 ### Filtros de segmento nos resultados
 - [x] Lógica pura shared/competitorFilters (applyFilters/matchesFilters/countBySegment) tolerante a campos ausentes

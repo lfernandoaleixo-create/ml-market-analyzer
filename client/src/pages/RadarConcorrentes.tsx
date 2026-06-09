@@ -2,6 +2,7 @@ import { EmptyState, PageContainer, PageHeader } from "@/components/market/Commo
 import { RadarBanner } from "@/components/competitors/RadarBanner";
 import { SourcesPanel } from "@/components/competitors/SourcesPanel";
 import { UsagePanel } from "@/components/competitors/UsagePanel";
+import { SweepScheduleCard } from "@/components/competitors/SweepScheduleCard";
 import { ConsensusBadge } from "@/components/competitors/ConsensusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,6 +187,7 @@ export default function RadarConcorrentes() {
       {anyConfigured && (
         <UsagePanel data={usage.data} isLoading={usage.isLoading} />
       )}
+      {anyConfigured && <SweepScheduleCard />}
 
       {/* Search bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
