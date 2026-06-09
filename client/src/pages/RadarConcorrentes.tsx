@@ -54,6 +54,11 @@ import {
   type SegmentFilters,
   type SegmentKey,
 } from "@shared/competitorFilters";
+import {
+  sortCompetitors,
+  DEFAULT_SORT,
+  type SortKey,
+} from "@shared/competitorSort";
 
 export default function RadarConcorrentes() {
   const [, setLocation] = useLocation();
@@ -64,6 +69,8 @@ export default function RadarConcorrentes() {
   const [fromCache, setFromCache] = useState(false);
   // Active segment filters (Loja oficial / FULL / Cupom / Patrocinado).
   const [filters, setFilters] = useState<SegmentFilters>(EMPTY_FILTERS);
+  // Result ordering (applied AFTER filtering).
+  const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
 
   const sources = trpc.competitors.sourcesStatus.useQuery();
   const anyConfigured = (sources.data?.configuredCount ?? 0) > 0;
@@ -108,12 +115,18 @@ export default function RadarConcorrentes() {
     () => applyFilters(competitors, filters),
     [competitors, filters],
   );
+  // Filter first, then order — a transparent, deterministic pipeline.
+  const visibleCompetitors = useMemo(
+    () => sortCompetitors(filteredCompetitors, sort),
+    [filteredCompetitors, sort],
+  );
   const filtersActive = !noFiltersActive(filters);
 
   // Reset filters whenever we switch to a different search, so a leftover
   // filter from a previous term doesn't silently hide the new results.
   useEffect(() => {
     setFilters(EMPTY_FILTERS);
+    setSort(DEFAULT_SORT);
   }, [searchId]);
 
   const toggleFilter = (key: SegmentKey) =>
@@ -345,6 +358,8 @@ export default function RadarConcorrentes() {
               total={competitors.length}
               onToggle={toggleFilter}
               onClear={clearFilters}
+              sort={sort}
+              onSortChange={setSort}
             />
           )}
           {filtersActive && filteredCompetitors.length === 0 ? (
@@ -355,7 +370,7 @@ export default function RadarConcorrentes() {
             />
           ) : (
             <div className="space-y-2">
-              {filteredCompetitors.map((c, i) => (
+              {visibleCompetitors.map((c, i) => (
                 <CompetitorRow
                   key={`${c.matchKey}-${i}`}
                   rank={i + 1}

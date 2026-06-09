@@ -319,3 +319,11 @@
 - [x] Lista filtrada memoizada (useMemo) + reset de filtros ao trocar de busca
 - [x] Estado vazio honesto quando nenhum concorrente bate nos filtros
 - [x] Testes unitários da função pura de filtragem (6 testes)
+
+
+### Ordenação dos resultados (combinada com filtros) — CONCLUÍDA
+- [x] Lógica pura shared/competitorSort (força, preço asc/desc, mais selos, mais avaliados) tolerante a campos ausentes; nulls last; ordem estável (tie-break por índice)
+- [x] Pipeline filtra -> ordena na UI (useMemo); ordem da "força" preservada como padrão
+- [x] UI: Select de ordenação à direita da barra de filtros (ArrowUpDown), com reset ao trocar de busca
+- [x] Testes unitários da ordenação (8) + badgeCount cache-safe
+- [x] Validação ao vivo: "Preço: menor → maior" reordenou 386,87 -> 475,90 -> 489,55 -> 499,99 (crescente); suíte completa verde (183 testes); TS/LSP limpos

@@ -1,10 +1,22 @@
-import { BadgeCheck, Zap, Ticket, Megaphone, X } from "lucide-react";
+import { BadgeCheck, Zap, Ticket, Megaphone, X, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   noFiltersActive,
   type SegmentFilters,
   type SegmentKey,
 } from "@shared/competitorFilters";
+import {
+  SORT_LABELS,
+  SORT_OPTIONS,
+  type SortKey,
+} from "@shared/competitorSort";
 
 /**
  * Filter chips for the Radar results: Loja oficial / FULL / Cupom / Patrocinado.
@@ -34,6 +46,8 @@ export function SegmentFilterBar({
   total,
   onToggle,
   onClear,
+  sort,
+  onSortChange,
 }: {
   filters: SegmentFilters;
   counts: Record<SegmentKey, number>;
@@ -43,6 +57,9 @@ export function SegmentFilterBar({
   total: number;
   onToggle: (key: SegmentKey) => void;
   onClear: () => void;
+  /** Current sort key + handler (ordering is applied AFTER filtering). */
+  sort: SortKey;
+  onSortChange: (key: SortKey) => void;
 }) {
   const active = !noFiltersActive(filters);
   return (
@@ -98,6 +115,27 @@ export function SegmentFilterBar({
           </Button>
         </>
       )}
+
+      {/* Sort control, pushed to the right. Applied after the filters above. */}
+      <div className="ml-auto flex items-center gap-1.5">
+        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+        <Select value={sort} onValueChange={(v) => onSortChange(v as SortKey)}>
+          <SelectTrigger
+            size="sm"
+            className="h-7 w-[180px] text-xs"
+            aria-label="Ordenar resultados"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((key) => (
+              <SelectItem key={key} value={key} className="text-xs">
+                {SORT_LABELS[key]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
