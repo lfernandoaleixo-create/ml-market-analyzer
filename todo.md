@@ -234,4 +234,37 @@
 - [x] Otimizar wait da ScrapingBee (wait=1500 + block_resources): 96s -> ~37s, mantém 60 produtos
 - [x] UI Radar: estado "coletando..." com polling, resultado do cache, botão atualizar, lista de buscas recentes
 - [x] Testes do fluxo assíncrono (searchJob: status pending->running->done/failed, falha graciosa, in-flight guard) — 5 testes
-- [ ] webdev_check_status + checkpoint
+- [x] webdev_check_status + checkpoint (validado ao vivo: coleta em segundo plano → polling → 60 concorrentes → "Resultado em cache" ao reabrir a busca recente)
+
+
+## Robustez total — triangulação real das 4 fontes (créditos liberados, 09/jun)
+### Oxylabs (Fase 1) — CONCLUÍDA
+- [x] Investigação ao vivo: API pública JSON do ML retorna VAZIO via Oxylabs (status interno 613); a busca HTML só funciona com render JS
+- [x] Solução: render=html + browser_instructions (wait_for_element poly-card + scroll) — retorna 2,2MB de HTML com 300+ cards
+- [x] Parser de poly-cards extraído para módulo compartilhado (mlSearchParser.ts), reutilizado por ScrapingBee e Oxylabs
+- [x] Cliente Oxylabs reescrito: render JS + parser compartilhado, stamp source=oxylabs
+- [x] Manter isolamento: somente keyword pública + credenciais Oxylabs; sem token/CNPJ/cookies/user_id do ML (teste de segurança)
+- [x] Testes unitários atualizados (oxylabs 14 + scrapingbee 11 = 25 verdes)
+- [x] Teste live (credenciais reais): 60 ofertas reais em ~35s (ex.: Head & Shoulders Antiqueda @ R$ 28,20)
+### ScrapingBee + Unwrangle (Fase 2) — CONCLUÍDA
+- [x] ScrapingBee revalidada ao vivo: 60 ofertas reais (~54s). Sonda confirmou 372 poly-cards com wait=1500; wait_for trava (>120s)
+- [x] Retry inteligente: página renderizada com 0 produtos (proxy bloqueado) é retentada; busca legitimamente vazia (looksLikeEmptySearch) é aceita
+- [x] Cap de tentativas na ScrapingBee (2) p/ caber no orçamento de tempo; aplicado também à Oxylabs (consistência)
+- [x] Unwrangle: chave válida porém provedor intermitente (upstream); já tratada com 5 retries + estado honesto
+- [x] Dedupe por MLB id (forte) + similaridade de nome/preço (fallback) no aggregator
+### Orquestrador + Segurança (Fase 3) — CONCLUÍDA
+- [x] Paralelismo só com fontes configuradas, isolamento de falha por fonte, timeout 150s (job assíncrono)
+- [x] Triangulação real ao vivo: 62 concorrentes, 58 corroborados por >1 fonte (Oxylabs+ScrapingBee)
+- [x] Teste de isolamento: nenhuma credencial da conta ML trafega aos provedores (Bearer/token/CNPJ/cookies)
+- [x] Selo de consenso por concordância (Alta/Média/Baixa/single) calculado no aggregator
+### Diagnóstico + UI (Fase 4) — CONCLUÍDA
+- [x] UI: bloco "Fontes desta busca" (status honesto por fonte daquela coleta: não configurada / contribuiu / instável / credencial)
+- [x] Selo de consenso visível nos cards + detalhamento por campo com contribuição de cada fonte (Oxylabs/ScrapingBee)
+- [x] Regra de consenso corrigida: corroboração unânime entre 2 fontes = "Alta" (antes ficava presa em "Média")
+- [x] Validado ao vivo: "creatina" → 62 concorrentes triangulados, produtos corroborados marcados como "Alta"
+### Qualidade (Fase 5)
+- [x] Suíte completa de unit verde: 136 testes, 16 arquivos; TS/LSP limpos
+- [x] Testes live gated por env verdes (oxylabs, scrapingbee, orchestrator) — triangulação real confirmada
+- [x] webdev_check_status: dev server running, sem erros de build/TS/LSP
+- [ ] Checkpoint final + entrega
+- [x] Validado ao vivo: "creatina" → 62 concorrentes triangulados, corroboração Oxylabs+ScrapingBee = "Alta"

@@ -138,15 +138,18 @@ describe("scrapingbee — HTML parsing (poly-card)", () => {
   });
 
   it("parseMlSearchHtml is pure and skips cards without name", async () => {
-    const mod = await loadModule();
-    const offers = mod.parseMlSearchHtml(ML_FIXTURE);
+    const { parseMlSearchHtml } = await import("./mlSearchParser");
+    const offers = parseMlSearchHtml(ML_FIXTURE, "scrapingbee");
     expect(offers.every((o) => o.name.length > 0)).toBe(true);
     expect(offers).toHaveLength(2);
   });
 
   it("returns an empty array for a page with no products", async () => {
-    const mod = await loadModule();
-    const offers = mod.parseMlSearchHtml("<html><body>no results</body></html>".padEnd(600, " "));
+    const { parseMlSearchHtml } = await import("./mlSearchParser");
+    const offers = parseMlSearchHtml(
+      "<html><body>no results</body></html>".padEnd(600, " "),
+      "scrapingbee",
+    );
     expect(offers).toEqual([]);
   });
 });
@@ -174,21 +177,61 @@ describe("scrapingbee — error handling", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("retries on 5xx up to the max attempts", async () => {
+  it("retries on 5xx up to the (capped) max attempts", async () => {
     const mod = await loadModule();
     const fetchMock = vi.fn(async () => htmlResponse("", 500));
     await expect(
       mod.searchOffers("x", fetchMock as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: "upstream" });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // Heavy render scraper is capped at 2 attempts to fit the time budget.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("treats an empty body as a retryable upstream error", async () => {
+  it("treats an empty body as a retryable upstream error (capped attempts)", async () => {
     const mod = await loadModule();
     const fetchMock = vi.fn(async () => htmlResponse("", 200));
     await expect(
       mod.searchOffers("x", fetchMock as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: "upstream" });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries when a long page rendered but yielded ZERO products (blocked proxy)", async () => {
+    const mod = await loadModule();
+    const blocked = "<html><body><div>verificando seu navegador</div></body></html>".padEnd(
+      2000,
+      " ",
+    );
+    const fetchMock = vi.fn(async () => htmlResponse(blocked, 200));
+    await expect(
+      mod.searchOffers("x", fetchMock as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: "upstream" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts ZERO products when the page is a legitimate empty search", async () => {
+    const mod = await loadModule();
+    const empty =
+      '<html><body><section class="ui-search-rescue">No encontramos resultados</section></body></html>'.padEnd(
+        800,
+        " ",
+      );
+    const fetchMock = vi.fn(async () => htmlResponse(empty, 200));
+    const offers = await mod.searchOffers("zzxqwnoresults", fetchMock as unknown as typeof fetch);
+    expect(offers).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("scrapingbee — looksLikeEmptySearch", () => {
+  it("detects ML no-results markers", async () => {
+    const mod = await loadModule();
+    expect(mod.looksLikeEmptySearch("<div>Nao encontramos resultados</div>")).toBe(true);
+    expect(mod.looksLikeEmptySearch("<div>SEM RESULTADOS</div>")).toBe(true);
+    expect(mod.looksLikeEmptySearch('<div class="ui-search-rescue"></div>')).toBe(true);
+  });
+  it("returns false for a blocked/normal page without those markers", async () => {
+    const mod = await loadModule();
+    expect(mod.looksLikeEmptySearch("<div>verificando seu navegador</div>")).toBe(false);
   });
 });

@@ -25,13 +25,17 @@ maybe("oxylabs live key validation", () => {
     async () => {
       const { searchOffers } = await import("./oxylabs");
       try {
-        const offers = await searchOffers("shampoo");
+        const offers = await searchOffers("shampoo antiqueda");
         // If we got here, auth worked. Validate the shape defensively.
         expect(Array.isArray(offers)).toBe(true);
         for (const o of offers.slice(0, 3)) {
           expect(o.source).toBe("oxylabs");
           expect(typeof o.name).toBe("string");
         }
+        // eslint-disable-next-line no-console
+        console.info(
+          `[live] Oxylabs returned ${offers.length} offers; sample: ${offers[0]?.name ?? "(none)"} @ ${offers[0]?.price ?? "?"}`,
+        );
       } catch (err: any) {
         const code = err?.code;
         if (code === "auth") {
@@ -47,6 +51,6 @@ maybe("oxylabs live key validation", () => {
         expect(["upstream", "parse", "credits", "bad_input", undefined]).toContain(code);
       }
     },
-    60_000,
+    180_000,
   );
 });

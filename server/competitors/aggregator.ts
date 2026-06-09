@@ -92,14 +92,23 @@ export function clusterOffers(offers: RawSourceOffer[]): RawSourceOffer[][] {
 
 /* ───────────────────────── consensus ───────────────────────── */
 
-/** Map (reporting, agreeing) counts to a confidence level. */
+/**
+ * Map (reporting, agreeing) counts to a confidence level.
+ *
+ * Confidence is RELATIVE to how many sources reported, not an absolute count —
+ * the system runs with 2–4 active sources, so requiring 3+ agreeing would make
+ * "high" unreachable whenever only two sources are configured. Full corroboration
+ * (every reporting source agrees) is "high" even with two sources.
+ */
 export function consensusFromCounts(reporting: number, agreeing: number): ConsensusLevel {
   if (reporting === 0) return "none";
   if (reporting === 1) return "single";
-  // 2+ sources reported. Confidence is about how many AGREE.
-  if (agreeing >= 3) return "high";
-  if (agreeing === 2) return "medium";
-  return "low"; // reported by several but none agree with each other
+  // 2+ sources reported. Confidence is the AGREEMENT RATIO among them.
+  const ratio = agreeing / reporting;
+  if (agreeing >= 2 && ratio === 1) return "high"; // unanimous corroboration
+  if (agreeing >= 3) return "high"; // strong majority on a crowded field
+  if (agreeing >= 2 && ratio >= 0.5) return "medium"; // majority agrees
+  return "low"; // reported by several but little/no agreement
 }
 
 /**

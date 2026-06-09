@@ -5,22 +5,38 @@
  *  SECURITY BOUNDARY: isolated from the ML seller account. Only public search
  *  keywords / public Mercado Livre URLs are sent. Credentials used are the
  *  dedicated OXYLABS_USERNAME / OXYLABS_PASSWORD (basic auth) — nothing else.
+ *  This module MUST NOT import anything from `../ml/*`, OAuth tokens, cookies,
+ *  the CNPJ or any seller identity.
  * ──────────────────────────────────────────────────────────────────────────
  *
- * Endpoint: POST https://realtime.oxylabs.io/v1/queries
- * Payload:  { source: "universal", url, geo_location, parse, render }
+ *  HOW IT WORKS (and why this shape)
+ *  Mercado Livre's public search page renders its product grid via JavaScript
+ *  and actively blocks plain/datacenter requests — a non-rendered fetch (or the
+ *  public JSON API through a datacenter IP) comes back EMPTY (Oxylabs internal
+ *  status 613). The combination that reliably returns the FULL grid is:
+ *    - source: "universal"
+ *    - render: "html"  (headless browser)
+ *    - browser_instructions: wait for the product cards, then scroll to trigger
+ *      lazy hydration.
+ *  This was confirmed live: it returns ~2.2MB of HTML with 300+ "poly-card"
+ *  nodes. We then parse that HTML with the SAME shared parser ScrapingBee uses
+ *  (see ./mlSearchParser.ts), so both sources speak one normalized shape and
+ *  ML DOM changes are fixed in exactly one place.
  *
- * We point at Mercado Livre Brasil's public search page and request parsed
- * output. Because parser shapes vary, the mapper is defensive: it tries the
- * structured `content.results` first and degrades gracefully.
+ * Endpoint: POST https://realtime.oxylabs.io/v1/queries
  */
 
 import { ENV } from "../_core/env";
 import type { RawSourceOffer } from "@shared/sources";
-import { ProviderError, withRetry, num, str, type FetchLike } from "./providerHttp";
+import { ProviderError, withRetry, type FetchLike } from "./providerHttp";
+import { parseMlSearchHtml, buildMlSearchUrl } from "./mlSearchParser";
+import { looksLikeEmptySearch } from "./scrapingbee";
 
 const ENDPOINT = "https://realtime.oxylabs.io/v1/queries";
 const SOURCE = "oxylabs";
+
+// The ML search URL + HTML parser are shared with the ScrapingBee provider.
+export { buildMlSearchUrl };
 
 /** Are Oxylabs credentials configured on the server? */
 export function isConfigured(): boolean {
@@ -32,12 +48,6 @@ export function isConfigured(): boolean {
   );
 }
 
-/** Public Mercado Livre Brasil search URL for a keyword. */
-export function buildMlSearchUrl(query: string): string {
-  const slug = encodeURIComponent(query.trim()).replace(/%20/g, "-");
-  return `https://lista.mercadolivre.com.br/${slug}`;
-}
-
 function basicAuthHeader(): string {
   const token = Buffer.from(
     `${ENV.oxylabsUsername.trim()}:${ENV.oxylabsPassword.trim()}`,
@@ -46,51 +56,28 @@ function basicAuthHeader(): string {
 }
 
 /**
- * Normalize a single Oxylabs parsed item into our RawSourceOffer. Oxylabs
- * universal e-commerce parsing typically exposes title/price/url/rating fields;
- * we read several common aliases so we are resilient to minor shape changes.
+ * Browser instructions that force the ML SPA to hydrate its product grid.
+ * Exported for testing/inspection. We wait for either the poly-card or the
+ * legacy search-result item, then scroll to trigger any lazy loading.
  */
-export function mapOxylabsItem(raw: any): RawSourceOffer | null {
-  const name = str(raw?.title) ?? str(raw?.name);
-  const url = str(raw?.url) ?? str(raw?.link) ?? str(raw?.product_url);
-  if (!name && !url) return null;
-  const price = num(raw?.price) ?? num(raw?.price_str) ?? num(raw?.current_price);
-  const listingPrice = num(raw?.price_strikethrough) ?? num(raw?.old_price) ?? num(raw?.list_price);
-  const rating = num(raw?.rating) ?? num(raw?.reviews_rating) ?? num(raw?.stars);
-  const totalRatings = num(raw?.reviews_count) ?? num(raw?.ratings_count) ?? num(raw?.review_count);
-  const freeShippingRaw =
-    raw?.free_shipping ?? raw?.shipping_free ?? raw?.is_free_shipping;
-  const freeShipping =
-    typeof freeShippingRaw === "boolean" ? freeShippingRaw : null;
-  return {
-    source: "oxylabs",
-    name: name ?? "",
-    url: url ?? null,
-    thumbnail: str(raw?.thumbnail) ?? str(raw?.image) ?? str(raw?.image_url),
-    price,
-    listingPrice,
-    rating,
-    totalRatings,
-    brand: str(raw?.brand) ?? str(raw?.manufacturer),
-    freeShipping,
-    sellerReputation: str(raw?.seller?.reputation) ?? str(raw?.seller_status),
-  };
-}
+export const BROWSER_INSTRUCTIONS = [
+  {
+    type: "wait_for_element",
+    selector: { type: "css", value: "div.poly-card, li.ui-search-layout__item" },
+    timeout_s: 15,
+  },
+  { type: "scroll", x: 0, y: 1200 },
+  { type: "wait", wait_time_s: 2 },
+];
 
-/** Pull the array of result items from various possible parsed shapes. */
-function extractItems(body: any): any[] {
-  const content = body?.results?.[0]?.content ?? body?.content ?? body;
-  const candidates = [
-    content?.results?.organic,
-    content?.results,
-    content?.organic,
-    content?.products,
-    content?.items,
-  ];
-  for (const c of candidates) {
-    if (Array.isArray(c) && c.length > 0) return c;
-  }
-  return [];
+/** Pull the rendered HTML string out of Oxylabs' realtime response envelope. */
+export function extractHtml(body: any): string {
+  const r0 = body?.results?.[0];
+  const content = r0?.content;
+  if (typeof content === "string") return content;
+  // Some shapes nest the html under content.html.
+  if (content && typeof content.html === "string") return content.html;
+  return "";
 }
 
 /**
@@ -109,8 +96,9 @@ export async function searchOffers(
     source: "universal",
     url: buildMlSearchUrl(query),
     geo_location: "Brazil",
-    parse: true,
+    parse: false,
     render: "html",
+    browser_instructions: BROWSER_INSTRUCTIONS,
   };
 
   return withRetry(SOURCE, async () => {
@@ -146,9 +134,24 @@ export async function searchOffers(
     if (!body) {
       throw new ProviderError(SOURCE, "parse", "Resposta vazia da Oxylabs.");
     }
-    const items = extractItems(body);
-    return items
-      .map(mapOxylabsItem)
-      .filter((o): o is RawSourceOffer => o !== null && Boolean(o.name));
+    const html = extractHtml(body);
+    // An empty/short body means ML served the headless browser a challenge or
+    // skeleton page (we saw Oxylabs internal status 613 for non-rendered hits).
+    // Treat it as a retryable upstream hiccup rather than "0 results".
+    if (!html || html.length < 1000) {
+      throw new ProviderError(SOURCE, "upstream", "Oxylabs retornou página vazia do Mercado Livre.");
+    }
+    const offers = parseMlSearchHtml(html, SOURCE);
+    // ROBUSTNESS (mirrors ScrapingBee): a page that rendered with NO products is
+    // almost always an anti-bot/challenge page, not a legitimately empty search.
+    // Retry instead of contributing 0 offers and defeating triangulation.
+    if (offers.length === 0 && !looksLikeEmptySearch(html)) {
+      throw new ProviderError(
+        SOURCE,
+        "upstream",
+        "Oxylabs renderizou a página sem produtos (provável challenge/anti-bot).",
+      );
+    }
+    return offers;
   });
 }

@@ -19,6 +19,7 @@ import type {
   UnifiedCompetitor,
   FieldConsensus,
   SourceId,
+  SourceStatus,
 } from "@shared/sources";
 import {
   Radar as RadarIcon,
@@ -281,6 +282,9 @@ export default function RadarConcorrentes() {
             onRefresh={refresh}
             refreshing={startSearch.isPending}
           />
+          {view!.sourcesUsed && view!.sourcesUsed.length > 0 && (
+            <SearchSourcesSummary sources={view!.sourcesUsed} />
+          )}
           <div className="space-y-2">
             {competitors.map((c, i) => (
               <CompetitorRow
@@ -297,6 +301,43 @@ export default function RadarConcorrentes() {
         </div>
       ) : null}
     </PageContainer>
+  );
+}
+
+/**
+ * Compact, honest summary of which sources actually contributed to THIS search
+ * (snapshotted at collection time), distinct from the live project-wide panel.
+ */
+function SearchSourcesSummary({ sources }: { sources: SourceStatus[] }) {
+  const meta = (s: SourceStatus) => {
+    if (!s.configured)
+      return { label: "não configurada", cls: "text-muted-foreground", dot: "bg-muted-foreground/40" };
+    switch (s.health) {
+      case "ok":
+        return { label: "contribuiu", cls: "text-emerald-700", dot: "bg-emerald-500" };
+      case "upstream":
+        return { label: "instável", cls: "text-amber-700", dot: "bg-amber-500" };
+      case "auth":
+        return { label: "credencial", cls: "text-red-700", dot: "bg-red-500" };
+      case "unconfigured":
+        return { label: "não configurada", cls: "text-muted-foreground", dot: "bg-muted-foreground/40" };
+      default:
+        return { label: "sem dados", cls: "text-muted-foreground", dot: "bg-muted-foreground/40" };
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-muted/30 px-3 py-2 text-[11px]">
+      <span className="font-medium text-muted-foreground">Fontes desta busca:</span>
+      {sources.map((s) => {
+        const m = meta(s);
+        return (
+          <span key={s.id} className={`inline-flex items-center gap-1.5 ${m.cls}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
+            {s.label} · {m.label}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 

@@ -33,11 +33,21 @@ import {
   searchProducts as unwrangleSearch,
 } from "./unwrangle";
 
-/** Per-source max time before we give up and triangulate with what we have. */
+/**
+ * Per-source max time before we give up and triangulate with what we have.
+ * The JS-render scrapers drive a headless browser through ML's anti-bot SPA:
+ * Oxylabs ~35s, ScrapingBee ~55s on the happy path. When a proxy serves an
+ * empty page the provider RETRIES (another ~55s), so a single source can need
+ * ~120s end to end. Because the whole search runs as an ASYNCHRONOUS background
+ * job (the UI polls; no HTTP request is held open), we can afford a generous
+ * 150s budget so a slow-but-valid source still gets to contribute and
+ * triangulation actually happens. Sources run in PARALLEL, so wall-clock cost
+ * is bounded by the SLOWEST source, not their sum.
+ */
 const SOURCE_TIMEOUT_MS = (() => {
   const raw = process.env.COMPETITOR_SOURCE_TIMEOUT_MS;
   const parsed = raw !== undefined ? Number(raw) : NaN;
-  return Number.isFinite(parsed) ? parsed : 45_000;
+  return Number.isFinite(parsed) ? parsed : 150_000;
 })();
 
 type ProbeOutcome = {

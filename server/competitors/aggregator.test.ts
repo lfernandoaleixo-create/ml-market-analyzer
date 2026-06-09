@@ -83,8 +83,12 @@ describe("consensus calculators", () => {
   it("maps counts to levels", () => {
     expect(consensusFromCounts(0, 0)).toBe("none");
     expect(consensusFromCounts(1, 1)).toBe("single");
-    expect(consensusFromCounts(2, 2)).toBe("medium");
+    // Unanimous corroboration is "high" even with only two sources.
+    expect(consensusFromCounts(2, 2)).toBe("high");
     expect(consensusFromCounts(3, 3)).toBe("high");
+    // Majority (2 of 3) agrees → medium.
+    expect(consensusFromCounts(3, 2)).toBe("medium");
+    // Reported by several but no agreement → low.
     expect(consensusFromCounts(3, 1)).toBe("low");
   });
 
@@ -124,6 +128,7 @@ describe("consensus calculators", () => {
       { source: "oxylabs", value: "Outro" },
     ]);
     expect(r.agreeingCount).toBe(2);
+    // 2 of 3 strings agree (majority) → medium.
     expect(r.consensus).toBe("medium");
   });
 

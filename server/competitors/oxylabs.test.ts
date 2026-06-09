@@ -5,6 +5,11 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
  * fake fetch is injected. They assert the SECURITY boundary too — the only auth
  * material sent is the dedicated OXYLABS_USERNAME/OXYLABS_PASSWORD basic-auth
  * header, and the request only carries a public Mercado Livre URL.
+ *
+ * The provider renders the ML search page (render=html + browser_instructions)
+ * and parses the returned HTML with the SHARED poly-card parser, exactly like
+ * ScrapingBee. So these tests model an Oxylabs realtime envelope whose
+ * `content` is the rendered HTML string.
  */
 
 // Make retries instant in tests (no real backoff wait).
@@ -33,9 +38,37 @@ function jsonResponse(body: unknown, status = 200): Response {
   } as unknown as Response;
 }
 
-function oxylabsBody(items: unknown[]) {
-  return { results: [{ content: { results: { organic: items } } }] };
+/** Wrap rendered HTML in an Oxylabs realtime response envelope. */
+function oxylabsHtml(html: string) {
+  return { results: [{ status_code: 200, content: html }] };
 }
+
+/** A minimal ML "poly-card" search page fixture (current 2026 layout). */
+const ML_FIXTURE = `
+<html><body>
+  <div class="poly-card">
+    <a class="poly-component__title" href="https://www.mercadolivre.com.br/p/MLB123">Shampoo Antiqueda 300ml</a>
+    <img src="https://img/thumb.jpg" />
+    <div class="andes-money-amount">
+      <span class="andes-money-amount__fraction">49</span>
+      <span class="andes-money-amount__cents">90</span>
+    </div>
+    <s><span class="andes-money-amount__fraction">79</span></s>
+    <span class="poly-component__shipping">Frete grátis</span>
+    <span class="poly-component__seller">Marca X</span>
+  </div>
+  <div class="poly-card">
+    <a class="poly-component__title" href="https://produto.mercadolivre.com.br/MLB-222">Bom produto</a>
+    <img data-src="https://img/2.jpg" />
+    <div class="andes-money-amount">
+      <span class="andes-money-amount__fraction">350</span>
+    </div>
+  </div>
+  <div class="poly-card">
+    <!-- malformed card: no title/url should be skipped -->
+    <span class="andes-money-amount__fraction">10</span>
+  </div>
+</body></html>`.padEnd(1200, " ");
 
 describe("oxylabs — configuration", () => {
   it("reports not configured when credentials are missing", async () => {
@@ -69,7 +102,7 @@ describe("oxylabs — configuration", () => {
   });
 });
 
-describe("oxylabs — search & mapping", () => {
+describe("oxylabs — request shape & security", () => {
   beforeEach(() => {
     process.env.OXYLABS_USERNAME = "user";
     process.env.OXYLABS_PASSWORD = "pass";
@@ -82,55 +115,97 @@ describe("oxylabs — search & mapping", () => {
     expect(url).toContain("cadeira-gamer");
   });
 
-  it("sends basic auth + public URL only, and normalizes items", async () => {
+  it("sends basic auth + render=html + browser_instructions + public URL only", async () => {
     const mod = await loadModule();
+    let captured: RequestInit | undefined;
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
-      // SECURITY: assert no ML seller token/cookies are present.
+      captured = init;
+      // SECURITY: assert no ML seller token/cookies are present anywhere.
       const headers = (init?.headers ?? {}) as Record<string, string>;
       expect(headers.Authorization).toMatch(/^Basic /);
-      const payload = JSON.parse(String(init?.body));
-      expect(payload.url).toContain("lista.mercadolivre.com.br");
-      expect(JSON.stringify(init)).not.toMatch(/Bearer|cnpj|access_token/i);
-      return jsonResponse(
-        oxylabsBody([
-          {
-            title: "Shampoo Antiqueda 300ml",
-            url: "https://www.mercadolivre.com.br/p/MLB123",
-            price: "R$ 49,90",
-            price_strikethrough: "R$ 79,90",
-            rating: 4.7,
-            reviews_count: 1200,
-            brand: "Marca X",
-            free_shipping: true,
-            thumbnail: "https://img/thumb.jpg",
-          },
-        ]),
-      );
+      expect(JSON.stringify(init)).not.toMatch(/Bearer|cnpj|access_token|refresh_token/i);
+      return jsonResponse(oxylabsHtml(ML_FIXTURE));
     });
 
-    const offers = await mod.searchOffers("shampoo", fetchMock as unknown as typeof fetch);
+    await mod.searchOffers("shampoo", fetchMock as unknown as typeof fetch);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(offers).toHaveLength(1);
+    const payload = JSON.parse(String(captured?.body));
+    expect(payload.source).toBe("universal");
+    expect(payload.render).toBe("html");
+    expect(payload.url).toContain("lista.mercadolivre.com.br");
+    expect(Array.isArray(payload.browser_instructions)).toBe(true);
+    // First instruction waits for the product cards to hydrate.
+    expect(JSON.stringify(payload.browser_instructions)).toContain("poly-card");
+  });
+});
+
+describe("oxylabs — HTML parsing (poly-card)", () => {
+  beforeEach(() => {
+    process.env.OXYLABS_USERNAME = "user";
+    process.env.OXYLABS_PASSWORD = "pass";
+  });
+
+  it("parses rendered HTML into normalized offers stamped as 'oxylabs'", async () => {
+    const mod = await loadModule();
+    const fetchMock = vi.fn(async () => jsonResponse(oxylabsHtml(ML_FIXTURE)));
+    const offers = await mod.searchOffers("shampoo", fetchMock as unknown as typeof fetch);
+
+    // 2 valid cards (malformed third skipped).
+    expect(offers).toHaveLength(2);
     expect(offers[0]).toMatchObject({
       source: "oxylabs",
       name: "Shampoo Antiqueda 300ml",
+      url: "https://www.mercadolivre.com.br/p/MLB123",
       price: 49.9,
-      listingPrice: 79.9,
-      rating: 4.7,
-      totalRatings: 1200,
-      brand: "Marca X",
+      listingPrice: 79,
       freeShipping: true,
+      sellerReputation: "Marca X",
     });
+    expect(offers[0].thumbnail).toBe("https://img/thumb.jpg");
+    expect(offers[1]).toMatchObject({ name: "Bom produto", price: 350 });
   });
 
-  it("drops items with neither name nor url", async () => {
+  it("treats an empty/short rendered page as a retryable upstream error", async () => {
     const mod = await loadModule();
-    const fetchMock = vi.fn(async () =>
-      jsonResponse(oxylabsBody([{ price: "10" }, { title: "Bom produto", url: "u" }])),
+    // Oxylabs internal status 613 returns an empty content body for ML.
+    const fetchMock = vi.fn(async () => jsonResponse(oxylabsHtml("")));
+    await expect(
+      mod.searchOffers("x", fetchMock as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: "upstream" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("retries when a long page rendered but yielded ZERO products (challenge page)", async () => {
+    const mod = await loadModule();
+    const blocked = "<html><body><div>verificando seu navegador</div></body></html>".padEnd(
+      2000,
+      " ",
     );
-    const offers = await mod.searchOffers("x", fetchMock as unknown as typeof fetch);
-    expect(offers).toHaveLength(1);
-    expect(offers[0].name).toBe("Bom produto");
+    const fetchMock = vi.fn(async () => jsonResponse(oxylabsHtml(blocked)));
+    await expect(
+      mod.searchOffers("x", fetchMock as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: "upstream" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("accepts ZERO products when the rendered page is a legitimate empty search", async () => {
+    const mod = await loadModule();
+    const empty =
+      '<html><body><section class="ui-search-rescue">No encontramos resultados</section></body></html>'.padEnd(
+        1200,
+        " ",
+      );
+    const fetchMock = vi.fn(async () => jsonResponse(oxylabsHtml(empty)));
+    const offers = await mod.searchOffers("zzxqwnoresults", fetchMock as unknown as typeof fetch);
+    expect(offers).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("oxylabs — error handling", () => {
+  beforeEach(() => {
+    process.env.OXYLABS_USERNAME = "user";
+    process.env.OXYLABS_PASSWORD = "pass";
   });
 
   it("treats 401/403 as a terminal auth error (no retry)", async () => {
@@ -157,39 +232,30 @@ describe("oxylabs — search & mapping", () => {
     const fetchMock = vi.fn(async () => {
       calls += 1;
       if (calls < 2) throw new Error("network down");
-      return jsonResponse(oxylabsBody([{ title: "OK", url: "u", price: "5" }]));
+      return jsonResponse(oxylabsHtml(ML_FIXTURE));
     });
     const offers = await mod.searchOffers("x", fetchMock as unknown as typeof fetch);
     expect(calls).toBe(2);
-    expect(offers).toHaveLength(1);
+    expect(offers).toHaveLength(2);
   });
 });
 
-describe("oxylabs — mapOxylabsItem", () => {
-  it("returns null when there is no usable data", async () => {
+describe("oxylabs — extractHtml", () => {
+  it("reads content as a string", async () => {
     const mod = await loadModule();
-    expect(mod.mapOxylabsItem({ price: "10" })).toBeNull();
+    expect(mod.extractHtml({ results: [{ content: "<html>x</html>" }] })).toBe("<html>x</html>");
   });
 
-  it("reads alternative field aliases", async () => {
+  it("reads content.html when nested", async () => {
     const mod = await loadModule();
-    const offer = mod.mapOxylabsItem({
-      name: "Alt fields",
-      product_url: "https://x",
-      current_price: 12.5,
-      stars: 4.2,
-      ratings_count: 30,
-      manufacturer: "ACME",
-      image_url: "https://img",
-    });
-    expect(offer).toMatchObject({
-      name: "Alt fields",
-      url: "https://x",
-      price: 12.5,
-      rating: 4.2,
-      totalRatings: 30,
-      brand: "ACME",
-      thumbnail: "https://img",
-    });
+    expect(mod.extractHtml({ results: [{ content: { html: "<html>y</html>" } }] })).toBe(
+      "<html>y</html>",
+    );
+  });
+
+  it("returns empty string when no usable content", async () => {
+    const mod = await loadModule();
+    expect(mod.extractHtml({ results: [{}] })).toBe("");
+    expect(mod.extractHtml({})).toBe("");
   });
 });

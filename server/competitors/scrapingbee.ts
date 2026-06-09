@@ -24,94 +24,51 @@
  * Docs: https://www.scrapingbee.com/documentation/
  */
 
-import * as cheerio from "cheerio";
 import { ENV } from "../_core/env";
 import type { RawSourceOffer } from "@shared/sources";
-import { ProviderError, withRetry, num, str, type FetchLike } from "./providerHttp";
+import { ProviderError, withRetry, type FetchLike } from "./providerHttp";
+import { parseMlSearchHtml, buildMlSearchUrl } from "./mlSearchParser";
 
 const ENDPOINT = "https://app.scrapingbee.com/api/v1";
 const SOURCE = "scrapingbee";
+
+/**
+ * Heavy JS-render scrapers take ~55s per attempt, so we cap retries low: at most
+ * 2 attempts (≈110s worst case) keeps a single source within the orchestrator's
+ * 150s per-source budget. Overridable via env for tuning.
+ */
+const SB_MAX_ATTEMPTS = (() => {
+  const raw = process.env.SCRAPINGBEE_MAX_ATTEMPTS;
+  const parsed = raw !== undefined ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 2;
+})();
 
 /** Is the ScrapingBee API key configured on the server? */
 export function isConfigured(): boolean {
   return Boolean(ENV.scrapingBeeApiKey && ENV.scrapingBeeApiKey.trim().length > 0);
 }
 
-/** Public Mercado Livre Brasil search URL for a keyword. */
-export function buildMlSearchUrl(query: string): string {
-  const slug = encodeURIComponent(query.trim()).replace(/%20/g, "-");
-  return `https://lista.mercadolivre.com.br/${slug}`;
-}
+// The ML search URL and HTML parser are shared with the Oxylabs provider — both
+// render the same public page; see ./mlSearchParser.ts.
+export { buildMlSearchUrl };
 
 /**
- * Parse a Mercado Livre search HTML page into raw offers using the current
- * "poly-card" layout. Exported so it can be unit-tested against an HTML fixture
- * without any network call.
+ * Heuristic: does this rendered HTML look like a LEGITIMATELY empty ML search
+ * ("no results found") rather than a blocked/challenge page? Mercado Livre's
+ * zero-result page contains a recognizable "não encontramos" / "sem resultados"
+ * banner. If those markers are present we accept 0 offers; otherwise a 0-offer
+ * render is treated as a proxy hiccup and retried.
  */
-export function parseMlSearchHtml(html: string): RawSourceOffer[] {
-  const $ = cheerio.load(html);
-  const offers: RawSourceOffer[] = [];
-
-  $("div.poly-card").each((_, el) => {
-    const card = $(el);
-
-    const name = card.find(".poly-component__title").first().text().trim();
-    // The title is usually an anchor; fall back to any product link in the card.
-    let url =
-      card.find("a.poly-component__title").attr("href") ||
-      card.find(".poly-component__title a").attr("href") ||
-      card.find("a.poly-component__title-wrapper").attr("href") ||
-      card.find("a[href*='mercadolivre.com']").attr("href") ||
-      null;
-    if (url) url = url.trim();
-
-    // Price: ML splits the integer "fraction" from "cents".
-    const fraction = card.find(".andes-money-amount__fraction").first().text().trim();
-    const cents = card.find(".andes-money-amount__cents").first().text().trim();
-    const price =
-      fraction.length > 0 ? num(`${fraction.replace(/\./g, "")}${cents ? "," + cents : ""}`) : null;
-
-    // Original (struck-through) price, when discounted: the 2nd money-amount block.
-    const moneyBlocks = card.find("s .andes-money-amount__fraction");
-    const listingFraction = moneyBlocks.first().text().trim();
-    const listingPrice = listingFraction.length > 0 ? num(listingFraction.replace(/\./g, "")) : null;
-
-    const thumbnail =
-      card.find("img").attr("data-src") || card.find("img").attr("src") || null;
-
-    // Rating + reviews (not present on every card).
-    const ratingText = card.find(".poly-reviews__rating").first().text().trim();
-    const rating = ratingText ? num(ratingText) : null;
-    const reviewsText = card.find(".poly-reviews__total").first().text().trim();
-    const totalRatings = reviewsText ? num(reviewsText.replace(/[()]/g, "")) : null;
-
-    const brand =
-      str(card.find(".poly-component__brand").first().text()) ??
-      str(card.find(".poly-component__seller").first().text());
-
-    const shippingText = card.find(".poly-component__shipping").first().text().trim();
-    const freeShipping = shippingText ? /gr[áa]tis|free/i.test(shippingText) : null;
-
-    const seller = str(card.find(".poly-component__seller").first().text());
-
-    if (!name && !url) return;
-
-    offers.push({
-      source: "scrapingbee",
-      name: name ?? "",
-      url: url ?? null,
-      thumbnail: thumbnail ? thumbnail.trim() : null,
-      price,
-      listingPrice,
-      rating,
-      totalRatings,
-      brand,
-      freeShipping,
-      sellerReputation: seller,
-    });
-  });
-
-  return offers.filter((o) => o.name.length > 0);
+export function looksLikeEmptySearch(html: string): boolean {
+  const h = html.toLowerCase();
+  return (
+    h.includes("não encontramos") ||
+    h.includes("nao encontramos") ||
+    h.includes("sem resultados") ||
+    h.includes("no encontramos") ||
+    h.includes("ui-search-rescue") || // ML's "no results" rescue component
+    h.includes("did not match any")
+  );
 }
 
 /**
@@ -169,6 +126,20 @@ export async function searchOffers(
     if (!html || html.length < 500) {
       throw new ProviderError(SOURCE, "upstream", "Resposta vazia da ScrapingBee.");
     }
-    return parseMlSearchHtml(html);
-  });
+    const offers = parseMlSearchHtml(html, SOURCE);
+    // ROBUSTNESS: a 200 that rendered but yielded ZERO products almost always
+    // means the premium proxy served an anti-bot / challenge page rather than a
+    // legitimately empty search (real ML keywords nearly always return items).
+    // We saw this intermittently in live triangulation. Treat it as a retryable
+    // upstream hiccup so `withRetry` gives it another proxy instead of silently
+    // contributing 0 offers and defeating triangulation.
+    if (offers.length === 0 && !looksLikeEmptySearch(html)) {
+      throw new ProviderError(
+        SOURCE,
+        "upstream",
+        "ScrapingBee renderizou a página sem produtos (provável proxy bloqueado).",
+      );
+    }
+    return offers;
+  }, SB_MAX_ATTEMPTS);
 }

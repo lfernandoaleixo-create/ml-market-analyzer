@@ -69,9 +69,11 @@ export function str(v: unknown): string | null {
 export async function withRetry<T>(
   source: string,
   producer: (attempt: number) => Promise<T>,
+  maxAttempts: number = MAX_ATTEMPTS,
 ): Promise<T> {
+  const attempts = Math.max(1, Math.floor(maxAttempts));
   let lastErr: unknown = null;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       return await producer(attempt);
     } catch (err) {
@@ -79,7 +81,7 @@ export async function withRetry<T>(
       const terminal =
         err instanceof ProviderError &&
         (err.code === "auth" || err.code === "credits" || err.code === "bad_input" || err.code === "not_configured");
-      if (terminal || attempt >= MAX_ATTEMPTS) throw err;
+      if (terminal || attempt >= attempts) throw err;
       await sleep(RETRY_DELAY_MS * attempt);
     }
   }
