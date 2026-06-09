@@ -4,17 +4,27 @@
  * ──────────────────────────────────────────────────────────────────────────
  *  SECURITY BOUNDARY: isolated from the ML seller account. Only public search
  *  keywords / public Mercado Livre URLs are sent. The only secret used is the
- *  dedicated SCRAPINGBEE_API_KEY.
+ *  dedicated SCRAPINGBEE_API_KEY. This module MUST NOT import anything from
+ *  `../ml/*`, OAuth tokens, cookies, the CNPJ or any seller identity.
  * ──────────────────────────────────────────────────────────────────────────
  *
- * ScrapingBee returns the RAW HTML of the requested page (GET /api/v1?api_key&url).
- * We request Mercado Livre Brasil's public search page and use ScrapingBee's
- * `extract_rules` (JSON-based CSS extraction, executed server-side by SB) to get
- * structured rows back as JSON — avoiding shipping a full HTML parser.
+ * HOW IT WORKS
+ *  Mercado Livre's public search page renders its product grid via JavaScript,
+ *  so a plain HTTP fetch returns only a skeleton (and is usually blocked). We
+ *  therefore ask ScrapingBee to render the page (render_js) through a Brazilian
+ *  premium proxy (premium_proxy + country_code=br), which returns the FULL HTML
+ *  including the "poly-card" product grid. We then parse that HTML server-side
+ *  with cheerio using the current ML selectors and normalize each product into
+ *  a RawSourceOffer.
  *
- * Docs: https://www.scrapingbee.com/documentation/  (ai/extract rules)
+ *  This server-side parsing approach (instead of ScrapingBee's extract_rules) is
+ *  deliberate: ML changes its DOM frequently, and keeping the selectors in our
+ *  own code makes them easy to inspect, test and update.
+ *
+ * Docs: https://www.scrapingbee.com/documentation/
  */
 
+import * as cheerio from "cheerio";
 import { ENV } from "../_core/env";
 import type { RawSourceOffer } from "@shared/sources";
 import { ProviderError, withRetry, num, str, type FetchLike } from "./providerHttp";
@@ -34,58 +44,74 @@ export function buildMlSearchUrl(query: string): string {
 }
 
 /**
- * ScrapingBee extract_rules: ask SB to return an array of product rows with the
- * fields we need, parsed from the ML search results DOM. SB executes these CSS
- * selectors server-side and returns JSON.
+ * Parse a Mercado Livre search HTML page into raw offers using the current
+ * "poly-card" layout. Exported so it can be unit-tested against an HTML fixture
+ * without any network call.
  */
-export const EXTRACT_RULES = {
-  products: {
-    selector: "li.ui-search-layout__item",
-    type: "list",
-    output: {
-      name: "h2.ui-search-item__title",
-      url: { selector: "a.ui-search-link", output: "@href" },
-      price_fraction: "span.andes-money-amount__fraction",
-      thumbnail: { selector: "img.ui-search-result-image__element", output: "@src" },
-      free_shipping: "p.ui-search-item__shipping",
-      seller: "span.ui-search-official-store-label",
-    },
-  },
-};
+export function parseMlSearchHtml(html: string): RawSourceOffer[] {
+  const $ = cheerio.load(html);
+  const offers: RawSourceOffer[] = [];
 
-/**
- * Normalize one extracted row into a RawSourceOffer. The price comes as a
- * "fraction" string (e.g. "1.299"); `num()` handles the BR formatting.
- */
-export function mapScrapingBeeRow(raw: any): RawSourceOffer | null {
-  const name = str(raw?.name);
-  const url = str(raw?.url);
-  if (!name && !url) return null;
-  const price = num(raw?.price_fraction);
-  const shippingText = str(raw?.free_shipping);
-  const freeShipping = shippingText
-    ? /gr[áa]tis|free/i.test(shippingText)
-    : null;
-  return {
-    source: "scrapingbee",
-    name: name ?? "",
-    url: url ?? null,
-    thumbnail: str(raw?.thumbnail),
-    price,
-    listingPrice: null,
-    rating: null,
-    totalRatings: null,
-    brand: null,
-    freeShipping,
-    sellerReputation: str(raw?.seller),
-  };
-}
+  $("div.poly-card").each((_, el) => {
+    const card = $(el);
 
-/** Extract the product rows array from ScrapingBee's JSON response. */
-function extractRows(body: any): any[] {
-  if (Array.isArray(body?.products)) return body.products;
-  if (Array.isArray(body)) return body;
-  return [];
+    const name = card.find(".poly-component__title").first().text().trim();
+    // The title is usually an anchor; fall back to any product link in the card.
+    let url =
+      card.find("a.poly-component__title").attr("href") ||
+      card.find(".poly-component__title a").attr("href") ||
+      card.find("a.poly-component__title-wrapper").attr("href") ||
+      card.find("a[href*='mercadolivre.com']").attr("href") ||
+      null;
+    if (url) url = url.trim();
+
+    // Price: ML splits the integer "fraction" from "cents".
+    const fraction = card.find(".andes-money-amount__fraction").first().text().trim();
+    const cents = card.find(".andes-money-amount__cents").first().text().trim();
+    const price =
+      fraction.length > 0 ? num(`${fraction.replace(/\./g, "")}${cents ? "," + cents : ""}`) : null;
+
+    // Original (struck-through) price, when discounted: the 2nd money-amount block.
+    const moneyBlocks = card.find("s .andes-money-amount__fraction");
+    const listingFraction = moneyBlocks.first().text().trim();
+    const listingPrice = listingFraction.length > 0 ? num(listingFraction.replace(/\./g, "")) : null;
+
+    const thumbnail =
+      card.find("img").attr("data-src") || card.find("img").attr("src") || null;
+
+    // Rating + reviews (not present on every card).
+    const ratingText = card.find(".poly-reviews__rating").first().text().trim();
+    const rating = ratingText ? num(ratingText) : null;
+    const reviewsText = card.find(".poly-reviews__total").first().text().trim();
+    const totalRatings = reviewsText ? num(reviewsText.replace(/[()]/g, "")) : null;
+
+    const brand =
+      str(card.find(".poly-component__brand").first().text()) ??
+      str(card.find(".poly-component__seller").first().text());
+
+    const shippingText = card.find(".poly-component__shipping").first().text().trim();
+    const freeShipping = shippingText ? /gr[áa]tis|free/i.test(shippingText) : null;
+
+    const seller = str(card.find(".poly-component__seller").first().text());
+
+    if (!name && !url) return;
+
+    offers.push({
+      source: "scrapingbee",
+      name: name ?? "",
+      url: url ?? null,
+      thumbnail: thumbnail ? thumbnail.trim() : null,
+      price,
+      listingPrice,
+      rating,
+      totalRatings,
+      brand,
+      freeShipping,
+      sellerReputation: seller,
+    });
+  });
+
+  return offers.filter((o) => o.name.length > 0);
 }
 
 /**
@@ -103,15 +129,24 @@ export async function searchOffers(
   const url = new URL(ENDPOINT);
   url.searchParams.set("api_key", ENV.scrapingBeeApiKey.trim());
   url.searchParams.set("url", buildMlSearchUrl(query));
-  url.searchParams.set("render_js", "false");
+  // Render JS + Brazilian premium proxy is the ONLY combination that returns the
+  // full ML product grid (plain/JS-only requests are blocked or skeleton-only).
+  url.searchParams.set("render_js", "true");
   url.searchParams.set("premium_proxy", "true");
   url.searchParams.set("country_code", "br");
-  url.searchParams.set("extract_rules", JSON.stringify(EXTRACT_RULES));
+  // Block heavy resources (images/CSS/fonts) so the page renders ~3x faster.
+  // The product grid is plain DOM, so blocking media does not lose any data.
+  url.searchParams.set("block_resources", "true");
+  // Small fixed wait for the SPA to hydrate the product grid. Measured ~37s end
+  // to end with 60 products. NOTE: `wait_for` is unreliable with premium_proxy
+  // on this target (it hangs), so we use a short fixed `wait` instead.
+  url.searchParams.set("wait", "1500");
+  // We want the rendered HTML back (not JSON), so no extract_rules here.
 
   return withRetry(SOURCE, async () => {
     let res: Response;
     try {
-      res = await fetchImpl(url.toString(), { method: "GET", headers: { Accept: "application/json" } });
+      res = await fetchImpl(url.toString(), { method: "GET" });
     } catch {
       throw new ProviderError(SOURCE, "upstream", "Falha de rede ao contatar a ScrapingBee.");
     }
@@ -126,15 +161,14 @@ export async function searchOffers(
       throw new ProviderError(SOURCE, "bad_input", "Requisição inválida para a ScrapingBee.");
     }
     if (res.status >= 500) {
+      // SB returns 500 when the upstream target blocks the request — retryable.
       throw new ProviderError(SOURCE, "upstream", "ScrapingBee temporariamente indisponível.");
     }
 
-    const body = await res.json().catch(() => null);
-    if (!body) {
-      throw new ProviderError(SOURCE, "parse", "Resposta inesperada da ScrapingBee.");
+    const html = await res.text().catch(() => "");
+    if (!html || html.length < 500) {
+      throw new ProviderError(SOURCE, "upstream", "Resposta vazia da ScrapingBee.");
     }
-    return extractRows(body)
-      .map(mapScrapingBeeRow)
-      .filter((o): o is RawSourceOffer => o !== null && Boolean(o.name));
+    return parseMlSearchHtml(html);
   });
 }

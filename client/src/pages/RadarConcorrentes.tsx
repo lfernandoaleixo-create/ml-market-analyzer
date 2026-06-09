@@ -32,46 +32,101 @@ import {
   RefreshCw,
   ChevronDown,
   Layers,
+  History,
+  Loader2,
+  Database,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 export default function RadarConcorrentes() {
   const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
-  const [query, setQuery] = useState<string | null>(null);
+  // The id of the search we are currently tracking (polling) on screen.
+  const [searchId, setSearchId] = useState<number | null>(null);
+  // Whether the active search came straight from cache (no new collection).
+  const [fromCache, setFromCache] = useState(false);
 
   const sources = trpc.competitors.sourcesStatus.useQuery();
   const anyConfigured = (sources.data?.configuredCount ?? 0) > 0;
 
-  const search = trpc.competitors.searchMulti.useQuery(
-    { query: query ?? "" },
-    { enabled: anyConfigured && !!query && query.length >= 2, retry: false },
+  const utils = trpc.useUtils();
+
+  const recent = trpc.competitors.recentSearches.useQuery(
+    { limit: 12 },
+    { enabled: anyConfigured },
   );
 
-  const submit = () => {
-    const q = input.trim();
-    if (q.length >= 2) setQuery(q);
+  const startSearch = trpc.competitors.startSearch.useMutation();
+
+  // Poll the tracked search until it settles (done/failed).
+  const detail = trpc.competitors.getSearch.useQuery(
+    { id: searchId ?? 0, includeResults: true },
+    {
+      enabled: searchId !== null,
+      // Keep polling every 3s while the collection is still in progress.
+      refetchInterval: (q) => {
+        const s = q.state.data?.status;
+        return s === "pending" || s === "running" ? 3000 : false;
+      },
+      retry: false,
+    },
+  );
+
+  const view = detail.data;
+  const competitors = view?.competitors ?? [];
+  const isCollecting =
+    view?.status === "pending" || view?.status === "running";
+  const isDone = view?.status === "done";
+  const isFailed = view?.status === "failed";
+
+  const isNotConfigured =
+    startSearch.error?.data?.code === "PRECONDITION_FAILED";
+
+  const runSearch = async (term: string, refresh = false) => {
+    const q = term.trim();
+    if (q.length < 2) return;
+    setInput(q);
+    try {
+      const res = await startSearch.mutateAsync({ query: q, refresh });
+      setSearchId(res.id);
+      setFromCache(res.cached);
+      // React immediately and keep the recent list in sync.
+      await utils.competitors.getSearch.invalidate({ id: res.id });
+      utils.competitors.recentSearches.invalidate();
+    } catch {
+      // Errors surface through startSearch.error below.
+    }
   };
 
-  const result = search.data;
-  const competitors = result?.competitors ?? [];
+  const submit = () => runSearch(input);
+  const refresh = () => {
+    if (view) runSearch(view.query, true);
+  };
 
-  // Transient upstream failure across all configured sources → friendly notice.
-  const isUpstreamHiccup = search.error?.data?.code === "BAD_GATEWAY";
-  const isNotConfigured = search.error?.data?.code === "PRECONDITION_FAILED";
+  // When a tracked collection finishes, refresh the recent list exactly once
+  // per status transition (side-effect must live in an effect, not render).
+  const lastSettledRef = useRef<string>("");
+  useEffect(() => {
+    if (!view) return;
+    if (view.status !== "done" && view.status !== "failed") return;
+    const key = `${view.id}:${view.status}`;
+    if (lastSettledRef.current === key) return;
+    lastSettledRef.current = key;
+    utils.competitors.recentSearches.invalidate();
+  }, [view, utils]);
 
   return (
     <PageContainer>
       <PageHeader
         eyebrow="Inteligência competitiva"
         title="Radar de concorrentes"
-        description="Busque por qualquer produto ou categoria e veja os concorrentes mais fortes do mercado. Os dados são triangulados entre múltiplas fontes independentes: quando elas concordam, a confiança é alta; quando divergem, mostramos isso com transparência."
+        description="Busque por qualquer produto ou categoria e veja os concorrentes mais fortes do mercado. A coleta roda em segundo plano e os dados são triangulados entre fontes independentes: quando elas concordam, a confiança é alta; quando divergem, mostramos isso com transparência. Buscas recentes ficam em cache por algumas horas."
       />
 
       <RadarBanner />
 
-      {/* Multi-source health panel */}
+      {/* Multi-source health panel (live, project-wide) */}
       {sources.isLoading ? (
         <Skeleton className="h-28 w-full rounded-xl" />
       ) : sources.data ? (
@@ -91,17 +146,59 @@ export default function RadarConcorrentes() {
             onKeyDown={(e) => e.key === "Enter" && submit()}
             placeholder="Ex.: shampoo antiqueda, smartwatch, cadeira gamer..."
             className="pl-9"
-            disabled={!anyConfigured}
+            disabled={!anyConfigured || startSearch.isPending}
           />
         </div>
         <Button
           onClick={submit}
-          disabled={!anyConfigured || input.trim().length < 2}
+          disabled={
+            !anyConfigured || input.trim().length < 2 || startSearch.isPending
+          }
           className="sm:w-auto"
         >
-          <SearchIcon className="h-4 w-4" /> Buscar concorrentes
+          {startSearch.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <SearchIcon className="h-4 w-4" />
+          )}
+          Buscar concorrentes
         </Button>
       </div>
+
+      {/* Recent searches */}
+      {anyConfigured && (recent.data?.length ?? 0) > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <History className="h-3.5 w-3.5" /> Buscas recentes
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {recent.data!.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => {
+                  setInput(r.query);
+                  setSearchId(r.id);
+                  setFromCache(true);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors hover:bg-accent ${
+                  searchId === r.id ? "border-primary/40 bg-primary/5" : ""
+                }`}
+              >
+                <span className="max-w-[12rem] truncate">{r.query}</span>
+                {r.status === "done" ? (
+                  <span className="text-[10px] text-muted-foreground">
+                    {r.resultCount}
+                  </span>
+                ) : r.status === "failed" ? (
+                  <span className="text-[10px] text-destructive">falhou</span>
+                ) : (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* States */}
       {sources.isLoading ? (
@@ -117,74 +214,73 @@ export default function RadarConcorrentes() {
             </Button>
           }
         />
-      ) : !query ? (
+      ) : isNotConfigured ? (
+        <EmptyState
+          icon={Lock}
+          title="Nenhuma fonte configurada"
+          description="Adicione ao menos uma chave de acesso nas configurações do projeto para habilitar a busca."
+          action={
+            <Button variant="outline" onClick={() => setLocation("/configuracoes")}>
+              Ver configurações
+            </Button>
+          }
+        />
+      ) : searchId === null ? (
         <EmptyState
           icon={RadarIcon}
           title="Comece uma varredura"
-          description="Digite um produto ou categoria para mapear os concorrentes mais fortes daquele mercado."
+          description="Digite um produto ou categoria para mapear os concorrentes mais fortes daquele mercado. A coleta roda em segundo plano e costuma levar de 30 a 45 segundos na primeira vez; depois fica em cache."
         />
-      ) : search.isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : search.error ? (
-        isUpstreamHiccup ? (
-          <EmptyState
-            icon={ServerCrash}
-            title="Fontes de dados temporariamente instáveis"
-            description="As fontes de dados de concorrentes estão com instabilidade momentânea e não responderam agora. Isso é temporário e não afeta a sua conta nem os seus créditos. Aguarde alguns minutos e tente novamente."
-            action={
-              <Button
-                variant="outline"
-                onClick={() => search.refetch()}
-                disabled={search.isFetching}
-              >
-                <RefreshCw className={`h-4 w-4 ${search.isFetching ? "animate-spin" : ""}`} />
-                Tentar novamente
-              </Button>
-            }
+      ) : detail.isLoading && !view ? (
+        <CollectingState query={input} note="Carregando…" />
+      ) : isCollecting ? (
+        <CollectingState
+          query={view!.query}
+          note="As fontes estão sendo consultadas em paralelo. Isso costuma levar de 30 a 45 segundos. Você pode aguardar nesta tela — o resultado aparece automaticamente."
+        />
+      ) : isFailed ? (
+        <EmptyState
+          icon={ServerCrash}
+          title="Não foi possível concluir a coleta"
+          description={
+            view?.errorNote ||
+            "As fontes de dados ficaram temporariamente instáveis e não responderam agora. Isso é temporário, não afeta a sua conta nem os seus créditos. Tente novamente em instantes."
+          }
+          action={
+            <Button
+              variant="outline"
+              onClick={refresh}
+              disabled={startSearch.isPending}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${startSearch.isPending ? "animate-spin" : ""}`}
+              />
+              Tentar novamente
+            </Button>
+          }
+        />
+      ) : isDone && competitors.length === 0 ? (
+        <div className="space-y-3">
+          <ResultToolbar
+            view={view!}
+            fromCache={fromCache}
+            onRefresh={refresh}
+            refreshing={startSearch.isPending}
           />
-        ) : isNotConfigured ? (
-          <EmptyState
-            icon={Lock}
-            title="Nenhuma fonte configurada"
-            description="Adicione ao menos uma chave de acesso nas configurações do projeto para habilitar a busca."
-            action={
-              <Button variant="outline" onClick={() => setLocation("/configuracoes")}>
-                Ver configurações
-              </Button>
-            }
-          />
-        ) : (
           <EmptyState
             icon={SearchX}
-            title="Não foi possível buscar"
-            description={search.error.message}
+            title="Nenhum concorrente encontrado"
+            description="Nenhuma fonte retornou produtos para este termo. Tente outra palavra-chave ou atualize a busca."
           />
-        )
-      ) : competitors.length === 0 ? (
-        <EmptyState
-          icon={SearchX}
-          title="Nenhum concorrente encontrado"
-          description="Tente outro termo de busca."
-        />
-      ) : (
+        </div>
+      ) : isDone ? (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              {competitors.length} concorrentes para “{query}”, ordenados por força de mercado
-            </p>
-            {result?.triangulated && (
-              <Badge
-                variant="outline"
-                className="shrink-0 gap-1 border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-700"
-              >
-                <Layers className="h-3 w-3" /> Dados triangulados
-              </Badge>
-            )}
-          </div>
+          <ResultToolbar
+            view={view!}
+            fromCache={fromCache}
+            onRefresh={refresh}
+            refreshing={startSearch.isPending}
+          />
           <div className="space-y-2">
             {competitors.map((c, i) => (
               <CompetitorRow
@@ -199,8 +295,87 @@ export default function RadarConcorrentes() {
             ))}
           </div>
         </div>
-      )}
+      ) : null}
     </PageContainer>
+  );
+}
+
+/** Toolbar above results: count, triangulation, cache badge + refresh. */
+function ResultToolbar({
+  view,
+  fromCache,
+  onRefresh,
+  refreshing,
+}: {
+  view: {
+    query: string;
+    resultCount: number;
+    triangulated: boolean;
+    stale: boolean;
+    finishedAt: number | null;
+  };
+  fromCache: boolean;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm text-muted-foreground">
+          {view.resultCount} concorrentes para “{view.query}”, ordenados por força
+          de mercado
+        </p>
+        {view.triangulated && (
+          <Badge
+            variant="outline"
+            className="shrink-0 gap-1 border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-700"
+          >
+            <Layers className="h-3 w-3" /> Dados triangulados
+          </Badge>
+        )}
+        {fromCache && (
+          <Badge
+            variant="outline"
+            className="shrink-0 gap-1 text-xs text-muted-foreground"
+          >
+            <Database className="h-3 w-3" />
+            {view.stale ? "Cache (desatualizado)" : "Resultado em cache"}
+          </Badge>
+        )}
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0 gap-1.5"
+        onClick={onRefresh}
+        disabled={refreshing}
+      >
+        <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+        Atualizar
+      </Button>
+    </div>
+  );
+}
+
+/** "Collecting in background" state with an animated skeleton list. */
+function CollectingState({ query, note }: { query: string; note: string }) {
+  return (
+    <div className="space-y-4">
+      <Card className="flex items-start gap-3 border-primary/20 bg-primary/5 p-4">
+        <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-primary" />
+        <div className="min-w-0 space-y-1">
+          <p className="text-sm font-medium">
+            Coletando concorrentes para “{query}”…
+          </p>
+          <p className="text-xs text-muted-foreground">{note}</p>
+        </div>
+      </Card>
+      <div className="space-y-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+        ))}
+      </div>
+    </div>
   );
 }
 

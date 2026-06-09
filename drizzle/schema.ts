@@ -178,3 +178,72 @@ export const appConfig = mysqlTable("app_config", {
 
 export type AppConfig = typeof appConfig.$inferSelect;
 export type InsertAppConfig = typeof appConfig.$inferInsert;
+
+/**
+ * Competitor search jobs (async + cache).
+ *
+ * One row per normalized search term. The collection runs in the background
+ * (one or more scraping sources), so the UI starts a search, then polls this
+ * row for status. A finished row acts as a cache: repeating the same term
+ * returns instantly until the user explicitly refreshes it.
+ */
+export const competitorSearches = mysqlTable(
+  "competitor_searches",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** Original query as typed by the user. */
+    query: varchar("query", { length: 256 }).notNull(),
+    /** Lowercased / trimmed term used as the cache key. */
+    normalizedQuery: varchar("normalizedQuery", { length: 256 }).notNull(),
+    status: mysqlEnum("status", ["pending", "running", "done", "failed"])
+      .default("pending")
+      .notNull(),
+    /** Number of unified competitors found (after triangulation). */
+    resultCount: int("resultCount").default(0).notNull(),
+    /** Whether more than one source contributed (triangulated result). */
+    triangulated: boolean("triangulated").default(false).notNull(),
+    /** Per-source health snapshot for this run (SourceStatus[] as JSON). */
+    sourcesUsed: json("sourcesUsed"),
+    /** Human-friendly error note when status = failed. */
+    errorNote: text("errorNote"),
+    /** Unix ms when the collection finished (done or failed). */
+    finishedAt: bigint("finishedAt", { mode: "number" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    userIdx: index("comp_search_user_idx").on(t.userId),
+    normalizedIdx: index("comp_search_norm_idx").on(t.normalizedQuery),
+  }),
+);
+
+export type CompetitorSearch = typeof competitorSearches.$inferSelect;
+export type InsertCompetitorSearch = typeof competitorSearches.$inferInsert;
+
+/**
+ * Unified competitor results for a finished search. Each row stores one
+ * UnifiedCompetitor (name, consolidated price, consensus, per-source detail)
+ * as JSON so the triangulation shape can evolve without migrations.
+ */
+export const competitorResults = mysqlTable(
+  "competitor_results",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    searchId: int("searchId").notNull(),
+    /** Display rank (0 = strongest competitor). */
+    rank: int("rank").default(0).notNull(),
+    name: varchar("name", { length: 512 }).notNull(),
+    /** Consolidated price value (BRL), null when no source had a price. */
+    price: double("price"),
+    /** Full UnifiedCompetitor object as JSON (consensus + per-source detail). */
+    payload: json("payload").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    searchIdx: index("comp_result_search_idx").on(t.searchId),
+  }),
+);
+
+export type CompetitorResult = typeof competitorResults.$inferSelect;
+export type InsertCompetitorResult = typeof competitorResults.$inferInsert;

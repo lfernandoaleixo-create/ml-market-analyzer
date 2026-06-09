@@ -10,6 +10,14 @@ import {
 } from "../competitors/unwrangle";
 import { diagnoseCompetitor } from "../competitors/diagnosis";
 import { getSourcesStatus, searchAllSources } from "../competitors/orchestrator";
+import {
+  createSearch,
+  findLatestByQuery,
+  getSearchView,
+  listRecentSearches,
+  normalizeQuery,
+} from "../competitors/searchStore";
+import { launchSearchJob } from "../competitors/searchJob";
 import type { MyListingBaseline } from "@shared/competitors";
 
 /**
@@ -95,6 +103,75 @@ export const competitorsRouter = router({
         });
       }
       return result;
+    }),
+
+  /**
+   * ASYNC competitor search (job + cache).
+   *
+   * Starts (or reuses) a background collection for the term and returns the
+   * search id immediately. The client then polls `getSearch` until the status
+   * is "done"/"failed". When a recent finished result exists and `refresh` is
+   * false, we return it straight from cache (no new collection, no credits).
+   */
+  startSearch: protectedProcedure
+    .input(
+      z.object({
+        query: z.string().min(2, "Digite ao menos 2 caracteres."),
+        refresh: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user!.id;
+      const query = input.query.trim();
+      const normalized = normalizeQuery(query);
+
+      // Reuse a fresh, finished cache hit unless an explicit refresh is asked.
+      if (!input.refresh) {
+        const existing = await findLatestByQuery(userId, normalized);
+        if (existing) {
+          // If a job is already pending/running, keep polling the same row.
+          if (existing.status === "pending" || existing.status === "running") {
+            return { id: existing.id, cached: false } as const;
+          }
+          // Reuse a recent successful result as cache.
+          if (existing.status === "done") {
+            const finishedAt = existing.finishedAt ?? 0;
+            const fresh = Date.now() - finishedAt < 6 * 60 * 60 * 1000;
+            if (fresh) return { id: existing.id, cached: true } as const;
+          }
+        }
+      }
+
+      const id = await createSearch(userId, query);
+      launchSearchJob(id, query);
+      return { id, cached: false } as const;
+    }),
+
+  /** Poll a search by id; include the unified competitors when finished. */
+  getSearch: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        includeResults: z.boolean().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const view = await getSearchView(
+        ctx.user!.id,
+        input.id,
+        input.includeResults ?? true,
+      );
+      if (!view) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Busca não encontrada." });
+      }
+      return view;
+    }),
+
+  /** The user's most recent searches (for the "recent searches" panel). */
+  recentSearches: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return listRecentSearches(ctx.user!.id, input?.limit ?? 12);
     }),
 
   /** Active competitor search by keyword / category term. */

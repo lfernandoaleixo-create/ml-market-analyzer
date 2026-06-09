@@ -221,3 +221,17 @@
 - [x] Validado ao vivo: R$ 2.632,00 / 40 pedidos / 48 unidades / ticket R$ 65,80 / 18 cancelados
 - [x] Testes do accountProvider atualizados (paid filter + cancelled count) — 7/7
 - [x] Suíte completa: 125 testes passando (inclui live Oxylabs ok / Unwrangle chave válida, provedor instável)
+
+
+## Busca assíncrona de concorrentes com cache (09/jun)
+- [x] ScrapingBee ativada com render JS + premium proxy (Brasil) + parser cheerio (poly-card) — 60 produtos reais; ~96s/busca
+- [x] Tabela competitor_searches (termo normalizado, status, timestamps, contagem)
+- [x] Tabela competitor_results (resultados unificados por busca, JSON das fontes/consenso)
+- [x] Migração SQL aplicada via webdev_execute_sql
+- [x] Helpers de cache (searchStore.ts: criar busca, salvar resultados, ler por termo/id, listar recentes, normalizar, TTL)
+- [x] Job em background (searchJob.ts: fire-and-forget, in-flight guard, status pending->running->done/failed)
+- [x] Rotas tRPC: competitors.startSearch (dispara/retorna cache), competitors.getSearch (polling), competitors.recentSearches
+- [x] Otimizar wait da ScrapingBee (wait=1500 + block_resources): 96s -> ~37s, mantém 60 produtos
+- [x] UI Radar: estado "coletando..." com polling, resultado do cache, botão atualizar, lista de buscas recentes
+- [x] Testes do fluxo assíncrono (searchJob: status pending->running->done/failed, falha graciosa, in-flight guard) — 5 testes
+- [ ] webdev_check_status + checkpoint

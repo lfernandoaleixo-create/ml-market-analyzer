@@ -15,6 +15,13 @@
       "when": 1780502675965,
       "tag": "0001_tidy_shinobi_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1781030978744,
+      "tag": "0002_classy_the_liberteens",
+      "breakpoints": true
     }
   ]
 }

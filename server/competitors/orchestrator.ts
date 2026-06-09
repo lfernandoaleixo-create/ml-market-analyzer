@@ -37,7 +37,7 @@ import {
 const SOURCE_TIMEOUT_MS = (() => {
   const raw = process.env.COMPETITOR_SOURCE_TIMEOUT_MS;
   const parsed = raw !== undefined ? Number(raw) : NaN;
-  return Number.isFinite(parsed) ? parsed : 25_000;
+  return Number.isFinite(parsed) ? parsed : 45_000;
 })();
 
 type ProbeOutcome = {

@@ -2,8 +2,12 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 
 /**
  * Isolated tests for the ScrapingBee provider. No real network calls are made.
- * They assert the SECURITY boundary: the only secret sent is the dedicated
- * SCRAPINGBEE_API_KEY and the only target is a public Mercado Livre URL.
+ * They assert:
+ *  - the SECURITY boundary (only the dedicated key + a public ML URL are sent);
+ *  - the HTML parser (poly-card layout) extracts products correctly;
+ *  - render_js + premium proxy + country=br are requested (the only combo that
+ *    returns the full ML grid);
+ *  - transient/terminal HTTP errors are handled with the right retry policy.
  */
 
 process.env.COMPETITOR_RETRY_DELAY_MS = "0";
@@ -21,12 +25,41 @@ async function loadModule() {
   return await import("./scrapingbee");
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+/** ScrapingBee returns rendered HTML as text/* — model that here. */
+function htmlResponse(html: string, status = 200): Response {
   return {
     status,
-    json: async () => body,
+    text: async () => html,
+    json: async () => ({}),
   } as unknown as Response;
 }
+
+/** A minimal ML "poly-card" search page fixture (current 2026 layout). */
+const ML_FIXTURE = `
+<html><body>
+  <div class="poly-card">
+    <a class="poly-component__title" href="https://www.mercadolivre.com.br/p/MLB111">Cadeira Gamer Pro</a>
+    <img src="https://img/cg.jpg" />
+    <div class="andes-money-amount">
+      <span class="andes-money-amount__fraction">1.299</span>
+      <span class="andes-money-amount__cents">90</span>
+    </div>
+    <span class="poly-component__shipping">Frete grátis</span>
+    <span class="poly-component__seller">Loja Oficial XYZ</span>
+  </div>
+  <div class="poly-card">
+    <a class="poly-component__title" href="https://produto.mercadolivre.com.br/MLB-222">Mesa Simples</a>
+    <img data-src="https://img/mesa.jpg" />
+    <div class="andes-money-amount">
+      <span class="andes-money-amount__fraction">350</span>
+    </div>
+    <span class="poly-component__shipping">Chega amanhã</span>
+  </div>
+  <div class="poly-card">
+    <!-- malformed card with no title/url should be skipped -->
+    <span class="andes-money-amount__fraction">10</span>
+  </div>
+</body></html>`.padEnd(600, " ");
 
 describe("scrapingbee — configuration", () => {
   it("reports not configured when no key is set", async () => {
@@ -50,64 +83,82 @@ describe("scrapingbee — configuration", () => {
   });
 });
 
-describe("scrapingbee — search & mapping", () => {
+describe("scrapingbee — request shape & security", () => {
   beforeEach(() => {
     process.env.SCRAPINGBEE_API_KEY = "sb-key";
   });
 
-  it("sends the api_key + public ML url only (no account identifiers)", async () => {
+  it("sends the api_key + public ML url with render_js + premium proxy (no account identifiers)", async () => {
     const mod = await loadModule();
     let calledUrl = "";
     const fetchMock = vi.fn(async (url: string) => {
       calledUrl = url;
-      return jsonResponse({ products: [] });
+      return htmlResponse(ML_FIXTURE);
     });
     await mod.searchOffers("cadeira gamer", fetchMock as unknown as typeof fetch);
     expect(calledUrl).toContain("app.scrapingbee.com");
     expect(calledUrl).toContain("api_key=sb-key");
+    expect(calledUrl).toContain("render_js=true");
+    expect(calledUrl).toContain("premium_proxy=true");
+    expect(calledUrl).toContain("country_code=br");
     expect(decodeURIComponent(calledUrl)).toContain("lista.mercadolivre.com.br");
-    expect(calledUrl).not.toMatch(/Bearer|cnpj|access_token/i);
+    // Security: never leak any seller identity / token / cnpj.
+    expect(calledUrl).not.toMatch(/Bearer|cnpj|access_token|refresh_token/i);
+  });
+});
+
+describe("scrapingbee — HTML parsing (poly-card)", () => {
+  beforeEach(() => {
+    process.env.SCRAPINGBEE_API_KEY = "sb-key";
   });
 
-  it("maps product rows (price fraction + free shipping detection)", async () => {
+  it("parses products with price fraction+cents, url, thumbnail and free shipping", async () => {
     const mod = await loadModule();
-    const fetchMock = vi.fn(async () =>
-      jsonResponse({
-        products: [
-          {
-            name: "Cadeira Gamer Pro",
-            url: "https://www.mercadolivre.com.br/p/MLB999",
-            price_fraction: "1.299",
-            free_shipping: "Frete grátis",
-            thumbnail: "https://img/cg.jpg",
-            seller: "Loja Oficial",
-          },
-        ],
-      }),
-    );
+    const fetchMock = vi.fn(async () => htmlResponse(ML_FIXTURE));
     const offers = await mod.searchOffers("cadeira", fetchMock as unknown as typeof fetch);
-    expect(offers).toHaveLength(1);
+
+    // 2 valid cards (the malformed third one is skipped).
+    expect(offers).toHaveLength(2);
     expect(offers[0]).toMatchObject({
       source: "scrapingbee",
       name: "Cadeira Gamer Pro",
-      price: 1299,
+      url: "https://www.mercadolivre.com.br/p/MLB111",
+      price: 1299.9,
       freeShipping: true,
-      sellerReputation: "Loja Oficial",
+      sellerReputation: "Loja Oficial XYZ",
     });
+    expect(offers[0].thumbnail).toBe("https://img/cg.jpg");
+
+    expect(offers[1]).toMatchObject({
+      name: "Mesa Simples",
+      price: 350,
+      freeShipping: false,
+    });
+    expect(offers[1].thumbnail).toBe("https://img/mesa.jpg");
   });
 
-  it("sets freeShipping=false when shipping text is not free", async () => {
+  it("parseMlSearchHtml is pure and skips cards without name", async () => {
     const mod = await loadModule();
-    const fetchMock = vi.fn(async () =>
-      jsonResponse({ products: [{ name: "X", url: "u", free_shipping: "R$ 20" }] }),
-    );
-    const offers = await mod.searchOffers("x", fetchMock as unknown as typeof fetch);
-    expect(offers[0].freeShipping).toBe(false);
+    const offers = mod.parseMlSearchHtml(ML_FIXTURE);
+    expect(offers.every((o) => o.name.length > 0)).toBe(true);
+    expect(offers).toHaveLength(2);
+  });
+
+  it("returns an empty array for a page with no products", async () => {
+    const mod = await loadModule();
+    const offers = mod.parseMlSearchHtml("<html><body>no results</body></html>".padEnd(600, " "));
+    expect(offers).toEqual([]);
+  });
+});
+
+describe("scrapingbee — error handling", () => {
+  beforeEach(() => {
+    process.env.SCRAPINGBEE_API_KEY = "sb-key";
   });
 
   it("treats 401 as terminal auth error (no retry)", async () => {
     const mod = await loadModule();
-    const fetchMock = vi.fn(async () => jsonResponse({}, 401));
+    const fetchMock = vi.fn(async () => htmlResponse("", 401));
     await expect(
       mod.searchOffers("x", fetchMock as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: "auth" });
@@ -116,7 +167,7 @@ describe("scrapingbee — search & mapping", () => {
 
   it("treats 402 as terminal credits error (no retry)", async () => {
     const mod = await loadModule();
-    const fetchMock = vi.fn(async () => jsonResponse({}, 402));
+    const fetchMock = vi.fn(async () => htmlResponse("", 402));
     await expect(
       mod.searchOffers("x", fetchMock as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: "credits" });
@@ -125,23 +176,19 @@ describe("scrapingbee — search & mapping", () => {
 
   it("retries on 5xx up to the max attempts", async () => {
     const mod = await loadModule();
-    const fetchMock = vi.fn(async () => jsonResponse({}, 500));
+    const fetchMock = vi.fn(async () => htmlResponse("", 500));
     await expect(
       mod.searchOffers("x", fetchMock as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: "upstream" });
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
-});
 
-describe("scrapingbee — mapScrapingBeeRow", () => {
-  it("returns null without name or url", async () => {
+  it("treats an empty body as a retryable upstream error", async () => {
     const mod = await loadModule();
-    expect(mod.mapScrapingBeeRow({ price_fraction: "10" })).toBeNull();
-  });
-
-  it("leaves freeShipping null when there is no shipping text", async () => {
-    const mod = await loadModule();
-    const row = mod.mapScrapingBeeRow({ name: "X", url: "u" });
-    expect(row?.freeShipping).toBeNull();
+    const fetchMock = vi.fn(async () => htmlResponse("", 200));
+    await expect(
+      mod.searchOffers("x", fetchMock as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: "upstream" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });
