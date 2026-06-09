@@ -191,3 +191,33 @@
 - [x] Testes da triangulação (orchestrator: fault isolation/triangulação) e dos provedores (oxylabs/scrapingbee/officialSource — fetch mockado, isolamento) — 124 testes passando
 - [x] webdev_check_status (TS/LSP limpos) + checkpoint
 - [ ] Solicitar chaves de Oxylabs/ScrapingBee ao usuário e entregar
+
+## Ajuste Oxylabs (validação com credenciais reais)
+- [ ] Oxylabs: trocar alvo de HTML da busca do ML (parser 12002, HTML parcial) para a API pública do ML (api.mercadolibre.com/sites/MLB/search) via source=universal, parse JSON
+- [ ] Manter isolamento: só keyword pública + credenciais Oxylabs; sem token/CNPJ/cookies do ML
+- [ ] Atualizar testes unitários do oxylabs para a nova forma de resposta (items via search results)
+- [ ] Revalidar com teste live (credenciais reais) retornando ofertas > 0
+- [ ] Rodar suíte completa + checkpoint
+
+
+## Decisão estratégica (09/jun): triangular as 4 APIs públicas, SEM OAuth oficial do ML
+- [x] Avaliação da Seconds concluída: a robustez dela vem da integração OFICIAL do ML (parceira certificada), não de scraping melhor. Usuário decidiu NÃO buscar autorização oficial.
+- [x] Rumo confirmado: triangular Oxylabs + ScrapingBee + Unwrangle + busca pública do ML, de forma segura e tolerante a falhas.
+- [ ] Oxylabs: definir alvo que retorna produtos reais. Testar nesta ordem: (a) endpoint interno de busca do ML que devolve JSON (polycard/search API), (b) render JS do HTML do ML com seletores, (c) parser dedicado se existir. Validar ao vivo > 0 ofertas.
+- [ ] ScrapingBee: render=true + wait/wait_for + extract_rules ou JSON interno do ML; validar produtos reais ao vivo > 0 ofertas.
+- [ ] Unwrangle: revalidar (estava 504/instável). Usar ML Search + ML Sellers (vendas passadas) quando voltar.
+- [ ] Busca pública ML: localizar endpoint que ainda funciona sem token (frontend/mobile internal API) como 4ª fonte.
+- [ ] Orquestrador: confirmar paralelismo só com fontes configuradas, consenso de preço, dedupe por título/MLB id, e degradação graciosa.
+- [ ] Segurança (regra de ouro): testes garantem que NENHUMA credencial da conta ML do usuário (token/CNPJ/cookies/Bearer) trafega aos provedores; só keyword pública + chave do provedor.
+- [ ] UI: status honesto por fonte (não configurada / ativa / instável / alvo sem suporte) + selo de consenso.
+- [ ] Suíte completa (unit + live gated por env) + checkpoint final.
+
+
+## Correção do dashboard de vendas (09/jun) — dados reais
+- [x] Diagnóstico ao vivo: conta LOJADOSRWU conectada, token válido (não era "demo" para dados próprios)
+- [x] Identificado bug: paginação de pedidos parava cedo + janela padrão de 60 dias cortava o início da loja
+- [x] getSalesDashboard reescrito: usa filtro oficial order.status=paid (captura os 40 pagos) + contagem oficial de cancelados (18)
+- [x] Janela padrão das rotas account ampliada para 180 dias (cobre toda a vida da loja)
+- [x] Validado ao vivo: R$ 2.632,00 / 40 pedidos / 48 unidades / ticket R$ 65,80 / 18 cancelados
+- [x] Testes do accountProvider atualizados (paid filter + cancelled count) — 7/7
+- [x] Suíte completa: 125 testes passando (inclui live Oxylabs ok / Unwrangle chave válida, provedor instável)

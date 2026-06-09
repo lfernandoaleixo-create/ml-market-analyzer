@@ -206,14 +206,23 @@ export class AccountProvider {
 
   // ---- Sales / orders ----------------------------------------------------
 
-  /** Page through orders since `fromMs`, capped. */
-  private async getOrders(fromMs: number, maxOrders = 400): Promise<any[]> {
+  /**
+   * Page through ALL orders for a given ML order status, using the official
+   * `order.status` server-side filter. This is far more reliable than fetching
+   * everything and filtering client-side (which previously stopped paging too
+   * early because orders are not strictly date-ordered).
+   *
+   * `status` is an ML order status such as "paid" or "cancelled". When omitted,
+   * all orders are returned.
+   */
+  private async getOrdersByStatus(status?: string, maxOrders = 1000): Promise<any[]> {
     const out: any[] = [];
     let offset = 0;
     const limit = 50;
+    const statusParam = status ? `&order.status=${status}` : "";
     while (out.length < maxOrders) {
       const data = await this.get(
-        `/orders/search?seller=${this.userId}&sort=date_desc&limit=${limit}&offset=${offset}`,
+        `/orders/search?seller=${this.userId}&sort=date_desc&limit=${limit}&offset=${offset}${statusParam}`,
       );
       const results: any[] = Array.isArray(data?.results) ? data.results : [];
       if (results.length === 0) break;
@@ -221,49 +230,49 @@ export class AccountProvider {
       const total = data?.paging?.total ?? out.length;
       offset += limit;
       if (offset >= total) break;
-      // Stop early once we are clearly past the period.
-      const oldest = results[results.length - 1]?.date_created;
-      if (oldest && new Date(oldest).getTime() < fromMs) break;
     }
     return out;
   }
 
+  /** Count orders for a status via the API paging total (cheap, 1 request). */
+  private async countOrdersByStatus(status: string): Promise<number> {
+    const data = await this.get(
+      `/orders/search?seller=${this.userId}&order.status=${status}&limit=1`,
+    );
+    return data?.paging?.total ?? 0;
+  }
+
   async getSalesDashboard(opts: { fromMs: number; toMs: number }): Promise<SalesDashboard> {
     const { fromMs, toMs } = opts;
-    const orders = await this.getOrders(fromMs);
+    // Fetch PAID orders via the official server-side status filter. This is the
+    // reliable source of truth for revenue (previously a client-side filter
+    // missed orders because they are not strictly date-ordered).
+    const paidAll = await this.getOrdersByStatus("paid");
 
     let revenue = 0;
     let unitsSold = 0;
-    let cancelled = 0;
     const paidOrders: any[] = [];
     const dailyMap = new Map<string, { revenue: number; orders: number }>();
     const productMap = new Map<string, TopProduct>();
 
-    for (const o of orders) {
+    for (const o of paidAll) {
       const created = o.date_created ? new Date(o.date_created).getTime() : 0;
-      if (created < fromMs || created > toMs) continue;
+      // Keep within the requested window (toMs guards against clock skew /
+      // future dates; fromMs lets callers scope to a period when desired).
+      if (created && (created < fromMs || created > toMs)) continue;
 
-      const status = o.status as string;
-      if (status === "cancelled") {
-        cancelled += 1;
-        continue;
-      }
-      // Count paid/approved orders only.
-      const paid = (o.payments ?? []).some(
-        (p: any) => p.status === "approved" || p.status === "accredited",
-      );
-      const orderTotal = (o.payments ?? []).reduce(
-        (s: number, p: any) => s + (p.status === "approved" ? p.transaction_amount ?? 0 : 0),
+      // Revenue: prefer the sum of approved payments; fall back to total_amount.
+      const approvedTotal = (o.payments ?? []).reduce(
+        (s: number, p: any) =>
+          s + (p.status === "approved" || p.status === "accredited" ? p.transaction_amount ?? 0 : 0),
         0,
       );
-      const fallbackTotal = o.total_amount ?? orderTotal;
-      const value = orderTotal > 0 ? orderTotal : fallbackTotal;
-      if (!paid && status !== "paid") continue;
+      const value = approvedTotal > 0 ? approvedTotal : o.total_amount ?? 0;
 
       paidOrders.push(o);
       revenue += value;
 
-      const dayKey = new Date(created).toISOString().slice(0, 10);
+      const dayKey = new Date(created || Date.now()).toISOString().slice(0, 10);
       const day = dailyMap.get(dayKey) ?? { revenue: 0, orders: 0 };
       day.revenue += value;
       day.orders += 1;
@@ -285,6 +294,9 @@ export class AccountProvider {
         productMap.set(id, existing);
       }
     }
+
+    // Cancelled count comes straight from the official paging total.
+    const cancelled = await this.countOrdersByStatus("cancelled");
 
     const daily: SalesDayPoint[] = Array.from(dailyMap.entries())
       .map(([date, v]) => ({ date, revenue: v.revenue, orders: v.orders }))

@@ -46,12 +46,13 @@ async function resolveAccount(manusUserId: number): Promise<AccountProvider> {
 
 const periodInput = z
   .object({
-    /** Number of days to look back (default 60 — account age). */
+    /** Number of days to look back (default 180 — comfortably covers the
+     *  account's whole life so early orders are never dropped). */
     days: z.number().int().min(1).max(365).optional(),
   })
   .optional();
 
-function periodBounds(days = 60) {
+function periodBounds(days = 180) {
   const to = Date.now();
   const from = to - days * 24 * 60 * 60 * 1000;
   return { fromMs: from, toMs: to };
@@ -84,7 +85,7 @@ export const accountRouter = router({
   /** Sales dashboard for a period (revenue, orders, ticket, daily, top products). */
   salesDashboard: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const account = await resolveAccount(ctx.user.id);
-    const { fromMs, toMs } = periodBounds(input?.days ?? 60);
+    const { fromMs, toMs } = periodBounds(input?.days ?? 180);
     return account.getSalesDashboard({ fromMs, toMs });
   }),
 
@@ -99,7 +100,7 @@ export const accountRouter = router({
   /** Post-sale summary (claims, cancellations). */
   postSale: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const account = await resolveAccount(ctx.user.id);
-    const { fromMs } = periodBounds(input?.days ?? 60);
+    const { fromMs } = periodBounds(input?.days ?? 180);
     return account.getPostSale({ fromMs });
   }),
 });

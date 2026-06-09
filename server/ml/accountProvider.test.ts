@@ -82,13 +82,14 @@ describe("AccountProvider.getSalesDashboard", () => {
   beforeEach(() => vi.restoreAllMocks());
   afterEach(() => vi.restoreAllMocks());
 
-  it("aggregates revenue, units, daily points and top products from paid orders", async () => {
+  it("aggregates revenue, units, daily points and top products from PAID orders (official filter)", async () => {
     const now = Date.now();
     const d1 = new Date(now - 2 * 86400000).toISOString();
     const d2 = new Date(now - 1 * 86400000).toISOString();
 
-    const orders = {
-      paging: { total: 3 },
+    // Paid orders come from the order.status=paid query.
+    const paidOrders = {
+      paging: { total: 2 },
       results: [
         {
           date_created: d1,
@@ -104,22 +105,18 @@ describe("AccountProvider.getSalesDashboard", () => {
           total_amount: 30,
           order_items: [{ quantity: 1, unit_price: 30, item: { id: "MLB2", title: "Produto B" } }],
         },
-        {
-          date_created: d2,
-          status: "cancelled",
-          payments: [],
-          total_amount: 999,
-          order_items: [{ quantity: 1, unit_price: 999, item: { id: "MLB3", title: "Cancelado" } }],
-        },
       ],
     };
+    // Cancelled count comes from the order.status=cancelled query (paging.total).
+    const cancelledCount = { paging: { total: 1 }, results: [] };
 
     global.fetch = makeFetchRouter([
-      { match: /\/orders\/search/, body: orders },
+      { match: /order\.status=paid/, body: paidOrders },
+      { match: /order\.status=cancelled/, body: cancelledCount },
     ]) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
-    const dash = await provider.getSalesDashboard({ fromMs: now - 60 * 86400000, toMs: now });
+    const dash = await provider.getSalesDashboard({ fromMs: now - 200 * 86400000, toMs: now });
 
     expect(dash.kpis.revenue).toBe(130);
     expect(dash.kpis.orders).toBe(2);
@@ -132,12 +129,12 @@ describe("AccountProvider.getSalesDashboard", () => {
     expect(dash.topProducts[0].revenue).toBe(100);
   });
 
-  it("ignores orders outside the period", async () => {
+  it("ignores paid orders outside the requested period", async () => {
     const now = Date.now();
     const old = new Date(now - 200 * 86400000).toISOString();
     global.fetch = makeFetchRouter([
       {
-        match: /\/orders\/search/,
+        match: /order\.status=paid/,
         body: {
           paging: { total: 1 },
           results: [
@@ -151,6 +148,7 @@ describe("AccountProvider.getSalesDashboard", () => {
           ],
         },
       },
+      { match: /order\.status=cancelled/, body: { paging: { total: 0 }, results: [] } },
     ]) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
