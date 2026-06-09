@@ -42,8 +42,17 @@ import {
   Ticket,
   Megaphone,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { SegmentFilterBar } from "@/components/competitors/SegmentFilterBar";
+import {
+  applyFilters,
+  countBySegment,
+  EMPTY_FILTERS,
+  noFiltersActive,
+  type SegmentFilters,
+  type SegmentKey,
+} from "@shared/competitorFilters";
 
 export default function RadarConcorrentes() {
   const [, setLocation] = useLocation();
@@ -52,6 +61,8 @@ export default function RadarConcorrentes() {
   const [searchId, setSearchId] = useState<number | null>(null);
   // Whether the active search came straight from cache (no new collection).
   const [fromCache, setFromCache] = useState(false);
+  // Active segment filters (Loja oficial / FULL / Cupom / Patrocinado).
+  const [filters, setFilters] = useState<SegmentFilters>(EMPTY_FILTERS);
 
   const sources = trpc.competitors.sourcesStatus.useQuery();
   const anyConfigured = (sources.data?.configuredCount ?? 0) > 0;
@@ -88,6 +99,25 @@ export default function RadarConcorrentes() {
 
   const view = detail.data;
   const competitors = view?.competitors ?? [];
+
+  // Per-segment counts over the FULL list + the list after applying filters.
+  // Memoized so unstable references don't re-trigger work every render.
+  const segmentCounts = useMemo(() => countBySegment(competitors), [competitors]);
+  const filteredCompetitors = useMemo(
+    () => applyFilters(competitors, filters),
+    [competitors, filters],
+  );
+  const filtersActive = !noFiltersActive(filters);
+
+  // Reset filters whenever we switch to a different search, so a leftover
+  // filter from a previous term doesn't silently hide the new results.
+  useEffect(() => {
+    setFilters(EMPTY_FILTERS);
+  }, [searchId]);
+
+  const toggleFilter = (key: SegmentKey) =>
+    setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+  const clearFilters = () => setFilters(EMPTY_FILTERS);
   const isCollecting =
     view?.status === "pending" || view?.status === "running";
   const isDone = view?.status === "done";
@@ -305,19 +335,37 @@ export default function RadarConcorrentes() {
           {view!.sourcesUsed && view!.sourcesUsed.length > 0 && (
             <SearchSourcesSummary sources={view!.sourcesUsed} />
           )}
-          <div className="space-y-2">
-            {competitors.map((c, i) => (
-              <CompetitorRow
-                key={`${c.matchKey}-${i}`}
-                rank={i + 1}
-                competitor={c}
-                onDiagnose={() =>
-                  c.url &&
-                  setLocation(`/diagnostico?url=${encodeURIComponent(c.url)}`)
-                }
-              />
-            ))}
-          </div>
+          {competitors.length > 0 && (
+            <SegmentFilterBar
+              filters={filters}
+              counts={segmentCounts}
+              matched={filteredCompetitors.length}
+              total={competitors.length}
+              onToggle={toggleFilter}
+              onClear={clearFilters}
+            />
+          )}
+          {filtersActive && filteredCompetitors.length === 0 ? (
+            <EmptyState
+              icon={SearchX}
+              title="Nenhum concorrente neste segmento"
+              description="Nenhum concorrente desta busca combina com os filtros selecionados. Ajuste ou limpe os filtros para ver mais resultados."
+            />
+          ) : (
+            <div className="space-y-2">
+              {filteredCompetitors.map((c, i) => (
+                <CompetitorRow
+                  key={`${c.matchKey}-${i}`}
+                  rank={i + 1}
+                  competitor={c}
+                  onDiagnose={() =>
+                    c.url &&
+                    setLocation(`/diagnostico?url=${encodeURIComponent(c.url)}`)
+                  }
+                />
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
     </PageContainer>

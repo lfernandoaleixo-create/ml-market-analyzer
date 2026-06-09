@@ -16,8 +16,9 @@ import {
   getSearchView,
   listRecentSearches,
   normalizeQuery,
+  recoverStalledForUser,
 } from "../competitors/searchStore";
-import { launchSearchJob } from "../competitors/searchJob";
+import { isInFlight, launchSearchJob } from "../competitors/searchJob";
 import { getUsageStatus } from "../competitors/usage";
 import type { MyListingBaseline } from "@shared/competitors";
 
@@ -157,6 +158,11 @@ export const competitorsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      // Runtime fallback: before reading, recover any of this user's orphaned
+      // collections (e.g. lost to a server restart) so the poll never hangs
+      // on "Coletando…" forever — even before the sweep cron is deployed.
+      // Jobs still alive in THIS process are excluded via isInFlight.
+      await recoverStalledForUser(ctx.user!.id, Date.now(), isInFlight);
       const view = await getSearchView(
         ctx.user!.id,
         input.id,
@@ -182,6 +188,7 @@ export const competitorsRouter = router({
   recentSearches: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(50).optional() }).optional())
     .query(async ({ ctx, input }) => {
+      await recoverStalledForUser(ctx.user!.id, Date.now(), isInFlight);
       return listRecentSearches(ctx.user!.id, input?.limit ?? 12);
     }),
 

@@ -1,0 +1,1 @@
+ALTER TABLE `app_config` ADD `radarSweepCronTaskUid` varchar(65);

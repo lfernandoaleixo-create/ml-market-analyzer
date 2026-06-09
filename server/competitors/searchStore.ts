@@ -9,7 +9,7 @@
  * All timestamps are stored as UTC unix-ms (bigint) at the API/DB layer.
  */
 
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 import {
   competitorResults,
   competitorSearches,
@@ -24,6 +24,17 @@ import { getDb } from "../db";
 
 /** How long a finished search stays "fresh" before we suggest a refresh (ms). */
 export const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+/**
+ * Hard ceiling for how long a collection may stay in "pending"/"running".
+ * Beyond this, the job is considered orphaned (e.g. the server restarted mid
+ * collection and lost the in-process fire-and-forget runner) and gets failed
+ * honestly so the UI never hangs on "Coletando…" forever.
+ *
+ * The orchestrator caps each source at 240s; under contention a full run can
+ * take a few minutes, so we give it a generous margin before declaring it dead.
+ */
+export const STALE_JOB_MS = 6 * 60 * 1000; // 6 minutes
 
 /** Normalize a query into a stable cache key. */
 export function normalizeQuery(query: string): string {
@@ -254,4 +265,127 @@ export async function listRecentSearches(
     .orderBy(desc(competitorSearches.createdAt))
     .limit(limit);
   return rows.map(toView);
+}
+
+/** Honest note written on a search that was orphaned by a server restart. */
+export const STALE_RECOVERY_NOTE =
+  "A coleta foi interrompida antes de concluir (o serviço reiniciou durante o processo). Clique em \"Atualizar\" para tentar novamente.";
+
+/**
+ * Decide whether a poll-view row is an orphaned (stalled) collection: it is
+ * still pending/running but hasn't been touched for longer than STALE_JOB_MS.
+ * Pure helper so it can be unit-tested without a DB.
+ */
+export function isStalled(
+  status: CompetitorSearch["status"],
+  updatedAtMs: number,
+  nowMs: number = Date.now(),
+): boolean {
+  if (status !== "pending" && status !== "running") return false;
+  return nowMs - updatedAtMs > STALE_JOB_MS;
+}
+
+/**
+ * Mark a set of search ids as failed with the honest recovery note. Idempotent:
+ * only flips rows that are still pending/running (so it never overwrites a row
+ * that finished in the meantime). Returns the number of rows recovered.
+ */
+export async function failStalledByIds(ids: number[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const db = await getDb();
+  if (!db) return 0;
+  const res = await db
+    .update(competitorSearches)
+    .set({
+      status: "failed",
+      errorNote: STALE_RECOVERY_NOTE,
+      finishedAt: Date.now(),
+    })
+    .where(
+      and(
+        inArray(competitorSearches.id, ids),
+        inArray(competitorSearches.status, ["pending", "running"]),
+      ),
+    );
+  // mysql2 returns affectedRows on the first element.
+  const affected =
+    (res as unknown as { affectedRows?: number }).affectedRows ??
+    (Array.isArray(res)
+      ? (res[0] as { affectedRows?: number })?.affectedRows
+      : undefined);
+  return Number(affected ?? ids.length);
+}
+
+/**
+ * Project-wide sweep: find every pending/running search whose `updatedAt` is
+ * older than STALE_JOB_MS and fail it with the honest recovery note. Used by
+ * the Heartbeat cron handler (`/api/scheduled/radarSweep`). Returns how many
+ * rows were recovered. Safe to call repeatedly (idempotent).
+ */
+export async function recoverStalledSearches(
+  nowMs: number = Date.now(),
+  isAlive?: IsAlivePredicate,
+): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const cutoff = new Date(nowMs - STALE_JOB_MS);
+  const stale = await db
+    .select({ id: competitorSearches.id })
+    .from(competitorSearches)
+    .where(
+      and(
+        or(
+          eq(competitorSearches.status, "pending"),
+          eq(competitorSearches.status, "running"),
+        ),
+        lt(competitorSearches.updatedAt, cutoff),
+      ),
+    );
+  const ids = stale
+    .map((r) => r.id)
+    .filter((id) => (isAlive ? !isAlive(id) : true));
+  return failStalledByIds(ids);
+}
+
+/**
+ * Optional predicate: returns true when a given search id is still being
+ * actively collected in THIS process (in-flight). When provided, those ids are
+ * NEVER recovered — so we never kill a job that is genuinely still running.
+ */
+export type IsAlivePredicate = (id: number) => boolean;
+
+/**
+ * Runtime fallback used by the polling endpoints: recover only THIS user's
+ * stalled searches before returning a view, so the UI never hangs on
+ * "Coletando…" even before the cron is deployed. Returns recovered ids.
+ *
+ * `isAlive` lets the caller exclude jobs still running in-process (in-flight),
+ * so a long-but-alive collection is never failed prematurely.
+ */
+export async function recoverStalledForUser(
+  userId: number,
+  nowMs: number = Date.now(),
+  isAlive?: IsAlivePredicate,
+): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date(nowMs - STALE_JOB_MS);
+  const stale = await db
+    .select({ id: competitorSearches.id })
+    .from(competitorSearches)
+    .where(
+      and(
+        eq(competitorSearches.userId, userId),
+        or(
+          eq(competitorSearches.status, "pending"),
+          eq(competitorSearches.status, "running"),
+        ),
+        lt(competitorSearches.updatedAt, cutoff),
+      ),
+    );
+  const ids = stale
+    .map((r) => r.id)
+    .filter((id) => (isAlive ? !isAlive(id) : true));
+  await failStalledByIds(ids);
+  return ids;
 }

@@ -170,6 +170,8 @@ export const appConfig = mysqlTable("app_config", {
   id: int("id").autoincrement().primaryKey(),
   /** Heartbeat cron task uid for the monitoring job (Facts #2). */
   monitoringCronTaskUid: varchar("monitoringCronTaskUid", { length: 65 }),
+  /** Heartbeat cron task uid for the Radar background-sweep job (Facts #2). */
+  radarSweepCronTaskUid: varchar("radarSweepCronTaskUid", { length: 65 }),
   /** Alert thresholds (JSON) — percentage changes that trigger alerts. */
   alertThresholds: json("alertThresholds"),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

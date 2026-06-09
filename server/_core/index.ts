@@ -10,6 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { monitorScheduledHandler } from "../scheduled/monitor";
+import { radarSweepScheduledHandler } from "../scheduled/radarSweep";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -41,6 +42,7 @@ async function startServer() {
   registerMlOAuthRoutes(app);
   // Scheduled (Heartbeat cron) callbacks — must be registered before Vite/static fallthrough.
   app.post("/api/scheduled/monitor", monitorScheduledHandler);
+  app.post("/api/scheduled/radarSweep", radarSweepScheduledHandler);
   // tRPC API
   app.use(
     "/api/trpc",

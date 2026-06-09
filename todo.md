@@ -295,3 +295,23 @@
 - [x] Checkpoint final + entrega
 
 > Robustez futura (opcional): mover o job de coleta em segundo plano para um worker/heartbeat dedicado, evitando perda de jobs em andamento quando o processo reinicia (HMR em dev; min-instances=0 em produção).
+
+
+## Robustez (worker resiliente) + Filtros de segmento — EM ANDAMENTO
+
+### Worker resiliente a reinícios (Heartbeat/HTTP cron)
+- [x] searchStore: isStalled + recoverStalledSearches/recoverStalledForUser (detecção por updatedAt > STALE_JOB_MS=6min)
+- [x] searchStore: failStalledByIds marca órfãs como "failed" com nota honesta (idempotente, só flipa pending/running)
+- [x] Fallback em runtime: getSearch/recentSearches recuperam órfãs (ciente de in-flight via isInFlight) — UI nunca fica presa
+- [x] Endpoint /api/scheduled/radarSweep (cron-only, unknown-task skip, idempotente, try/catch + JSON no 500)
+- [x] Handler montado em server/_core/index.ts antes do fallthrough
+- [x] Coluna app_config.radarSweepCronTaskUid (migração aplicada)
+- [x] Testes unitários: isStalled (4) + handler do sweep (5) verdes
+- [ ] Após deploy: criar cron de projeto via manus-heartbeat (a cada 1-2 min)
+
+### Filtros de segmento nos resultados
+- [x] Lógica pura shared/competitorFilters (applyFilters/matchesFilters/countBySegment) tolerante a campos ausentes
+- [x] UI: SegmentFilterBar (chips com ícone/cor + contador por segmento, AND, "Limpar") acima da lista
+- [x] Lista filtrada memoizada (useMemo) + reset de filtros ao trocar de busca
+- [x] Estado vazio honesto quando nenhum concorrente bate nos filtros
+- [x] Testes unitários da função pura de filtragem (6 testes)
