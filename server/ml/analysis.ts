@@ -7,47 +7,20 @@ import type {
   PotentialFactor,
 } from "@shared/ml";
 
-/**
- * Deterministic helpers reused for "simulated recent growth". Because the demo
- * data has no true time-series until the cron runs, we derive a stable
- * pseudo-growth from the product id so the value is consistent per product.
- */
-function hashString(str: string): number {
-  let h = 1779033703 ^ str.length;
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-    h = (h << 13) | (h >>> 19);
-  }
-  return h >>> 0;
-}
-
 function clamp(n: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, n));
 }
 
 /**
- * Estimated short-term sales growth (%). When real snapshots exist they should
- * be passed in via `recentGrowthPercent`; otherwise we derive a stable value.
+ * Price competitiveness within the category context: a lower price relative to
+ * the category maximum scores higher. This uses ONLY the real listing price
+ * (no synthetic rating component), so it stays trustworthy even when the ML API
+ * does not expose ratings for non-certified apps.
  */
-export function estimateSalesGrowth(product: MlProduct, recentGrowthPercent?: number): number {
-  if (typeof recentGrowthPercent === "number") return recentGrowthPercent;
-  const seed = hashString(product.id + ":growth");
-  // -15% .. +75%, biased upward for high-rating products.
-  const base = ((seed % 1000) / 1000) * 90 - 15;
-  const ratingBoost = (product.rating - 4) * 8;
-  return Number((base + ratingBoost).toFixed(1));
-}
-
-/**
- * Price/rating efficiency: a higher rating at a lower relative price scores
- * better. Normalized 0..100 within the product's category context.
- */
-function priceRatingScore(product: MlProduct, categoryMaxPrice: number): number {
+function priceCompetitivenessScore(product: MlProduct, categoryMaxPrice: number): number {
+  if (product.priceAvailable === false || !(product.price > 0)) return 0;
   const priceFactor = 1 - Math.min(product.price / Math.max(categoryMaxPrice, 1), 1); // cheaper = higher
-  const ratingFactor = (product.rating - 3.5) / 1.5; // 3.5..5 -> 0..1
-  const reviewConfidence = Math.min(product.reviewsCount / 500, 1); // more reviews = more trust
-  const score = (priceFactor * 0.45 + clamp(ratingFactor, 0, 1) * 0.4 + reviewConfidence * 0.15) * 100;
-  return clamp(Number(score.toFixed(1)));
+  return clamp(Number((priceFactor * 100).toFixed(1)));
 }
 
 /**
@@ -57,74 +30,64 @@ function priceRatingScore(product: MlProduct, categoryMaxPrice: number): number 
 export function analyzePotential(
   product: MlProduct,
   category: MlCategory,
-  ctx: { categoryMaxPrice: number; categoryMaxSold: number; recentGrowthPercent?: number },
+  ctx: { categoryMaxPrice: number; categoryMaxSold: number },
 ): PotentialAnalysis {
-  const salesGrowthPercent = estimateSalesGrowth(product, ctx.recentGrowthPercent);
-  const growthScore = clamp(((salesGrowthPercent + 15) / 90) * 100);
+  // ── FATORES 100% REAIS ──────────────────────────────────────────────────
+  // Todos os fatores abaixo derivam de dados que a API realmente entrega.
+  // Nada de "crescimento recente" pseudo-aleatório nem "demanda fixa".
 
-  const prScore = priceRatingScore(product, ctx.categoryMaxPrice);
+  // 1) Preço competitivo (real): menor preço relativo à categoria pontua mais.
+  const priceScore = priceCompetitivenessScore(product, ctx.categoryMaxPrice);
+  const priceKnown = product.priceAvailable !== false && product.price > 0;
 
-  const demandScore = clamp(category.demandIndex);
+  // 2) Presença/posição nos mais vendidos (real): catalogPosition vem dos
+  //    destaques oficiais da categoria. Posição 1 = 100, decaindo até ~50º.
+  const hasRank = typeof product.catalogPosition === "number" && product.catalogPosition > 0;
+  const bestSellerScore = hasRank
+    ? clamp(100 - (Math.min(product.catalogPosition as number, 50) - 1) * 2)
+    : 0;
 
-  const salesVolumeScore = clamp(
-    (product.soldQuantity / Math.max(ctx.categoryMaxSold, 1)) * 100,
-  );
-
+  // 3) Reputação do vendedor (real): nível + % positivas + MercadoLíder + loja oficial.
   const trustScore = clamp(
-    (product.seller.positiveRatingRatio - 0.85) / 0.15 * 60 +
-      (product.seller.powerSellerStatus ? 25 : 0) +
-      (product.officialStore ? 15 : 0),
+    reputationRank(product.seller.reputationLevel) * 0.5 +
+      clamp((product.seller.positiveRatingRatio - 0.85) / 0.15 * 100) * 0.3 +
+      (product.seller.powerSellerStatus ? 12 : 0) +
+      (product.officialStore ? 8 : 0),
   );
 
+  // 4) Frete grátis + qualidade do anúncio (real): frete e nº de fotos.
   const logisticsScore = clamp(
     (product.freeShipping ? 60 : 20) + Math.min(product.pictureCount, 8) * 5,
   );
 
   const factors: PotentialFactor[] = [
     {
-      key: "growth",
-      label: "Crescimento recente de vendas",
-      score: growthScore,
+      key: "price",
+      label: "Preço competitivo",
+      score: priceScore,
+      weight: 0.35,
+      explanation: priceKnown
+        ? `Preço de R$ ${product.price.toFixed(2)} — ${
+            priceScore >= 60 ? "abaixo" : priceScore >= 40 ? "em linha com" : "acima"
+          } da média da categoria, o que ${priceScore >= 50 ? "favorece" : "dificulta"} a conversão.`
+        : "Preço não disponível pela API para este item (sem oferta ativa); fator não pontuado.",
+    },
+    {
+      key: "best_seller",
+      label: "Presença nos mais vendidos",
+      score: bestSellerScore,
       weight: 0.3,
-      explanation:
-        salesGrowthPercent >= 0
-          ? `Vendas em alta de aproximadamente ${salesGrowthPercent}% no período recente, sinal de aquecimento da demanda.`
-          : `Vendas em queda de ${Math.abs(salesGrowthPercent)}% no período recente, indicando desaceleração.`,
-    },
-    {
-      key: "price_rating",
-      label: "Relação preço / avaliação",
-      score: prScore,
-      weight: 0.2,
-      explanation: `Nota ${product.rating.toFixed(1)} com ${product.reviewsCount} avaliações a R$ ${product.price.toFixed(
-        2,
-      )} — ${prScore >= 60 ? "ótimo" : prScore >= 40 ? "razoável" : "fraco"} custo-benefício frente à categoria.`,
-    },
-    {
-      key: "demand",
-      label: "Demanda da categoria",
-      score: demandScore,
-      weight: 0.2,
-      explanation: `A categoria "${category.name}" tem índice de demanda ${category.demandIndex}/100, ${
-        demandScore >= 80 ? "muito aquecida" : demandScore >= 65 ? "aquecida" : "moderada"
-      }.`,
-    },
-    {
-      key: "volume",
-      label: "Volume de vendas atual",
-      score: salesVolumeScore,
-      weight: 0.15,
-      explanation: `${product.soldQuantity.toLocaleString("pt-BR")} unidades vendidas, ${
-        salesVolumeScore >= 60 ? "entre os líderes" : "abaixo dos líderes"
-      } da categoria.`,
+      explanation: hasRank
+        ? `Aparece na posição #${product.catalogPosition} entre os mais vendidos da categoria "${category.name}" — sinal real de demanda.`
+        : "Não aparece no ranking de mais vendidos da categoria.",
     },
     {
       key: "trust",
       label: "Reputação do vendedor",
       score: trustScore,
-      weight: 0.1,
+      weight: 0.2,
       explanation: `Vendedor com ${(product.seller.positiveRatingRatio * 100).toFixed(
-        1,
+        0,
       )}% de avaliações positivas${product.seller.powerSellerStatus ? `, MercadoLíder ${product.seller.powerSellerStatus}` : ""}${
         product.officialStore ? ", loja oficial" : ""
       }.`,
@@ -133,13 +96,28 @@ export function analyzePotential(
       key: "logistics",
       label: "Frete e qualidade do anúncio",
       score: logisticsScore,
-      weight: 0.05,
+      weight: 0.15,
       explanation: `${product.freeShipping ? "Oferece frete grátis" : "Sem frete grátis"} e ${product.pictureCount} foto(s) no anúncio.`,
     },
   ];
 
+  // Avaliação só entra como fator quando o dado REALMENTE existe (raro em apps
+  // não-certificadas). Quando entra, redistribui peso sem inventar nota.
+  if (product.ratingAvailable === true && product.reviewsCount > 0) {
+    factors.push({
+      key: "rating",
+      label: "Avaliação dos compradores",
+      score: clamp(product.rating * 20),
+      weight: 0.15,
+      explanation: `Nota ${product.rating.toFixed(1)} com ${product.reviewsCount} avaliação(ões) — prova social real.`,
+    });
+  }
+
+  // Score composto ponderado pelos pesos reais presentes (normalizado pela
+  // soma dos pesos, para não penalizar itens sem avaliação disponível).
+  const totalWeight = factors.reduce((s, f) => s + f.weight, 0);
   const potentialScore = clamp(
-    Number(factors.reduce((sum, f) => sum + f.score * f.weight, 0).toFixed(1)),
+    Number((factors.reduce((sum, f) => sum + f.score * f.weight, 0) / Math.max(totalWeight, 0.0001)).toFixed(1)),
   );
 
   const verdict: PotentialAnalysis["verdict"] =
@@ -148,9 +126,8 @@ export function analyzePotential(
   return {
     product,
     potentialScore,
-    salesGrowthPercent,
-    priceRatingScore: prScore,
-    categoryDemand: demandScore,
+    priceScore,
+    bestSellerScore,
     factors,
     verdict,
   };
@@ -214,19 +191,32 @@ export function compareProducts(products: MlProduct[]): ComparisonResult {
     (w) => `${shortTitle(w)} tem o menor preço (R$ ${w.price.toFixed(2)}), tornando-o mais competitivo na decisão de compra.`,
   );
 
-  addFactor(
-    "rating",
-    "Avaliação",
-    (p) => ({ raw: `${p.rating.toFixed(1)} ★ (${p.reviewsCount})`, score: p.rating * 20 }),
-    (w) => `${shortTitle(w)} possui a melhor avaliação (${w.rating.toFixed(1)}★ com ${w.reviewsCount} avaliações), gerando mais confiança.`,
+  // Avaliação só entra como critério quando TODOS os produtos têm nota real
+  // disponível — caso contrário a comparação seria injusta/inventada.
+  const allRatingsKnown = products.every(
+    (p) => p.ratingAvailable === true && p.reviewsCount > 0,
   );
+  if (allRatingsKnown) {
+    addFactor(
+      "rating",
+      "Avaliação",
+      (p) => ({ raw: `${p.rating.toFixed(1)} ★ (${p.reviewsCount})`, score: p.rating * 20 }),
+      (w) => `${shortTitle(w)} possui a melhor avaliação (${w.rating.toFixed(1)}★ com ${w.reviewsCount} avaliações), gerando mais confiança.`,
+    );
+  }
 
-  addFactor(
-    "sales",
-    "Volume de vendas",
-    (p) => ({ raw: `${p.soldQuantity.toLocaleString("pt-BR")} vendidos`, score: p.soldQuantity }),
-    (w) => `${shortTitle(w)} lidera em vendas (${w.soldQuantity.toLocaleString("pt-BR")} unidades), prova social que impulsiona novas compras.`,
+  // Volume de vendas só entra quando TODOS os produtos têm o dado real.
+  const allSalesKnown = products.every(
+    (p) => p.salesAvailable !== false && p.soldQuantity > 0,
   );
+  if (allSalesKnown) {
+    addFactor(
+      "sales",
+      "Volume de vendas",
+      (p) => ({ raw: `${p.soldQuantity.toLocaleString("pt-BR")} vendidos`, score: p.soldQuantity }),
+      (w) => `${shortTitle(w)} lidera em vendas (${w.soldQuantity.toLocaleString("pt-BR")} unidades), prova social que impulsiona novas compras.`,
+    );
+  }
 
   addFactor(
     "shipping",

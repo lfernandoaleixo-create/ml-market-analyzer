@@ -7,7 +7,6 @@ import {
   listAllActiveMonitored,
   updateMonitored,
 } from "../dbMl";
-import { estimateSalesGrowth } from "./analysis";
 import { getProvider } from "./provider";
 
 export type AlertThresholds = {

@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatBRL, formatCompact, formatPercent, verdictMeta } from "@/lib/format";
+import { formatBRL, verdictMeta } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
 import type { PotentialAnalysis } from "@shared/ml";
 import { Info, Sparkles, TrendingUp } from "lucide-react";
@@ -26,9 +26,9 @@ export default function Oportunidades() {
   return (
     <PageContainer>
       <PageHeader
-        eyebrow="Potencial de curto prazo"
+        eyebrow="Baseado em dados reais"
         title="Oportunidades de venda"
-        description="Produtos com maior potencial nas próximas semanas, classificados por um índice composto. Clique em qualquer item para ver exatamente por que ele foi destacado."
+        description="Produtos mais bem posicionados na categoria, classificados por um índice composto a partir de dados reais da API. Clique em qualquer item para ver exatamente por que ele foi destacado."
         actions={<CategorySelect value={categoryId} onChange={setCategoryId} />}
       />
 
@@ -43,11 +43,11 @@ export default function Oportunidades() {
           <div className="space-y-1">
             <h3 className="font-medium">Como calculamos o potencial</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              O índice combina seis fatores ponderados: <strong>crescimento recente de vendas</strong>,{" "}
-              <strong>relação preço/avaliação</strong>, <strong>demanda da categoria</strong>,{" "}
-              <strong>reputação do vendedor</strong>, <strong>frete grátis</strong> e{" "}
-              <strong>qualidade do anúncio</strong>. Cada produto recebe uma nota de 0 a 100, e todos os
-              fatores são exibidos com explicação ao abrir o detalhe.
+              O índice usa <strong>apenas fatores reais</strong> retornados pela API: <strong>preço competitivo</strong>{" "}
+              frente à categoria, <strong>presença nos mais vendidos</strong> (posição real),{" "}
+              <strong>reputação do vendedor</strong> e <strong>frete grátis + qualidade do anúncio</strong>.{" "}
+              A avaliação só entra quando a nota está realmente disponível. Não usamos estimativas
+              inventadas de crescimento. Abra o detalhe para ver cada fator explicado.
             </p>
           </div>
         </div>
@@ -83,13 +83,15 @@ export default function Oportunidades() {
                   <img src={a.product.thumbnail} alt="" className="h-12 w-12 rounded-md object-cover" />
                   <div className="grid flex-1 grid-cols-2 gap-x-2 gap-y-1 text-xs">
                     <span className="text-muted-foreground">Preço</span>
-                    <span className="text-right font-medium">{formatBRL(a.product.price)}</span>
-                    <span className="text-muted-foreground">Cresc. vendas</span>
-                    <span className="text-right font-medium text-emerald-500">
-                      {formatPercent(a.salesGrowthPercent)}
+                    <span className="text-right font-medium">
+                      {a.product.priceAvailable === false ? "Sob consulta" : formatBRL(a.product.price)}
                     </span>
-                    <span className="text-muted-foreground">Vendidos</span>
-                    <span className="text-right font-medium">{formatCompact(a.product.soldQuantity)}</span>
+                    <span className="text-muted-foreground">Mais vendidos</span>
+                    <span className="text-right font-medium">
+                      {a.product.catalogPosition ? `#${a.product.catalogPosition}` : "—"}
+                    </span>
+                    <span className="text-muted-foreground">Frete grátis</span>
+                    <span className="text-right font-medium">{a.product.freeShipping ? "Sim" : "Não"}</span>
                   </div>
                 </div>
               </Card>

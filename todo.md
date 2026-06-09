@@ -162,3 +162,14 @@
 - [x] Suíte completa passando (64 testes)
 - [ ] BLOQUEIO EXTERNO: bug 504/parser no scraper Mercado Livre da Unwrangle — aguardando correção do provedor (suporte acionado, resposta em até 4h)
 - [ ] Quando o provedor voltar: rodar busca real e primeira análise de concorrente com o usuário
+
+## Confiabilidade da Pesquisa de Mercado (09/06)
+- [x] Oportunidades: recalcular score apenas com fatores reais (preço competitivo, presença nos mais vendidos, reputação do vendedor, frete+fotos); avaliação só quando disponível
+- [x] Oportunidades: remover fator "crescimento recente" sintético (hash do ID) e "demanda fixa" da categoria
+- [x] Oportunidades: atualizar UI/explicações + cards (preço/posição/frete reais); tipo PotentialAnalysis sem campos sintéticos (priceScore/bestSellerScore)
+- [x] Buscar produtos: descrição honesta + remoção das ordenações por avaliação/vendas
+- [x] Comparar: avaliação e volume de vendas viram fatores condicionais (só quando todos os itens têm o dado)
+- [x] Monitoramento: focar em preço como dado confiável; vendas/posição rotuladas "quando disponível"
+- [x] Remover import órfão estimateSalesGrowth em monitoring.ts
+- [x] Atualizar testes de analysis.ts (fatores reais + cenários de disponibilidade) e rodar suíte completa (69 testes passando)
+- [x] webdev_check_status (TS/LSP limpos) + checkpoint

@@ -15,7 +15,7 @@ import { trpc } from "@/lib/trpc";
 import { Search as SearchIcon, SearchX } from "lucide-react";
 import { useState } from "react";
 
-type SortBy = "relevance" | "sales" | "price_asc" | "price_desc" | "rating";
+type SortBy = "relevance" | "price_asc" | "price_desc";
 
 export default function Buscar() {
   const [keywordInput, setKeywordInput] = useState("");
@@ -47,7 +47,7 @@ export default function Buscar() {
       <PageHeader
         eyebrow="Pesquisa"
         title="Buscar produtos"
-        description="Pesquise por palavra-chave e/ou categoria. Os resultados trazem preço, avaliações, volume de vendas e dados do vendedor."
+        description="Pesquise por palavra-chave e/ou categoria. Os resultados priorizam preço e dados do vendedor. Avaliação e volume de vendas só aparecem quando a API os disponibiliza para o item."
       />
 
       <DataSourceBanner />
@@ -83,10 +83,8 @@ export default function Buscar() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="relevance">Relevância</SelectItem>
-              <SelectItem value="sales">Mais vendidos</SelectItem>
               <SelectItem value="price_asc">Menor preço</SelectItem>
               <SelectItem value="price_desc">Maior preço</SelectItem>
-              <SelectItem value="rating">Melhor avaliação</SelectItem>
             </SelectContent>
           </Select>
         </div>

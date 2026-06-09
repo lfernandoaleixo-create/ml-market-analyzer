@@ -56,7 +56,7 @@ export default function Monitoramento() {
       <PageHeader
         eyebrow="Acompanhamento contínuo"
         title="Monitoramento"
-        description="Acompanhe a evolução de preço, vendas e posição dos produtos que você escolheu monitorar. O histórico é registrado ao longo do tempo pelo robô de monitoramento."
+        description="Acompanhe a evolução de preço (dado mais confiável) dos produtos que você escolheu monitorar. Vendas e posição também são registradas quando a API as disponibiliza. O histórico é construído ao longo do tempo pelo robô de monitoramento."
         actions={
           <Button
             variant="outline"
@@ -97,7 +97,9 @@ export default function Monitoramento() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Vendidos</p>
-                  <p className="text-sm font-medium">{formatCompact(m.lastSoldQuantity)}</p>
+                  <p className="text-sm font-medium">
+                    {m.lastSoldQuantity && m.lastSoldQuantity > 0 ? formatCompact(m.lastSoldQuantity) : "—"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -215,9 +217,9 @@ function HistoryDialog({ id, onClose }: { id: number | null; onClose: () => void
           </div>
         )}
         <p className="text-center text-xs text-muted-foreground">
-          {metric === "position" && "Posição menor = melhor colocação nos resultados."}
-          {metric === "sold" && "Vendas acumuladas conforme exibidas pelo Mercado Livre."}
-          {metric === "price" && "Variação de preço registrada a cada captura."}
+          {metric === "position" && "Posição menor = melhor colocação nos resultados (registrada quando disponível)."}
+          {metric === "sold" && "Vendas acumuladas conforme exibidas pelo Mercado Livre (quando o dado está disponível)."}
+          {metric === "price" && "Variação de preço registrada a cada captura — o dado mais confiável do monitoramento."}
         </p>
       </DialogContent>
     </Dialog>

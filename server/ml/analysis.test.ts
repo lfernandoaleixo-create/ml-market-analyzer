@@ -58,7 +58,7 @@ describe("analyzePotential", () => {
     });
     expect(analysis.potentialScore).toBeGreaterThanOrEqual(0);
     expect(analysis.potentialScore).toBeLessThanOrEqual(100);
-    expect(analysis.factors.length).toBeGreaterThanOrEqual(5);
+    expect(analysis.factors.length).toBeGreaterThanOrEqual(4);
     for (const f of analysis.factors) {
       expect(f.explanation.length).toBeGreaterThan(0);
       expect(f.score).toBeGreaterThanOrEqual(0);
@@ -67,15 +67,63 @@ describe("analyzePotential", () => {
     expect(["alto", "medio", "baixo"]).toContain(analysis.verdict);
   });
 
-  it("factor weights sum to ~1", () => {
-    const products = sampleProducts(5);
+  it("uses ONLY real factors and never the removed synthetic ones", () => {
+    const products = sampleProducts(8);
     const analysis = analyzePotential(products[0], category, {
       categoryMaxPrice: 1000,
       categoryMaxSold: 1000,
     });
-    const sum = analysis.factors.reduce((s, f) => s + f.weight, 0);
-    expect(sum).toBeGreaterThan(0.95);
-    expect(sum).toBeLessThan(1.05);
+    const keys = analysis.factors.map((f) => f.key);
+    // Synthetic factors must be gone.
+    expect(keys).not.toContain("growth");
+    expect(keys).not.toContain("demand");
+    expect(keys).not.toContain("price_rating");
+    // Real factors must be present.
+    expect(keys).toContain("price");
+    expect(keys).toContain("best_seller");
+    expect(keys).toContain("trust");
+    expect(keys).toContain("logistics");
+    // The analysis object must not expose synthetic estimates anymore.
+    expect(analysis).not.toHaveProperty("salesGrowthPercent");
+    expect(analysis).not.toHaveProperty("categoryDemand");
+    expect(analysis).toHaveProperty("priceScore");
+    expect(analysis).toHaveProperty("bestSellerScore");
+  });
+
+  it("omits the rating factor when rating is NOT available (honest default)", () => {
+    const [p] = sampleProducts(1);
+    const product: MlProduct = { ...p, ratingAvailable: false };
+    const analysis = analyzePotential(product, category, {
+      categoryMaxPrice: 1000,
+      categoryMaxSold: 1000,
+    });
+    expect(analysis.factors.find((f) => f.key === "rating")).toBeUndefined();
+  });
+
+  it("includes the rating factor only when rating IS available", () => {
+    const [p] = sampleProducts(1);
+    const product: MlProduct = {
+      ...p,
+      ratingAvailable: true,
+      rating: 4.6,
+      reviewsCount: 120,
+    };
+    const analysis = analyzePotential(product, category, {
+      categoryMaxPrice: 1000,
+      categoryMaxSold: 1000,
+    });
+    expect(analysis.factors.find((f) => f.key === "rating")).toBeTruthy();
+  });
+
+  it("does not score price when price is unavailable", () => {
+    const [p] = sampleProducts(1);
+    const product: MlProduct = { ...p, priceAvailable: false };
+    const analysis = analyzePotential(product, category, {
+      categoryMaxPrice: 1000,
+      categoryMaxSold: 1000,
+    });
+    const priceFactor = analysis.factors.find((f) => f.key === "price")!;
+    expect(priceFactor.score).toBe(0);
   });
 });
 
@@ -98,6 +146,7 @@ describe("compareProducts", () => {
   it("compares products and picks a winner per factor + overall", () => {
     const products = sampleProducts(3);
     const result = compareProducts(products);
+    // Always-present real factors: price, shipping, seller, pictures, title, position.
     expect(result.factors.length).toBeGreaterThanOrEqual(6);
     const ids = products.map((p) => p.id);
     expect(ids).toContain(result.overallWinnerId);
@@ -108,6 +157,36 @@ describe("compareProducts", () => {
       for (const id of ids) expect(f.values[id]).toBeTruthy();
     }
     expect(result.summary.length).toBeGreaterThan(0);
+  });
+
+  it("omits rating & sales factors when the data is not available for all items", () => {
+    // Demo products default to ratingAvailable !== true, so rating/sales must be absent.
+    const products = sampleProducts(3).map((p) => ({
+      ...p,
+      ratingAvailable: false,
+      salesAvailable: false,
+    }));
+    const result = compareProducts(products);
+    const keys = result.factors.map((f) => f.key);
+    expect(keys).not.toContain("rating");
+    expect(keys).not.toContain("sales");
+    expect(keys).toContain("price");
+    expect(keys).toContain("seller");
+  });
+
+  it("includes rating & sales factors only when ALL items have the data", () => {
+    const products = sampleProducts(3).map((p, i) => ({
+      ...p,
+      ratingAvailable: true,
+      rating: 4 + i * 0.2,
+      reviewsCount: 50 + i * 10,
+      salesAvailable: true,
+      soldQuantity: 100 + i * 25,
+    }));
+    const result = compareProducts(products);
+    const keys = result.factors.map((f) => f.key);
+    expect(keys).toContain("rating");
+    expect(keys).toContain("sales");
   });
 
   it("the cheapest product wins the price factor", () => {

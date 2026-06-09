@@ -100,12 +100,10 @@ export type PotentialAnalysis = {
   product: MlProduct;
   /** Composite 0..100 potential score. */
   potentialScore: number;
-  /** Estimated recent sales growth in percent (demo: simulated). */
-  salesGrowthPercent: number;
-  /** price-to-rating efficiency (lower price + higher rating = better). */
-  priceRatingScore: number;
-  /** Category demand 0..100. */
-  categoryDemand: number;
+  /** Price competitiveness 0..100 (real listing price vs category). */
+  priceScore: number;
+  /** Best-seller presence 0..100 (real catalog position in category). */
+  bestSellerScore: number;
   factors: PotentialFactor[];
   /** Short verdict label. */
   verdict: "alto" | "medio" | "baixo";

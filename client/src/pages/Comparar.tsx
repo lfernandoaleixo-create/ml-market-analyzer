@@ -35,7 +35,7 @@ export default function Comparar() {
       <PageHeader
         eyebrow="Análise comparativa"
         title="Comparar produtos similares"
-        description="Selecione de 2 a 4 produtos e veja, fator a fator, por que um anúncio vende mais que o outro: preço, frete, reputação, fotos, avaliações e posicionamento."
+        description="Selecione de 2 a 4 produtos e veja, fator a fator, por que um anúncio se destaca: preço, frete, reputação do vendedor, fotos e posicionamento. Avaliação e volume de vendas só entram como critério quando a API disponibiliza o dado para todos os itens comparados."
         actions={<CategorySelect value={categoryId} onChange={setCategoryId} />}
       />
 
