@@ -24,6 +24,66 @@ import type { RawSourceOffer, SourceId } from "@shared/sources";
 import { num, str } from "./providerHttp";
 
 /**
+ * Resolve the REAL product image URL from a search-card <img> element.
+ *
+ * Mercado Livre lazy-loads its card images: the `src` attribute frequently
+ * holds a 1x1 placeholder (a base64 `data:` GIF) while the actual photo lives
+ * in `srcset` / `data-srcset` / `data-src`. Naively reading `src` therefore
+ * yields a broken image. This helper picks the best available real URL:
+ *   1. the highest-resolution candidate from srcset/data-srcset
+ *   2. data-src (common lazy-load attribute)
+ *   3. src — but only if it is a real http(s) URL, never a placeholder
+ *
+ * Returns null when only a placeholder is present (honest: no invented URL).
+ *
+ * Exported for unit testing against real ML attribute shapes.
+ */
+export function pickBestImage(attrs: {
+  src?: string | null;
+  dataSrc?: string | null;
+  srcset?: string | null;
+  dataSrcset?: string | null;
+}): string | null {
+  const isReal = (u: string | null | undefined): u is string => {
+    if (!u) return false;
+    const v = u.trim();
+    if (v.length === 0) return false;
+    // Reject inline placeholders and 1x1 spacer gifs.
+    if (v.startsWith("data:")) return false;
+    if (/^https?:\/\//i.test(v) === false) return false;
+    if (/\.gif(\?|$)/i.test(v)) return false;
+    return true;
+  };
+
+  // Parse a srcset string into [url, width] pairs and return the widest real URL.
+  const fromSrcset = (srcset: string | null | undefined): string | null => {
+    if (!srcset) return null;
+    let best: { url: string; w: number } | null = null;
+    for (const part of srcset.split(",")) {
+      const seg = part.trim();
+      if (!seg) continue;
+      const [url, descriptor] = seg.split(/\s+/, 2);
+      if (!isReal(url)) continue;
+      // Descriptor like "320w" or "2x"; default to 1 when missing.
+      let w = 1;
+      if (descriptor) {
+        const m = descriptor.match(/(\d+(?:\.\d+)?)(w|x)/i);
+        if (m) w = parseFloat(m[1]);
+      }
+      if (!best || w > best.w) best = { url, w };
+    }
+    return best?.url ?? null;
+  };
+
+  return (
+    fromSrcset(attrs.srcset) ??
+    fromSrcset(attrs.dataSrcset) ??
+    (isReal(attrs.dataSrc) ? attrs.dataSrc!.trim() : null) ??
+    (isReal(attrs.src) ? attrs.src!.trim() : null)
+  );
+}
+
+/**
  * Parse a Mercado Livre search HTML page into raw offers using the current
  * "poly-card" layout. The `source` is stamped onto each offer so the
  * aggregator knows which provider contributed it.
@@ -62,8 +122,13 @@ export function parseMlSearchHtml(html: string, source: SourceId): RawSourceOffe
     const listingPrice =
       listingFraction.length > 0 ? num(listingFraction.replace(/\./g, "")) : null;
 
-    const thumbnail =
-      card.find("img").attr("data-src") || card.find("img").attr("src") || null;
+    const imgEl = card.find("img").first();
+    const thumbnail = pickBestImage({
+      src: imgEl.attr("src"),
+      dataSrc: imgEl.attr("data-src"),
+      srcset: imgEl.attr("srcset"),
+      dataSrcset: imgEl.attr("data-srcset"),
+    });
 
     // Rating + reviews (not present on every card).
     const ratingText = card.find(".poly-reviews__rating").first().text().trim();
@@ -99,7 +164,7 @@ export function parseMlSearchHtml(html: string, source: SourceId): RawSourceOffe
       source,
       name: name ?? "",
       url: url ?? null,
-      thumbnail: thumbnail ? thumbnail.trim() : null,
+      thumbnail: thumbnail ?? null,
       price,
       listingPrice,
       rating,

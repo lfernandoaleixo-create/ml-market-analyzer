@@ -2,12 +2,11 @@ import type { InsertAlert } from "../../drizzle/schema";
 import {
   addAlert,
   addSnapshot,
-  getCredentials,
   latestSnapshot,
   listAllActiveMonitored,
   updateMonitored,
 } from "../dbMl";
-import { getProvider } from "./provider";
+import { resolveProviderForUser, isRealOrigin } from "./providerSelect";
 
 export type AlertThresholds = {
   priceChangePercent: number; // e.g. 8 => alert if price moves >= 8%
@@ -77,15 +76,11 @@ async function runMonitoringForProducts(
   const now = Date.now();
   let snapshots = 0;
   let alertsCreated = 0;
+  let realSnapshots = 0;
 
   for (const mp of products) {
     try {
-      const creds = await getCredentials(mp.userId);
-      const provider = getProvider(
-        creds && creds.appId && creds.clientSecret
-          ? { appId: creds.appId, clientSecret: creds.clientSecret }
-          : null,
-      );
+      const { provider, origin } = await resolveProviderForUser(mp.userId);
 
       // Determine the run index based on how many snapshots already exist.
       const prev = await latestSnapshot(mp.id);
@@ -93,17 +88,23 @@ async function runMonitoringForProducts(
 
       let metrics: { price: number; soldQuantity: number; position: number; rating: number; reviews: number };
 
-      if (provider.mode === "official") {
+      // Prefer a REAL capture (official API or scraping sources). Only fall back
+      // to the deterministic demo evolution when no real source is configured.
+      let capturedReal = false;
+      if (isRealOrigin(origin)) {
         const live = await provider.getProduct(mp.mlItemId);
-        if (live) {
+        if (live && (live.priceAvailable !== false || live.salesAvailable)) {
           metrics = {
-            price: live.price,
-            soldQuantity: live.soldQuantity,
-            position: live.catalogPosition ?? mp.lastPosition ?? 1,
-            rating: live.rating,
-            reviews: live.reviewsCount,
+            price: live.priceAvailable === false ? (prev?.price ?? mp.lastPrice ?? live.price) : live.price,
+            soldQuantity: live.salesAvailable ? live.soldQuantity : (prev?.soldQuantity ?? mp.lastSoldQuantity ?? 0),
+            position: live.catalogPosition ?? prev?.position ?? mp.lastPosition ?? 1,
+            rating: live.ratingAvailable ? live.rating : (prev?.rating ?? 0),
+            reviews: live.ratingAvailable ? live.reviewsCount : (prev?.reviewsCount ?? 0),
           };
+          capturedReal = true;
         } else {
+          // Real source momentarily returned nothing usable: skip this product
+          // this run rather than fabricating a data point.
           continue;
         }
       } else {
@@ -116,6 +117,7 @@ async function runMonitoringForProducts(
         };
         metrics = evolveMetrics(base, hashNum(mp.mlItemId), runIndex + 1);
       }
+      if (capturedReal) realSnapshots++;
 
       await addSnapshot({
         monitoredProductId: mp.id,
@@ -149,7 +151,7 @@ async function runMonitoringForProducts(
     }
   }
 
-  return { snapshots, alertsCreated, products: products.length, ranAt: now };
+  return { snapshots, alertsCreated, realSnapshots, products: products.length, ranAt: now };
 }
 
 function pct(prev: number, cur: number): number {

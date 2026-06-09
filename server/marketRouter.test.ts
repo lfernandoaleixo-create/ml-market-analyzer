@@ -1,4 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// These tests validate the DEMO data provider + analysis pipeline in isolation.
+// In this project the scraping sources are configured via env, which would make
+// the provider resolve to "scraping" and hit the network. Force the demo path by
+// reporting no scraping sources so the suite stays deterministic and offline.
+vi.mock("./ml/scrapingProvider", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./ml/scrapingProvider")>();
+  return { ...actual, hasScrapingSources: () => false };
+});
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 

@@ -19,8 +19,9 @@ import {
   upsertAppConfig,
   upsertCredentials,
 } from "../dbMl";
-import { getProvider } from "../ml/provider";
 import { buildBackfillSnapshots, runMonitoringForUser } from "../ml/monitoring";
+import { resolveProviderForUser, isRealOrigin } from "../ml/providerSelect";
+import { computeSalesVelocity } from "@shared/salesVelocity";
 import {
   createHeartbeatJob,
   deleteHeartbeatJob,
@@ -28,13 +29,6 @@ import {
 } from "../_core/heartbeat";
 import { hasValidMlCredentialFormat } from "../ml/credentials";
 
-async function providerForUser(userId: number) {
-  const creds = await getCredentials(userId);
-  if (creds && creds.appId && creds.clientSecret) {
-    return getProvider({ appId: creds.appId, clientSecret: creds.clientSecret });
-  }
-  return getProvider(null);
-}
 
 export const monitorRouter = router({
   /** List the user's monitored products with their latest values. */
@@ -55,9 +49,10 @@ export const monitorRouter = router({
       const existing = await findMonitored(ctx.user.id, input.itemId);
       if (existing) return existing;
 
-      const provider = await providerForUser(ctx.user.id);
+      const { provider, origin } = await resolveProviderForUser(ctx.user.id);
       const product = await provider.getProduct(input.itemId);
       if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Produto não encontrado." });
+      const realSource = isRealOrigin(origin);
 
       const created = await addMonitored({
         userId: ctx.user.id,
@@ -75,19 +70,34 @@ export const monitorRouter = router({
         isActive: true,
       });
 
-      // Backfill 14 days of synthetic history (demo mode) so charts render now.
-      if (created && provider.mode === "demo") {
-        const rows = buildBackfillSnapshots({
-          monitoredProductId: created.id,
-          itemId: product.id,
-          basePrice: product.price,
-          baseSold: product.soldQuantity,
-          basePosition: product.catalogPosition ?? 10,
-          baseRating: product.rating,
-          baseReviews: product.reviewsCount,
-          days: 14,
-        });
-        for (const r of rows) await addSnapshot(r);
+      if (created) {
+        if (realSource) {
+          // Real source: record the FIRST real snapshot immediately. The history
+          // then grows honestly from daily real captures — no synthetic backfill.
+          await addSnapshot({
+            monitoredProductId: created.id,
+            price: product.priceAvailable === false ? null : product.price,
+            soldQuantity: product.salesAvailable ? product.soldQuantity : null,
+            availableQuantity: product.availableQuantity ?? null,
+            position: product.catalogPosition ?? null,
+            reviewsCount: product.ratingAvailable ? product.reviewsCount : null,
+            rating: product.ratingAvailable ? product.rating : null,
+            capturedAt: Date.now(),
+          });
+        } else {
+          // Demo mode only: backfill 14 days of synthetic history so charts render.
+          const rows = buildBackfillSnapshots({
+            monitoredProductId: created.id,
+            itemId: product.id,
+            basePrice: product.price,
+            baseSold: product.soldQuantity,
+            basePosition: product.catalogPosition ?? 10,
+            baseRating: product.rating,
+            baseReviews: product.reviewsCount,
+            days: 14,
+          });
+          for (const r of rows) await addSnapshot(r);
+        }
       }
 
       return created;
@@ -111,7 +121,11 @@ export const monitorRouter = router({
       }
       const since = input.days ? Date.now() - input.days * 24 * 60 * 60 * 1000 : undefined;
       const snapshots = await listSnapshots(input.id, since);
-      return { product: mp, snapshots };
+      // Derive honest sales velocity from the real time-series (never fabricated).
+      const velocity = computeSalesVelocity(
+        snapshots.map((s) => ({ capturedAt: s.capturedAt, soldQuantity: s.soldQuantity })),
+      );
+      return { product: mp, snapshots, velocity };
     }),
 
   /** Manually trigger a monitoring run for the current user ("Run now"). */

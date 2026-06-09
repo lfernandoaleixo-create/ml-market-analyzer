@@ -1,16 +1,17 @@
 import { DataSourceBanner, PageContainer, PageHeader } from "@/components/market/Common";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatBRL, formatCompact } from "@/lib/format";
+import { formatBRL } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
 import { Flame, Layers, TrendingDown, TrendingUp } from "lucide-react";
 import { useState } from "react";
+import type { MlCategory, MlTrend } from "@shared/ml";
 
 export default function Categorias() {
   const categories = trpc.market.categories.useQuery();
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const activeCategory = categories.data?.find((c) => c.id === activeId) ?? categories.data?.[0];
+  const activeCategory = categories.data?.find((c: MlCategory) => c.id === activeId) ?? categories.data?.[0];
   const effectiveId = activeId ?? activeCategory?.id;
 
   const trends = trpc.market.trends.useQuery(
@@ -37,7 +38,7 @@ export default function Categorias() {
         <div className="space-y-2">
           {categories.isLoading
             ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)
-            : categories.data?.map((c) => {
+            : categories.data?.map((c: MlCategory) => {
                 const isActive = c.id === effectiveId;
                 return (
                   <Card
@@ -58,12 +59,12 @@ export default function Categorias() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{c.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {formatCompact(c.totalItems)} anúncios
+                          Explorar tendências e destaques
                         </p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right" title="Índice de referência para priorizar a exploração — não é a contagem real de anúncios do Mercado Livre.">
                         <div className="font-display text-lg font-600">{c.demandIndex}</div>
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">demanda</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">interesse</div>
                       </div>
                     </div>
                   </Card>
@@ -86,7 +87,7 @@ export default function Categorias() {
               </div>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
-                {trends.data?.map((t) => (
+                {trends.data?.map((t: MlTrend) => (
                   <div
                     key={t.keyword}
                     className="flex items-center justify-between gap-2 rounded-lg border border-border/70 px-3 py-2"

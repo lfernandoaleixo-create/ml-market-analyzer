@@ -327,3 +327,42 @@
 - [x] UI: Select de ordenação à direita da barra de filtros (ArrowUpDown), com reset ao trocar de busca
 - [x] Testes unitários da ordenação (8) + badgeCount cache-safe
 - [x] Validação ao vivo: "Preço: menor → maior" reordenou 386,87 -> 475,90 -> 489,55 -> 499,99 (crescente); suíte completa verde (183 testes); TS/LSP limpos
+
+
+## Reformulação nível de mercado (Opção B + Minha Loja real) — 09/jun
+
+### Fase 1 — Consertos rápidos — CONCLUÍDA
+- [x] Radar: fotos corrigidas via pickBestImage (srcset/data-srcset/data-src; ignora data:/gif placeholders; null honesto quando só placeholder)
+- [x] Diagnóstico: classifyCompetitorError mapeia SyntaxError/TypeError/HTML para BAD_GATEWAY honesto (sem vazar stack "Unexpected token '<'")
+- [x] Testes: pickBestImage (5) + thumbnail real no parser (2) + classify (6) — verdes; TS limpo
+
+### Fase 2 — Buscar produtos e Mais vendidos com dados reais (scraping)
+- [x] ScrapingProvider (implementa MercadoLivreProvider) via orchestrator de scraping; adaptador UnifiedCompetitor->MlProduct honesto (preco/rating reais; sem inventar vendas)
+- [x] providerForUser: oficial -> scraping (se fontes configuradas) -> demo; status.mode passa a expor "scraping"
+- [x] Buscar produtos e Mais vendidos consomem dados reais via scraping (cache 5min in-process)
+- [x] DataSourceBanner: novo selo "Dados reais" (verde) com mensagem honesta sobre vendas
+- [x] Testes unitários (9): adaptador, hasScrapingSources, search real/empty
+
+### Fase 3 — Oportunidades, Comparar e Categorias com dados reais — CONCLUÍDA
+- [x] Oportunidades: rankByPotential sobre produtos reais do scraping (fatores já honestos)
+- [x] Comparar/analyzeProduct: getProduct resolve detalhe real via Unwrangle por id/URL (idToUrl), com vendas via parsePastSales
+- [x] detailToMlProduct: mapeia detalhe real -> MlProduct com flags honestas (salesAvailable/priceAvailable/ratingAvailable; FULL/Loja oficial via labels)
+- [x] Categorias: rótulos honestos ("Explorar tendências e destaques" / "interesse" com tooltip) em vez de contagem falsa; destaques e termos via dados reais
+- [x] Testes unitários (4 novos): detailToMlProduct (vendas/FULL/sem venda/sem preço)
+
+### Fase 4 — Vendas por período + monitoramento automático — CONCLUÍDA
+- [x] shared/salesVelocity.ts: função pura que calcula velocidade de vendas (+X un. em N dias) a partir de snapshots reais
+- [x] Monitoramento conectado à fonte real (oficial -> scraping -> demo) em server/ml/monitoring.ts; backfill sintético só quando NÃO há origem real (isRealOrigin=false)
+- [x] UI Monitoramento.tsx exibe velocidade de vendas no diálogo de histórico; procedure de histórico passa a expor velocity
+- [x] Testes unitários (5 novos): salesVelocity
+
+### Fase 5 — Minha Loja real (API oficial + OAuth ML) — CONCLUÍDA
+- [x] Provider oficial ativo (token OAuth do usuário já no DB) — isolado da coleta de concorrentes
+- [x] Painel Minha Loja (Vendas, Anúncios, Pós-venda, Reputação) com dados reais da conta logada (R$ 2.632 / 40 pedidos / ticket R$ 65,80 / 48 un.)
+- [x] Enriquecimento de miniaturas em "Produtos que mais venderam": captura thumbnail/permalink de order_items e multiget para preencher fotos faltantes (10/10 fotos reais validadas ao vivo)
+- [x] Isolamento garantido: conta do usuário NUNCA usada na coleta de concorrentes
+
+### Fase 6 — Qualidade e entrega — CONCLUÍDA
+- [x] Suíte completa verde (216 testes / 26 arquivos) + TS/LSP limpos
+- [x] Validação ao vivo das telas reais (Vendas com ranking + fotos)
+- [x] Checkpoint + entrega + orientação de publicação/login

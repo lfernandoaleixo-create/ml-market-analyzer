@@ -158,6 +158,34 @@ function HistoryDialog({ id, onClose }: { id: number | null; onClose: () => void
           </DialogTitle>
         </DialogHeader>
 
+        {/* Sales velocity derived from the real time-series. */}
+        {data?.velocity && (data.velocity.last7.available || data.velocity.last30.available) ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">Vendas nos últimos 7 dias</p>
+              <p className="text-lg font-semibold">
+                {data.velocity.last7.available ? `+${data.velocity.last7.salesInWindow}` : "—"}
+              </p>
+              {data.velocity.last7.available && (
+                <p className="text-xs text-muted-foreground">~{Math.max(1, Math.round(data.velocity.last7.salesPerDay))}/dia</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">Vendas nos últimos 30 dias</p>
+              <p className="text-lg font-semibold">
+                {data.velocity.last30.available ? `+${data.velocity.last30.salesInWindow}` : "—"}
+              </p>
+              {data.velocity.last30.available && (
+                <p className="text-xs text-muted-foreground">~{Math.max(1, Math.round(data.velocity.last30.salesPerDay))}/dia</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed border-border/70 p-3 text-center text-xs text-muted-foreground">
+            A velocidade de vendas aparece aqui após algumas capturas ao longo do tempo (o robô compara o total de vendidos entre os dias).
+          </p>
+        )}
+
         <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="price">Preço</TabsTrigger>

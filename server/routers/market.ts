@@ -3,9 +3,9 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { compareProducts, rankByPotential } from "../ml/analysis";
 import { DEMO_CATEGORIES } from "../ml/demoData";
-import { getProvider } from "../ml/provider";
-import { getCredentials } from "../dbMl";
+import { hasScrapingSources } from "../ml/scrapingProvider";
 import { ensureUserAccessToken } from "../ml/oauthMl";
+import { resolveProviderForUser } from "../ml/providerSelect";
 import type { MlCategory } from "@shared/ml";
 
 /**
@@ -14,19 +14,8 @@ import type { MlCategory } from "@shared/ml";
  * provider receives a resolver that returns a fresh user token (auto-refreshed).
  */
 async function providerForUser(userId?: number) {
-  if (userId) {
-    const creds = await getCredentials(userId);
-    if (creds && creds.appId && creds.clientSecret) {
-      return getProvider(
-        { appId: creds.appId, clientSecret: creds.clientSecret },
-        {
-          siteId: creds.siteId || "MLB",
-          userTokenResolver: () => ensureUserAccessToken(userId),
-        },
-      );
-    }
-  }
-  return getProvider(null);
+  const { provider } = await resolveProviderForUser(userId);
+  return provider;
 }
 
 function categoryById(id?: string | null): MlCategory {
@@ -59,16 +48,23 @@ export const marketRouter = router({
       const token = await ensureUserAccessToken(ctx.user.id);
       oauthConnected = Boolean(token);
     }
-    return {
-      mode: provider.mode,
-      oauthConnected,
-      message:
-        provider.mode === "demo"
-          ? "Operando com dados de demonstração realistas. Conecte suas credenciais do Mercado Livre para dados ao vivo."
-          : oauthConnected
-            ? "Conectado à API oficial do Mercado Livre. Catálogo, ranking de mais vendidos, tendências e preços reais (a partir das ofertas ativas). Alguns itens do catálogo sem oferta ativa aparecem como \"sob consulta\", e o volume de vendas de terceiros não é exposto pela API do ML."
-            : "Credenciais configuradas. Conclua a conexão OAuth para dados ao vivo.",
-    };
+    // When not official but scraping sources are configured, we ARE serving real
+    // public data — report a distinct "scraping" mode so the banner is honest.
+    const usingScraping = provider.mode !== "official" && hasScrapingSources();
+    const mode = provider.mode === "official" ? "official" : usingScraping ? "scraping" : "demo";
+    let message: string;
+    if (provider.mode === "official") {
+      message = oauthConnected
+        ? "Conectado à API oficial do Mercado Livre. Catálogo, ranking de mais vendidos, tendências e preços reais (a partir das ofertas ativas). Alguns itens do catálogo sem oferta ativa aparecem como \"sob consulta\", e o volume de vendas de terceiros não é exposto pela API do ML."
+        : "Credenciais configuradas. Conclua a conexão OAuth para dados ao vivo.";
+    } else if (usingScraping) {
+      message =
+        "Dados públicos reais coletados de fontes independentes (busca pública do Mercado Livre). Fotos e preços são reais; o volume de vendas não é exposto na busca pública — use o Monitoramento para acompanhar vendas ao longo do tempo.";
+    } else {
+      message =
+        "Operando com dados de demonstração realistas. Conecte suas credenciais do Mercado Livre para dados ao vivo.";
+    }
+    return { mode, oauthConnected, message };
   }),
 
   /** All categories with demand index. */

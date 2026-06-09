@@ -283,12 +283,21 @@ export class AccountProvider {
         unitsSold += qty;
         const item = oi.item ?? {};
         const id = item.id ?? "?";
+        // Order items sometimes carry a thumbnail under different keys; pick the
+        // first real (https) URL and upgrade http -> https for mixed-content safety.
+        const rawThumb: string =
+          item.thumbnail ?? item.secure_thumbnail ?? item.picture_url ?? "";
+        const thumb = rawThumb ? rawThumb.replace(/^http:\/\//, "https://") : undefined;
         const existing = productMap.get(id) ?? {
           itemId: id,
           title: item.title ?? "",
           unitsSold: 0,
           revenue: 0,
+          thumbnail: thumb,
+          permalink: item.permalink ?? (id !== "?" ? `https://produto.mercadolivre.com.br/${id}` : undefined),
         };
+        // Backfill thumbnail/permalink if a later order item exposes it.
+        if (!existing.thumbnail && thumb) existing.thumbnail = thumb;
         existing.unitsSold += qty;
         existing.revenue += (oi.unit_price ?? 0) * qty;
         productMap.set(id, existing);
@@ -305,6 +314,26 @@ export class AccountProvider {
     const topProducts = Array.from(productMap.values())
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
+
+    // Enrich the top ranking with real thumbnails/permalinks via multiget.
+    // Order items rarely carry a picture, so we fetch the ~10 ranked items.
+    const missing = topProducts.filter((p) => !p.thumbnail && p.itemId && p.itemId !== "?");
+    if (missing.length > 0) {
+      try {
+        const details = await this.getItemsDetails(missing.map((p) => p.itemId));
+        const byId = new Map<string, any>(details.map((d: any) => [d.id, d]));
+        for (const p of topProducts) {
+          const d = byId.get(p.itemId);
+          if (!d) continue;
+          const raw: string =
+            d.thumbnail ?? d.secure_thumbnail ?? (d.pictures?.[0]?.secure_url ?? d.pictures?.[0]?.url) ?? "";
+          if (!p.thumbnail && raw) p.thumbnail = raw.replace(/^http:\/\//, "https://");
+          if (!p.permalink && d.permalink) p.permalink = d.permalink;
+        }
+      } catch {
+        // Non-fatal: ranking still renders without pictures.
+      }
+    }
 
     const ordersCount = paidOrders.length;
     return {
