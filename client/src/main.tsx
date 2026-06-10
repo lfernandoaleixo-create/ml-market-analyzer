@@ -41,7 +41,27 @@ if (typeof Node === "function" && Node.prototype) {
   };
 }
 
-const queryClient = new QueryClient();
+const isAuthError = (error: unknown): boolean =>
+  error instanceof TRPCClientError &&
+  (error.message === UNAUTHED_ERR_MSG ||
+    error.data?.code === "UNAUTHORIZED" ||
+    /sess[ãa]o|session|unauthor/i.test(error.message ?? ""));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Keep previously fetched data on screen while refetching, so a brief
+      // session/cookie hiccup in the preview does not blank the UI.
+      staleTime: 60_000,
+      gcTime: 30 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: (failureCount, error) => {
+        if (isAuthError(error)) return false;
+        return failureCount < 2;
+      },
+    },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
@@ -58,7 +78,9 @@ queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Query Error]", error);
+    // Session/cookie drops are expected in the preview; don't surface them as
+    // app errors (avoids the global "1 error" badge for a transient condition).
+    if (!isAuthError(error)) console.error("[API Query Error]", error);
   }
 });
 
@@ -66,7 +88,7 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Mutation Error]", error);
+    if (!isAuthError(error)) console.error("[API Mutation Error]", error);
   }
 });
 

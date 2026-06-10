@@ -455,3 +455,10 @@
 - [x] Centralizar as 2 barras dentro do slot do dia (barCategoryGap 35-45%, barGap 2, maxBarSize 5-7) — não ficam mais coladas nas laterais
 - [x] Gráfico continua full-width, todos os dias, eixo R$ alinhado
 - [x] Testes: 3 novos de lastNDaysRange (suíte 255 verdes); TS limpo; validação via página isolada de inspeção (60 dias abr→jun)
+
+## Resiliência à perda de sessão no preview (jun/2026)
+- [x] QueryClient com staleTime (60s)/gcTime (30min) e retry que ignora erros de auth — mantém dados em cache durante revalidação
+- [x] Silenciar console.error para erros de sessão/UNAUTHORIZED (isAuthError) — não dispara mais o badge global
+- [x] Gate de "Conecte sua conta" só quando confirmado desconectado, sem isFetching e sem cache (Painel, Vendas, Anúncios, Pós-venda, Reputação)
+- [x] Erros de query só derrubam a página quando não há dados em cache
+- [x] Validado ao vivo (Painel sem badge, sem piscar) + 255 testes verdes + TS limpo + checkpoint

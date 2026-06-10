@@ -78,14 +78,18 @@ export default function Painel() {
     return customRangeFromIso(fromIso, toIso) ?? currentMonthRange();
   }, [kind, fromIso, toIso]);
 
+  // Keep querying as long as we believe we're connected OR we still have a
+  // cached connection from before a transient session hiccup.
+  const everConnected = conn.data?.connected === true;
   const sales = trpc.account.salesRange.useQuery(
     { fromMs: activeRange.fromMs, toMs: activeRange.toMs, fill: true },
-    { enabled: connected },
+    { enabled: everConnected },
   );
-  const listings = trpc.account.listings.useQuery({ lastDays: 30 }, { enabled: connected });
-  const rep = trpc.account.reputation.useQuery(undefined, { enabled: connected });
+  const listings = trpc.account.listings.useQuery({ lastDays: 30 }, { enabled: everConnected });
+  const rep = trpc.account.reputation.useQuery(undefined, { enabled: everConnected });
 
-  if (conn.isLoading) {
+  // First load (no cached connection result yet): show skeleton.
+  if (conn.isLoading && conn.data === undefined) {
     return (
       <PageShell>
         <Skeleton className="h-9 w-72" />
@@ -93,7 +97,12 @@ export default function Painel() {
       </PageShell>
     );
   }
-  if (conn.data && !connected) return <NotConnected />;
+  // Only show "connect your account" when we have a definitive negative answer
+  // and we are not merely refetching after a transient session drop.
+  const hasCachedData = !!sales.data || !!listings.data || !!rep.data;
+  if (conn.data && !connected && !conn.isFetching && !hasCachedData) {
+    return <NotConnected />;
+  }
 
   const k = sales.data?.kpis;
   const s = listings.data?.summary;

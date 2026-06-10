@@ -56,7 +56,7 @@ export default function Anuncios() {
     return rows;
   }, [data, filter, query]);
 
-  if (conn.isLoading) {
+  if (conn.isLoading && conn.data === undefined) {
     return (
       <PageShell>
         <Skeleton className="h-9 w-64" />
@@ -64,8 +64,10 @@ export default function Anuncios() {
       </PageShell>
     );
   }
-  if (conn.data && !conn.data.connected) return <NotConnected />;
-  if (error) return <ErrorState message={error.message} />;
+  if (conn.data && conn.data.connected !== true && !conn.isFetching && !data) {
+    return <NotConnected />;
+  }
+  if (error && !data) return <ErrorState message={error.message} />;
 
   const s = data?.summary;
   const filters: { key: FilterKey; label: string }[] = [

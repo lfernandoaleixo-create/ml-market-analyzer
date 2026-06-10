@@ -95,7 +95,7 @@ export default function Vendas() {
     { enabled: connected && !!dayRange },
   );
 
-  if (conn.isLoading) {
+  if (conn.isLoading && conn.data === undefined) {
     return (
       <PageShell>
         <Skeleton className="h-9 w-64" />
@@ -103,8 +103,11 @@ export default function Vendas() {
       </PageShell>
     );
   }
-  if (conn.data && !conn.data.connected) return <NotConnected />;
-  if (conn.error) return <ErrorState message={conn.error.message} />;
+  const hasCachedData = !!periods.data || !!rangeQuery.data || !!dayQuery.data;
+  if (conn.data && !connected && !conn.isFetching && !hasCachedData) {
+    return <NotConnected />;
+  }
+  if (conn.error && !hasCachedData) return <ErrorState message={conn.error.message} />;
 
   const cur = periods.data?.current;
   const prev = periods.data?.previous;

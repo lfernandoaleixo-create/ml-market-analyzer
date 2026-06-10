@@ -36,7 +36,7 @@ export default function Reputacao() {
     enabled: conn.data?.connected === true,
   });
 
-  if (conn.isLoading) {
+  if (conn.isLoading && conn.data === undefined) {
     return (
       <PageShell>
         <Skeleton className="h-9 w-64" />
@@ -44,8 +44,10 @@ export default function Reputacao() {
       </PageShell>
     );
   }
-  if (conn.data && !conn.data.connected) return <NotConnected />;
-  if (error) return <ErrorState message={error.message} />;
+  if (conn.data && conn.data.connected !== true && !conn.isFetching && !data) {
+    return <NotConnected />;
+  }
+  if (error && !data) return <ErrorState message={error.message} />;
 
   const r = data;
   const level = r?.levelId ?? null;
