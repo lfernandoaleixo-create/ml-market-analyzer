@@ -65,6 +65,8 @@ import {
   Receipt,
   ShoppingCart,
   PackageOpen,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
@@ -396,6 +398,7 @@ export default function Painel() {
         loading={loadingSales}
         fromIso={brtIso(activeRange.fromMs)}
         toIso={brtIso(activeRange.toMs)}
+        isCurrentMonth={kind === "current"}
       />
 
       <SectionCard
@@ -682,23 +685,35 @@ function DaySales({
   loading,
   fromIso,
   toIso,
+  isCurrentMonth,
 }: {
   days: Array<{ date: string; revenue: number; orders: number }>;
   loading: boolean;
   fromIso: string;
   toIso: string;
+  isCurrentMonth: boolean;
 }) {
-  // Default selection: the most recent day WITH sales, else the last day.
+  // Default selection:
+  // - Current month: always today (clamped to the available day list).
+  // - Other periods: the most recent day WITH sales, else the last day.
   const defaultDay = useMemo(() => {
+    if (isCurrentMonth) {
+      const today = todayIsoBrt();
+      if (days.some((d) => d.date === today)) return today;
+      return days.length ? days[days.length - 1].date : today;
+    }
     const withSales = [...days].reverse().find((d) => (d.orders ?? 0) > 0);
     if (withSales) return withSales.date;
     return days.length ? days[days.length - 1].date : toIso;
-  }, [days, toIso]);
+  }, [days, toIso, isCurrentMonth]);
 
   const [selected, setSelected] = useState<string>(defaultDay);
-  // Keep the selection valid when the period (and thus the day list) changes.
+  const [userPicked, setUserPicked] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  // While the user hasn't actively chosen a day, follow the computed default
+  // (so switching period / loading the current day works automatically).
   const selectionValid = days.some((d) => d.date === selected);
-  const effectiveDay = selectionValid ? selected : defaultDay;
+  const effectiveDay = userPicked && selectionValid ? selected : defaultDay;
 
   const dayQuery = trpc.account.productsByDay.useQuery(
     { date: effectiveDay },
@@ -707,18 +722,28 @@ function DaySales({
 
   const data = dayQuery.data;
   const products = data?.products ?? [];
+  const COLLAPSED_COUNT = 6;
+  const hasMore = products.length > COLLAPSED_COUNT;
+  const visibleProducts = expanded ? products : products.slice(0, COLLAPSED_COUNT);
 
   return (
     <SectionCard
       title="Produtos vendidos por dia"
       description="Selecione um dia do período para ver exatamente quais produtos foram vendidos."
       actions={
-        <Select value={effectiveDay} onValueChange={setSelected}>
-          <SelectTrigger className="h-9 w-[190px] gap-1.5">
+        <Select
+          value={effectiveDay}
+          onValueChange={(v) => {
+            setSelected(v);
+            setUserPicked(true);
+            setExpanded(false);
+          }}
+        >
+          <SelectTrigger className="h-10 w-[230px] gap-1.5">
             <CalendarDays className="h-4 w-4 text-primary" />
             <SelectValue placeholder="Escolha um dia" />
           </SelectTrigger>
-          <SelectContent className="max-h-72">
+          <SelectContent className="max-h-96">
             {[...days].reverse().map((d) => {
               const had = (d.orders ?? 0) > 0;
               return (
@@ -785,7 +810,7 @@ function DaySales({
               </tr>
             </thead>
             <tbody className="divide-y">
-              {products.map((p) => {
+              {visibleProducts.map((p) => {
                 const unitPrice = p.unitsSold > 0 ? p.revenue / p.unitsSold : 0;
                 return (
                   <tr key={p.itemId} className="align-middle transition-colors hover:bg-secondary/50">
@@ -811,6 +836,26 @@ function DaySales({
               })}
             </tbody>
           </table>
+          {hasMore && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 bg-secondary/40"
+                onClick={() => setExpanded((v) => !v)}
+              >
+                {expanded ? (
+                  <>
+                    <ChevronUp className="h-4 w-4" /> Ver menos
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4" /> Ver todos os {formatNumber(products.length)} produtos
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </SectionCard>
