@@ -150,10 +150,6 @@ export default function Anuncios() {
   const filtered = useMemo(() => filterListings(items, filters), [items, filters]);
   const sorted = useMemo(() => sortListings(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
 
-  const filteredStockValue = useMemo(
-    () => filtered.reduce((s, r) => s + r.stockValue, 0),
-    [filtered],
-  );
 
   function toggleArrayFilter(key: keyof ListingFilters, value: string) {
     setFilters((prev) => {
@@ -233,9 +229,9 @@ export default function Anuncios() {
                 variant={visitWindow == null ? "default" : "ghost"}
                 className="h-8 rounded-lg px-2.5 text-xs"
                 onClick={() => setVisitWindow(null)}
-                title="Visitas totais do anúncio (rápido)"
+                title="Visitas acumuladas dos últimos 2 anos (rápido, loja inteira)"
               >
-                Total
+                2 anos
               </Button>
               {WINDOW_OPTIONS.map((w) => (
                 <Button
@@ -266,7 +262,7 @@ export default function Anuncios() {
       {visitWindow != null && s && s.total > 120 && (
         <div className="flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-2.5 text-sm text-blue-700">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          A janela de {visitWindow} dias consulta as visitas por anúncio individualmente e fica limitada aos primeiros 120 itens. Para a loja inteira, use “Total”.
+          A janela de {visitWindow} dias consulta as visitas por anúncio individualmente e fica limitada aos primeiros 120 itens. Para a loja inteira, use “2 anos”.
         </div>
       )}
 
@@ -278,7 +274,7 @@ export default function Anuncios() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <KpiCard
           label="Ativos"
           value={isLoading ? "" : `${formatNumber(s?.active ?? 0)} / ${formatNumber(s?.total ?? 0)}`}
@@ -287,7 +283,7 @@ export default function Anuncios() {
           accent="primary"
         />
         <KpiCard
-          label={visitWindow == null ? "Visitas (total)" : `Visitas (${visitWindow}d)`}
+          label={visitWindow == null ? "Visitas (2 anos)" : `Visitas (${visitWindow}d)`}
           value={isLoading ? "" : formatNumber(s?.totalVisits ?? 0)}
           loading={isLoading}
           icon={Eye}
@@ -314,13 +310,6 @@ export default function Anuncios() {
           loading={isLoading}
           icon={Boxes}
           accent="orange"
-        />
-        <KpiCard
-          label="Capital em estoque"
-          value={isLoading ? "" : formatBRLCompact(s?.totalStockValue ?? 0)}
-          loading={isLoading}
-          icon={Wallet}
-          accent="violet"
         />
       </div>
 
@@ -374,7 +363,7 @@ export default function Anuncios() {
       {/* Distribution by bands */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <DistributionCard
-          title={visitWindow == null ? "Visitas por faixa (total)" : `Visitas por faixa (${visitWindow}d)`}
+          title={visitWindow == null ? "Visitas por faixa (2 anos)" : `Visitas por faixa (${visitWindow}d)`}
           buckets={VISIT_BUCKETS}
           counts={visitDist}
           loading={isLoading}
@@ -417,7 +406,7 @@ export default function Anuncios() {
         description={
           isLoading
             ? undefined
-            : `${formatNumber(filtered.length)} de ${formatNumber(items.length)} anúncios · ${formatBRL(filteredStockValue)} em estoque`
+            : `${formatNumber(filtered.length)} de ${formatNumber(items.length)} anúncios`
         }
         actions={
           <div className="flex items-center gap-2">
@@ -534,7 +523,6 @@ export default function Anuncios() {
                   <SortableTh label="Visitas" k="visits" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <SortableTh label="Conversão" k="conversion" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <SortableTh label="Saúde" k="health" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableTh label="Capital" k="stockValue" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <th className="pb-2 pl-3 font-medium">Status</th>
                 </tr>
               </thead>
@@ -557,9 +545,6 @@ export default function Anuncios() {
                     <td className="px-3 text-right tabular-nums">{formatRatePct(r.conversion)}</td>
                     <td className="px-3 text-right tabular-nums">
                       <HealthDot health={r.health} />
-                    </td>
-                    <td className="px-3 text-right tabular-nums text-muted-foreground">
-                      {formatBRLCompact(r.stockValue)}
                     </td>
                     <td className="pl-3">
                       <Badge variant="outline" className={STATUS_META[r.status]?.className}>

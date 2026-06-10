@@ -59,24 +59,24 @@ export function KpiCard({
   };
   const a = accentMap[accent];
   return (
-    <Card className="card-soft card-lift relative overflow-hidden border-0 p-5 rounded-2xl">
+    <Card className="card-soft card-lift relative flex h-full min-h-[116px] flex-col overflow-hidden border-0 p-5 rounded-2xl">
       {/* Accent rail on the left edge */}
       <span className={cn("absolute inset-y-0 left-0 w-1", a.bar)} aria-hidden />
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-          {loading ? (
-            <Skeleton className="h-8 w-28" />
-          ) : (
-            <p className={cn("font-display text-2xl md:text-[1.75rem] leading-none tracking-tight", valueClassName)}>{value}</p>
-          )}
-          {sublabel && <div className="text-xs text-muted-foreground">{sublabel}</div>}
-        </div>
+        <p className="min-w-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
         {Icon && (
-          <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-sm", a.icon)}>
+          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm", a.icon)}>
             <Icon className="h-5 w-5" strokeWidth={2.2} />
           </div>
         )}
+      </div>
+      <div className="mt-auto pt-3">
+        {loading ? (
+          <Skeleton className="h-8 w-24" />
+        ) : (
+          <p className={cn("font-display text-2xl md:text-[1.75rem] leading-none tracking-tight tabular-nums", valueClassName)}>{value}</p>
+        )}
+        {sublabel && <div className="mt-1.5 text-xs leading-tight text-muted-foreground">{sublabel}</div>}
       </div>
     </Card>
   );

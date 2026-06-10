@@ -157,9 +157,11 @@ export class AccountProvider {
     return out;
   }
 
-  /** Total visits for many items at once via /visits/items?ids= (best effort).
-   *  Used for the default window where ML reports lifetime/recent totals; for a
-   *  custom day window we fall back to the per-item time_window endpoint. */
+  /** Total visits for many items at once via /visits/items?ids= .
+   *  IMPORTANT: per ML docs this returns the item's TOTAL visits over the LAST
+   *  TWO YEARS (not a recent window). It is cheap (20 ids/call) so we use it for
+   *  the fast default load, surfaced in the UI as "Visitas (2 anos)". Recent
+   *  windows (30/60/90d) require the per-item dated endpoint (1 item/request). */
   private async getVisitsBatch(ids: string[]): Promise<Map<string, number>> {
     const map = new Map<string, number>();
     for (let i = 0; i < ids.length; i += 20) {

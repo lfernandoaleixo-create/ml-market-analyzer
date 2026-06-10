@@ -301,7 +301,6 @@ export function listingsToCsv(items: ListingRow[]): string {
     "Visitas",
     "Conversao(%)",
     "Saude",
-    "ValorEstoque",
     "FreteGratis",
     "Permalink",
   ];
@@ -321,7 +320,6 @@ export function listingsToCsv(items: ListingRow[]): string {
         csvCell(r.visits),
         csvCell(conv),
         csvCell(health),
-        csvCell(r.stockValue.toFixed(2).replace(".", ",")),
         csvCell(r.freeShipping ? "Sim" : "Nao"),
         csvCell(r.permalink ?? ""),
       ].join(";"),

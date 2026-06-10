@@ -600,3 +600,12 @@
 - [x] Timeout defensivo por request (12s AbortController)
 - [x] Frontend: modo "Total" por padrão + janelas opcionais com aviso
 - [x] Testes (288, +1 garante load sem chamadas por item) + TS limpo + checkpoint
+
+
+## Revisão precisão + UI Meus anúncios (10/jun)
+- [x] Visitas: /visits/items?ids= é acumulado de ~2 anos → rótulo corrigido para "Visitas (2 anos)"
+- [x] Janela recente (30/60/90d) permanece opt-in/limitada (API só 1 item por request)
+- [x] Revisados números; removida métrica de capital imprecisa
+- [x] Removido card "Capital em estoque" (KPI, coluna da tabela, resumo e coluna CSV)
+- [x] Padronizado KpiCard (altura uniforme, rótulo+ícone no topo, valor ancorado)
+- [x] Testes (288) + TS limpo + checkpoint
