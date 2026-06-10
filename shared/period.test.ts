@@ -6,6 +6,7 @@ import {
   currentMonthRange,
   previousMonthRange,
   monthRange,
+  lastNMonthsRange,
   dayRangeFromIso,
   customRangeFromIso,
   isoDateBrt,
@@ -103,5 +104,33 @@ describe("iso helpers", () => {
 
   it("monthStartIsoBrt formats the first BRT day of the month", () => {
     expect(monthStartIsoBrt(JUN_10_2026_BRT_NOON)).toBe("2026-06-01");
+  });
+});
+
+describe("lastNMonthsRange", () => {
+  it("spans the last 2 calendar months ending at now (Jun 10 => May 1..now)", () => {
+    const r = lastNMonthsRange(JUN_10_2026_BRT_NOON, 2);
+    // Starts at May 1 00:00 BRT.
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 4, 1));
+    // Ends exactly at the provided "now" instant.
+    expect(r.toMs).toBe(JUN_10_2026_BRT_NOON);
+  });
+
+  it("handles year boundary (Jan with N=2 => previous Dec)", () => {
+    // 2026-01-10 12:00 BRT == 2026-01-10 15:00 UTC.
+    const jan = Date.UTC(2026, 0, 10, 15, 0, 0, 0);
+    const r = lastNMonthsRange(jan, 2);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2025, 11, 1));
+    expect(r.toMs).toBe(jan);
+  });
+
+  it("N=1 starts at the first day of the current month", () => {
+    const r = lastNMonthsRange(JUN_10_2026_BRT_NOON, 1);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 5, 1));
+  });
+
+  it("clamps N below 1 to a single month", () => {
+    const r = lastNMonthsRange(JUN_10_2026_BRT_NOON, 0);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 5, 1));
   });
 });

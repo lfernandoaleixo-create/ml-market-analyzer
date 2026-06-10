@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { ProductImage } from "@/components/ProductImage";
 import { trpc } from "@/lib/trpc";
 import {
@@ -10,21 +11,34 @@ import {
 } from "@/components/account/AccountUI";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   formatBRL,
   formatNumber,
   formatCompact,
-  isoDateToShort,
   reputationLabel,
   reputationColor,
 } from "@/lib/format";
 import {
-  Area,
-  AreaChart,
+  currentMonthRange,
+  previousMonthRange,
+  lastNMonthsRange,
+  customRangeFromIso,
+  monthStartIsoBrt,
+  todayIsoBrt,
+  monthLabel,
+} from "@/lib/period";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
+  YAxis,
 } from "recharts";
 import {
   DollarSign,
@@ -34,14 +48,40 @@ import {
   ArrowUpRight,
   AlertCircle,
   Search,
+  XCircle,
+  CalendarRange,
 } from "lucide-react";
 import { Link } from "wouter";
+
+type PeriodKind = "current" | "previous" | "last2" | "custom";
+
+const TABS: Array<{ key: PeriodKind; label: string }> = [
+  { key: "current", label: "Mês atual" },
+  { key: "previous", label: "Mês anterior" },
+  { key: "last2", label: "Últimos 2 meses" },
+  { key: "custom", label: "Personalizado" },
+];
 
 export default function Painel() {
   const conn = trpc.account.connection.useQuery();
   const connected = conn.data?.connected === true;
 
-  const sales = trpc.account.salesDashboard.useQuery({ days: 60 }, { enabled: connected });
+  const [kind, setKind] = useState<PeriodKind>("current");
+  const [fromIso, setFromIso] = useState(monthStartIsoBrt());
+  const [toIso, setToIso] = useState(todayIsoBrt());
+
+  // The range driving the bar chart + sales KPIs.
+  const activeRange = useMemo(() => {
+    if (kind === "current") return currentMonthRange();
+    if (kind === "previous") return previousMonthRange();
+    if (kind === "last2") return lastNMonthsRange(2);
+    return customRangeFromIso(fromIso, toIso) ?? currentMonthRange();
+  }, [kind, fromIso, toIso]);
+
+  const sales = trpc.account.salesRange.useQuery(
+    { fromMs: activeRange.fromMs, toMs: activeRange.toMs, fill: true },
+    { enabled: connected },
+  );
   const listings = trpc.account.listings.useQuery({ lastDays: 30 }, { enabled: connected });
   const rep = trpc.account.reputation.useQuery(undefined, { enabled: connected });
 
@@ -58,9 +98,26 @@ export default function Painel() {
   const k = sales.data?.kpis;
   const s = listings.data?.summary;
   const r = rep.data;
-  const chartData =
-    sales.data?.daily.map((d) => ({ ...d, label: isoDateToShort(d.date) })) ?? [];
   const loadingSales = sales.isLoading;
+
+  // Whether the range spans more than ~45 days (then label by month-day, else day).
+  const spanDays = Math.round((activeRange.toMs - activeRange.fromMs) / 86400000) + 1;
+  const longSpan = spanDays > 45;
+
+  const bars =
+    sales.data?.daily.map((d) => {
+      const [, mm, dd] = d.date.split("-");
+      return { ...d, label: longSpan ? `${dd}/${mm}` : String(Number(dd)) };
+    }) ?? [];
+
+  const totalCancelledDays = bars.filter((b) => (b.cancelled ?? 0) > 0).length;
+
+  const periodTitle =
+    kind === "current" || kind === "previous"
+      ? capitalize(monthLabel(activeRange.fromMs))
+      : kind === "last2"
+        ? `${capitalize(monthLabel(activeRange.fromMs))} – atual`
+        : `${fromIso} a ${toIso}`;
 
   return (
     <PageShell>
@@ -71,18 +128,26 @@ export default function Painel() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          label="Faturamento (60d)"
+          label="Faturamento"
           value={loadingSales ? "" : formatBRL(k?.revenue ?? 0)}
           loading={loadingSales}
           icon={DollarSign}
           accent="emerald"
+          sublabel={periodTitle.toLowerCase()}
         />
         <KpiCard
-          label="Pedidos (60d)"
+          label="Pedidos pagos"
           value={loadingSales ? "" : formatNumber(k?.orders ?? 0)}
           loading={loadingSales}
           icon={ShoppingBag}
           accent="primary"
+          sublabel={
+            k && k.cancelled > 0 ? (
+              <span className="inline-flex items-center gap-1 text-rose-600">
+                <XCircle className="h-3 w-3" /> {formatNumber(k.cancelled)} cancelados
+              </span>
+            ) : undefined
+          }
         />
         <KpiCard
           label="Anúncios ativos"
@@ -101,9 +166,54 @@ export default function Painel() {
         />
       </div>
 
+      {/* Period selector */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-secondary p-1">
+          {TABS.map((t) => (
+            <Button
+              key={t.key}
+              size="sm"
+              variant={kind === t.key ? "default" : "ghost"}
+              className="h-8 rounded-lg px-3 text-xs"
+              onClick={() => setKind(t.key)}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+        {kind === "custom" && (
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={fromIso}
+              max={toIso || todayIsoBrt()}
+              onChange={(e) => setFromIso(e.target.value)}
+              className="h-9 w-[150px]"
+            />
+            <span className="text-sm text-muted-foreground">até</span>
+            <Input
+              type="date"
+              value={toIso}
+              min={fromIso}
+              max={todayIsoBrt()}
+              onChange={(e) => setToIso(e.target.value)}
+              className="h-9 w-[150px]"
+            />
+          </div>
+        )}
+        <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <CalendarRange className="h-3.5 w-3.5" /> {periodTitle}
+        </span>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <SectionCard
-          title="Faturamento dos últimos 60 dias"
+          title="Faturamento por dia"
+          description={
+            totalCancelledDays > 0
+              ? `Barras em vermelho indicam dias com cancelamento (${totalCancelledDays} ${totalCancelledDays === 1 ? "dia" : "dias"})`
+              : "Faturamento diário do período selecionado"
+          }
           className="lg:col-span-2"
           actions={
             <Link href="/vendas" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
@@ -112,42 +222,57 @@ export default function Painel() {
           }
         >
           {loadingSales ? (
-            <Skeleton className="h-56 w-full" />
-          ) : chartData.length === 0 ? (
-            <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
+            <Skeleton className="h-64 w-full" />
+          ) : bars.length === 0 ? (
+            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
               Sem vendas registradas no período.
             </div>
           ) : (
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="revHome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    tickLine={false}
-                    axisLine={false}
-                    minTickGap={28}
-                  />
-                  <Tooltip
-                    formatter={(v: number) => [formatBRL(Number(v)), "Faturamento"]}
-                    contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", fontSize: 12 }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="var(--primary)"
-                    strokeWidth={2.5}
-                    fill="url(#revHome)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            <>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={bars} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={longSpan ? "preserveStartEnd" : 0}
+                      minTickGap={longSpan ? 16 : 2}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={56}
+                      tickFormatter={(v) => formatCompact(Number(v))}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "var(--secondary)", opacity: 0.5 }}
+                      content={<RevenueTooltip />}
+                    />
+                    <Bar dataKey="revenue" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                      {bars.map((b, i) => (
+                        <Cell
+                          key={i}
+                          fill={(b.cancelled ?? 0) > 0 ? "var(--color-rose-500, #f43f5e)" : "var(--primary)"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Faturamento
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#f43f5e" }} /> Dia com
+                  cancelamento
+                </span>
+              </div>
+            </>
           )}
         </SectionCard>
 
@@ -190,7 +315,7 @@ export default function Painel() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <SectionCard
-          title="Top produtos (60 dias)"
+          title={`Top produtos (${periodTitle.toLowerCase()})`}
           className="lg:col-span-2"
           actions={
             <Link href="/anuncios" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
@@ -266,6 +391,28 @@ export default function Painel() {
   );
 }
 
+function RevenueTooltip({ active, payload, label }: any) {
+  if (!active || !payload || payload.length === 0) return null;
+  const d = payload[0].payload as {
+    revenue: number;
+    orders: number;
+    cancelled: number;
+    cancelledAmount: number;
+  };
+  return (
+    <div className="rounded-xl border bg-background p-3 text-xs shadow-sm" style={{ borderColor: "var(--border)" }}>
+      <p className="font-medium">{label}</p>
+      <p className="mt-1 text-emerald-600">{formatBRL(d.revenue)} faturado</p>
+      <p className="text-muted-foreground">{formatNumber(d.orders)} pedido(s) pago(s)</p>
+      {(d.cancelled ?? 0) > 0 && (
+        <p className="mt-1 inline-flex items-center gap-1 text-rose-600">
+          <XCircle className="h-3 w-3" /> {formatNumber(d.cancelled)} cancelado(s) ({formatBRL(d.cancelledAmount)})
+        </p>
+      )}
+    </div>
+  );
+}
+
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-secondary/60 p-3">
@@ -273,4 +420,8 @@ function MiniStat({ label, value }: { label: string; value: string }) {
       <p className="font-display text-lg leading-tight tracking-tight">{value}</p>
     </div>
   );
+}
+
+function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }

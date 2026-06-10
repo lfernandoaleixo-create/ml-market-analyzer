@@ -48,6 +48,21 @@ export function previousMonthRange(nowMs: number): PeriodRange {
   };
 }
 
+/** Range covering the last N calendar months including the current one, from
+ *  the first BRT day of the oldest month up to nowMs. E.g. N=2 on Jun 10 =>
+ *  [May 1 00:00 BRT, Jun 10 now]. */
+export function lastNMonthsRange(nowMs: number, months: number): PeriodRange {
+  const n = Math.max(1, months);
+  const { year, month } = brtParts(nowMs);
+  let m = month - (n - 1);
+  let y = year;
+  while (m < 0) {
+    m += 12;
+    y -= 1;
+  }
+  return { fromMs: brtStartOfDayMs(y, m, 1), toMs: nowMs };
+}
+
 /** Full calendar month containing the given anchor (month 0-11). */
 export function monthRange(year: number, month: number): PeriodRange {
   return {

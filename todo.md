@@ -424,3 +424,12 @@
 - [x] Frontend: gráfico de BARRAS mostrando todos os dias do mês (validado: 31 barras em maio)
 - [x] Estabilização de inputs de query com useMemo (evita re-fetch infinito); lógica de datas pura em `shared/period.ts` (BRT GMT-3)
 - [x] Testes: 14 de período (BRT) + 3 de KPIs/série por período; suíte total 245 verdes; TS/LSP limpos; validação ao vivo + checkpoint
+
+## Painel — gráfico de barras + período + cancelamentos (jun/2026)
+- [x] Backend: série diária inclui `cancelled` e `cancelledAmount` por dia (cache de pedidos cancelados, bucket por date_created)
+- [x] Backend: `lastNMonthsRange` (BRT) para "Últimos 2 meses"
+- [x] Painel: gráfico de BARRAS de faturamento por dia (substitui gráfico anterior)
+- [x] Painel: seletor de período Mês atual / Mês anterior / Últimos 2 meses / Personalizado (date inputs)
+- [x] Painel: barras dos dias com cancelamento destacadas em vermelho + legenda + tooltip com nº/valor cancelado
+- [x] Eixo X adaptativo (dia do mês para spans curtos, dd/mm para spans longos)
+- [x] Testes: 4 de lastNMonthsRange + 1 de cancelados-por-dia; suíte 250 verdes; TS limpo; validação ao vivo OK

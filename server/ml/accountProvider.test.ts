@@ -341,3 +341,59 @@ describe("AccountProvider.getSalesDashboard fill option", () => {
     expect(dates).toEqual(sorted);
   });
 });
+
+describe("AccountProvider.getSalesDashboard cancelled-by-day", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("marks cancelled count and amount on the day a cancelled order was created", async () => {
+    const now = Date.now();
+    const paidDay = new Date(now - 1 * 86400000).toISOString();
+    const cancelDay = new Date(now - 3 * 86400000).toISOString();
+    global.fetch = makeFetchRouter([
+      {
+        match: /order\.status=paid/,
+        body: {
+          paging: { total: 1 },
+          results: [
+            {
+              date_created: paidDay,
+              status: "paid",
+              payments: [{ status: "approved", transaction_amount: 50 }],
+              total_amount: 50,
+              order_items: [{ quantity: 1, unit_price: 50, item: { id: "MLB1", title: "A" } }],
+            },
+          ],
+        },
+      },
+      // countOrdersByStatus uses limit=1 paging total; getCancelledOrders pulls results.
+      {
+        match: /order\.status=cancelled/,
+        body: {
+          paging: { total: 2 },
+          results: [
+            { date_created: cancelDay, status: "cancelled", total_amount: 30 },
+            { date_created: cancelDay, status: "cancelled", total_amount: 20 },
+          ],
+        },
+      },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const from = now - 6 * 86400000;
+    const dash = await provider.getSalesDashboard({ fromMs: from, toMs: now, fill: true });
+
+    const cancelKey = new Date(cancelDay).toISOString().slice(0, 10);
+    const paidKey = new Date(paidDay).toISOString().slice(0, 10);
+    const cancelPoint = dash.daily.find((p) => p.date === cancelKey)!;
+    const paidPoint = dash.daily.find((p) => p.date === paidKey)!;
+
+    expect(cancelPoint.cancelled).toBe(2);
+    expect(cancelPoint.cancelledAmount).toBe(50);
+    expect(cancelPoint.revenue).toBe(0);
+    expect(paidPoint.cancelled).toBe(0);
+    expect(paidPoint.revenue).toBe(50);
+    // Every dense point exposes the cancelled fields (default 0).
+    expect(dash.daily.every((p) => typeof p.cancelled === "number")).toBe(true);
+  });
+});

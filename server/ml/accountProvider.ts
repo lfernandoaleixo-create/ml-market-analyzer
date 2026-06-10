@@ -47,6 +47,16 @@ export class AccountProvider {
     return this.paidOrdersCache;
   }
 
+  /** Cache of ALL cancelled orders (with their date_created) for this instance,
+   *  used to mark which days had cancellations in the daily series. */
+  private cancelledOrdersCache: any[] | null = null;
+
+  private async getCancelledOrders(): Promise<any[]> {
+    if (this.cancelledOrdersCache) return this.cancelledOrdersCache;
+    this.cancelledOrdersCache = await this.getOrdersByStatus("cancelled");
+    return this.cancelledOrdersCache;
+  }
+
   private async get(path: string): Promise<any | null> {
     try {
       const res = await fetch(`${API}${path}`, {
@@ -270,7 +280,7 @@ export class AccountProvider {
     let revenue = 0;
     let unitsSold = 0;
     const paidOrders: any[] = [];
-    const dailyMap = new Map<string, { revenue: number; orders: number }>();
+    const dailyMap = new Map<string, { revenue: number; orders: number; cancelled: number; cancelledAmount: number }>();
     const productMap = new Map<string, TopProduct>();
 
     for (const o of paidAll) {
@@ -291,7 +301,7 @@ export class AccountProvider {
       revenue += value;
 
       const dayKey = new Date(created || Date.now()).toISOString().slice(0, 10);
-      const day = dailyMap.get(dayKey) ?? { revenue: 0, orders: 0 };
+      const day = dailyMap.get(dayKey) ?? { revenue: 0, orders: 0, cancelled: 0, cancelledAmount: 0 };
       day.revenue += value;
       day.orders += 1;
       dailyMap.set(dayKey, day);
@@ -325,8 +335,27 @@ export class AccountProvider {
     // Cancelled count comes straight from the official paging total.
     const cancelled = await this.countOrdersByStatus("cancelled");
 
+    // Fold cancelled orders into the same daily map so the bar chart can mark
+    // which days had cancellations (count + amount), bucketed by date_created.
+    const cancelledOrders = await this.getCancelledOrders();
+    for (const o of cancelledOrders) {
+      const created = o.date_created ? new Date(o.date_created).getTime() : 0;
+      if (created && (created < fromMs || created > toMs)) continue;
+      const dayKey = new Date(created || Date.now()).toISOString().slice(0, 10);
+      const day = dailyMap.get(dayKey) ?? { revenue: 0, orders: 0, cancelled: 0, cancelledAmount: 0 };
+      day.cancelled += 1;
+      day.cancelledAmount += o.total_amount ?? 0;
+      dailyMap.set(dayKey, day);
+    }
+
     let daily: SalesDayPoint[] = Array.from(dailyMap.entries())
-      .map(([date, v]) => ({ date, revenue: v.revenue, orders: v.orders }))
+      .map(([date, v]) => ({
+        date,
+        revenue: v.revenue,
+        orders: v.orders,
+        cancelled: v.cancelled,
+        cancelledAmount: v.cancelledAmount,
+      }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
     // Optionally fill every calendar day in the window with zeros so the bar
@@ -470,7 +499,10 @@ export class AccountProvider {
  * how the aggregation buckets orders.
  */
 export function fillDailySeries(
-  dailyMap: Map<string, { revenue: number; orders: number }>,
+  dailyMap: Map<
+    string,
+    { revenue: number; orders: number; cancelled?: number; cancelledAmount?: number }
+  >,
   fromMs: number,
   toMs: number,
 ): SalesDayPoint[] {
@@ -483,8 +515,14 @@ export function fillDailySeries(
   end.setUTCHours(0, 0, 0, 0);
   for (let t = start.getTime(); t <= end.getTime(); t += DAY) {
     const key = new Date(t).toISOString().slice(0, 10);
-    const v = dailyMap.get(key) ?? { revenue: 0, orders: 0 };
-    out.push({ date: key, revenue: v.revenue, orders: v.orders });
+    const v = dailyMap.get(key) ?? { revenue: 0, orders: 0, cancelled: 0, cancelledAmount: 0 };
+    out.push({
+      date: key,
+      revenue: v.revenue,
+      orders: v.orders,
+      cancelled: v.cancelled ?? 0,
+      cancelledAmount: v.cancelledAmount ?? 0,
+    });
   }
   return out;
 }

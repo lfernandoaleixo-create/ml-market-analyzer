@@ -5,6 +5,7 @@ import {
   currentMonthRange as currentMonthRangeAt,
   previousMonthRange as previousMonthRangeAt,
   monthRange as monthRangePure,
+  lastNMonthsRange as lastNMonthsRangeAt,
   dayRangeFromIso as dayRangeFromIsoPure,
   customRangeFromIso as customRangeFromIsoPure,
   isoDateBrt,
@@ -20,6 +21,10 @@ export function currentMonthRange(): PeriodRange {
 
 export function previousMonthRange(): PeriodRange {
   return previousMonthRangeAt(Date.now());
+}
+
+export function lastNMonthsRange(months: number): PeriodRange {
+  return lastNMonthsRangeAt(Date.now(), months);
 }
 
 export function monthRange(year: number, month: number): PeriodRange {

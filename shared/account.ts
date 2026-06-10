@@ -23,6 +23,10 @@ export interface SalesDayPoint {
   date: string;
   revenue: number;
   orders: number;
+  /** Number of CANCELLED orders created on this day (for highlighting). */
+  cancelled: number;
+  /** Total amount of the cancelled orders on this day (informational). */
+  cancelledAmount: number;
 }
 
 export interface TopProduct {
