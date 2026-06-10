@@ -17,12 +17,13 @@ import { cn } from "@/lib/utils";
 import {
   formatBRL,
   formatNumber,
-  formatCompact,
+  formatBRLCompact,
   reputationLabel,
   reputationColor,
 } from "@/lib/format";
 import {
   currentMonthRange,
+  currentMonthFullRange,
   previousMonthRange,
   lastNMonthsRange,
   customRangeFromIso,
@@ -34,7 +35,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -72,7 +72,7 @@ export default function Painel() {
 
   // The range driving the bar chart + sales KPIs.
   const activeRange = useMemo(() => {
-    if (kind === "current") return currentMonthRange();
+    if (kind === "current") return currentMonthFullRange();
     if (kind === "previous") return previousMonthRange();
     if (kind === "last2") return lastNMonthsRange(2);
     return customRangeFromIso(fromIso, toIso) ?? currentMonthRange();
@@ -206,112 +206,115 @@ export default function Painel() {
         </span>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard
-          title="Faturamento por dia"
-          description={
-            totalCancelledDays > 0
-              ? `Barras em vermelho indicam dias com cancelamento (${totalCancelledDays} ${totalCancelledDays === 1 ? "dia" : "dias"})`
-              : "Faturamento diário do período selecionado"
-          }
-          className="lg:col-span-2"
-          actions={
-            <Link href="/vendas" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-              Ver vendas <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          }
-        >
-          {loadingSales ? (
-            <Skeleton className="h-64 w-full" />
-          ) : bars.length === 0 ? (
-            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-              Sem vendas registradas no período.
+      {/* Bar chart — full width, two thin bars per day (sales + cancellations) */}
+      <SectionCard
+        title="Faturamento e cancelamentos por dia"
+        description={
+          totalCancelledDays > 0
+            ? `Barra verde: faturamento · barra vermelha: valor cancelado (${totalCancelledDays} ${totalCancelledDays === 1 ? "dia" : "dias"} com cancelamento)`
+            : "Faturamento diário do período selecionado"
+        }
+        actions={
+          <Link href="/vendas" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            Ver vendas <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        }
+      >
+        {loadingSales ? (
+          <Skeleton className="h-72 w-full" />
+        ) : bars.length === 0 ? (
+          <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+            Sem vendas registradas no período.
+          </div>
+        ) : (
+          <>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bars} barGap={2} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={0}
+                    minTickGap={0}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={64}
+                    tickFormatter={(v) => formatBRLCompact(Number(v))}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "var(--secondary)", opacity: 0.5 }}
+                    content={<RevenueTooltip />}
+                  />
+                  <Bar
+                    dataKey="revenue"
+                    name="Faturamento"
+                    fill="var(--primary)"
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={10}
+                  />
+                  <Bar
+                    dataKey="cancelledAmount"
+                    name="Cancelado"
+                    fill="#f43f5e"
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={10}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          ) : (
-            <>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={bars} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      tickLine={false}
-                      axisLine={false}
-                      interval={longSpan ? "preserveStartEnd" : 0}
-                      minTickGap={longSpan ? 16 : 2}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={56}
-                      tickFormatter={(v) => formatCompact(Number(v))}
-                    />
-                    <Tooltip
-                      cursor={{ fill: "var(--secondary)", opacity: 0.5 }}
-                      content={<RevenueTooltip />}
-                    />
-                    <Bar dataKey="revenue" radius={[4, 4, 0, 0]} maxBarSize={28}>
-                      {bars.map((b, i) => (
-                        <Cell
-                          key={i}
-                          fill={(b.cancelled ?? 0) > 0 ? "var(--color-rose-500, #f43f5e)" : "var(--primary)"}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Faturamento
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#f43f5e" }} /> Dia com
-                  cancelamento
-                </span>
-              </div>
-            </>
-          )}
-        </SectionCard>
+            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Faturamento
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#f43f5e" }} /> Valor cancelado
+              </span>
+            </div>
+          </>
+        )}
+      </SectionCard>
 
-        <SectionCard
-          title="Saúde da conta"
-          actions={
-            <Link href="/reputacao" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-              Detalhes <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          }
-        >
-          {rep.isLoading ? (
-            <Skeleton className="h-40 w-full" />
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Nível atual</p>
-                <p className="font-display text-lg tracking-tight">
-                  {r?.levelId ? reputationLabel(r.levelId) : "—"}
-                </p>
-                <div className="mt-2 flex gap-1">
-                  {["1_red", "2_orange", "3_yellow", "4_light_green", "5_green"].map((lvl) => (
-                    <div
-                      key={lvl}
-                      className={`h-2 flex-1 rounded-full ${lvl === r?.levelId ? reputationColor(lvl) : "bg-secondary"}`}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <MiniStat label="Concluídas" value={formatNumber(r?.transactionsCompleted ?? 0)} />
-                <MiniStat label="Canceladas" value={formatNumber(r?.transactionsCanceled ?? 0)} />
-                <MiniStat label="Positivas" value={formatNumber(r?.ratingsPositive ?? 0)} />
-                <MiniStat label="Negativas" value={formatNumber(r?.ratingsNegative ?? 0)} />
+      <SectionCard
+        title="Saúde da conta"
+        actions={
+          <Link href="/reputacao" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            Detalhes <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        }
+      >
+        {rep.isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="text-sm text-muted-foreground">Nível atual</p>
+              <p className="font-display text-lg tracking-tight">
+                {r?.levelId ? reputationLabel(r.levelId) : "—"}
+              </p>
+              <div className="mt-2 flex gap-1">
+                {["1_red", "2_orange", "3_yellow", "4_light_green", "5_green"].map((lvl) => (
+                  <div
+                    key={lvl}
+                    className={`h-2 flex-1 rounded-full ${lvl === r?.levelId ? reputationColor(lvl) : "bg-secondary"}`}
+                  />
+                ))}
               </div>
             </div>
-          )}
-        </SectionCard>
-      </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-2">
+              <MiniStat label="Concluídas" value={formatNumber(r?.transactionsCompleted ?? 0)} />
+              <MiniStat label="Canceladas" value={formatNumber(r?.transactionsCanceled ?? 0)} />
+              <MiniStat label="Positivas" value={formatNumber(r?.ratingsPositive ?? 0)} />
+              <MiniStat label="Negativas" value={formatNumber(r?.ratingsNegative ?? 0)} />
+            </div>
+          </div>
+        )}
+      </SectionCard>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <SectionCard
@@ -342,7 +345,7 @@ export default function Painel() {
                   <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.title}</p>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{formatBRL(p.revenue)}</p>
-                    <p className="text-xs text-muted-foreground">{formatCompact(p.unitsSold)} un.</p>
+                    <p className="text-xs text-muted-foreground">{formatNumber(p.unitsSold)} un.</p>
                   </div>
                 </div>
               ))}
@@ -401,9 +404,15 @@ function RevenueTooltip({ active, payload, label }: any) {
   };
   return (
     <div className="rounded-xl border bg-background p-3 text-xs shadow-sm" style={{ borderColor: "var(--border)" }}>
-      <p className="font-medium">{label}</p>
-      <p className="mt-1 text-emerald-600">{formatBRL(d.revenue)} faturado</p>
-      <p className="text-muted-foreground">{formatNumber(d.orders)} pedido(s) pago(s)</p>
+      <p className="font-medium">Dia {label}</p>
+      {d.revenue === 0 && (d.cancelled ?? 0) === 0 ? (
+        <p className="mt-1 text-muted-foreground">Sem movimento</p>
+      ) : (
+        <>
+          <p className="mt-1 text-emerald-600">{formatBRL(d.revenue)} faturado</p>
+          <p className="text-muted-foreground">{formatNumber(d.orders)} pedido(s) pago(s)</p>
+        </>
+      )}
       {(d.cancelled ?? 0) > 0 && (
         <p className="mt-1 inline-flex items-center gap-1 text-rose-600">
           <XCircle className="h-3 w-3" /> {formatNumber(d.cancelled)} cancelado(s) ({formatBRL(d.cancelledAmount)})

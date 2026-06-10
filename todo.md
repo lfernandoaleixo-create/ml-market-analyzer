@@ -433,3 +433,12 @@
 - [x] Painel: barras dos dias com cancelamento destacadas em vermelho + legenda + tooltip com nº/valor cancelado
 - [x] Eixo X adaptativo (dia do mês para spans curtos, dd/mm para spans longos)
 - [x] Testes: 4 de lastNMonthsRange + 1 de cancelados-por-dia; suíte 250 verdes; TS limpo; validação ao vivo OK
+
+
+## Painel — gráfico full-width + duas barras por dia (jun/2026)
+- [x] Gráfico ocupa toda a largura da página (SectionCard fora do grid lateral)
+- [x] Mostrar todos os dias do mês no eixo X (currentMonthFullRange: mês inteiro, dias futuros zerados)
+- [x] Duas barras finas por dia: faturamento (verde) e valor cancelado (vermelho), maxBarSize=10
+- [x] Eixo de valores com símbolo de dinheiro (R$ via formatBRLCompact)
+- [x] Tooltip com 'Sem movimento' em dias vazios; Saúde da conta movida para linha de baixo
+- [x] Validação ao vivo (30 dias de junho, dia 3 com barra vermelha) + 2 testes de currentMonthFullRange (22 de período); TS limpo + checkpoint

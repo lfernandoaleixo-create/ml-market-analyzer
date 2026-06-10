@@ -3,6 +3,7 @@
 import {
   type PeriodRange,
   currentMonthRange as currentMonthRangeAt,
+  currentMonthFullRange as currentMonthFullRangeAt,
   previousMonthRange as previousMonthRangeAt,
   monthRange as monthRangePure,
   lastNMonthsRange as lastNMonthsRangeAt,
@@ -17,6 +18,10 @@ export type { PeriodRange };
 
 export function currentMonthRange(): PeriodRange {
   return currentMonthRangeAt(Date.now());
+}
+
+export function currentMonthFullRange(): PeriodRange {
+  return currentMonthFullRangeAt(Date.now());
 }
 
 export function previousMonthRange(): PeriodRange {

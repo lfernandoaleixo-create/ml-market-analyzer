@@ -18,6 +18,17 @@ export function formatCompact(value: number | null | undefined): string {
   );
 }
 
+/** Compact BRL for chart axes/labels, e.g. "R$ 1,2 mil". */
+export function formatBRLCompact(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 export function formatPercent(value: number | null | undefined, withSign = true): string {
   if (value == null) return "—";
   const sign = withSign && value > 0 ? "+" : "";

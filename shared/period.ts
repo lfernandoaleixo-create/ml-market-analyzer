@@ -37,6 +37,17 @@ export function currentMonthRange(nowMs: number): PeriodRange {
   return { fromMs: brtStartOfDayMs(year, month, 1), toMs: nowMs };
 }
 
+/** Full current calendar month in BRT (day 1 .. last day), relative to nowMs.
+ *  Used for charts that should show every day of the month even when the
+ *  month is still in progress (future days come back empty/zeroed). */
+export function currentMonthFullRange(nowMs: number): PeriodRange {
+  const { year, month } = brtParts(nowMs);
+  return {
+    fromMs: brtStartOfDayMs(year, month, 1),
+    toMs: brtEndOfDayMs(year, month, lastDayOfMonth(year, month)),
+  };
+}
+
 /** Full previous calendar month in BRT, relative to nowMs. */
 export function previousMonthRange(nowMs: number): PeriodRange {
   const { year, month } = brtParts(nowMs);

@@ -4,6 +4,7 @@ import {
   brtStartOfDayMs,
   brtEndOfDayMs,
   currentMonthRange,
+  currentMonthFullRange,
   previousMonthRange,
   monthRange,
   lastNMonthsRange,
@@ -132,5 +133,23 @@ describe("lastNMonthsRange", () => {
   it("clamps N below 1 to a single month", () => {
     const r = lastNMonthsRange(JUN_10_2026_BRT_NOON, 0);
     expect(r.fromMs).toBe(brtStartOfDayMs(2026, 5, 1));
+  });
+});
+
+describe("currentMonthFullRange", () => {
+  it("spans the whole current month (day 1 .. last day) regardless of 'now'", () => {
+    const r = currentMonthFullRange(JUN_10_2026_BRT_NOON);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 5, 1));
+    // June has 30 days; end is 30th 23:59:59.999 BRT.
+    expect(r.toMs).toBe(brtEndOfDayMs(2026, 5, 30));
+    // The end is strictly after "now" (the month is still in progress).
+    expect(r.toMs).toBeGreaterThan(JUN_10_2026_BRT_NOON);
+  });
+
+  it("respects month length (February 2025 => 28 days)", () => {
+    const feb = Date.UTC(2025, 1, 10, 15, 0, 0, 0);
+    const r = currentMonthFullRange(feb);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2025, 1, 1));
+    expect(r.toMs).toBe(brtEndOfDayMs(2025, 1, 28));
   });
 });
