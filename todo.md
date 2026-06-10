@@ -468,3 +468,12 @@
 - [x] Barras grossas e legíveis (maxBarSize 14, barGap 3, barCategoryGap 20%) + scroll horizontal (minWidth ~34px/dia) em períodos longos
 - [x] Top produtos do Painel: tabela com 10 mais vendidos, preço unitário (revenue/unidades), nº de vendas e valor total
 - [x] Validado (inspeção isolada + dados reais: dia 3 com barra vermelha, Top 10 completo) + 255 testes verdes + TS limpo + checkpoint
+
+
+## Painel — correções de gráfico/contagem (jun/2026)
+- [x] Corrigir eixo de datas no modo "60 dias" (interval adaptativo no XAxis; datas em diagonal, sem sobreposição) — validado com dados reais (12/04...07/06)
+- [x] Remover card "Saldo" do gráfico (manter apenas "Vendas totais" e "Cancelamentos", em 2 colunas)
+- [x] Auditoria via API do ML: pagos jun=10, cancelados jun=1 (antes mostrava 18 = total de todos os tempos)
+- [x] Backend: contar cancelados DENTRO do período (não o total global) — KPI agora reflete o período (jun=1, 60d=17)
+- [x] Backend: bucketizar série diária por BRT (GMT-3) via brtDateKey (evita jogar venda noturna para o dia seguinte em UTC)
+- [x] Testes atualizados (cancelled por período) + 2 novos de brtDateKey; suíte 257 verdes; TS limpo; validação ao vivo + checkpoint

@@ -122,7 +122,14 @@ export default function Painel() {
   const totalCancelledDays = bars.filter((b) => (b.cancelled ?? 0) > 0).length;
   const totalRevenue = bars.reduce((acc, b) => acc + (b.revenue ?? 0), 0);
   const totalCancelledAmount = bars.reduce((acc, b) => acc + (b.cancelledAmount ?? 0), 0);
-  const netBalance = totalRevenue - totalCancelledAmount;
+
+  // X-axis label density: on long ranges, showing every single day's label
+  // overlaps into an unreadable smear. Thin them out so labels stay legible
+  // while every day still renders its bars.
+  const labelInterval =
+    bars.length <= 16 ? 0 : bars.length <= 35 ? 1 : Math.ceil(bars.length / 18) - 1;
+  // Wider per-day slot on long ranges keeps the two bars visible after scroll.
+  const perDayWidth = bars.length > 35 ? 26 : 34;
 
   const periodTitle =
     kind === "current" || kind === "previous"
@@ -241,7 +248,7 @@ export default function Painel() {
         ) : (
           <>
             {/* Summary mini-cards inside the chart card */}
-            <div className="mb-5 grid grid-cols-3 gap-3">
+            <div className="mb-5 grid grid-cols-2 gap-3">
               <SummaryStat
                 label="Vendas totais"
                 value={formatBRL(totalRevenue)}
@@ -252,11 +259,6 @@ export default function Painel() {
                 value={formatBRL(totalCancelledAmount)}
                 tone="rose"
               />
-              <SummaryStat
-                label="Saldo"
-                value={formatBRL(netBalance)}
-                tone="neutral"
-              />
             </div>
 
             {/* Each day is a slot delimited by vertical divider lines, with the
@@ -266,7 +268,7 @@ export default function Painel() {
             <div className="overflow-x-auto pb-1">
               <div
                 className="h-72"
-                style={{ minWidth: `${Math.max(bars.length * 34, 320)}px`, width: "100%" }}
+                style={{ minWidth: `${Math.max(bars.length * perDayWidth, 320)}px`, width: "100%" }}
               >
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -289,8 +291,11 @@ export default function Painel() {
                       tickLine={{ stroke: "var(--border)" }}
                       tickSize={6}
                       axisLine={{ stroke: "var(--border)" }}
-                      interval={0}
-                      minTickGap={0}
+                      interval={labelInterval}
+                      minTickGap={4}
+                      angle={longSpan ? -45 : 0}
+                      textAnchor={longSpan ? "end" : "middle"}
+                      height={longSpan ? 48 : 24}
                     />
                     <YAxis
                       tick={{ fontSize: 11, fill: "var(--muted-foreground)", textAnchor: "end" }}

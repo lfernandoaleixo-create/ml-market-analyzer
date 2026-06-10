@@ -300,7 +300,7 @@ export class AccountProvider {
       paidOrders.push(o);
       revenue += value;
 
-      const dayKey = new Date(created || Date.now()).toISOString().slice(0, 10);
+      const dayKey = brtDateKey(created || Date.now());
       const day = dailyMap.get(dayKey) ?? { revenue: 0, orders: 0, cancelled: 0, cancelledAmount: 0 };
       day.revenue += value;
       day.orders += 1;
@@ -332,16 +332,17 @@ export class AccountProvider {
       }
     }
 
-    // Cancelled count comes straight from the official paging total.
-    const cancelled = await this.countOrdersByStatus("cancelled");
-
     // Fold cancelled orders into the same daily map so the bar chart can mark
-    // which days had cancellations (count + amount), bucketed by date_created.
+    // which days had cancellations (count + amount), bucketed by BRT date.
+    // Also count cancelled orders WITHIN the requested period (not the global
+    // all-time total, which previously inflated the KPI).
     const cancelledOrders = await this.getCancelledOrders();
+    let cancelled = 0;
     for (const o of cancelledOrders) {
       const created = o.date_created ? new Date(o.date_created).getTime() : 0;
       if (created && (created < fromMs || created > toMs)) continue;
-      const dayKey = new Date(created || Date.now()).toISOString().slice(0, 10);
+      cancelled += 1;
+      const dayKey = brtDateKey(created || Date.now());
       const day = dailyMap.get(dayKey) ?? { revenue: 0, orders: 0, cancelled: 0, cancelledAmount: 0 };
       day.cancelled += 1;
       day.cancelledAmount += o.total_amount ?? 0;
@@ -498,6 +499,14 @@ export class AccountProvider {
  * render the whole month. Days are keyed by UTC ISO date (yyyy-mm-dd) to match
  * how the aggregation buckets orders.
  */
+/**
+ * Convert a Unix-ms timestamp to a BRT (GMT-3 fixed) calendar-day key
+ * (yyyy-mm-dd). Brazil no longer observes DST, so a fixed -3h offset is exact.
+ */
+export function brtDateKey(ms: number): string {
+  return new Date(ms - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 export function fillDailySeries(
   dailyMap: Map<
     string,
@@ -508,13 +517,15 @@ export function fillDailySeries(
 ): SalesDayPoint[] {
   const out: SalesDayPoint[] = [];
   const DAY = 24 * 60 * 60 * 1000;
-  // Normalize to the start of the UTC day for stable iteration.
-  const start = new Date(fromMs);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(toMs);
-  end.setUTCHours(0, 0, 0, 0);
-  for (let t = start.getTime(); t <= end.getTime(); t += DAY) {
-    const key = new Date(t).toISOString().slice(0, 10);
+  // Iterate by BRT calendar day so keys match the aggregation buckets.
+  // Anchor at the BRT start-of-day for the first day in the window.
+  const startKey = brtDateKey(fromMs);
+  const endKey = brtDateKey(toMs);
+  // Build from the BRT midnight (which is 03:00 UTC) of the start day.
+  let t = Date.parse(`${startKey}T03:00:00.000Z`);
+  const endAnchor = Date.parse(`${endKey}T03:00:00.000Z`);
+  for (; t <= endAnchor; t += DAY) {
+    const key = brtDateKey(t);
     const v = dailyMap.get(key) ?? { revenue: 0, orders: 0, cancelled: 0, cancelledAmount: 0 };
     out.push({
       date: key,

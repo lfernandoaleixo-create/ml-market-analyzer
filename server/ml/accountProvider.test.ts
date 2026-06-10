@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AccountProvider } from "./accountProvider";
+import { AccountProvider, brtDateKey } from "./accountProvider";
 
 /**
  * Tests for AccountProvider — the owner-token data layer.
@@ -107,12 +107,19 @@ describe("AccountProvider.getSalesDashboard", () => {
         },
       ],
     };
-    // Cancelled count comes from the order.status=cancelled query (paging.total).
-    const cancelledCount = { paging: { total: 1 }, results: [] };
+    // Cancelled count is now derived from cancelled orders WITHIN the period.
+    // One cancelled order inside the window, one far outside (must be ignored).
+    const cancelledOrders = {
+      paging: { total: 2 },
+      results: [
+        { date_created: d1, status: "cancelled", total_amount: 40 },
+        { date_created: new Date(now - 300 * 86400000).toISOString(), status: "cancelled", total_amount: 99 },
+      ],
+    };
 
     global.fetch = makeFetchRouter([
       { match: /order\.status=paid/, body: paidOrders },
-      { match: /order\.status=cancelled/, body: cancelledCount },
+      { match: /order\.status=cancelled/, body: cancelledOrders },
     ]) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
@@ -121,6 +128,7 @@ describe("AccountProvider.getSalesDashboard", () => {
     expect(dash.kpis.revenue).toBe(130);
     expect(dash.kpis.orders).toBe(2);
     expect(dash.kpis.unitsSold).toBe(3);
+    // Only the cancelled order inside the window counts (the 300-day-old one is ignored).
     expect(dash.kpis.cancelled).toBe(1);
     expect(dash.kpis.avgTicket).toBe(65);
     expect(dash.daily.length).toBe(2);
@@ -383,8 +391,8 @@ describe("AccountProvider.getSalesDashboard cancelled-by-day", () => {
     const from = now - 6 * 86400000;
     const dash = await provider.getSalesDashboard({ fromMs: from, toMs: now, fill: true });
 
-    const cancelKey = new Date(cancelDay).toISOString().slice(0, 10);
-    const paidKey = new Date(paidDay).toISOString().slice(0, 10);
+    const cancelKey = brtDateKey(new Date(cancelDay).getTime());
+    const paidKey = brtDateKey(new Date(paidDay).getTime());
     const cancelPoint = dash.daily.find((p) => p.date === cancelKey)!;
     const paidPoint = dash.daily.find((p) => p.date === paidKey)!;
 
@@ -395,5 +403,19 @@ describe("AccountProvider.getSalesDashboard cancelled-by-day", () => {
     expect(paidPoint.revenue).toBe(50);
     // Every dense point exposes the cancelled fields (default 0).
     expect(dash.daily.every((p) => typeof p.cancelled === "number")).toBe(true);
+  });
+});
+
+describe("brtDateKey", () => {
+  it("buckets a late-night BRT sale into the correct local day (not the next UTC day)", () => {
+    // 2026-06-03 23:30 BRT == 2026-06-04 02:30 UTC. Must bucket as 2026-06-03.
+    const utcMs = Date.parse("2026-06-04T02:30:00.000Z");
+    expect(brtDateKey(utcMs)).toBe("2026-06-03");
+  });
+
+  it("buckets an early-morning BRT sale correctly", () => {
+    // 2026-06-03 00:30 BRT == 2026-06-03 03:30 UTC -> 2026-06-03.
+    const utcMs = Date.parse("2026-06-03T03:30:00.000Z");
+    expect(brtDateKey(utcMs)).toBe("2026-06-03");
   });
 });
