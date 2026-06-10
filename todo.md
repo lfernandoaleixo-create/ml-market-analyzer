@@ -442,3 +442,9 @@
 - [x] Eixo de valores com símbolo de dinheiro (R$ via formatBRLCompact)
 - [x] Tooltip com 'Sem movimento' em dias vazios; Saúde da conta movida para linha de baixo
 - [x] Validação ao vivo (30 dias de junho, dia 3 com barra vermelha) + 2 testes de currentMonthFullRange (22 de período); TS limpo + checkpoint
+
+## Painel — resumo no gráfico + legibilidade (jun/2026)
+- [x] Mini-cards dentro do card do gráfico: Vendas totais (verde), Cancelamentos (vermelho), Saldo = vendas - cancelado (SummaryStat)
+- [x] Melhorar separação visual entre os dias (barCategoryGap 30% em mês, grid vertical + tickLine por dia, padding lateral)
+- [x] Alinhar perfeitamente o eixo de valores R$ (YAxis width=72, textAnchor=end, tickMargin=8, allowDecimals=false) — inclui R$ 0
+- [x] Validação via página isolada de inspeção (mini-cards + eixo alinhado + barras finas verde/vermelha); 252 testes verdes; TS limpo + checkpoint

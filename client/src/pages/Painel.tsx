@@ -111,6 +111,9 @@ export default function Painel() {
     }) ?? [];
 
   const totalCancelledDays = bars.filter((b) => (b.cancelled ?? 0) > 0).length;
+  const totalRevenue = bars.reduce((acc, b) => acc + (b.revenue ?? 0), 0);
+  const totalCancelledAmount = bars.reduce((acc, b) => acc + (b.cancelledAmount ?? 0), 0);
+  const netBalance = totalRevenue - totalCancelledAmount;
 
   const periodTitle =
     kind === "current" || kind === "previous"
@@ -228,23 +231,55 @@ export default function Painel() {
           </div>
         ) : (
           <>
+            {/* Summary mini-cards inside the chart card */}
+            <div className="mb-5 grid grid-cols-3 gap-3">
+              <SummaryStat
+                label="Vendas totais"
+                value={formatBRL(totalRevenue)}
+                tone="emerald"
+              />
+              <SummaryStat
+                label="Cancelamentos"
+                value={formatBRL(totalCancelledAmount)}
+                tone="rose"
+              />
+              <SummaryStat
+                label="Saldo"
+                value={formatBRL(netBalance)}
+                tone="neutral"
+              />
+            </div>
+
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={bars} barGap={2} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <BarChart
+                  data={bars}
+                  barGap={1}
+                  barCategoryGap={longSpan ? "15%" : "30%"}
+                  margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--border)"
+                    vertical={!longSpan}
+                    verticalCoordinatesGenerator={undefined}
+                  />
                   <XAxis
                     dataKey="label"
                     tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
+                    tickLine={{ stroke: "var(--border)" }}
+                    axisLine={{ stroke: "var(--border)" }}
+                    interval={longSpan ? 2 : 0}
                     minTickGap={0}
+                    padding={{ left: 8, right: 8 }}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)", textAnchor: "end" }}
                     tickLine={false}
                     axisLine={false}
-                    width={64}
+                    width={72}
+                    tickMargin={8}
+                    allowDecimals={false}
                     tickFormatter={(v) => formatBRLCompact(Number(v))}
                   />
                   <Tooltip
@@ -255,15 +290,15 @@ export default function Painel() {
                     dataKey="revenue"
                     name="Faturamento"
                     fill="var(--primary)"
-                    radius={[3, 3, 0, 0]}
-                    maxBarSize={10}
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={9}
                   />
                   <Bar
                     dataKey="cancelledAmount"
                     name="Cancelado"
                     fill="#f43f5e"
-                    radius={[3, 3, 0, 0]}
-                    maxBarSize={10}
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={9}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -418,6 +453,35 @@ function RevenueTooltip({ active, payload, label }: any) {
           <XCircle className="h-3 w-3" /> {formatNumber(d.cancelled)} cancelado(s) ({formatBRL(d.cancelledAmount)})
         </p>
       )}
+    </div>
+  );
+}
+
+function SummaryStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "emerald" | "rose" | "neutral";
+}) {
+  const toneCls =
+    tone === "emerald"
+      ? "text-emerald-600"
+      : tone === "rose"
+        ? "text-rose-600"
+        : "text-foreground";
+  const dot =
+    tone === "emerald" ? "bg-primary" : tone === "rose" ? "bg-rose-500" : "bg-muted-foreground";
+  return (
+    <div className="rounded-xl border bg-secondary/40 p-3" style={{ borderColor: "var(--border)" }}>
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className={`h-2 w-2 rounded-full ${dot}`} /> {label}
+      </p>
+      <p className={`mt-1 font-display text-lg font-semibold leading-tight tracking-tight ${toneCls}`}>
+        {value}
+      </p>
     </div>
   );
 }
