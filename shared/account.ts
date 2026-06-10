@@ -57,6 +57,17 @@ export interface PeriodSummary {
   to: number;
 }
 
+/** Lifetime store stats: first effective sale, days in business and accumulated totals. */
+export interface StoreLifetime {
+  /** Timestamp (ms, UTC) of the first effective (paid) sale; null if none yet. */
+  firstSaleMs: number | null;
+  /** Total accumulated revenue across all paid orders (best-effort). */
+  totalRevenue: number;
+  /** Total number of paid orders across the store's lifetime. */
+  totalOrders: number;
+  currency: string;
+}
+
 export type ListingStatus = "active" | "paused" | "closed" | "under_review" | "inactive";
 
 export interface ListingRow {

@@ -477,3 +477,14 @@
 - [x] Backend: contar cancelados DENTRO do período (não o total global) — KPI agora reflete o período (jun=1, 60d=17)
 - [x] Backend: bucketizar série diária por BRT (GMT-3) via brtDateKey (evita jogar venda noturna para o dia seguinte em UTC)
 - [x] Testes atualizados (cancelled por período) + 2 novos de brtDateKey; suíte 257 verdes; TS limpo; validação ao vivo + checkpoint
+
+
+## Painel — card "Desde o início da loja" (jun/2026)
+- [x] Backend: getStoreLifetime — primeira venda (date_asc&limit=1), faturamento total acumulado e total de vendas (paging.total + soma dos pagos)
+- [x] Shared: interface StoreLifetime (firstSaleMs, totalRevenue, totalOrders, currency)
+- [x] Router: procedure storeLifetime (protected)
+- [x] Frontend: card no Painel com data de início, dias de existência, total R$ e total de vendas
+- [x] Atualização diária (dados recalculados a cada carregamento; dias de existência derivados da data atual)
+- [x] Testes: getStoreLifetime (loja com vendas + loja sem vendas) — 263 testes verdes, TS limpo
+- [x] Validado ao vivo: Primeira venda 24/04/2026 · 47 dias · R$ 2.655,65 · 41 pedidos
+- [x] Testes + validação ao vivo + checkpoint

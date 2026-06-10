@@ -50,6 +50,10 @@ import {
   Search,
   XCircle,
   CalendarRange,
+  Store,
+  CalendarDays,
+  TrendingUp,
+  Receipt,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -87,6 +91,7 @@ export default function Painel() {
   );
   const listings = trpc.account.listings.useQuery({ lastDays: 30 }, { enabled: everConnected });
   const rep = trpc.account.reputation.useQuery(undefined, { enabled: everConnected });
+  const lifetime = trpc.account.storeLifetime.useQuery(undefined, { enabled: everConnected });
 
   // First load (no cached connection result yet): show skeleton.
   if (conn.isLoading && conn.data === undefined) {
@@ -184,6 +189,14 @@ export default function Painel() {
           sublabel={r ? `${formatNumber(r.transactionsCompleted)} concluídas` : undefined}
         />
       </div>
+
+      {/* Lifetime store card */}
+      <LifetimeCard
+        loading={lifetime.isLoading}
+        firstSaleMs={lifetime.data?.firstSaleMs ?? null}
+        totalRevenue={lifetime.data?.totalRevenue ?? 0}
+        totalOrders={lifetime.data?.totalOrders ?? 0}
+      />
 
       {/* Period selector */}
       <div className="flex flex-wrap items-center gap-3">
@@ -556,4 +569,96 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function LifetimeCard({
+  loading,
+  firstSaleMs,
+  totalRevenue,
+  totalOrders,
+}: {
+  loading: boolean;
+  firstSaleMs: number | null;
+  totalRevenue: number;
+  totalOrders: number;
+}) {
+  const firstSaleLabel = firstSaleMs
+    ? new Date(firstSaleMs).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "America/Sao_Paulo",
+      })
+    : "—";
+  // Days in business: from first sale (BRT day) to today (BRT day), inclusive.
+  const daysInBusiness =
+    firstSaleMs != null
+      ? Math.max(1, Math.floor((Date.now() - firstSaleMs) / 86400000) + 1)
+      : 0;
+  const years = Math.floor(daysInBusiness / 365);
+  const remDays = daysInBusiness % 365;
+  const ageLabel =
+    firstSaleMs == null
+      ? "—"
+      : years >= 1
+        ? `${years} ${years === 1 ? "ano" : "anos"}${remDays > 0 ? ` e ${remDays} ${remDays === 1 ? "dia" : "dias"}` : ""}`
+        : `${daysInBusiness} ${daysInBusiness === 1 ? "dia" : "dias"}`;
+
+  const items = [
+    {
+      icon: CalendarDays,
+      label: "Primeira venda",
+      value: firstSaleLabel,
+      sub: "início efetivo da loja",
+    },
+    {
+      icon: Store,
+      label: "Tempo de loja",
+      value: ageLabel,
+      sub: firstSaleMs != null ? `${formatNumber(daysInBusiness)} dias de existência` : "sem vendas ainda",
+    },
+    {
+      icon: TrendingUp,
+      label: "Faturamento total",
+      value: formatBRL(totalRevenue),
+      sub: "acumulado de todas as vendas",
+    },
+    {
+      icon: Receipt,
+      label: "Vendas totais",
+      value: formatNumber(totalOrders),
+      sub: "pedidos pagos no total",
+    },
+  ];
+
+  return (
+    <Card className="card-soft overflow-hidden border-0 rounded-2xl">
+      <div className="flex items-center gap-2.5 border-b px-5 py-3" style={{ borderColor: "var(--border)" }}>
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Store className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold leading-tight">Desde o início da loja</p>
+          <p className="text-xs text-muted-foreground">Histórico acumulado — atualizado diariamente</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
+        {items.map((it) => (
+          <div key={it.label} className="p-5">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <it.icon className="h-3.5 w-3.5" /> {it.label}
+            </p>
+            {loading ? (
+              <Skeleton className="mt-2 h-7 w-24" />
+            ) : (
+              <p className="mt-1 font-display text-xl font-semibold leading-tight tracking-tight">
+                {it.value}
+              </p>
+            )}
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{it.sub}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
 }

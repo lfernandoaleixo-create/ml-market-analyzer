@@ -419,3 +419,66 @@ describe("brtDateKey", () => {
     expect(brtDateKey(utcMs)).toBe("2026-06-03");
   });
 });
+
+describe("AccountProvider.getStoreLifetime", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("derives first sale from the oldest paid order, total orders from paging, and total revenue from paid orders", async () => {
+    const firstSaleIso = "2023-05-10T14:00:00.000Z";
+    // date_asc&limit=1 returns the oldest order + the true total via paging.
+    const oldestBody = {
+      paging: { total: 412 },
+      results: [{ date_created: firstSaleIso, status: "paid" }],
+    };
+    // date_desc (getPaidOrders cache) returns the orders used to sum revenue.
+    // paging.total matches the number of results so the cache loop stops after
+    // one page (the real total of orders is asserted from the date_asc body).
+    const paidDescBody = {
+      paging: { total: 2 },
+      results: [
+        {
+          date_created: "2026-06-01T12:00:00.000Z",
+          status: "paid",
+          payments: [{ status: "approved", transaction_amount: 100 }],
+          total_amount: 100,
+          order_items: [{ quantity: 1, unit_price: 100, item: { id: "MLB1", title: "A" } }],
+        },
+        {
+          date_created: "2026-06-02T12:00:00.000Z",
+          status: "paid",
+          payments: [{ status: "accredited", transaction_amount: 250 }],
+          total_amount: 250,
+          order_items: [{ quantity: 1, unit_price: 250, item: { id: "MLB2", title: "B" } }],
+        },
+      ],
+    };
+
+    global.fetch = makeFetchRouter([
+      { match: /sort=date_asc/, body: oldestBody },
+      { match: /order\.status=paid/, body: paidDescBody },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const lifetime = await provider.getStoreLifetime();
+
+    expect(lifetime.firstSaleMs).toBe(Date.parse(firstSaleIso));
+    expect(lifetime.totalOrders).toBe(412);
+    expect(lifetime.totalRevenue).toBe(350);
+    expect(lifetime.currency).toBe("BRL");
+  });
+
+  it("returns null first sale and zero totals for a store with no paid orders", async () => {
+    global.fetch = makeFetchRouter([
+      { match: /sort=date_asc/, body: { paging: { total: 0 }, results: [] } },
+      { match: /order\.status=paid/, body: { paging: { total: 0 }, results: [] } },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const lifetime = await provider.getStoreLifetime();
+
+    expect(lifetime.firstSaleMs).toBeNull();
+    expect(lifetime.totalOrders).toBe(0);
+    expect(lifetime.totalRevenue).toBe(0);
+  });
+});

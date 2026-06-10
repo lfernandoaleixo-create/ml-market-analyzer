@@ -9,6 +9,7 @@ import type {
   SalesDayPoint,
   TopProduct,
   PeriodSummary,
+  StoreLifetime,
 } from "@shared/account";
 
 /**
@@ -436,6 +437,45 @@ export class AccountProvider {
       avgTicket: orders > 0 ? revenue / orders : 0,
       from: fromMs,
       to: toMs,
+    };
+  }
+
+  /**
+   * Lifetime store stats. The first effective sale is the OLDEST paid order
+   * (queried directly with sort=date_asc&limit=1 so it is correct even when the
+   * store has more than 1000 orders). Total orders comes from the paid paging
+   * total (cheap, exact); total revenue sums the paid orders we have cached.
+   * Recomputed on every call, so it reflects "today" without a stored snapshot.
+   */
+  async getStoreLifetime(): Promise<StoreLifetime> {
+    // Oldest paid order = first effective sale.
+    const firstData = await this.get(
+      `/orders/search?seller=${this.userId}&order.status=paid&sort=date_asc&limit=1`,
+    );
+    const firstOrder = Array.isArray(firstData?.results) ? firstData.results[0] : undefined;
+    const firstSaleMs = firstOrder?.date_created
+      ? new Date(firstOrder.date_created).getTime()
+      : null;
+    const totalOrders = firstData?.paging?.total ?? 0;
+
+    // Total revenue: sum the paid orders cache (best-effort; capped at the same
+    // 1000-order window used elsewhere, which covers typical stores).
+    const paidAll = await this.getPaidOrders();
+    let totalRevenue = 0;
+    for (const o of paidAll) {
+      const approvedTotal = (o.payments ?? []).reduce(
+        (s: number, p: any) =>
+          s + (p.status === "approved" || p.status === "accredited" ? p.transaction_amount ?? 0 : 0),
+        0,
+      );
+      totalRevenue += approvedTotal > 0 ? approvedTotal : o.total_amount ?? 0;
+    }
+
+    return {
+      firstSaleMs,
+      totalRevenue,
+      totalOrders,
+      currency: this.currency,
     };
   }
 

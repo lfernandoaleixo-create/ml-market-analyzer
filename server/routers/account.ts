@@ -144,6 +144,12 @@ export const accountRouter = router({
       return out;
     }),
 
+  /** Lifetime store stats: first sale, days in business, total revenue & orders. */
+  storeLifetime: protectedProcedure.query(async ({ ctx }) => {
+    const account = await resolveAccount(ctx.user.id);
+    return account.getStoreLifetime();
+  }),
+
   /** Listings performance (visits, sales, conversion, stock, status). */
   listings: protectedProcedure
     .input(z.object({ lastDays: z.number().int().min(1).max(90).optional() }).optional())
