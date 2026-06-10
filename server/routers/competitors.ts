@@ -13,10 +13,10 @@ import {
   isConfigured,
   searchProducts,
   getProductSellers,
-  getProductDetail,
   UnwrangleError,
 } from "../competitors/unwrangle";
 import { diagnoseCompetitor } from "../competitors/diagnosis";
+import { getCompetitorDetail } from "../competitors/competitorDetail";
 import { getSourcesStatus, searchAllSources } from "../competitors/orchestrator";
 import {
   createSearch,
@@ -274,7 +274,7 @@ export const competitorsRouter = router({
     .input(z.object({ productUrl: z.string().url("URL de produto inválida.") }))
     .query(async ({ input }) => {
       try {
-        return await getProductDetail(input.productUrl);
+        return await getCompetitorDetail(input.productUrl);
       } catch (err) {
         toTRPC(err);
       }
@@ -293,7 +293,7 @@ export const competitorsRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
-        const competitor = await getProductDetail(input.competitorUrl);
+        const competitor = await getCompetitorDetail(input.competitorUrl);
         const baseline: MyListingBaseline = input.myListing;
         return diagnoseCompetitor(baseline, competitor);
       } catch (err) {

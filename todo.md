@@ -402,3 +402,12 @@
 - [x] Validado ao vivo: "Mais vendidos" exibe fotos reais (http2.mlstatic.com) com precos reais
 - [x] Suite 226 testes verdes + TypeScript limpo
 - [x] Esclarecimento: ranking traz eletronicos porque categoria padrao = Celulares; trocar no seletor para o nicho. NAO e dado de exemplo (vem da API oficial).
+
+
+## DIAGNÓSTICO "serviço instável" — RESOLVIDO (2026-06-10)
+
+- [x] Causa raiz: a procedure `diagnose` dependia EXCLUSIVAMENTE da Unwrangle (fonte mais instável) para o detalhe do concorrente — quando ela caía, a tela mostrava "Serviço de dados temporariamente instável", embora o Radar (Oxylabs+ScrapingBee) funcionasse
+- [x] Correção: novo módulo `server/competitors/competitorDetail.ts` — detalhe resiliente multi-fonte (página renderizada via ScrapingBee → Oxylabs → Unwrangle como último recurso), parseando sinais estáveis do HTML (og:title, og:image, itemprop price, FULL/frete)
+- [x] Lida com links de tracking do Radar (click1.mercadolivre.com.br/mclics/...) — o proxy segue o redirect até a página real do anúncio
+- [x] Validado ao vivo: hashi /p/MLB46238945 → R$ 20,64 + foto real; e pela UI via "Diagnosticar" no Radar → "Hashi Redondo Sushi 1000 Pares" R$ 124,87 + FULL detectado
+- [x] Testes: 6 novos (parseListingHtml + getCompetitorDetail com fallbacks e erro honesto); suíte total 232 testes verdes
