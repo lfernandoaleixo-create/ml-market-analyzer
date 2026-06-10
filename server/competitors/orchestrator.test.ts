@@ -180,4 +180,38 @@ describe("orchestrator — searchAllSources", () => {
     expect(res.competitors[0].sources).toEqual(["unwrangle"]);
     expect(res.competitors[0].price.value).toBe(48);
   });
+
+  it("finishes EARLY with a fast source without waiting for a slow one", async () => {
+    // Fast source: returns >= EARLY_FINISH_MIN_OFFERS immediately.
+    // Slow source: would take far longer than the (test) global deadline.
+    process.env.COMPETITOR_EARLY_FINISH_MIN_OFFERS = "2";
+    process.env.COMPETITOR_JOB_DEADLINE_MS = "3000";
+
+    oxylabs.isConfigured.mockReturnValue(true);
+    scrapingbee.isConfigured.mockReturnValue(true);
+
+    oxylabs.searchOffers.mockResolvedValue([
+      offer("oxylabs", { name: "Cadeira Gamer A", url: "https://www.mercadolivre.com.br/p/MLB1111111111", price: 10 }),
+      offer("oxylabs", { name: "Cadeira Gamer B", url: "https://www.mercadolivre.com.br/p/MLB2222222222", price: 20 }),
+    ]);
+    // Never resolves within the deadline → must be abandoned by early-finish.
+    scrapingbee.searchOffers.mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    const mod = await loadModule();
+    const t0 = Date.now();
+    const res = await mod.searchAllSources("cadeira");
+    const elapsed = Date.now() - t0;
+
+    // Should NOT have waited for the slow source / global deadline.
+    expect(elapsed).toBeLessThan(2500);
+    expect(res.competitors.length).toBeGreaterThanOrEqual(2);
+    const bee = res.sourcesUsed.find((s) => s.id === "scrapingbee");
+    // The slow source is honestly reported as not having contributed.
+    expect(bee?.health).toBe("upstream");
+
+    delete process.env.COMPETITOR_EARLY_FINISH_MIN_OFFERS;
+    delete process.env.COMPETITOR_JOB_DEADLINE_MS;
+  });
 });

@@ -31,10 +31,12 @@ export const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
  * collection and lost the in-process fire-and-forget runner) and gets failed
  * honestly so the UI never hangs on "Coletando…" forever.
  *
- * The orchestrator caps each source at 240s; under contention a full run can
- * take a few minutes, so we give it a generous margin before declaring it dead.
+ * The orchestrator now finishes a collection within ~70s (global deadline), so
+ * a job that hasn't been touched for 2 minutes is almost certainly orphaned
+ * (e.g. the server restarted mid-collection). Failing it quickly keeps the UI
+ * from ever sitting on "Coletando…" for long.
  */
-export const STALE_JOB_MS = 6 * 60 * 1000; // 6 minutes
+export const STALE_JOB_MS = 2 * 60 * 1000; // 2 minutes
 
 /** Normalize a query into a stable cache key. */
 export function normalizeQuery(query: string): string {

@@ -295,14 +295,14 @@ export default function RadarConcorrentes() {
         <EmptyState
           icon={RadarIcon}
           title="Comece uma varredura"
-          description="Digite um produto ou categoria para mapear os concorrentes mais fortes daquele mercado. A coleta roda em segundo plano e costuma levar de 30 a 45 segundos na primeira vez; depois fica em cache."
+          description="Digite um produto ou categoria para mapear os concorrentes mais fortes daquele mercado. A coleta roda em segundo plano e costuma levar de 30 a 60 segundos na primeira vez; depois fica em cache."
         />
       ) : detail.isLoading && !view ? (
         <CollectingState query={input} note="Carregando…" />
       ) : isCollecting ? (
         <CollectingState
           query={view!.query}
-          note="As fontes estão sendo consultadas em paralelo. Isso costuma levar de 30 a 45 segundos. Você pode aguardar nesta tela — o resultado aparece automaticamente."
+          note="As fontes estão sendo consultadas em paralelo. Isso costuma levar de 30 a 60 segundos. Você pode aguardar nesta tela — o resultado aparece automaticamente assim que a primeira fonte confiável responde."
         />
       ) : isFailed ? (
         <EmptyState

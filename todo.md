@@ -366,3 +366,19 @@
 - [x] Suíte completa verde (216 testes / 26 arquivos) + TS/LSP limpos
 - [x] Validação ao vivo das telas reais (Vendas com ranking + fotos)
 - [x] Checkpoint + entrega + orientação de publicação/login
+
+
+## URGENTE — Bugs reais reportados via gravação de tela (09/jun)
+- [ ] Radar de concorrentes: spinner infinito + botão "Buscar concorrentes" sem ação — busca não inicia/não retorna
+- [ ] Categorias > "Produtos em destaque": cards em loading infinito; nunca carregam imagem/preço
+- [ ] Banner verde de aviso com texto de erro ("relátorio... falha de versão de testes") — reescrever/remover texto não-profissional
+- [ ] Validar ao vivo cada correção + suíte de testes verde + checkpoint
+
+
+## URGENTE — Correções da gravação de tela (09/06 20:44) — CONCLUÍDO
+- [x] Radar travado (spinner infinito): orquestrador reescrito com early-finish + teto global do job; finaliza assim que fontes rápidas trazem resultados suficientes (validado ao vivo: 51 concorrentes reais para "vareta de bambu")
+- [x] STALE_JOB_MS reduzido (6min → 2min) para destravar jobs órfãos rapidamente
+- [x] Limiar de early-finish ajustado para 15 ofertas; logs de progresso por fonte
+- [x] Categorias > Produtos em destaque / Termos em alta (loading infinito): timeout por requisição (AbortController, 8s) em authedFetch e no token OAuth do provider oficial; fan-out de getBestSellers limitado ao solicitado pela UI (validado ao vivo: 48 termos + 6 produtos reais carregam em ~12s)
+- [x] Banner "verde com texto de erro": confirmado que o texto problemático era da versão publicada antiga; código atual já tem mensagens corretas (verificado por grep, sem ocorrências)
+- [x] Suíte completa verde: 221 testes / 30 arquivos + TS/LSP limpos

@@ -34,21 +34,41 @@ import {
 } from "./unwrangle";
 
 /**
- * Per-source max time before we give up and triangulate with what we have.
- * The JS-render scrapers drive a headless browser through ML's anti-bot SPA:
- * Oxylabs ~35s, ScrapingBee ~55s on the happy path. When a proxy serves an
- * empty page the provider RETRIES (another full render), so a single source can
- * need ~165s end to end under contention (measured live). Because the whole
- * search runs as an ASYNCHRONOUS background job (the UI polls; no HTTP request
- * is held open and Cloud Run's 180s request cap does NOT apply to the job), we
- * budget a generous 240s so a slow-but-valid source (ScrapingBee with one retry)
- * still gets to contribute and triangulation actually happens. Sources run in
- * PARALLEL, so wall-clock cost is bounded by the SLOWEST source, not their sum.
+ * Per-source max time before we give up on THAT source and triangulate with
+ * whatever already arrived. Measured live for "palito de bambu": Oxylabs ~27s
+ * (60 itens), ScrapingBee ~50s (60 itens), Unwrangle ~47s (often a transient
+ * error after retries). A 60s ceiling per source comfortably covers the happy
+ * path of the two reliable scrapers while preventing a single slow/erroring
+ * source from holding the whole collection.
  */
 const SOURCE_TIMEOUT_MS = (() => {
   const raw = process.env.COMPETITOR_SOURCE_TIMEOUT_MS;
   const parsed = raw !== undefined ? Number(raw) : NaN;
-  return Number.isFinite(parsed) ? parsed : 240_000;
+  return Number.isFinite(parsed) ? parsed : 60_000;
+})();
+
+/**
+ * GLOBAL ceiling for the whole collection. Even if some source is still within
+ * its per-source budget, once we hit this wall-clock limit we finish with what
+ * arrived so far. The UI promises ~30-45s; this keeps the worst case bounded so
+ * the screen never sits on "Coletando…" for minutes.
+ */
+const JOB_DEADLINE_MS = (() => {
+  const raw = process.env.COMPETITOR_JOB_DEADLINE_MS;
+  const parsed = raw !== undefined ? Number(raw) : NaN;
+  return Number.isFinite(parsed) ? parsed : 70_000;
+})();
+
+/**
+ * Once at least this many competitors have been collected from the sources that
+ * already responded, we can finish EARLY without waiting for slower sources.
+ * The fast, reliable source (Oxylabs) typically returns ~60 offers in ~27s, so
+ * this lets a healthy search settle in well under the global deadline.
+ */
+const EARLY_FINISH_MIN_OFFERS = (() => {
+  const raw = process.env.COMPETITOR_EARLY_FINISH_MIN_OFFERS;
+  const parsed = raw !== undefined ? Number(raw) : NaN;
+  return Number.isFinite(parsed) ? parsed : 15;
 })();
 
 type ProbeOutcome = {
@@ -167,17 +187,101 @@ export function getSourcesStatus(): SourcesStatus {
 }
 
 /**
+ * Resolve the per-source outcomes using an EARLY-FINISH strategy:
+ *  - all configured sources run in PARALLEL (each already capped at
+ *    SOURCE_TIMEOUT_MS by probeSource);
+ *  - as soon as the sources that ALREADY responded have produced at least
+ *    EARLY_FINISH_MIN_OFFERS competitors, we stop waiting for the rest;
+ *  - a global JOB_DEADLINE_MS guarantees we never wait longer than that even if
+ *    no source has hit the early-finish threshold yet.
+ * Sources that haven't resolved by the time we finish are reported as still
+ * "upstream" (they simply didn't make it into THIS result) — their work is
+ * abandoned, never awaited further.
+ */
+async function collectOutcomes(
+  query: string,
+  flags: Record<SourceId, boolean>,
+): Promise<ProbeOutcome[]> {
+  const specs: { source: SourceId; run: () => Promise<RawSourceOffer[]> }[] = [
+    { source: "official", run: () => official.searchOffers(query) },
+    { source: "unwrangle", run: () => unwrangleOffers(query) },
+    { source: "oxylabs", run: () => oxylabs.searchOffers(query) },
+    { source: "scrapingbee", run: () => scrapingbee.searchOffers(query) },
+  ];
+
+  // Settled outcomes keyed by source; configured-but-unsettled sources default
+  // to a soft "upstream" note so the UI explains they didn't make this round.
+  const settled = new Map<SourceId, ProbeOutcome>();
+  for (const { source } of specs) {
+    if (!flags[source]) {
+      settled.set(source, {
+        source,
+        configured: false,
+        offers: [],
+        health: "unconfigured",
+        note: null,
+      });
+    }
+  }
+
+  const configuredSpecs = specs.filter((s) => flags[s.source]);
+  if (configuredSpecs.length === 0) {
+    return specs.map((s) => settled.get(s.source)!);
+  }
+
+  let resolvedCount = 0;
+  let resolveDone!: () => void;
+  const earlyDone = new Promise<void>((r) => {
+    resolveDone = r;
+  });
+
+  const collectedOffers = () =>
+    Array.from(settled.values()).reduce((n, o) => n + o.offers.length, 0);
+
+  for (const { source, run } of configuredSpecs) {
+    void probeSource(source, true, run).then((outcome) => {
+      settled.set(source, outcome);
+      resolvedCount += 1;
+      const t = Date.now() - t0;
+      console.log(
+        `[radar] "${query}" ${source}: ${outcome.health} (${outcome.offers.length} ofertas) em ${t}ms`,
+      );
+      // Finish early once every source settled OR we already have enough.
+      if (
+        resolvedCount === configuredSpecs.length ||
+        collectedOffers() >= EARLY_FINISH_MIN_OFFERS
+      ) {
+        resolveDone();
+      }
+    });
+  }
+
+  const t0 = Date.now();
+  const deadline = new Promise<void>((r) => setTimeout(r, JOB_DEADLINE_MS));
+  await Promise.race([earlyDone, deadline]);
+
+  // Build the final outcome list. Any configured source that hasn't settled yet
+  // is reported honestly as a source that didn't contribute to this round.
+  return specs.map((s) => {
+    const got = settled.get(s.source);
+    if (got) return got;
+    return {
+      source: s.source,
+      configured: true,
+      offers: [],
+      health: "upstream" as const,
+      note: "Não respondeu a tempo nesta coleta.",
+    };
+  });
+}
+
+/**
  * Run a triangulated competitor search across all configured sources.
  */
 export async function searchAllSources(query: string): Promise<UnifiedSearchResult> {
   const flags = sourceConfigFlags();
 
-  const outcomes = await Promise.all([
-    probeSource("official", flags.official, () => official.searchOffers(query)),
-    probeSource("unwrangle", flags.unwrangle, () => unwrangleOffers(query)),
-    probeSource("oxylabs", flags.oxylabs, () => oxylabs.searchOffers(query)),
-    probeSource("scrapingbee", flags.scrapingbee, () => scrapingbee.searchOffers(query)),
-  ]);
+  const outcomes = await collectOutcomes(query, flags);
 
   const allOffers = outcomes.flatMap((o) => o.offers);
   const competitors = triangulate(allOffers).sort(

@@ -59,6 +59,18 @@ class DemoProvider implements MercadoLivreProvider {
   }
 }
 
+/**
+ * Per-request timeout (ms) for every call to the official Mercado Livre API.
+ * Overridable via env for tests. Kept short on purpose: screens like Categorias
+ * fan out into dozens of ML calls, so a single slow endpoint must fail fast and
+ * fall back to honest data instead of leaving the UI spinning.
+ */
+const ML_REQUEST_TIMEOUT_MS = (() => {
+  const raw = process.env.ML_REQUEST_TIMEOUT_MS;
+  const parsed = raw !== undefined ? Number(raw) : NaN;
+  return Number.isFinite(parsed) ? parsed : 8000;
+})();
+
 // ---- Official provider (OAuth) ------------------------------------------
 
 /**
@@ -110,11 +122,19 @@ class OfficialProvider implements MercadoLivreProvider {
       client_id: this.creds.appId,
       client_secret: this.creds.clientSecret,
     });
-    const res = await fetch("https://api.mercadolibre.com/oauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-      body,
-    });
+    const tokenController = new AbortController();
+    const tokenTimer = setTimeout(() => tokenController.abort(), ML_REQUEST_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch("https://api.mercadolibre.com/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        body,
+        signal: tokenController.signal,
+      });
+    } finally {
+      clearTimeout(tokenTimer);
+    }
     const json = (await res.json()) as { access_token?: string; expires_in?: number };
     if (!json.access_token) {
       throw new Error(`ML OAuth failed: ${JSON.stringify(json)}`);
@@ -128,9 +148,20 @@ class OfficialProvider implements MercadoLivreProvider {
 
   private async authedFetch(url: string): Promise<any> {
     const token = await this.getToken();
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-    });
+    // Hard per-request timeout so a slow ML endpoint can NEVER leave a tRPC
+    // query pending forever (the root cause of "loading infinito" on screens
+    // that fan out into many ML calls, e.g. Categorias best-sellers).
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ML_REQUEST_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       throw new Error(`ML API ${res.status} on ${url}: ${text.slice(0, 200)}`);
@@ -352,6 +383,9 @@ class OfficialProvider implements MercadoLivreProvider {
   }
 
   async getBestSellers(opts: { categoryId?: string; limit?: number }): Promise<MlSearchResult> {
+    // Honor the caller's limit tightly: each product triggers up to 2 ML calls
+    // (detail + items), so enriching more than requested needlessly multiplies
+    // latency. The Categorias screen only renders 6 cards.
     const limit = Math.min(opts.limit ?? 20, 30);
     const categoryId = opts.categoryId || DEMO_CATEGORIES[0].id;
     const data = await this.tryFetch(
