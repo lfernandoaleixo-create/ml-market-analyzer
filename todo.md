@@ -592,3 +592,11 @@
 - [x] Frontend: ordenação por coluna + janela de visitas ajustável (7/30/60/90d) + export CSV
 - [x] Frontend: exportação CSV do conjunto filtrado
 - [x] Testes + TS limpo + validação + checkpoint
+
+
+## BUG: Meus anúncios carregando infinito (10/jun)
+- [x] getListings: usar visitas em lote (/visits/items?ids=) sempre no carregamento (rápido)
+- [x] Janela por data (7/60/90d) só 1 item por vez na API → opt-in (windowVisits) e limitada a 120 itens
+- [x] Timeout defensivo por request (12s AbortController)
+- [x] Frontend: modo "Total" por padrão + janelas opcionais com aviso
+- [x] Testes (288, +1 garante load sem chamadas por item) + TS limpo + checkpoint

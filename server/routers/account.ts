@@ -163,10 +163,22 @@ export const accountRouter = router({
 
   /** Listings performance (visits, sales, conversion, stock, status). */
   listings: protectedProcedure
-    .input(z.object({ lastDays: z.number().int().min(1).max(150).optional() }).optional())
+    .input(
+      z
+        .object({
+          lastDays: z.number().int().min(1).max(150).optional(),
+          /** When true, fetch dated per-item visits for `lastDays` (slower,
+           *  small catalogs). Default false → fast total visits in batch. */
+          windowVisits: z.boolean().optional(),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
       const account = await resolveAccount(ctx.user.id);
-      return account.getListings({ lastDays: input?.lastDays ?? 30 });
+      return account.getListings({
+        lastDays: input?.lastDays ?? 30,
+        windowVisits: input?.windowVisits ?? false,
+      });
     }),
 
   /** Post-sale summary (claims, cancellations). */

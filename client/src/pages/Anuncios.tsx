@@ -113,14 +113,19 @@ const emptyFilters: ListingFilters = {
 };
 
 export default function Anuncios() {
-  const [windowDays, setWindowDays] = useState<number>(30);
+  // Visits mode: "total" (default, fast batch endpoint) or a dated window
+  // (7/30/60/90d). The dated window is slower because ML only allows one item
+  // per request, so it is opt-in and best for smaller catalogs.
+  const [visitWindow, setVisitWindow] = useState<number | null>(null); // null = total
   const [filters, setFilters] = useState<ListingFilters>(emptyFilters);
   const [sortKey, setSortKey] = useState<SortKey>("visits");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const conn = trpc.account.connection.useQuery();
   const { data, isLoading, error, isFetching } = trpc.account.listings.useQuery(
-    { lastDays: windowDays },
+    visitWindow == null
+      ? { windowVisits: false as const }
+      : { lastDays: visitWindow, windowVisits: true as const },
     { enabled: conn.data?.connected === true },
   );
 
@@ -223,13 +228,23 @@ export default function Anuncios() {
         actions={
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 rounded-xl bg-secondary p-1">
+              <Button
+                size="sm"
+                variant={visitWindow == null ? "default" : "ghost"}
+                className="h-8 rounded-lg px-2.5 text-xs"
+                onClick={() => setVisitWindow(null)}
+                title="Visitas totais do anúncio (rápido)"
+              >
+                Total
+              </Button>
               {WINDOW_OPTIONS.map((w) => (
                 <Button
                   key={w}
                   size="sm"
-                  variant={windowDays === w ? "default" : "ghost"}
+                  variant={visitWindow === w ? "default" : "ghost"}
                   className="h-8 rounded-lg px-2.5 text-xs"
-                  onClick={() => setWindowDays(w)}
+                  onClick={() => setVisitWindow(w)}
+                  title={`Visitas dos últimos ${w} dias (mais lento; ideal p/ catálogos menores)`}
                 >
                   {w}d
                 </Button>
@@ -248,6 +263,13 @@ export default function Anuncios() {
         }
       />
 
+      {visitWindow != null && s && s.total > 120 && (
+        <div className="flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-2.5 text-sm text-blue-700">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          A janela de {visitWindow} dias consulta as visitas por anúncio individualmente e fica limitada aos primeiros 120 itens. Para a loja inteira, use “Total”.
+        </div>
+      )}
+
       {s?.capped && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-700">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -265,7 +287,7 @@ export default function Anuncios() {
           accent="primary"
         />
         <KpiCard
-          label={`Visitas (${windowDays}d)`}
+          label={visitWindow == null ? "Visitas (total)" : `Visitas (${visitWindow}d)`}
           value={isLoading ? "" : formatNumber(s?.totalVisits ?? 0)}
           loading={isLoading}
           icon={Eye}
@@ -352,7 +374,7 @@ export default function Anuncios() {
       {/* Distribution by bands */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <DistributionCard
-          title={`Visitas por faixa (${windowDays}d)`}
+          title={visitWindow == null ? "Visitas por faixa (total)" : `Visitas por faixa (${visitWindow}d)`}
           buckets={VISIT_BUCKETS}
           counts={visitDist}
           loading={isLoading}
@@ -551,7 +573,7 @@ export default function Anuncios() {
           </div>
         )}
         {isFetching && !isLoading && (
-          <p className="mt-3 text-center text-xs text-muted-foreground">Atualizando janela de {windowDays} dias…</p>
+          <p className="mt-3 text-center text-xs text-muted-foreground">Atualizando janela de {visitWindow} dias…</p>
         )}
       </SectionCard>
     </PageShell>

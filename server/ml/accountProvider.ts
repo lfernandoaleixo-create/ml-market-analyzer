@@ -59,15 +59,20 @@ export class AccountProvider {
     return this.cancelledOrdersCache;
   }
 
-  private async get(path: string): Promise<any | null> {
+  private async get(path: string, timeoutMs = 12000): Promise<any | null> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(`${API}${path}`, {
         headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json" },
+        signal: ctrl.signal,
       });
       if (!res.ok) return null;
       return await res.json();
     } catch {
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -192,22 +197,26 @@ export class AccountProvider {
     }
   }
 
-  async getListings(opts: { lastDays?: number; maxItems?: number } = {}): Promise<ListingsResult> {
+  async getListings(opts: { lastDays?: number; maxItems?: number; windowVisits?: boolean } = {}): Promise<ListingsResult> {
     const lastDays = opts.lastDays ?? 30;
     const maxItems = opts.maxItems ?? 600;
     const { ids, capped } = await this.getAllItemIds(maxItems);
     const details = await this.getItemsDetails(ids);
     const detailIds = details.map((d) => d.id);
 
-    // Visits strategy:
-    //  - 30-day window → batch endpoint (1 call / 20 items), much cheaper.
-    //  - other windows → per-item time_window (bounded concurrency).
+    // Visits strategy — performance critical:
+    //  The page must load fast for 500+ items, so we ALWAYS use the cheap batch
+    //  endpoint (/visits/items?ids=, 1 call / 20 items, total visits). The ML
+    //  dated endpoint only accepts ONE item per request, so fetching a custom
+    //  window for every item would mean hundreds of sequential calls (80-100s
+    //  and frequent timeouts). We therefore expose total visits by default and
+    //  only opt into the slow per-item window when explicitly requested AND the
+    //  catalog is small enough to stay responsive.
     const visitsMap = new Map<string, number>();
-    if (lastDays === 30) {
-      const batch = await this.getVisitsBatch(detailIds);
-      batch.forEach((v, id) => visitsMap.set(id, v));
-    } else {
-      const concurrency = 8;
+    const windowVisits = opts.windowVisits === true;
+    const PER_ITEM_WINDOW_CAP = 120; // keep well under the request timeout
+    if (windowVisits && lastDays !== 30 && detailIds.length <= PER_ITEM_WINDOW_CAP) {
+      const concurrency = 10;
       for (let i = 0; i < detailIds.length; i += concurrency) {
         const batch = detailIds.slice(i, i + concurrency);
         const results = await Promise.all(
@@ -215,6 +224,9 @@ export class AccountProvider {
         );
         for (const [id, v] of results) visitsMap.set(id, v);
       }
+    } else {
+      const batch = await this.getVisitsBatch(detailIds);
+      batch.forEach((v, id) => visitsMap.set(id, v));
     }
 
     const items: ListingRow[] = details.map((d) => {
