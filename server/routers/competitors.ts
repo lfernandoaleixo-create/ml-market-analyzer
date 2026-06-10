@@ -26,7 +26,7 @@ import {
   normalizeQuery,
   recoverStalledForUser,
 } from "../competitors/searchStore";
-import { isInFlight, launchSearchJob } from "../competitors/searchJob";
+import { ensureCollected, isInFlight } from "../competitors/searchJob";
 import { getUsageStatus } from "../competitors/usage";
 import type { MyListingBaseline } from "@shared/competitors";
 
@@ -176,7 +176,11 @@ export const competitorsRouter = router({
       }
 
       const id = await createSearch(userId, query);
-      launchSearchJob(id, query);
+      // NOTE: we intentionally do NOT fire-and-forget the collection here.
+      // On a serverless runtime the instance can be frozen/recycled right after
+      // this response returns, losing the background work. Instead the FIRST
+      // `getSearch` poll runs the collection synchronously inside a live
+      // request (see ensureCollected). This is what makes it work in prod.
       return { id, cached: false } as const;
     }),
 
@@ -189,10 +193,20 @@ export const competitorsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      // Runtime fallback: before reading, recover any of this user's orphaned
-      // collections (e.g. lost to a server restart) so the poll never hangs
-      // on "Coletando…" forever — even before the sweep cron is deployed.
-      // Jobs still alive in THIS process are excluded via isInFlight.
+      // PRODUCTION-SAFE COLLECTION:
+      // Run the collection synchronously inside this (live) request. On a
+      // serverless runtime the background fire-and-forget started by
+      // `startSearch` may be lost when the instance is recycled, so we (re)run
+      // the work here, awaiting it. The orchestrator's ~70s global deadline
+      // keeps this well under the platform's request timeout. If another poll
+      // is already collecting in this process, ensureCollected awaits it.
+      try {
+        await ensureCollected(ctx.user!.id, input.id);
+      } catch {
+        /* outcomes are persisted to the row; fall through to read it */
+      }
+      // Safety net: recover any OTHER orphaned collections for this user that
+      // are not the one we just handled (jobs alive in-process are excluded).
       await recoverStalledForUser(ctx.user!.id, Date.now(), isInFlight);
       const view = await getSearchView(
         ctx.user!.id,

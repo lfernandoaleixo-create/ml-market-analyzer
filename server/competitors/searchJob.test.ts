@@ -18,6 +18,7 @@ const store = {
   markRunning: vi.fn(),
   markFailed: vi.fn(),
   saveResult: vi.fn(),
+  getSearchRow: vi.fn(),
 };
 const orchestrator = {
   searchAllSources: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("./searchStore", () => ({
   markRunning: (...a: unknown[]) => store.markRunning(...a),
   markFailed: (...a: unknown[]) => store.markFailed(...a),
   saveResult: (...a: unknown[]) => store.saveResult(...a),
+  getSearchRow: (...a: unknown[]) => store.getSearchRow(...a),
 }));
 vi.mock("./orchestrator", () => ({
   searchAllSources: (...a: unknown[]) => orchestrator.searchAllSources(...a),
@@ -63,6 +65,7 @@ beforeEach(() => {
   store.markRunning.mockResolvedValue(undefined);
   store.markFailed.mockResolvedValue(undefined);
   store.saveResult.mockResolvedValue(undefined);
+  store.getSearchRow.mockResolvedValue(null);
 });
 
 describe("searchJob — runSearchJob", () => {
@@ -119,7 +122,59 @@ describe("searchJob — runSearchJob", () => {
     expect(note).toContain("boom");
   });
 
-  it("in-flight guard: a second concurrent run for the same id is a no-op", async () => {
+  it("ensureCollected runs the collection synchronously when the row is pending", async () => {
+    store.getSearchRow.mockResolvedValue({ id: 10, query: "shampoo", status: "pending" } as never);
+    orchestrator.searchAllSources.mockResolvedValue(
+      result({
+        competitors: [{ matchKey: "x" } as never],
+        sourcesUsed: [sourceStatus({ health: "ok" })],
+      }),
+    );
+    const mod = await loadModule();
+    await mod.ensureCollected(1, 10);
+
+    expect(store.markRunning).toHaveBeenCalledWith(10);
+    expect(orchestrator.searchAllSources).toHaveBeenCalledWith("shampoo");
+    expect(store.saveResult).toHaveBeenCalledTimes(1);
+  });
+
+  it("ensureCollected is a no-op when the row is already done", async () => {
+    store.getSearchRow.mockResolvedValue({ id: 11, query: "x", status: "done" } as never);
+    const mod = await loadModule();
+    await mod.ensureCollected(1, 11);
+
+    expect(orchestrator.searchAllSources).not.toHaveBeenCalled();
+    expect(store.markRunning).not.toHaveBeenCalled();
+  });
+
+  it("ensureCollected does not block when a job is already in-flight in this process", async () => {
+    let resolveCollect!: (v: UnifiedSearchResult) => void;
+    const gate = new Promise<UnifiedSearchResult>((res) => {
+      resolveCollect = res;
+    });
+    orchestrator.searchAllSources.mockReturnValue(gate);
+    const mod = await loadModule();
+
+    // Start a real collection that parks on the gate.
+    const running = mod.runSearchJob(20, "x");
+    await Promise.resolve();
+    expect(mod.isInFlight(20)).toBe(true);
+
+    // ensureCollected for the same id returns immediately (does not await gate).
+    await mod.ensureCollected(1, 20);
+    // getSearchRow must NOT have been consulted (short-circuited on in-flight).
+    expect(store.getSearchRow).not.toHaveBeenCalled();
+
+    resolveCollect(
+      result({
+        competitors: [{ matchKey: "x" } as never],
+        sourcesUsed: [sourceStatus({ health: "ok" })],
+      }),
+    );
+    await running;
+  });
+
+  it("in-flight dedupe: concurrent runs for the same id share ONE collection", async () => {
     // Hold the collection open via a deferred promise we control.
     let resolveCollect!: (v: UnifiedSearchResult) => void;
     const gate = new Promise<UnifiedSearchResult>((res) => {
@@ -134,18 +189,19 @@ describe("searchJob — runSearchJob", () => {
     await Promise.resolve();
     expect(mod.isInFlight(5)).toBe(true);
 
-    // A second concurrent run for the same id must bail out immediately.
-    await mod.runSearchJob(5, "x");
+    // A second concurrent run for the same id reuses the SAME promise — it must
+    // NOT start a second collection.
+    const second = mod.runSearchJob(5, "x");
     expect(orchestrator.searchAllSources).toHaveBeenCalledTimes(1);
 
-    // Now release the first run and let it settle.
+    // Now release the collection and let both settle together.
     resolveCollect(
       result({
         competitors: [{ matchKey: "x" } as never],
         sourcesUsed: [sourceStatus({ health: "ok" })],
       }),
     );
-    await first;
+    await Promise.all([first, second]);
 
     expect(orchestrator.searchAllSources).toHaveBeenCalledTimes(1);
     expect(store.saveResult).toHaveBeenCalledTimes(1);

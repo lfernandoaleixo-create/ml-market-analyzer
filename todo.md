@@ -369,10 +369,10 @@
 
 
 ## URGENTE — Bugs reais reportados via gravação de tela (09/jun)
-- [ ] Radar de concorrentes: spinner infinito + botão "Buscar concorrentes" sem ação — busca não inicia/não retorna
-- [ ] Categorias > "Produtos em destaque": cards em loading infinito; nunca carregam imagem/preço
-- [ ] Banner verde de aviso com texto de erro ("relátorio... falha de versão de testes") — reescrever/remover texto não-profissional
-- [ ] Validar ao vivo cada correção + suíte de testes verde + checkpoint
+- [x] Radar de concorrentes: spinner infinito + botão "Buscar concorrentes" sem ação — RESOLVIDO (early-finish + teto global; validado: 51 concorrentes)
+- [x] Categorias > "Produtos em destaque": cards em loading infinito — RESOLVIDO (timeout por requisição + fan-out limitado; validado: 48 termos + 6 produtos)
+- [x] Banner verde de aviso com texto de erro — confirmado que era da versão publicada antiga; código atual já correto (grep sem ocorrências)
+- [x] Validar ao vivo cada correção + suíte de testes verde (221 testes) + checkpoint (7f9c7e65)
 
 
 ## URGENTE — Correções da gravação de tela (09/06 20:44) — CONCLUÍDO
@@ -382,3 +382,13 @@
 - [x] Categorias > Produtos em destaque / Termos em alta (loading infinito): timeout por requisição (AbortController, 8s) em authedFetch e no token OAuth do provider oficial; fan-out de getBestSellers limitado ao solicitado pela UI (validado ao vivo: 48 termos + 6 produtos reais carregam em ~12s)
 - [x] Banner "verde com texto de erro": confirmado que o texto problemático era da versão publicada antiga; código atual já tem mensagens corretas (verificado por grep, sem ocorrências)
 - [x] Suíte completa verde: 221 testes / 30 arquivos + TS/LSP limpos
+
+
+## CAUSA RAIZ DE PRODUÇÃO — Radar travado SÓ no app publicado (10/06)
+- [x] Diagnóstico: coleta era fire-and-forget (launchSearchJob) iniciada dentro do startSearch; no Cloud Run (min-instances=0) a instância congela/recicla após a resposta HTTP e perde o job em memória → linha fica "running" para sempre → spinner infinito SÓ em produção
+- [x] Confirmado em produção: market.status responde (backend novo no ar), mas startSearch/getSearch são protected; reproduzido o modelo de falha
+- [x] Reescrita: coleta agora roda SÍNCRONA dentro do polling vivo (ensureCollected no getSearch), bounded pelo deadline global ~70s do orquestrador (< 180s do Cloud Run); startSearch não faz mais fire-and-forget
+- [x] Dedupe por processo com promise compartilhada; polls subsequentes não bloqueiam; stale-recovery mantido como rede de segurança
+- [x] Testes: searchJob (8) atualizados + novo resilientCollection.test.ts (2) simulando perda de instância
+- [x] Validado ao vivo: "hashi descartavel" → 52 concorrentes reais (Oxylabs contribuiu)
+- [x] Suíte completa: 226 testes / 31 arquivos verdes + TS limpo
