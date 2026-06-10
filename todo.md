@@ -509,3 +509,10 @@
 - [x] Backend: procedure account.productsByDay + AccountProvider.getProductsByDay (orders do dia BRT agrupados por item) + tipo DayProducts
 - [x] Testes: getProductsByDay (dia com vendas + boundary BRT + dia sem vendas) — 265 testes verdes, TS limpo
 - [x] Checkpoint (validação ao vivo bloqueada por indisponibilidade transitória do banco; coberto por testes)
+
+
+## Lembrete de conexão ML expirada (jun/2026)
+- [x] Backend: getCredentials expõe tokenExpired/tokenExpiresAt + helper isConnectionStale (reuso back/front)
+- [x] Frontend: lembrete âmbar discreto no canto superior do Painel quando expirado/erro, com atalho para Configurações
+- [x] Ocultar quando conexão estiver ativa (validado ao vivo: oculto) + 6 testes do isConnectionStale (271 testes verdes, TS limpo)
+- [x] Causa raiz da reconexão resolvida: Client Secret estava vazio no banco; reconectado (status connected, secret 32 chars, token renovando)

@@ -43,3 +43,27 @@ export function resolveEnvMlCredentials(): MlCredentials | null {
   if (!hasValidMlCredentialFormat(appId, clientSecret)) return null;
   return { appId, clientSecret };
 }
+
+/**
+ * Decides whether the dashboard should surface the "connection expired" reminder.
+ *
+ * The reminder is only meaningful once the user has actually connected via OAuth
+ * (so we never nag a brand-new account that simply hasn't connected yet). It turns
+ * on when the stored credentials report an error status OR the cached access token
+ * has already passed its expiry instant.
+ */
+export function isConnectionStale(input: {
+  oauthConnected: boolean;
+  status?: string | null;
+  tokenExpiresAt?: number | null;
+  now?: number;
+}): boolean {
+  if (!input.oauthConnected) return false;
+  if (input.status === "error") return true;
+  const now = input.now ?? Date.now();
+  return (
+    typeof input.tokenExpiresAt === "number" &&
+    input.tokenExpiresAt > 0 &&
+    input.tokenExpiresAt <= now
+  );
+}

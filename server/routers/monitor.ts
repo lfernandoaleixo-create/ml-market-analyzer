@@ -27,7 +27,7 @@ import {
   deleteHeartbeatJob,
   updateHeartbeatJob,
 } from "../_core/heartbeat";
-import { hasValidMlCredentialFormat } from "../ml/credentials";
+import { hasValidMlCredentialFormat, isConnectionStale } from "../ml/credentials";
 
 
 export const monitorRouter = router({
@@ -166,8 +166,19 @@ export const monitorRouter = router({
         statusMessage: null as string | null,
         siteId: "MLB",
         oauthConnected: false,
+        tokenExpiresAt: null as number | null,
+        tokenExpired: false,
       };
     }
+    const oauthConnected = Boolean(creds.refreshToken && creds.accessToken);
+    const expiresAt = creds.tokenExpiresAt ? Number(creds.tokenExpiresAt) : null;
+    // Considera expirado quando há conexão OAuth mas o access token já venceu
+    // (a renovação automática usa o refresh token; se ela falhar, o status sai de "connected").
+    const tokenExpired = isConnectionStale({
+      oauthConnected,
+      status: creds.status,
+      tokenExpiresAt: expiresAt,
+    });
     return {
       configured: hasValidMlCredentialFormat(creds.appId, creds.clientSecret),
       appId: creds.appId,
@@ -175,9 +186,9 @@ export const monitorRouter = router({
       status: creds.status,
       statusMessage: creds.statusMessage,
       siteId: creds.siteId,
-      oauthConnected: Boolean(
-        creds.refreshToken && creds.accessToken,
-      ),
+      oauthConnected,
+      tokenExpiresAt: expiresAt,
+      tokenExpired,
     };
   }),
 

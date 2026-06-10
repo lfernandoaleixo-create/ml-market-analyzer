@@ -65,7 +65,7 @@ import {
   ShoppingCart,
   PackageOpen,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 type PeriodKind = "current" | "previous" | "last60" | "custom";
 
@@ -79,6 +79,11 @@ const TABS: Array<{ key: PeriodKind; label: string }> = [
 export default function Painel() {
   const conn = trpc.account.connection.useQuery();
   const connected = conn.data?.connected === true;
+  // Lightweight credentials read to surface a discreet "connection expired" reminder.
+  const creds = trpc.monitor.getCredentials.useQuery(undefined, {
+    refetchInterval: 5 * 60 * 1000, // re-check a cada 5 min
+  });
+  const connectionStale = creds.data?.tokenExpired === true;
 
   const [kind, setKind] = useState<PeriodKind>("current");
   const [fromIso, setFromIso] = useState(monthStartIsoBrt());
@@ -164,6 +169,7 @@ export default function Painel() {
           </>
         }
         subtitle="Visão geral da sua loja no Mercado Livre — vendas, anúncios e reputação em tempo real."
+        actions={connectionStale ? <ConnectionReminder /> : undefined}
       />
 
       {/* Lifetime store card — right under the title, compact */}
@@ -926,5 +932,33 @@ function LifetimeCard({
         ))}
       </div>
     </Card>
+  );
+}
+
+
+/**
+ * Discreet reminder shown in the top-right of the dashboard header only when the
+ * Mercado Livre connection has expired or errored. Clicking it jumps to Settings
+ * so the user can reconnect. Hidden entirely while the connection is healthy.
+ */
+function ConnectionReminder() {
+  const [, setLocation] = useLocation();
+  return (
+    <button
+      type="button"
+      onClick={() => setLocation("/configuracoes")}
+      title="Sua conexão com o Mercado Livre expirou. Clique para reconectar em Configurações."
+      className={cn(
+        "group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium",
+        "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+        "transition-colors hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+      )}
+    >
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500/60" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+      </span>
+      Conexão expirada — reconectar
+    </button>
   );
 }
