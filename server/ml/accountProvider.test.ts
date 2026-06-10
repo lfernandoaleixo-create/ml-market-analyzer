@@ -541,6 +541,7 @@ describe("AccountProvider.getProductsByDay", () => {
     };
 
     global.fetch = makeFetchRouter([
+      { match: /order\.status=cancelled/, body: { paging: { total: 0 }, results: [] } },
       { match: /sort=date_desc/, body: paidBody },
       { match: /sort=date_asc/, body: { paging: { total: 3 }, results: [] } },
       // Multiget enrichment for missing thumbnails → return empty so it's a no-op.
@@ -577,6 +578,7 @@ describe("AccountProvider.getProductsByDay", () => {
       ],
     };
     global.fetch = makeFetchRouter([
+      { match: /order\.status=cancelled/, body: { paging: { total: 0 }, results: [] } },
       { match: /sort=date_desc/, body: paidBody },
       { match: /\/items\?ids=/, body: [] },
     ]) as unknown as typeof fetch;
@@ -589,5 +591,65 @@ describe("AccountProvider.getProductsByDay", () => {
     expect(day.revenue).toBe(0);
     expect(day.unitsSold).toBe(0);
     expect(day.products).toEqual([]);
+  });
+
+  it("aggregates cancelled products created on the requested BRT day", async () => {
+    const paidBody = {
+      paging: { total: 1 },
+      results: [
+        {
+          id: "O1",
+          date_created: "2026-04-24T10:00:00.000Z",
+          payments: [{ status: "approved", transaction_amount: 100 }],
+          order_items: [
+            { quantity: 2, unit_price: 50, item: { id: "MLB1", title: "Camiseta" } },
+          ],
+        },
+      ],
+    };
+    const cancelledBody = {
+      paging: { total: 2 },
+      results: [
+        {
+          id: "C1",
+          date_created: "2026-04-24T11:00:00.000Z",
+          status: "cancelled",
+          total_amount: 80,
+          order_items: [
+            { quantity: 1, unit_price: 80, item: { id: "MLB9", title: "Mochila" } },
+          ],
+        },
+        {
+          id: "C2",
+          // Different BRT day → must be excluded.
+          date_created: "2026-04-26T12:00:00.000Z",
+          status: "cancelled",
+          total_amount: 999,
+          order_items: [
+            { quantity: 3, unit_price: 333, item: { id: "MLB7", title: "Fora do dia" } },
+          ],
+        },
+      ],
+    };
+    global.fetch = makeFetchRouter([
+      { match: /order\.status=cancelled/, body: cancelledBody },
+      { match: /sort=date_desc/, body: paidBody },
+      { match: /\/items\?ids=/, body: [] },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const day = await provider.getProductsByDay("2026-04-24");
+
+    // Paid side intact.
+    expect(day.orders).toBe(1);
+    expect(day.products.map((p) => p.itemId)).toContain("MLB1");
+    // Cancelled side: only the same-day order counts.
+    expect(day.cancelledOrders).toBe(1);
+    expect(day.cancelledRevenue).toBe(80);
+    expect(day.cancelledUnits).toBe(1);
+    const cancelledIds = day.cancelledProducts.map((p) => p.itemId);
+    expect(cancelledIds).toContain("MLB9");
+    expect(cancelledIds).not.toContain("MLB7");
+    expect(day.cancelledProducts[0].revenue).toBe(80);
   });
 });

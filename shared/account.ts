@@ -86,6 +86,14 @@ export interface DayProducts {
   unitsSold: number;
   /** Products sold, ranked by revenue desc. */
   products: TopProduct[];
+  /** Number of cancelled orders created on this day. */
+  cancelledOrders: number;
+  /** Total value of cancelled orders on this day. */
+  cancelledRevenue: number;
+  /** Total units cancelled across all products on this day. */
+  cancelledUnits: number;
+  /** Products from cancelled orders this day, aggregated by item, revenue desc. */
+  cancelledProducts: TopProduct[];
   currency: string;
 }
 

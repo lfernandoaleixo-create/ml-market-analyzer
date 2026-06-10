@@ -556,8 +556,44 @@ export class AccountProvider {
 
     const products = Array.from(productMap.values()).sort((a, b) => b.revenue - a.revenue);
 
-    // Enrich missing thumbnails via multiget (best-effort).
-    const missing = products.filter((p) => !p.thumbnail && p.itemId && p.itemId !== "?");
+    // ---- Cancelled orders created on this same BRT day ----
+    const cancelledMap = new Map<string, TopProduct>();
+    let cancelledOrders = 0;
+    let cancelledRevenue = 0;
+    let cancelledUnits = 0;
+    const cancelledAll = await this.getCancelledOrders();
+    for (const o of cancelledAll) {
+      const created = o.date_created ? new Date(o.date_created).getTime() : 0;
+      if (!created) continue;
+      if (brtDateKey(created) !== dayIso) continue;
+      cancelledOrders += 1;
+      cancelledRevenue += o.total_amount ?? 0;
+      for (const oi of o.order_items ?? []) {
+        const qty = oi.quantity ?? 0;
+        cancelledUnits += qty;
+        const item = oi.item ?? {};
+        const id = item.id ?? "?";
+        const rawThumb: string =
+          item.thumbnail ?? item.secure_thumbnail ?? item.picture_url ?? "";
+        const thumb = rawThumb ? rawThumb.replace(/^http:\/\//, "https://") : undefined;
+        const existing = cancelledMap.get(id) ?? {
+          itemId: id,
+          title: item.title ?? "",
+          unitsSold: 0,
+          revenue: 0,
+          thumbnail: thumb,
+          permalink: item.permalink ?? (id !== "?" ? `https://produto.mercadolivre.com.br/${id}` : undefined),
+        };
+        if (!existing.thumbnail && thumb) existing.thumbnail = thumb;
+        existing.unitsSold += qty;
+        existing.revenue += (oi.unit_price ?? 0) * qty;
+        cancelledMap.set(id, existing);
+      }
+    }
+    const cancelledProducts = Array.from(cancelledMap.values()).sort((a, b) => b.revenue - a.revenue);
+
+    // Enrich missing thumbnails via multiget (best-effort) for BOTH lists.
+    const missing = [...products, ...cancelledProducts].filter((p) => !p.thumbnail && p.itemId && p.itemId !== "?");
     if (missing.length > 0) {
       try {
         const details = await this.getItemsDetails(missing.map((p) => p.itemId));
@@ -581,6 +617,10 @@ export class AccountProvider {
       revenue,
       unitsSold,
       products,
+      cancelledOrders,
+      cancelledRevenue,
+      cancelledUnits,
+      cancelledProducts,
       currency: this.currency,
     };
   }

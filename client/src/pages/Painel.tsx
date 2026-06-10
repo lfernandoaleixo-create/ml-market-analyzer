@@ -688,17 +688,17 @@ function ListingStat({
     violet: "bg-violet-500/10 text-violet-600",
   };
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-secondary/50 p-3.5">
-      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", toneCls[tone])}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="min-w-0">
+    <div className="flex h-full flex-col rounded-xl bg-secondary/50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", toneCls[tone])}>
+          <Icon className="h-4.5 w-4.5" />
+        </div>
         <p className="font-display text-2xl font-bold leading-none tracking-tight tabular-nums">
           {formatNumber(value)}
         </p>
-        <p className="mt-1 text-sm font-medium leading-tight">{label}</p>
-        {hint && <p className="mt-0.5 text-xs text-muted-foreground leading-tight">{hint}</p>}
       </div>
+      <p className="text-sm font-semibold leading-tight">{label}</p>
+      {hint && <p className="mt-1 text-xs text-muted-foreground leading-snug">{hint}</p>}
     </div>
   );
 }
@@ -895,6 +895,7 @@ function DaySales({
 
   const data = dayQuery.data;
   const products = data?.products ?? [];
+  const cancelledProducts = data?.cancelledProducts ?? [];
   const COLLAPSED_COUNT = 6;
   const hasMore = products.length > COLLAPSED_COUNT;
   const visibleProducts = expanded ? products : products.slice(0, COLLAPSED_COUNT);
@@ -951,6 +952,13 @@ function DaySales({
             <DayBadge tone="emerald" label={formatBRL(data.revenue)} hint="faturado" />
             <DayBadge tone="primary" label={`${formatNumber(data.orders)} pedido${data.orders === 1 ? "" : "s"}`} hint="pago" />
             <DayBadge tone="neutral" label={`${formatNumber(data.unitsSold)} un.`} hint="vendidas" />
+            {data.cancelledOrders > 0 && (
+              <DayBadge
+                tone="rose"
+                label={`${formatNumber(data.cancelledOrders)} cancelado${data.cancelledOrders === 1 ? "" : "s"}`}
+                hint={formatBRL(data.cancelledRevenue)}
+              />
+            )}
           </div>
         )}
       </div>
@@ -1031,6 +1039,51 @@ function DaySales({
           )}
         </div>
       )}
+
+      {!dayQuery.isLoading && cancelledProducts.length > 0 && (
+        <div className="mt-5 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <XCircle className="h-4 w-4 text-rose-600" />
+            <p className="font-display text-sm font-semibold tracking-tight text-rose-700">
+              Produtos cancelados neste dia
+            </p>
+            <span className="text-xs text-muted-foreground">
+              · {formatNumber(data?.cancelledUnits ?? 0)} un. · {formatBRL(data?.cancelledRevenue ?? 0)}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="py-2.5 pr-2 text-left font-semibold">Produto</th>
+                  <th className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">Qtd.</th>
+                  <th className="py-2.5 pl-2 text-right font-semibold whitespace-nowrap">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {cancelledProducts.map((p) => (
+                  <tr key={p.itemId} className="align-middle transition-colors hover:bg-rose-500/[0.06]">
+                    <td className="py-2.5 pr-2">
+                      <ProductCell
+                        title={p.title}
+                        thumbnail={p.thumbnail}
+                        permalink={p.permalink}
+                        titleClassName="max-w-[280px]"
+                      />
+                    </td>
+                    <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap font-medium">
+                      {formatNumber(p.unitsSold)}
+                    </td>
+                    <td className="py-2.5 pl-2 text-right font-bold tabular-nums whitespace-nowrap text-rose-600">
+                      {formatBRL(p.revenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </SectionCard>
     </div>
   );
@@ -1041,7 +1094,7 @@ function DayBadge({
   label,
   hint,
 }: {
-  tone: "emerald" | "primary" | "neutral";
+  tone: "emerald" | "primary" | "neutral" | "rose";
   label: string;
   hint: string;
 }) {
@@ -1050,7 +1103,9 @@ function DayBadge({
       ? "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20"
       : tone === "primary"
         ? "bg-primary/10 text-primary ring-primary/20"
-        : "bg-secondary text-foreground ring-border";
+        : tone === "rose"
+          ? "bg-rose-500/10 text-rose-700 ring-rose-500/20"
+          : "bg-secondary text-foreground ring-border";
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1", cls)}>
       <ShoppingCart className="h-3.5 w-3.5" />
@@ -1102,6 +1157,7 @@ function LifetimeCard({
     value: string;
     sub: string;
     tint: string;
+    valueClass?: string;
   }> = [
     {
       icon: CalendarDays,
@@ -1123,6 +1179,7 @@ function LifetimeCard({
       value: formatBRL(totalRevenue),
       sub: "acumulado de todas as vendas",
       tint: "bg-emerald-500/12 text-emerald-600",
+      valueClass: "text-emerald-600",
     },
     {
       icon: Receipt,
@@ -1143,7 +1200,8 @@ function LifetimeCard({
       label: "Valor cancelado",
       value: formatBRL(canceledRevenue),
       sub: "acumulado ao longo do tempo",
-      tint: "bg-amber-500/12 text-amber-600",
+      tint: "bg-rose-500/12 text-rose-600",
+      valueClass: "text-rose-600",
     },
   ];
 
@@ -1170,7 +1228,7 @@ function LifetimeCard({
             {loading ? (
               <Skeleton className="mt-1.5 h-6 w-20" />
             ) : (
-              <p className="mt-1.5 font-display text-lg font-bold leading-none tracking-tight">
+              <p className={cn("mt-1.5 font-display text-lg font-bold leading-none tracking-tight", it.valueClass)}>
                 {it.value}
               </p>
             )}

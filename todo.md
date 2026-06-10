@@ -566,3 +566,10 @@
 - [x] Ranking Top 10 mais largo (largura total) e card "Anúncios sem vendas" abaixo do ranking
 - [x] Melhorar card de Anúncios: sem vendas, pausados sem venda, pausados com venda, sem estoque, ativos etc.
 - [x] Corrigir alinhamento dos números nos cards de "Vendas do dia" (estavam deslocados à esquerda)
+
+
+## Ajustes (10/jun, 3ª rodada)
+- [x] Histórico acumulado: faturamento em verde, valor cancelado em vermelho (destaque visual)
+- [x] Backend getProductsByDay: incluir produtos cancelados do dia
+- [x] Lista de produtos do dia (Painel e Vendas): mostrar itens cancelados ao selecionar/clicar num dia com cancelamento
+- [x] Card "Anúncios em detalhe": padronizar estética/tipografia dos tiles

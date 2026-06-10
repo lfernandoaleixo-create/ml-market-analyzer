@@ -409,6 +409,7 @@ function DayDetail({
 
   const data = dayQuery.data;
   const products = data?.products ?? [];
+  const cancelledProducts = data?.cancelledProducts ?? [];
   const COLLAPSED_COUNT = 8;
   const hasMore = products.length > COLLAPSED_COUNT;
   const visibleProducts = expanded ? products : products.slice(0, COLLAPSED_COUNT);
@@ -495,10 +496,10 @@ function DayDetail({
             value={formatNumber(data?.unitsSold ?? 0)}
           />
           <DaySummaryCard
-            tone="rose"
-            icon={TrendingDown}
-            label="Itens distintos"
-            value={formatNumber(products.length)}
+            tone={(data?.cancelledOrders ?? 0) > 0 ? "rose" : "slate"}
+            icon={XCircle}
+            label="Cancelados"
+            value={formatNumber(data?.cancelledOrders ?? 0)}
           />
         </div>
       )}
@@ -580,6 +581,51 @@ function DayDetail({
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {!dayQuery.isLoading && cancelledProducts.length > 0 && (
+        <div className="mt-5 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <XCircle className="h-4 w-4 text-rose-600" />
+            <p className="font-display text-sm font-semibold tracking-tight text-rose-700">
+              Produtos cancelados neste dia
+            </p>
+            <span className="text-xs text-muted-foreground">
+              · {formatNumber(data?.cancelledUnits ?? 0)} un. · {formatBRL(data?.cancelledRevenue ?? 0)}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="py-2.5 pr-2 text-left font-semibold">Produto</th>
+                  <th className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">Qtd.</th>
+                  <th className="py-2.5 pl-2 text-right font-semibold whitespace-nowrap">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {cancelledProducts.map((p) => (
+                  <tr key={p.itemId} className="align-middle transition-colors hover:bg-rose-500/[0.06]">
+                    <td className="py-2.5 pr-2">
+                      <ProductCell
+                        title={p.title}
+                        thumbnail={p.thumbnail}
+                        permalink={p.permalink}
+                        titleClassName="max-w-[280px]"
+                      />
+                    </td>
+                    <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap font-medium">
+                      {formatNumber(p.unitsSold)}
+                    </td>
+                    <td className="py-2.5 pl-2 text-right font-bold tabular-nums whitespace-nowrap text-rose-600">
+                      {formatBRL(p.revenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </SectionCard>
@@ -840,7 +886,7 @@ function DaySummaryCard({
   label,
   value,
 }: {
-  tone: "emerald" | "primary" | "blue" | "violet" | "rose";
+  tone: "emerald" | "primary" | "blue" | "violet" | "rose" | "slate";
   icon: typeof DollarSign;
   label: string;
   value: string;
@@ -854,7 +900,9 @@ function DaySummaryCard({
           ? "bg-blue-500/12 text-blue-600"
           : tone === "violet"
             ? "bg-violet-500/12 text-violet-600"
-            : "bg-rose-500/12 text-rose-600";
+            : tone === "slate"
+              ? "bg-slate-400/15 text-slate-600"
+              : "bg-rose-500/12 text-rose-600";
   return (
     <div className="flex flex-col items-center gap-2 rounded-xl bg-secondary/50 p-4 text-center">
       <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tint}`}>
