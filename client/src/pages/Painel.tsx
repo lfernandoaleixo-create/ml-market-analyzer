@@ -79,6 +79,25 @@ const TABS: Array<{ key: PeriodKind; label: string }> = [
   { key: "custom", label: "Personalizado" },
 ];
 
+/** Maps a Mercado Livre reputation level id to a KpiCard accent color. */
+function reputationAccent(
+  levelId?: string | null,
+): "green" | "yellow" | "orange" | "red" | "violet" {
+  switch (levelId) {
+    case "5_green":
+    case "4_light_green":
+      return "green";
+    case "3_yellow":
+      return "yellow";
+    case "2_orange":
+      return "orange";
+    case "1_red":
+      return "red";
+    default:
+      return "violet";
+  }
+}
+
 export default function Painel() {
   const conn = trpc.account.connection.useQuery();
   const connected = conn.data?.connected === true;
@@ -185,54 +204,7 @@ export default function Painel() {
         canceledRevenue={lifetime.data?.canceledRevenue ?? 0}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          label="Faturamento"
-          value={loadingSales ? "" : formatBRL(k?.revenue ?? 0)}
-          loading={loadingSales}
-          icon={DollarSign}
-          accent="emerald"
-          sublabel={
-            loadingSales ? undefined : (
-              <span className="inline-flex items-center gap-1">
-                <ShoppingBag className="h-3 w-3 text-primary" />
-                {formatNumber(k?.orders ?? 0)} pedidos pagos · {periodTitle.toLowerCase()}
-              </span>
-            )
-          }
-        />
-        <KpiCard
-          label="Cancelados"
-          value={loadingSales ? "" : formatNumber(k?.cancelled ?? 0)}
-          loading={loadingSales}
-          icon={XCircle}
-          accent="rose"
-          sublabel={
-            loadingSales ? undefined : (
-              <span className={(k?.cancelledAmount ?? 0) > 0 ? "text-rose-600" : undefined}>
-                {formatBRL(k?.cancelledAmount ?? 0)} cancelados
-              </span>
-            )
-          }
-        />
-        <KpiCard
-          label="Anúncios ativos"
-          value={listings.isLoading ? "" : `${formatNumber(s?.active ?? 0)} / ${formatNumber(s?.total ?? 0)}`}
-          loading={listings.isLoading}
-          icon={Package}
-          accent="blue"
-        />
-        <KpiCard
-          label="Reputação"
-          value={rep.isLoading ? "" : (r?.levelId ? reputationLabel(r.levelId).split(" ")[0] : "—")}
-          loading={rep.isLoading}
-          icon={Star}
-          accent="violet"
-          sublabel={r ? `${formatNumber(r.transactionsCompleted)} concluídas` : undefined}
-        />
-      </div>
-
-      {/* Period selector */}
+      {/* Period selector — controls both the KPI cards and the chart below */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap items-center gap-1 rounded-xl bg-secondary p-1">
           {TABS.map((t) => (
@@ -270,6 +242,56 @@ export default function Painel() {
         <span className="ml-auto inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
           <CalendarRange className="h-4 w-4" /> {periodTitle}
         </span>
+      </div>
+
+      {/* KPI cards for the selected period */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          label="Faturamento"
+          value={loadingSales ? "" : formatBRL(k?.revenue ?? 0)}
+          loading={loadingSales}
+          icon={DollarSign}
+          accent="emerald"
+          sublabel={
+            loadingSales ? undefined : (
+              <span className="inline-flex items-center gap-1">
+                <ShoppingBag className="h-3 w-3 text-primary" />
+                <span className="font-display text-sm font-bold text-foreground">{formatNumber(k?.orders ?? 0)}</span>{" "}
+                {(k?.orders ?? 0) === 1 ? "pedido" : "pedidos"}
+              </span>
+            )
+          }
+        />
+        <KpiCard
+          label="Cancelados"
+          value={loadingSales ? "" : formatBRL(k?.cancelledAmount ?? 0)}
+          loading={loadingSales}
+          icon={XCircle}
+          accent="rose"
+          sublabel={
+            loadingSales ? undefined : (
+              <span className="inline-flex items-center gap-1">
+                <span className="font-display text-sm font-bold text-foreground">{formatNumber(k?.cancelled ?? 0)}</span>{" "}
+                {(k?.cancelled ?? 0) === 1 ? "pedido cancelado" : "pedidos cancelados"}
+              </span>
+            )
+          }
+        />
+        <KpiCard
+          label="Anúncios ativos"
+          value={listings.isLoading ? "" : `${formatNumber(s?.active ?? 0)} / ${formatNumber(s?.total ?? 0)}`}
+          loading={listings.isLoading}
+          icon={Package}
+          accent="blue"
+        />
+        <KpiCard
+          label="Reputação"
+          value={rep.isLoading ? "" : (r?.levelId ? reputationLabel(r.levelId).split(" ")[0] : "—")}
+          loading={rep.isLoading}
+          icon={Star}
+          accent={reputationAccent(r?.levelId)}
+          sublabel={r ? `${formatNumber(r.transactionsCompleted)} concluídas` : undefined}
+        />
       </div>
 
       {/* Bar chart — full width, two thin bars per day (sales + cancellations) */}

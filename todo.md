@@ -524,3 +524,12 @@
 - [x] Card do mês "Faturamento": "10 pedidos pagos" agora aparece dentro deste card (sublabel)
 - [x] Card do mês de pedidos: removido o "1 cancelado" e criado card novo "Cancelados" com qtd + valor (R$)
 - [x] Testes (getStoreLifetime com/sem cancelados) + validação ao vivo (18 / R$ 2.442,40 · mês 1 / R$ 199,40) — 271 testes verdes, TS limpo
+
+
+## Ajustes cards do mês + seletor (jun/2026)
+
+- [x] Card Faturamento: rodapé só "10 pedidos" (número destacado em fonte maior/negrito) + plural condicional
+- [x] Card Cancelados: valor (R$) em cima e nº de pedidos embaixo (mesma lógica do Faturamento) + plural condicional
+- [x] Card Reputação: accent segue a cor real (verde/amarelo/laranja/vermelho) via reputationAccent
+- [x] Seletor de período movido para entre Histórico acumulado e os cards do mês (controla cards + gráfico)
+- [x] Validado ao vivo + 271 testes verdes + TS limpo + checkpoint

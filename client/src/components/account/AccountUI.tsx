@@ -35,13 +35,15 @@ export function KpiCard({
   sublabel,
   accent = "primary",
   loading,
+  valueClassName,
 }: {
   label: string;
   value: ReactNode;
   icon?: LucideIcon;
   sublabel?: ReactNode;
-  accent?: "primary" | "emerald" | "blue" | "amber" | "violet" | "rose";
+  accent?: "primary" | "emerald" | "blue" | "amber" | "violet" | "rose" | "green" | "yellow" | "orange" | "red";
   loading?: boolean;
+  valueClassName?: string;
 }) {
   const accentMap: Record<string, { icon: string; bar: string }> = {
     primary: { icon: "bg-primary/12 text-primary", bar: "bg-primary" },
@@ -50,6 +52,10 @@ export function KpiCard({
     amber: { icon: "bg-amber-500/12 text-amber-600", bar: "bg-amber-500" },
     violet: { icon: "bg-violet-500/12 text-violet-600", bar: "bg-violet-500" },
     rose: { icon: "bg-rose-500/12 text-rose-600", bar: "bg-rose-500" },
+    green: { icon: "bg-emerald-500/12 text-emerald-600", bar: "bg-emerald-500" },
+    yellow: { icon: "bg-yellow-400/15 text-yellow-600", bar: "bg-yellow-400" },
+    orange: { icon: "bg-orange-500/12 text-orange-600", bar: "bg-orange-500" },
+    red: { icon: "bg-red-500/12 text-red-600", bar: "bg-red-500" },
   };
   const a = accentMap[accent];
   return (
@@ -62,7 +68,7 @@ export function KpiCard({
           {loading ? (
             <Skeleton className="h-8 w-28" />
           ) : (
-            <p className="font-display text-2xl md:text-[1.75rem] leading-none tracking-tight">{value}</p>
+            <p className={cn("font-display text-2xl md:text-[1.75rem] leading-none tracking-tight", valueClassName)}>{value}</p>
           )}
           {sublabel && <div className="text-xs text-muted-foreground">{sublabel}</div>}
         </div>
