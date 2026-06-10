@@ -230,3 +230,114 @@ describe("AccountProvider.probe", () => {
     expect(await provider.probe()).toEqual({ ok: false });
   });
 });
+
+
+describe("AccountProvider.getPeriodSummary", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  function paidOrdersBody(now: number) {
+    const d1 = new Date(now - 2 * 86400000).toISOString();
+    const d2 = new Date(now - 1 * 86400000).toISOString();
+    const old = new Date(now - 200 * 86400000).toISOString();
+    return {
+      paging: { total: 3 },
+      results: [
+        {
+          date_created: d1,
+          status: "paid",
+          payments: [{ status: "approved", transaction_amount: 100 }],
+          total_amount: 100,
+          order_items: [{ quantity: 2, unit_price: 50, item: { id: "MLB1", title: "A" } }],
+        },
+        {
+          date_created: d2,
+          status: "paid",
+          payments: [{ status: "approved", transaction_amount: 50 }],
+          total_amount: 50,
+          order_items: [{ quantity: 1, unit_price: 50, item: { id: "MLB2", title: "B" } }],
+        },
+        {
+          date_created: old,
+          status: "paid",
+          payments: [{ status: "approved", transaction_amount: 999 }],
+          total_amount: 999,
+          order_items: [{ quantity: 9, unit_price: 111, item: { id: "MLB3", title: "Velho" } }],
+        },
+      ],
+    };
+  }
+
+  it("summarizes KPIs for a window, ignoring orders outside it", async () => {
+    const now = Date.now();
+    global.fetch = makeFetchRouter([
+      { match: /order\.status=paid/, body: paidOrdersBody(now) },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const summary = await provider.getPeriodSummary({ fromMs: now - 10 * 86400000, toMs: now });
+
+    expect(summary.revenue).toBe(150); // only the two recent orders
+    expect(summary.orders).toBe(2);
+    expect(summary.unitsSold).toBe(3);
+    expect(summary.avgTicket).toBe(75);
+    expect(summary.from).toBe(now - 10 * 86400000);
+    expect(summary.to).toBe(now);
+  });
+
+  it("reuses the cached paid orders across multiple period summaries (single fetch burst)", async () => {
+    const now = Date.now();
+    const fetchSpy = makeFetchRouter([
+      { match: /order\.status=paid/, body: paidOrdersBody(now) },
+    ]);
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    await provider.getPeriodSummary({ fromMs: now - 10 * 86400000, toMs: now });
+    const callsAfterFirst = fetchSpy.mock.calls.length;
+    await provider.getPeriodSummary({ fromMs: now - 300 * 86400000, toMs: now });
+    // The second call must not trigger any additional orders fetch.
+    expect(fetchSpy.mock.calls.length).toBe(callsAfterFirst);
+  });
+});
+
+describe("AccountProvider.getSalesDashboard fill option", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns a dense daily series covering every day in the window when fill=true", async () => {
+    const now = Date.now();
+    const d = new Date(now - 1 * 86400000).toISOString();
+    global.fetch = makeFetchRouter([
+      {
+        match: /order\.status=paid/,
+        body: {
+          paging: { total: 1 },
+          results: [
+            {
+              date_created: d,
+              status: "paid",
+              payments: [{ status: "approved", transaction_amount: 80 }],
+              total_amount: 80,
+              order_items: [{ quantity: 1, unit_price: 80, item: { id: "MLB1", title: "A" } }],
+            },
+          ],
+        },
+      },
+      { match: /order\.status=cancelled/, body: { paging: { total: 0 }, results: [] } },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const from = now - 6 * 86400000;
+    const dash = await provider.getSalesDashboard({ fromMs: from, toMs: now, fill: true });
+    // 7 calendar days inclusive (from..now), one of which has revenue.
+    expect(dash.daily.length).toBe(7);
+    const withRevenue = dash.daily.filter((p) => p.revenue > 0);
+    expect(withRevenue.length).toBe(1);
+    expect(withRevenue[0].revenue).toBe(80);
+    // The series is sorted and contiguous (no gaps).
+    const dates = dash.daily.map((p) => p.date);
+    const sorted = [...dates].sort();
+    expect(dates).toEqual(sorted);
+  });
+});

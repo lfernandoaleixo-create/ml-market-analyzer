@@ -8,6 +8,7 @@ import type {
   SalesDashboard,
   SalesDayPoint,
   TopProduct,
+  PeriodSummary,
 } from "@shared/account";
 
 /**
@@ -35,6 +36,16 @@ export class AccountProvider {
     private userId: number,
     private currency = "BRL",
   ) {}
+
+  /** Cache of ALL paid orders for this provider instance (one request burst per
+   *  request lifecycle). Multiple period summaries reuse it without re-paging. */
+  private paidOrdersCache: any[] | null = null;
+
+  private async getPaidOrders(): Promise<any[]> {
+    if (this.paidOrdersCache) return this.paidOrdersCache;
+    this.paidOrdersCache = await this.getOrdersByStatus("paid");
+    return this.paidOrdersCache;
+  }
 
   private async get(path: string): Promise<any | null> {
     try {
@@ -242,12 +253,19 @@ export class AccountProvider {
     return data?.paging?.total ?? 0;
   }
 
-  async getSalesDashboard(opts: { fromMs: number; toMs: number }): Promise<SalesDashboard> {
+  async getSalesDashboard(opts: {
+    fromMs: number;
+    toMs: number;
+    /** When true, the daily series includes every calendar day in [fromMs,toMs]
+     *  (days without sales are filled with zeros) so a bar chart shows the full
+     *  month. When false (default), only days with activity are returned. */
+    fill?: boolean;
+  }): Promise<SalesDashboard> {
     const { fromMs, toMs } = opts;
     // Fetch PAID orders via the official server-side status filter. This is the
     // reliable source of truth for revenue (previously a client-side filter
     // missed orders because they are not strictly date-ordered).
-    const paidAll = await this.getOrdersByStatus("paid");
+    const paidAll = await this.getPaidOrders();
 
     let revenue = 0;
     let unitsSold = 0;
@@ -307,9 +325,15 @@ export class AccountProvider {
     // Cancelled count comes straight from the official paging total.
     const cancelled = await this.countOrdersByStatus("cancelled");
 
-    const daily: SalesDayPoint[] = Array.from(dailyMap.entries())
+    let daily: SalesDayPoint[] = Array.from(dailyMap.entries())
       .map(([date, v]) => ({ date, revenue: v.revenue, orders: v.orders }))
       .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Optionally fill every calendar day in the window with zeros so the bar
+    // chart can show the entire month (including days with no sales).
+    if (opts.fill) {
+      daily = fillDailySeries(dailyMap, fromMs, toMs);
+    }
 
     const topProducts = Array.from(productMap.values())
       .sort((a, b) => b.revenue - a.revenue)
@@ -347,6 +371,39 @@ export class AccountProvider {
       },
       daily,
       topProducts,
+      from: fromMs,
+      to: toMs,
+    };
+  }
+
+  /**
+   * Lightweight KPI summary for an arbitrary [fromMs,toMs] window. Reuses the
+   * cached paid orders, so building "this month" + "last month" cards costs a
+   * single orders fetch. No thumbnails/daily series here — just the numbers.
+   */
+  async getPeriodSummary(opts: { fromMs: number; toMs: number }): Promise<PeriodSummary> {
+    const { fromMs, toMs } = opts;
+    const paidAll = await this.getPaidOrders();
+    let revenue = 0;
+    let unitsSold = 0;
+    let orders = 0;
+    for (const o of paidAll) {
+      const created = o.date_created ? new Date(o.date_created).getTime() : 0;
+      if (created && (created < fromMs || created > toMs)) continue;
+      const approvedTotal = (o.payments ?? []).reduce(
+        (s: number, p: any) =>
+          s + (p.status === "approved" || p.status === "accredited" ? p.transaction_amount ?? 0 : 0),
+        0,
+      );
+      revenue += approvedTotal > 0 ? approvedTotal : o.total_amount ?? 0;
+      orders += 1;
+      for (const oi of o.order_items ?? []) unitsSold += oi.quantity ?? 0;
+    }
+    return {
+      revenue,
+      orders,
+      unitsSold,
+      avgTicket: orders > 0 ? revenue / orders : 0,
       from: fromMs,
       to: toMs,
     };
@@ -404,4 +461,30 @@ export class AccountProvider {
     if (!me?.id) return { ok: false };
     return { ok: true, nickname: me.nickname };
   }
+}
+
+/**
+ * Build a dense daily series covering every calendar day in [fromMs,toMs].
+ * Days without sales are emitted with revenue/orders = 0 so a bar chart can
+ * render the whole month. Days are keyed by UTC ISO date (yyyy-mm-dd) to match
+ * how the aggregation buckets orders.
+ */
+export function fillDailySeries(
+  dailyMap: Map<string, { revenue: number; orders: number }>,
+  fromMs: number,
+  toMs: number,
+): SalesDayPoint[] {
+  const out: SalesDayPoint[] = [];
+  const DAY = 24 * 60 * 60 * 1000;
+  // Normalize to the start of the UTC day for stable iteration.
+  const start = new Date(fromMs);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(toMs);
+  end.setUTCHours(0, 0, 0, 0);
+  for (let t = start.getTime(); t <= end.getTime(); t += DAY) {
+    const key = new Date(t).toISOString().slice(0, 10);
+    const v = dailyMap.get(key) ?? { revenue: 0, orders: 0 };
+    out.push({ date: key, revenue: v.revenue, orders: v.orders });
+  }
+  return out;
 }

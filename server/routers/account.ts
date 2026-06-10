@@ -89,6 +89,61 @@ export const accountRouter = router({
     return account.getSalesDashboard({ fromMs, toMs });
   }),
 
+  /**
+   * Sales dashboard for an EXPLICIT date range [fromMs,toMs]. Used by the month
+   * selector, the custom range picker and the single-day card. When `fill` is
+   * true the daily series includes every day in the range (zeros for no-sale
+   * days) so the bar chart can render the whole month.
+   */
+  salesRange: protectedProcedure
+    .input(
+      z.object({
+        fromMs: z.number().int().nonnegative(),
+        toMs: z.number().int().positive(),
+        fill: z.boolean().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      if (input.toMs < input.fromMs) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Intervalo de datas inválido." });
+      }
+      const account = await resolveAccount(ctx.user.id);
+      return account.getSalesDashboard({
+        fromMs: input.fromMs,
+        toMs: input.toMs,
+        fill: input.fill ?? false,
+      });
+    }),
+
+  /**
+   * Month-over-month comparison: KPI summaries for an explicit list of periods
+   * (e.g. current month + previous month). Reuses the cached paid orders so the
+   * whole comparison costs a single orders fetch.
+   */
+  salesPeriods: protectedProcedure
+    .input(
+      z.object({
+        periods: z
+          .array(
+            z.object({
+              key: z.string().min(1).max(40),
+              fromMs: z.number().int().nonnegative(),
+              toMs: z.number().int().positive(),
+            }),
+          )
+          .min(1)
+          .max(6),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const account = await resolveAccount(ctx.user.id);
+      const out: Record<string, Awaited<ReturnType<typeof account.getPeriodSummary>>> = {};
+      for (const p of input.periods) {
+        out[p.key] = await account.getPeriodSummary({ fromMs: p.fromMs, toMs: p.toMs });
+      }
+      return out;
+    }),
+
   /** Listings performance (visits, sales, conversion, stock, status). */
   listings: protectedProcedure
     .input(z.object({ lastDays: z.number().int().min(1).max(90).optional() }).optional())

@@ -43,6 +43,16 @@ export interface SalesDashboard {
   to: number;
 }
 
+/** Compact KPIs for a period comparison (used by month-over-month cards). */
+export interface PeriodSummary {
+  revenue: number;
+  orders: number;
+  unitsSold: number;
+  avgTicket: number;
+  from: number;
+  to: number;
+}
+
 export type ListingStatus = "active" | "paused" | "closed" | "under_review" | "inactive";
 
 export interface ListingRow {

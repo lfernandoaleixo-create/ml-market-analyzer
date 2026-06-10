@@ -411,3 +411,16 @@
 - [x] Lida com links de tracking do Radar (click1.mercadolivre.com.br/mclics/...) — o proxy segue o redirect até a página real do anúncio
 - [x] Validado ao vivo: hashi /p/MLB46238945 → R$ 20,64 + foto real; e pela UI via "Diagnosticar" no Radar → "Hashi Redondo Sushi 1000 Pares" R$ 124,87 + FULL detectado
 - [x] Testes: 6 novos (parseListingHtml + getCompetitorDetail com fallbacks e erro honesto); suíte total 232 testes verdes
+
+
+## NOVA FRENTE — Aba Vendas (período + dia + gráfico de barras)
+
+- [x] Backend: agregação por período (procedures `salesRange` e `salesPeriods`, com `getPeriodSummary` reaproveitando cache de pedidos pagos)
+- [x] Backend: série diária densa cobrindo todos os dias do intervalo (opção `fill` + `fillDailySeries`, dias sem venda = 0)
+- [x] Backend: vendas de um dia específico via `salesRange` com intervalo de 1 dia (faturamento, pedidos, unidades, ticket)
+- [x] Frontend: card "Mês atual" e "Mês anterior" clicáveis — validado R$ 712,65 (jun) e R$ 1.568,00 (mai)
+- [x] Frontend: seletor de período (Mês atual / Mês anterior / Personalizado com dois date inputs) recalculando KPIs
+- [x] Frontend: card separado "Vendas do dia" com seletor de dia (validado 06/10 → R$ 23,65)
+- [x] Frontend: gráfico de BARRAS mostrando todos os dias do mês (validado: 31 barras em maio)
+- [x] Estabilização de inputs de query com useMemo (evita re-fetch infinito); lógica de datas pura em `shared/period.ts` (BRT GMT-3)
+- [x] Testes: 14 de período (BRT) + 3 de KPIs/série por período; suíte total 245 verdes; TS/LSP limpos; validação ao vivo + checkpoint
