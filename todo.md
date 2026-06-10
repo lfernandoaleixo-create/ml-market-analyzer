@@ -499,3 +499,13 @@
 - [x] Sidebar: wordmark com gradiente, item ativo com indicador lateral
 - [x] Títulos com gradiente de marca (nome da loja, landing)
 - [x] Validar ao vivo (60 dias: 56 dias no eixo, Top 10 completo, R$ 2.655,65) + TS limpo + checkpoint
+
+
+## Ajustes de layout + vendas por dia (jun/2026)
+- [x] Mover card "Histórico acumulado" para logo abaixo do título (antes dos KPIs)
+- [x] Reduzir um pouco o tamanho do card Histórico acumulado para harmonizar (header e valores compactos)
+- [x] Aumentar/melhorar a tipografia do rótulo do mês/período (badge com fundo de marca, fonte display bold)
+- [x] Seletor de dia abaixo do gráfico: escolher um dia do período e listar produtos vendidos naquele dia (componente DaySales)
+- [x] Backend: procedure account.productsByDay + AccountProvider.getProductsByDay (orders do dia BRT agrupados por item) + tipo DayProducts
+- [x] Testes: getProductsByDay (dia com vendas + boundary BRT + dia sem vendas) — 265 testes verdes, TS limpo
+- [x] Checkpoint (validação ao vivo bloqueada por indisponibilidade transitória do banco; coberto por testes)

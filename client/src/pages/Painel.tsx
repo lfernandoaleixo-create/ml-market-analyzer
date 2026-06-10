@@ -13,6 +13,13 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   formatBRL,
@@ -31,6 +38,7 @@ import {
   todayIsoBrt,
   monthLabel,
 } from "@/lib/period";
+import { isoDateBrt as brtIso } from "@shared/period";
 import {
   Bar,
   BarChart,
@@ -54,6 +62,8 @@ import {
   CalendarDays,
   TrendingUp,
   Receipt,
+  ShoppingCart,
+  PackageOpen,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -156,6 +166,14 @@ export default function Painel() {
         subtitle="Visão geral da sua loja no Mercado Livre — vendas, anúncios e reputação em tempo real."
       />
 
+      {/* Lifetime store card — right under the title, compact */}
+      <LifetimeCard
+        loading={lifetime.isLoading}
+        firstSaleMs={lifetime.data?.firstSaleMs ?? null}
+        totalRevenue={lifetime.data?.totalRevenue ?? 0}
+        totalOrders={lifetime.data?.totalOrders ?? 0}
+      />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Faturamento"
@@ -196,14 +214,6 @@ export default function Painel() {
         />
       </div>
 
-      {/* Lifetime store card */}
-      <LifetimeCard
-        loading={lifetime.isLoading}
-        firstSaleMs={lifetime.data?.firstSaleMs ?? null}
-        totalRevenue={lifetime.data?.totalRevenue ?? 0}
-        totalOrders={lifetime.data?.totalOrders ?? 0}
-      />
-
       {/* Period selector */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap items-center gap-1 rounded-xl bg-secondary p-1">
@@ -239,8 +249,8 @@ export default function Painel() {
             />
           </div>
         )}
-        <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <CalendarRange className="h-3.5 w-3.5" /> {periodTitle}
+        <span className="ml-auto inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
+          <CalendarRange className="h-4 w-4" /> {periodTitle}
         </span>
       </div>
 
@@ -363,6 +373,14 @@ export default function Painel() {
           </>
         )}
       </SectionCard>
+
+      {/* Day selector → products sold on the chosen day */}
+      <DaySales
+        days={bars}
+        loading={loadingSales}
+        fromIso={brtIso(activeRange.fromMs)}
+        toIso={brtIso(activeRange.toMs)}
+      />
 
       <SectionCard
         title="Saúde da conta"
@@ -619,6 +637,193 @@ function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+/** Format a yyyy-mm-dd (BRT) day as a friendly label like "24 de abril". */
+function dayLongLabel(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  // Use a BRT-noon anchor so the calendar day never shifts across the boundary.
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return dt.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+/** Short label "24/04" for the compact option text. */
+function dayShortLabel(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+/**
+ * Day selector + the products sold on the chosen day. The list of selectable
+ * days comes from the chart series (every calendar day in the period). Days
+ * that had sales are marked; picking a day fetches its product breakdown.
+ */
+function DaySales({
+  days,
+  loading,
+  fromIso,
+  toIso,
+}: {
+  days: Array<{ date: string; revenue: number; orders: number }>;
+  loading: boolean;
+  fromIso: string;
+  toIso: string;
+}) {
+  // Default selection: the most recent day WITH sales, else the last day.
+  const defaultDay = useMemo(() => {
+    const withSales = [...days].reverse().find((d) => (d.orders ?? 0) > 0);
+    if (withSales) return withSales.date;
+    return days.length ? days[days.length - 1].date : toIso;
+  }, [days, toIso]);
+
+  const [selected, setSelected] = useState<string>(defaultDay);
+  // Keep the selection valid when the period (and thus the day list) changes.
+  const selectionValid = days.some((d) => d.date === selected);
+  const effectiveDay = selectionValid ? selected : defaultDay;
+
+  const dayQuery = trpc.account.productsByDay.useQuery(
+    { date: effectiveDay },
+    { enabled: !loading && !!effectiveDay && /^\d{4}-\d{2}-\d{2}$/.test(effectiveDay) },
+  );
+
+  const data = dayQuery.data;
+  const products = data?.products ?? [];
+
+  return (
+    <SectionCard
+      title="Produtos vendidos por dia"
+      description="Selecione um dia do período para ver exatamente quais produtos foram vendidos."
+      actions={
+        <Select value={effectiveDay} onValueChange={setSelected}>
+          <SelectTrigger className="h-9 w-[190px] gap-1.5">
+            <CalendarDays className="h-4 w-4 text-primary" />
+            <SelectValue placeholder="Escolha um dia" />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            {[...days].reverse().map((d) => {
+              const had = (d.orders ?? 0) > 0;
+              return (
+                <SelectItem key={d.date} value={d.date}>
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        had ? "bg-primary" : "bg-muted-foreground/30",
+                      )}
+                    />
+                    {dayShortLabel(d.date)}
+                    {had && (
+                      <span className="text-[11px] text-muted-foreground">
+                        · {formatNumber(d.orders)} venda{d.orders === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      }
+    >
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
+          <CalendarDays className="h-4 w-4" /> {capitalize(dayLongLabel(effectiveDay))}
+        </div>
+        {!dayQuery.isLoading && data && (
+          <div className="flex flex-wrap items-center gap-2">
+            <DayBadge tone="emerald" label={formatBRL(data.revenue)} hint="faturado" />
+            <DayBadge tone="primary" label={`${formatNumber(data.orders)} pedido${data.orders === 1 ? "" : "s"}`} hint="pago" />
+            <DayBadge tone="neutral" label={`${formatNumber(data.unitsSold)} un.`} hint="vendidas" />
+          </div>
+        )}
+      </div>
+
+      {dayQuery.isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      ) : products.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-secondary/40 py-10 text-center">
+          <PackageOpen className="h-8 w-8 text-muted-foreground/50" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Nenhum produto vendido em {dayShortLabel(effectiveDay)}.
+          </p>
+          <p className="text-xs text-muted-foreground/70">
+            Escolha outro dia no seletor acima.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
+                <th className="py-2.5 pr-2 text-left font-semibold">Produto</th>
+                <th className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">Preço unit.</th>
+                <th className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">Qtd.</th>
+                <th className="py-2.5 pl-2 text-right font-semibold whitespace-nowrap">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {products.map((p) => {
+                const unitPrice = p.unitsSold > 0 ? p.revenue / p.unitsSold : 0;
+                return (
+                  <tr key={p.itemId} className="align-middle transition-colors hover:bg-secondary/50">
+                    <td className="py-2.5 pr-2">
+                      <div className="flex items-center gap-2.5">
+                        <ProductImage src={p.thumbnail} alt={p.title} className="h-9 w-9 shrink-0 rounded-lg ring-1 ring-border" />
+                        <span className="line-clamp-2 max-w-[280px] text-sm font-medium leading-tight">
+                          {p.title}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">
+                      {formatBRL(unitPrice)}
+                    </td>
+                    <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap font-medium">
+                      {formatNumber(p.unitsSold)}
+                    </td>
+                    <td className="py-2.5 pl-2 text-right font-bold tabular-nums whitespace-nowrap text-primary">
+                      {formatBRL(p.revenue)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function DayBadge({
+  tone,
+  label,
+  hint,
+}: {
+  tone: "emerald" | "primary" | "neutral";
+  label: string;
+  hint: string;
+}) {
+  const cls =
+    tone === "emerald"
+      ? "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20"
+      : tone === "primary"
+        ? "bg-primary/10 text-primary ring-primary/20"
+        : "bg-secondary text-foreground ring-border";
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1", cls)}>
+      <ShoppingCart className="h-3.5 w-3.5" />
+      {label} <span className="font-normal opacity-70">{hint}</span>
+    </span>
+  );
+}
+
 function LifetimeCard({
   loading,
   firstSaleMs,
@@ -691,32 +896,32 @@ function LifetimeCard({
 
   return (
     <Card className="card-soft overflow-hidden border-0 rounded-2xl">
-      <div className="flex items-center gap-3 border-b px-5 py-4" style={{ borderColor: "var(--border)" }}>
-        <div className="brand-gradient flex h-10 w-10 items-center justify-center rounded-2xl text-primary-foreground shadow-sm">
-          <Store className="h-5 w-5" />
+      <div className="flex items-center gap-2.5 border-b px-4 py-2.5" style={{ borderColor: "var(--border)" }}>
+        <div className="brand-gradient flex h-7 w-7 items-center justify-center rounded-xl text-primary-foreground shadow-sm">
+          <Store className="h-3.5 w-3.5" />
         </div>
-        <div>
-          <p className="font-display text-base font-semibold leading-tight tracking-tight">Histórico acumulado</p>
-          <p className="text-xs text-muted-foreground">Desde o início da loja — atualizado diariamente</p>
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <p className="font-display text-sm font-semibold leading-tight tracking-tight">Histórico acumulado</p>
+          <p className="text-[11px] text-muted-foreground">Desde o início da loja — atualizado diariamente</p>
         </div>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
         {items.map((it) => (
-          <div key={it.label} className="p-5 transition-colors hover:bg-secondary/40">
-            <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${it.tint}`}>
-                <it.icon className="h-3.5 w-3.5" />
+          <div key={it.label} className="px-4 py-3 transition-colors hover:bg-secondary/40">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+              <span className={`flex h-5 w-5 items-center justify-center rounded-md ${it.tint}`}>
+                <it.icon className="h-3 w-3" />
               </span>
               {it.label}
             </p>
             {loading ? (
-              <Skeleton className="mt-2 h-7 w-24" />
+              <Skeleton className="mt-1.5 h-6 w-20" />
             ) : (
-              <p className="mt-2 font-display text-[1.35rem] font-bold leading-none tracking-tight">
+              <p className="mt-1.5 font-display text-lg font-bold leading-none tracking-tight">
                 {it.value}
               </p>
             )}
-            <p className="mt-1 text-[11px] text-muted-foreground">{it.sub}</p>
+            <p className="mt-1 text-[10px] text-muted-foreground">{it.sub}</p>
           </div>
         ))}
       </div>

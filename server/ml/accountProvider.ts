@@ -10,6 +10,7 @@ import type {
   TopProduct,
   PeriodSummary,
   StoreLifetime,
+  DayProducts,
 } from "@shared/account";
 
 /**
@@ -475,6 +476,85 @@ export class AccountProvider {
       firstSaleMs,
       totalRevenue,
       totalOrders,
+      currency: this.currency,
+    };
+  }
+
+  /**
+   * Products sold on a single BRT calendar day. Reuses the cached paid orders
+   * and aggregates the order items by product, ranked by revenue. The `dayIso`
+   * is a yyyy-mm-dd string interpreted in BRT (matching `brtDateKey`).
+   */
+  async getProductsByDay(dayIso: string): Promise<DayProducts> {
+    const paidAll = await this.getPaidOrders();
+    const productMap = new Map<string, TopProduct>();
+    let revenue = 0;
+    let unitsSold = 0;
+    let orders = 0;
+
+    for (const o of paidAll) {
+      const created = o.date_created ? new Date(o.date_created).getTime() : 0;
+      if (!created) continue;
+      if (brtDateKey(created) !== dayIso) continue;
+
+      const approvedTotal = (o.payments ?? []).reduce(
+        (s: number, p: any) =>
+          s + (p.status === "approved" || p.status === "accredited" ? p.transaction_amount ?? 0 : 0),
+        0,
+      );
+      revenue += approvedTotal > 0 ? approvedTotal : o.total_amount ?? 0;
+      orders += 1;
+
+      for (const oi of o.order_items ?? []) {
+        const qty = oi.quantity ?? 0;
+        unitsSold += qty;
+        const item = oi.item ?? {};
+        const id = item.id ?? "?";
+        const rawThumb: string =
+          item.thumbnail ?? item.secure_thumbnail ?? item.picture_url ?? "";
+        const thumb = rawThumb ? rawThumb.replace(/^http:\/\//, "https://") : undefined;
+        const existing = productMap.get(id) ?? {
+          itemId: id,
+          title: item.title ?? "",
+          unitsSold: 0,
+          revenue: 0,
+          thumbnail: thumb,
+          permalink: item.permalink ?? (id !== "?" ? `https://produto.mercadolivre.com.br/${id}` : undefined),
+        };
+        if (!existing.thumbnail && thumb) existing.thumbnail = thumb;
+        existing.unitsSold += qty;
+        existing.revenue += (oi.unit_price ?? 0) * qty;
+        productMap.set(id, existing);
+      }
+    }
+
+    const products = Array.from(productMap.values()).sort((a, b) => b.revenue - a.revenue);
+
+    // Enrich missing thumbnails via multiget (best-effort).
+    const missing = products.filter((p) => !p.thumbnail && p.itemId && p.itemId !== "?");
+    if (missing.length > 0) {
+      try {
+        const details = await this.getItemsDetails(missing.map((p) => p.itemId));
+        const byId = new Map<string, any>(details.map((d: any) => [d.id, d]));
+        for (const p of products) {
+          const d = byId.get(p.itemId);
+          if (!d) continue;
+          const raw: string =
+            d.thumbnail ?? d.secure_thumbnail ?? (d.pictures?.[0]?.secure_url ?? d.pictures?.[0]?.url) ?? "";
+          if (!p.thumbnail && raw) p.thumbnail = raw.replace(/^http:\/\//, "https://");
+          if (!p.permalink && d.permalink) p.permalink = d.permalink;
+        }
+      } catch {
+        // Non-fatal.
+      }
+    }
+
+    return {
+      date: dayIso,
+      orders,
+      revenue,
+      unitsSold,
+      products,
       currency: this.currency,
     };
   }

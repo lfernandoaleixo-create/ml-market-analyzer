@@ -150,6 +150,14 @@ export const accountRouter = router({
     return account.getStoreLifetime();
   }),
 
+  /** Products sold on a single BRT calendar day (yyyy-mm-dd). */
+  productsByDay: protectedProcedure
+    .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (use yyyy-mm-dd).") }))
+    .query(async ({ ctx, input }) => {
+      const account = await resolveAccount(ctx.user.id);
+      return account.getProductsByDay(input.date);
+    }),
+
   /** Listings performance (visits, sales, conversion, stock, status). */
   listings: protectedProcedure
     .input(z.object({ lastDays: z.number().int().min(1).max(90).optional() }).optional())

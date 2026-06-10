@@ -68,6 +68,21 @@ export interface StoreLifetime {
   currency: string;
 }
 
+/** Products sold on a single calendar day (BRT), aggregated by item. */
+export interface DayProducts {
+  /** ISO day (yyyy-mm-dd, BRT) queried. */
+  date: string;
+  /** Number of paid orders created on this day. */
+  orders: number;
+  /** Total approved revenue for the day. */
+  revenue: number;
+  /** Total units sold across all products on this day. */
+  unitsSold: number;
+  /** Products sold, ranked by revenue desc. */
+  products: TopProduct[];
+  currency: string;
+}
+
 export type ListingStatus = "active" | "paused" | "closed" | "under_review" | "inactive";
 
 export interface ListingRow {

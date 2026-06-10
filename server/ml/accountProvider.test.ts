@@ -482,3 +482,96 @@ describe("AccountProvider.getStoreLifetime", () => {
     expect(lifetime.totalRevenue).toBe(0);
   });
 });
+
+
+describe("AccountProvider.getProductsByDay", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("aggregates only the products sold on the requested BRT day", async () => {
+    // Two paid orders on 2026-04-24 (BRT) and one on 2026-04-25.
+    // 2026-04-24T10:00:00Z → BRT 07:00 same day.
+    // 2026-04-25T01:00:00Z → BRT 22:00 of 2026-04-24 (boundary check).
+    const paidBody = {
+      paging: { total: 3 },
+      results: [
+        {
+          id: "O1",
+          date_created: "2026-04-24T10:00:00.000Z",
+          payments: [{ status: "approved", transaction_amount: 100 }],
+          order_items: [
+            { quantity: 2, unit_price: 50, item: { id: "MLB1", title: "Camiseta" } },
+          ],
+        },
+        {
+          id: "O2",
+          // BRT = 2026-04-24 22:00 (still day 24 in BRT, though 25 in UTC)
+          date_created: "2026-04-25T01:00:00.000Z",
+          payments: [{ status: "approved", transaction_amount: 30 }],
+          order_items: [
+            { quantity: 1, unit_price: 30, item: { id: "MLB2", title: "Caneca" } },
+          ],
+        },
+        {
+          id: "O3",
+          // BRT = 2026-04-25 (different day, must be excluded)
+          date_created: "2026-04-25T12:00:00.000Z",
+          payments: [{ status: "approved", transaction_amount: 999 }],
+          order_items: [
+            { quantity: 5, unit_price: 199.8, item: { id: "MLB3", title: "Tênis" } },
+          ],
+        },
+      ],
+    };
+
+    global.fetch = makeFetchRouter([
+      { match: /sort=date_desc/, body: paidBody },
+      { match: /sort=date_asc/, body: { paging: { total: 3 }, results: [] } },
+      // Multiget enrichment for missing thumbnails → return empty so it's a no-op.
+      { match: /\/items\?ids=/, body: [] },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const day = await provider.getProductsByDay("2026-04-24");
+
+    expect(day.date).toBe("2026-04-24");
+    expect(day.orders).toBe(2);
+    expect(day.revenue).toBe(130);
+    expect(day.unitsSold).toBe(3);
+    // MLB3 (day 25) must NOT appear.
+    const ids = day.products.map((p) => p.itemId);
+    expect(ids).toContain("MLB1");
+    expect(ids).toContain("MLB2");
+    expect(ids).not.toContain("MLB3");
+    // Ranked by revenue desc: MLB1 (100) before MLB2 (30).
+    expect(day.products[0].itemId).toBe("MLB1");
+    expect(day.products[0].revenue).toBe(100);
+  });
+
+  it("returns an empty product list for a day with no sales", async () => {
+    const paidBody = {
+      paging: { total: 1 },
+      results: [
+        {
+          id: "O1",
+          date_created: "2026-04-24T10:00:00.000Z",
+          payments: [{ status: "approved", transaction_amount: 100 }],
+          order_items: [{ quantity: 1, unit_price: 100, item: { id: "MLB1", title: "X" } }],
+        },
+      ],
+    };
+    global.fetch = makeFetchRouter([
+      { match: /sort=date_desc/, body: paidBody },
+      { match: /\/items\?ids=/, body: [] },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const day = await provider.getProductsByDay("2026-05-01");
+
+    expect(day.date).toBe("2026-05-01");
+    expect(day.orders).toBe(0);
+    expect(day.revenue).toBe(0);
+    expect(day.unitsSold).toBe(0);
+    expect(day.products).toEqual([]);
+  });
+});
