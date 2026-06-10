@@ -272,6 +272,10 @@ export class AccountProvider {
      *  (days without sales are filled with zeros) so a bar chart shows the full
      *  month. When false (default), only days with activity are returned. */
     fill?: boolean;
+    /** Maximum number of ranked products to return. Defaults to 10 (Top 10).
+     *  Pass a large number (or 0 = no limit) to get the FULL ranking of every
+     *  distinct product sold in the period. */
+    topLimit?: number;
   }): Promise<SalesDashboard> {
     const { fromMs, toMs } = opts;
     // Fetch PAID orders via the official server-side status filter. This is the
@@ -370,13 +374,20 @@ export class AccountProvider {
       daily = fillDailySeries(dailyMap, fromMs, toMs);
     }
 
-    const topProducts = Array.from(productMap.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
+    // Default = Top 10. topLimit <= 0 means "no limit" (full ranking).
+    const rankedAll = Array.from(productMap.values()).sort((a, b) => b.revenue - a.revenue);
+    const limit = opts.topLimit === undefined ? 10 : opts.topLimit;
+    const topProducts = limit > 0 ? rankedAll.slice(0, limit) : rankedAll;
 
-    // Enrich the top ranking with real thumbnails/permalinks via multiget.
-    // Order items rarely carry a picture, so we fetch the ~10 ranked items.
-    const missing = topProducts.filter((p) => !p.thumbnail && p.itemId && p.itemId !== "?");
+    // Enrich the ranking with real thumbnails/permalinks via multiget.
+    // Order items rarely carry a picture, so we fetch the ranked items missing one.
+    // Cap enrichment to the top 80 ranked items so a huge full ranking (e.g. 500
+    // distinct products) never blows the request budget; lower-ranked rows still
+    // render (text-only) and most carry a permalink fallback already.
+    const ENRICH_CAP = 80;
+    const missing = topProducts
+      .slice(0, ENRICH_CAP)
+      .filter((p) => !p.thumbnail && p.itemId && p.itemId !== "?");
     if (missing.length > 0) {
       try {
         const details = await this.getItemsDetails(missing.map((p) => p.itemId));

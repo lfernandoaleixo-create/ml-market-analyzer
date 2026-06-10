@@ -533,3 +533,12 @@
 - [x] Card Reputação: accent segue a cor real (verde/amarelo/laranja/vermelho) via reputationAccent
 - [x] Seletor de período movido para entre Histórico acumulado e os cards do mês (controla cards + gráfico)
 - [x] Validado ao vivo + 271 testes verdes + TS limpo + checkpoint
+
+
+## Melhoria da aba Vendas (jun/2026)
+- [x] Seletor de período + badge do mês idênticos ao Painel
+- [x] Gráfico idêntico ao Painel (mesmo espaço/comportamento/tooltip/legenda)
+- [x] Card "venda do dia" maior e mais rico: 5 KPIs (faturamento, pedidos, ticket, unidades, itens distintos) + tabela; default ao dia atual; seletor maior
+- [x] Backend: getSalesDashboard ganha topLimit (0 = sem limite); enriquecimento de thumbs limitado a 80 itens p/ evitar timeout
+- [x] Ranking expansível listando TODOS os produtos do período (topLimit:0); pódio + link do anúncio; expande quando >10
+- [x] Testes (271 verdes) + TS limpo + validação ao vivo (jun/2026: ranking completo, venda do dia 10/06 enriquecida) + checkpoint

@@ -101,6 +101,8 @@ export const accountRouter = router({
         fromMs: z.number().int().nonnegative(),
         toMs: z.number().int().positive(),
         fill: z.boolean().optional(),
+        /** Max ranked products to return. 0 = full ranking (every product). */
+        topLimit: z.number().int().min(0).max(2000).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -112,6 +114,7 @@ export const accountRouter = router({
         fromMs: input.fromMs,
         toMs: input.toMs,
         fill: input.fill ?? false,
+        topLimit: input.topLimit,
       });
     }),
 
