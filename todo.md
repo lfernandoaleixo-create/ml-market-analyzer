@@ -573,3 +573,8 @@
 - [x] Backend getProductsByDay: incluir produtos cancelados do dia
 - [x] Lista de produtos do dia (Painel e Vendas): mostrar itens cancelados ao selecionar/clicar num dia com cancelamento
 - [x] Card "Anúncios em detalhe": padronizar estética/tipografia dos tiles
+
+
+## Ajustes (10/jun, 4ª rodada)
+- [x] Painel: card "Produtos vendidos por dia" recolhível (expand/retrair), recolhido por padrão (abre auto ao clicar numa barra)
+- [x] Painel: card "Top 10" recolhível (expand/retrair), recolhido por padrão

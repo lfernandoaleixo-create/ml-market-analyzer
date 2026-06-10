@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { ProductCell } from "@/components/account/ProductCell";
 import type { ListingRow } from "@shared/account";
@@ -117,6 +117,9 @@ export default function Painel() {
   // Day picked in the "Produtos vendidos por dia" card. Lifted here so that
   // clicking a bar in the chart can select that day. null => follow default.
   const [pickedDay, setPickedDay] = useState<string | null>(null);
+  // Top 10 ranking starts collapsed every time the page opens, so the user can
+  // scroll past it quickly when there are many products.
+  const [topOpen, setTopOpen] = useState(false);
 
   // The range driving the bar chart + sales KPIs.
   const activeRange = useMemo(() => {
@@ -484,12 +487,40 @@ export default function Painel() {
       <SectionCard
           title={`Top 10 produtos (${periodTitle.toLowerCase()})`}
           actions={
-            <Link href="/anuncios" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-              Meus anúncios <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href="/anuncios" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+                Meus anúncios <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 bg-secondary/40"
+                onClick={() => setTopOpen((v) => !v)}
+                aria-expanded={topOpen}
+              >
+                {topOpen ? (
+                  <>
+                    <ChevronUp className="h-4 w-4" /> Retrair
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4" /> Expandir
+                  </>
+                )}
+              </Button>
+            </div>
           }
         >
-          {loadingSales ? (
+          {!topOpen ? (
+            <button
+              type="button"
+              onClick={() => setTopOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary/40 py-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+            >
+              <ChevronDown className="h-4 w-4" />
+              Ver Top 10 produtos do período
+            </button>
+          ) : loadingSales ? (
             <div className="space-y-2">
               {Array.from({ length: 10 }).map((_, i) => (
                 <Skeleton key={i} className="h-11 w-full" />
@@ -883,10 +914,19 @@ function DaySales({
   }, [days, toIso, isCurrentMonth]);
 
   const [expanded, setExpanded] = useState(false);
+  // Whole card starts collapsed every time the page opens, so the user can
+  // scroll past it quickly when a day has many products.
+  const [open, setOpen] = useState(false);
   // While no day was actively picked (via the selector OR by clicking a chart
   // bar), follow the computed default so switching period works automatically.
   const selectionValid = pickedDay != null && days.some((d) => d.date === pickedDay);
   const effectiveDay = selectionValid ? (pickedDay as string) : defaultDay;
+
+  // When the user clicks a bar in the chart (sets pickedDay), auto-expand this
+  // card so the products for that day are immediately visible.
+  useEffect(() => {
+    if (selectionValid) setOpen(true);
+  }, [pickedDay, selectionValid]);
 
   const dayQuery = trpc.account.productsByDay.useQuery(
     { date: effectiveDay },
@@ -906,43 +946,74 @@ function DaySales({
       title="Produtos vendidos por dia"
       description="Selecione um dia (ou clique numa barra do gráfico acima) para ver exatamente quais produtos foram vendidos."
       actions={
-        <Select
-          value={effectiveDay}
-          onValueChange={(v) => {
-            onPickDay(v);
-            setExpanded(false);
-          }}
-        >
-          <SelectTrigger className="h-10 w-[230px] gap-1.5">
-            <CalendarDays className="h-4 w-4 text-primary" />
-            <SelectValue placeholder="Escolha um dia" />
-          </SelectTrigger>
-          <SelectContent className="max-h-96">
-            {[...days].reverse().map((d) => {
-              const had = (d.orders ?? 0) > 0;
-              return (
-                <SelectItem key={d.date} value={d.date}>
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        had ? "bg-primary" : "bg-muted-foreground/30",
+        <div className="flex items-center gap-3">
+          <Select
+            value={effectiveDay}
+            onValueChange={(v) => {
+              onPickDay(v);
+              setExpanded(false);
+              setOpen(true);
+            }}
+          >
+            <SelectTrigger className="h-10 w-[230px] gap-1.5">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              <SelectValue placeholder="Escolha um dia" />
+            </SelectTrigger>
+            <SelectContent className="max-h-96">
+              {[...days].reverse().map((d) => {
+                const had = (d.orders ?? 0) > 0;
+                return (
+                  <SelectItem key={d.date} value={d.date}>
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          had ? "bg-primary" : "bg-muted-foreground/30",
+                        )}
+                      />
+                      {dayShortLabel(d.date)}
+                      {had && (
+                        <span className="text-[11px] text-muted-foreground">
+                          · {formatNumber(d.orders)} venda{d.orders === 1 ? "" : "s"}
+                        </span>
                       )}
-                    />
-                    {dayShortLabel(d.date)}
-                    {had && (
-                      <span className="text-[11px] text-muted-foreground">
-                        · {formatNumber(d.orders)} venda{d.orders === 1 ? "" : "s"}
-                      </span>
-                    )}
-                  </span>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+                    </span>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 bg-secondary/40"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            {open ? (
+              <>
+                <ChevronUp className="h-4 w-4" /> Retrair
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" /> Expandir
+              </>
+            )}
+          </Button>
+        </div>
       }
     >
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary/40 py-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+        >
+          <ChevronDown className="h-4 w-4" />
+          Ver produtos vendidos por dia
+        </button>
+      ) : (
+      <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
           <CalendarDays className="h-4 w-4" /> {capitalize(dayLongLabel(effectiveDay))}
@@ -1083,6 +1154,8 @@ function DaySales({
             </table>
           </div>
         </div>
+      )}
+      </>
       )}
     </SectionCard>
     </div>
