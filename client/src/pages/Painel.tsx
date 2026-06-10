@@ -25,7 +25,7 @@ import {
   currentMonthRange,
   currentMonthFullRange,
   previousMonthRange,
-  lastNMonthsRange,
+  lastNDaysRange,
   customRangeFromIso,
   monthStartIsoBrt,
   todayIsoBrt,
@@ -53,12 +53,12 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 
-type PeriodKind = "current" | "previous" | "last2" | "custom";
+type PeriodKind = "current" | "previous" | "last60" | "custom";
 
 const TABS: Array<{ key: PeriodKind; label: string }> = [
   { key: "current", label: "Mês atual" },
   { key: "previous", label: "Mês anterior" },
-  { key: "last2", label: "Últimos 2 meses" },
+  { key: "last60", label: "60 dias" },
   { key: "custom", label: "Personalizado" },
 ];
 
@@ -74,7 +74,7 @@ export default function Painel() {
   const activeRange = useMemo(() => {
     if (kind === "current") return currentMonthFullRange();
     if (kind === "previous") return previousMonthRange();
-    if (kind === "last2") return lastNMonthsRange(2);
+    if (kind === "last60") return lastNDaysRange(60);
     return customRangeFromIso(fromIso, toIso) ?? currentMonthRange();
   }, [kind, fromIso, toIso]);
 
@@ -118,8 +118,8 @@ export default function Painel() {
   const periodTitle =
     kind === "current" || kind === "previous"
       ? capitalize(monthLabel(activeRange.fromMs))
-      : kind === "last2"
-        ? `${capitalize(monthLabel(activeRange.fromMs))} – atual`
+      : kind === "last60"
+        ? "Últimos 60 dias"
         : `${fromIso} a ${toIso}`;
 
   return (
@@ -254,8 +254,8 @@ export default function Painel() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={bars}
-                  barGap={1}
-                  barCategoryGap={longSpan ? "15%" : "30%"}
+                  barGap={2}
+                  barCategoryGap={longSpan ? "35%" : "45%"}
                   margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
                 >
                   <CartesianGrid
@@ -291,14 +291,14 @@ export default function Painel() {
                     name="Faturamento"
                     fill="var(--primary)"
                     radius={[2, 2, 0, 0]}
-                    maxBarSize={9}
+                    maxBarSize={longSpan ? 5 : 7}
                   />
                   <Bar
                     dataKey="cancelledAmount"
                     name="Cancelado"
                     fill="#f43f5e"
                     radius={[2, 2, 0, 0]}
-                    maxBarSize={9}
+                    maxBarSize={longSpan ? 5 : 7}
                   />
                 </BarChart>
               </ResponsiveContainer>

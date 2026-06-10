@@ -448,3 +448,10 @@
 - [x] Melhorar separação visual entre os dias (barCategoryGap 30% em mês, grid vertical + tickLine por dia, padding lateral)
 - [x] Alinhar perfeitamente o eixo de valores R$ (YAxis width=72, textAnchor=end, tickMargin=8, allowDecimals=false) — inclui R$ 0
 - [x] Validação via página isolada de inspeção (mini-cards + eixo alinhado + barras finas verde/vermelha); 252 testes verdes; TS limpo + checkpoint
+
+## Painel — meses anteriores + 60 dias + centralização (jun/2026)
+- [x] Diagnóstico: backend paginava só 1000 pedidos por status com sort date_desc; API retorna 41 pagos (abr/mai/jun) e 18 cancelados — meses anteriores existem. O card "2 meses" usava lastNMonthsRange e funcionava; ajustado conforme pedido.
+- [x] Substituir card "Últimos 2 meses" por "60 dias" (lastNDaysRange: janela móvel de 60 dias, cruza meses anteriores com segurança)
+- [x] Centralizar as 2 barras dentro do slot do dia (barCategoryGap 35-45%, barGap 2, maxBarSize 5-7) — não ficam mais coladas nas laterais
+- [x] Gráfico continua full-width, todos os dias, eixo R$ alinhado
+- [x] Testes: 3 novos de lastNDaysRange (suíte 255 verdes); TS limpo; validação via página isolada de inspeção (60 dias abr→jun)

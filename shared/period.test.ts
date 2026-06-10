@@ -8,6 +8,7 @@ import {
   previousMonthRange,
   monthRange,
   lastNMonthsRange,
+  lastNDaysRange,
   dayRangeFromIso,
   customRangeFromIso,
   isoDateBrt,
@@ -151,5 +152,37 @@ describe("currentMonthFullRange", () => {
     const r = currentMonthFullRange(feb);
     expect(r.fromMs).toBe(brtStartOfDayMs(2025, 1, 1));
     expect(r.toMs).toBe(brtEndOfDayMs(2025, 1, 28));
+  });
+});
+
+describe("lastNDaysRange", () => {
+  it("spans the last 60 days ending today (Jun 10 => Apr 12 .. end of Jun 10)", () => {
+    const r = lastNDaysRange(JUN_10_2026_BRT_NOON, 60);
+    // End is end-of-today in BRT.
+    expect(r.toMs).toBe(brtEndOfDayMs(2026, 5, 10));
+    // Start is 59 days before today's BRT start (60 days inclusive).
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 5, 10) - 59 * 24 * 60 * 60 * 1000);
+    // The window crosses into previous months (April).
+    const start = brtParts(r.fromMs);
+    expect(start.month).toBe(3); // April (0-based)
+    expect(start.day).toBe(12);
+  });
+
+  it("covers N distinct calendar days", () => {
+    const r = lastNDaysRange(JUN_10_2026_BRT_NOON, 30);
+    // fromMs is start-of-day, toMs is end-of-day, so they span 29 full days
+    // plus a near-complete final day. Count distinct BRT calendar days.
+    const startDay = brtParts(r.fromMs);
+    const endDay = brtParts(r.toMs);
+    expect(startDay.day).toBe(12); // May 12
+    expect(startDay.month).toBe(4); // May (0-based)
+    expect(endDay.day).toBe(10); // Jun 10
+    expect(endDay.month).toBe(5); // June
+  });
+
+  it("clamps N below 1 to a single day", () => {
+    const r = lastNDaysRange(JUN_10_2026_BRT_NOON, 0);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 5, 10));
+    expect(r.toMs).toBe(brtEndOfDayMs(2026, 5, 10));
   });
 });

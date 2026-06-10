@@ -74,6 +74,18 @@ export function lastNMonthsRange(nowMs: number, months: number): PeriodRange {
   return { fromMs: brtStartOfDayMs(y, m, 1), toMs: nowMs };
 }
 
+/** Range covering the last N calendar days ending today (inclusive), anchored
+ *  to BRT day boundaries. E.g. N=60 on Jun 10 => [Apr 12 00:00 BRT, today 23:59].
+ *  Used for a rolling window that reliably spans previous months. */
+export function lastNDaysRange(nowMs: number, days: number): PeriodRange {
+  const n = Math.max(1, days);
+  const { year, month, day } = brtParts(nowMs);
+  // End = end of today (BRT). Start = start of the day (n-1) days ago.
+  const toMs = brtEndOfDayMs(year, month, day);
+  const startDayMs = brtStartOfDayMs(year, month, day) - (n - 1) * 24 * 60 * 60 * 1000;
+  return { fromMs: startDayMs, toMs };
+}
+
 /** Full calendar month containing the given anchor (month 0-11). */
 export function monthRange(year: number, month: number): PeriodRange {
   return {
