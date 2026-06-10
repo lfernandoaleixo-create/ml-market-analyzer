@@ -187,7 +187,8 @@ class OfficialProvider implements MercadoLivreProvider {
 
   /** Build an MlProduct from a catalog product, enriched with buy_box data. */
   private mapCatalogProduct(raw: any, buyBox?: any): MlProduct {
-    const pic = Array.isArray(raw.pictures) && raw.pictures.length ? raw.pictures[0].url : "";
+    const firstPic = Array.isArray(raw.pictures) && raw.pictures.length ? raw.pictures[0] : null;
+    const pic = firstPic ? (firstPic.secure_url || firstPic.url || "") : "";
     const brandAttr = Array.isArray(raw.attributes)
       ? raw.attributes.find((a: any) => a.id === "BRAND")
       : null;
@@ -210,7 +211,7 @@ class OfficialProvider implements MercadoLivreProvider {
       soldQuantity: buyBox?.sold_quantity ?? 0,
       availableQuantity: buyBox?.available_quantity ?? 0,
       condition: buyBox?.condition ?? "new",
-      thumbnail: (buyBox?.thumbnail ?? pic ?? "").replace(/^http:/, "https:"),
+      thumbnail: (pic || buyBox?.thumbnail || "").replace(/^http:/, "https:"),
       pictureCount: Array.isArray(raw.pictures) ? raw.pictures.length : 1,
       permalink: buyBox?.permalink ?? raw.permalink ?? "",
       freeShipping: Boolean(buyBox?.shipping?.free_shipping),

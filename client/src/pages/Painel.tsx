@@ -1,3 +1,4 @@
+import { ProductImage } from "@/components/ProductImage";
 import { trpc } from "@/lib/trpc";
 import {
   PageShell,
@@ -212,11 +213,7 @@ export default function Painel() {
               {sales.data!.topProducts.slice(0, 5).map((p, i) => (
                 <div key={p.itemId} className="flex items-center gap-3 py-2.5">
                   <span className="w-5 text-center text-sm font-semibold text-muted-foreground">{i + 1}</span>
-                  {p.thumbnail ? (
-                    <img src={p.thumbnail} alt="" className="h-10 w-10 rounded-lg object-cover bg-secondary" />
-                  ) : (
-                    <div className="h-10 w-10 rounded-lg bg-secondary" />
-                  )}
+                  <ProductImage src={p.thumbnail} alt={p.title} className="h-10 w-10 rounded-lg" />
                   <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.title}</p>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{formatBRL(p.revenue)}</p>

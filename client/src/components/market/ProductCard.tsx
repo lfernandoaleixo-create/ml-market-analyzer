@@ -1,3 +1,4 @@
+import { ProductImage } from "@/components/ProductImage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -62,11 +63,10 @@ export function ProductCard({ product, rank, selected, onToggleSelect, categoryI
       )}
 
       <div className="aspect-square w-full overflow-hidden bg-muted/40">
-        <img
+        <ProductImage
           src={product.thumbnail}
           alt={product.title}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          className="h-full w-full rounded-none transition-transform duration-500 group-hover:scale-[1.03]"
         />
       </div>
 

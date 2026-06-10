@@ -1,3 +1,4 @@
+import { ProductImage } from "@/components/ProductImage";
 import { DataSourceBanner, PageContainer, PageHeader } from "@/components/market/Common";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -131,7 +132,7 @@ export default function Categorias() {
                     rel="noreferrer"
                     className="flex items-center gap-3 rounded-lg border border-border/70 p-2.5 transition-colors hover:bg-accent/40"
                   >
-                    <img src={p.thumbnail} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+                    <ProductImage src={p.thumbnail} alt={p.title} className="h-12 w-12" />
                     <div className="min-w-0">
                       <p className="line-clamp-2 text-xs font-medium leading-snug">{p.title}</p>
                       <p className="mt-1 text-sm font-medium">{formatBRL(p.price)}</p>

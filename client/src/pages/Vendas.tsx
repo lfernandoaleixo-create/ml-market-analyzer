@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ProductImage } from "@/components/ProductImage";
 import { trpc } from "@/lib/trpc";
 import {
   PageShell,
@@ -186,15 +187,7 @@ export default function Vendas() {
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-secondary text-xs font-semibold text-muted-foreground">
                   {idx + 1}
                 </span>
-                {p.thumbnail ? (
-                  <img
-                    src={p.thumbnail}
-                    alt=""
-                    className="h-11 w-11 shrink-0 rounded-lg object-cover bg-secondary"
-                  />
-                ) : (
-                  <div className="h-11 w-11 shrink-0 rounded-lg bg-secondary" />
-                )}
+                <ProductImage src={p.thumbnail} alt={p.title} className="h-11 w-11 rounded-lg" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{p.title}</p>
                   <p className="text-xs text-muted-foreground">

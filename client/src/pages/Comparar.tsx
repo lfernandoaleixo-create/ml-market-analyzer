@@ -1,3 +1,4 @@
+import { ProductImage } from "@/components/ProductImage";
 import { CategorySelect } from "@/components/market/CategorySelect";
 import { DataSourceBanner, EmptyState, PageContainer, PageHeader } from "@/components/market/Common";
 import { ProductCard } from "@/components/market/ProductCard";
@@ -135,7 +136,7 @@ function ComparisonResultView({ itemIds }: { itemIds: string[] }) {
                   <th key={p.id} className="min-w-44 p-3 align-top">
                     <div className="flex flex-col items-center gap-2 text-center">
                       <div className="relative">
-                        <img src={p.thumbnail} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                        <ProductImage src={p.thumbnail} alt={p.title} className="h-16 w-16 rounded-lg" />
                         {isWinner && (
                           <div className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
                             <Crown className="h-3.5 w-3.5" />

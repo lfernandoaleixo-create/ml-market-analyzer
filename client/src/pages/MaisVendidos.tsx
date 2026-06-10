@@ -1,4 +1,5 @@
 import { CategorySelect } from "@/components/market/CategorySelect";
+import { ProductImage } from "@/components/ProductImage";
 import { DataSourceBanner, PageContainer, PageHeader } from "@/components/market/Common";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -82,7 +83,7 @@ export default function MaisVendidos() {
                 <span className="font-display text-lg font-600 text-muted-foreground">{i + 1}</span>
 
                 <div className="flex min-w-0 items-center gap-3">
-                  <img src={p.thumbnail} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+                  <ProductImage src={p.thumbnail} alt={p.title} className="h-12 w-12" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{p.title}</p>
                     <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">

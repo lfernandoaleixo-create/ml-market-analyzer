@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ProductImage } from "@/components/ProductImage";
 import { trpc } from "@/lib/trpc";
 import {
   PageShell,
@@ -170,15 +171,7 @@ export default function Anuncios() {
                   <tr key={r.itemId} className="group">
                     <td className="py-3 pr-3">
                       <div className="flex items-center gap-3">
-                        {r.thumbnail ? (
-                          <img
-                            src={r.thumbnail}
-                            alt=""
-                            className="h-10 w-10 shrink-0 rounded-lg object-cover bg-secondary"
-                          />
-                        ) : (
-                          <div className="h-10 w-10 shrink-0 rounded-lg bg-secondary" />
-                        )}
+                        <ProductImage src={r.thumbnail} alt={r.title ?? ""} className="h-10 w-10 rounded-lg" />
                         <div className="min-w-0 max-w-[260px]">
                           <p className="truncate font-medium">{r.title}</p>
                           {r.permalink && (

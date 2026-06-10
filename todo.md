@@ -392,3 +392,13 @@
 - [x] Testes: searchJob (8) atualizados + novo resilientCollection.test.ts (2) simulando perda de instância
 - [x] Validado ao vivo: "hashi descartavel" → 52 concorrentes reais (Oxylabs contribuiu)
 - [x] Suíte completa: 226 testes / 31 arquivos verdes + TS limpo
+
+
+## IMAGENS EM BRANCO — RESOLVIDO (gravação 21:32/21:41)
+- [x] Causa raiz: thumbnail vazio no fluxo de catalogo (buyBox?.thumbnail ?? pic escolhia string vazia) -> img src vazio em branco
+- [x] Provider: corrigida prioridade do thumbnail em mapCatalogProduct (preferir foto do catalogo, secure_url, tratar string vazia como ausente)
+- [x] Componente reutilizavel ProductImage.tsx: placeholder com icone quando sem foto, fallback onError, normalizacao https, referrerPolicy no-referrer (evita bloqueio de hotlink do ML)
+- [x] Aplicado em TODAS as telas: MaisVendidos, Categorias, Comparar, Oportunidades, Painel, Monitoramento, Vendas, Anuncios, RadarConcorrentes, Diagnostico, ProductCard (Buscar)
+- [x] Validado ao vivo: "Mais vendidos" exibe fotos reais (http2.mlstatic.com) com precos reais
+- [x] Suite 226 testes verdes + TypeScript limpo
+- [x] Esclarecimento: ranking traz eletronicos porque categoria padrao = Celulares; trocar no seletor para o nicho. NAO e dado de exemplo (vem da API oficial).

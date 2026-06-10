@@ -1,4 +1,5 @@
 import { CategorySelect } from "@/components/market/CategorySelect";
+import { ProductImage } from "@/components/ProductImage";
 import { DataSourceBanner, PageContainer, PageHeader, ScoreRing } from "@/components/market/Common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,7 @@ export default function Oportunidades() {
                 </div>
 
                 <div className="mt-3 flex items-center gap-3">
-                  <img src={a.product.thumbnail} alt="" className="h-12 w-12 rounded-md object-cover" />
+                  <ProductImage src={a.product.thumbnail} alt={a.product.title} className="h-12 w-12" />
                   <div className="grid flex-1 grid-cols-2 gap-x-2 gap-y-1 text-xs">
                     <span className="text-muted-foreground">Preço</span>
                     <span className="text-right font-medium">

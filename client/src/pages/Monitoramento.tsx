@@ -1,3 +1,4 @@
+import { ProductImage } from "@/components/ProductImage";
 import { DataSourceBanner, EmptyState, PageContainer, PageHeader } from "@/components/market/Common";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -85,7 +86,7 @@ export default function Monitoramento() {
         <div className="space-y-3">
           {list.data?.map((m) => (
             <Card key={m.id} className="flex items-center gap-4 p-4">
-              <img src={m.thumbnail ?? ""} alt="" className="h-14 w-14 shrink-0 rounded-md object-cover" />
+              <ProductImage src={m.thumbnail ?? ""} alt={m.title ?? ""} className="h-14 w-14" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{m.title}</p>
                 <p className="text-xs text-muted-foreground">{m.categoryName}</p>

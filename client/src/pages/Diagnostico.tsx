@@ -1,3 +1,4 @@
+import { ProductImage } from "@/components/ProductImage";
 import { EmptyState, PageContainer, PageHeader } from "@/components/market/Common";
 import { RadarBanner } from "@/components/competitors/RadarBanner";
 import { Button } from "@/components/ui/button";
@@ -262,13 +263,7 @@ function DiagnosisResult({ result }: { result: CompetitorDiagnosis }) {
           <p className="mt-1 line-clamp-2 text-sm font-medium">{result.myListing.title}</p>
         </Card>
         <Card className="flex gap-3 p-4">
-          {result.competitor.image && (
-            <img
-              src={result.competitor.image}
-              alt=""
-              className="h-12 w-12 shrink-0 rounded-lg object-cover bg-secondary"
-            />
-          )}
+          <ProductImage src={result.competitor.image} alt={result.competitor.name ?? ""} className="h-12 w-12 rounded-lg" />
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Concorrente

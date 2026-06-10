@@ -1,3 +1,4 @@
+import { ProductImage } from "@/components/ProductImage";
 import { EmptyState, PageContainer, PageHeader } from "@/components/market/Common";
 import { RadarBanner } from "@/components/competitors/RadarBanner";
 import { SourcesPanel } from "@/components/competitors/SourcesPanel";
@@ -528,15 +529,7 @@ function CompetitorRow({
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-display font-600 text-muted-foreground">
           {rank}
         </div>
-        {c.thumbnail ? (
-          <img
-            src={c.thumbnail}
-            alt=""
-            className="h-14 w-14 shrink-0 rounded-lg bg-secondary object-cover"
-          />
-        ) : (
-          <div className="h-14 w-14 shrink-0 rounded-lg bg-secondary" />
-        )}
+        <ProductImage src={c.thumbnail} alt={c.name ?? ""} className="h-14 w-14 rounded-lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-sm font-medium">{c.name}</p>
