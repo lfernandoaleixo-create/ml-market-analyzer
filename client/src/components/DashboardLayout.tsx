@@ -93,11 +93,11 @@ const MAX_WIDTH = 360;
 function Wordmark() {
   return (
     <div className="flex items-center gap-2.5 min-w-0">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-        <TrendingUp className="h-4 w-4" strokeWidth={2.5} />
+      <div className="brand-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary-foreground shadow-md">
+        <TrendingUp className="h-4.5 w-4.5" strokeWidth={2.6} />
       </div>
       <div className="flex flex-col min-w-0 leading-none">
-        <span className="font-display text-lg font-600 tracking-tight truncate">
+        <span className="font-display text-lg font-bold tracking-tight truncate">
           Mercato
         </span>
         <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate">
@@ -125,12 +125,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="canvas-wash flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full animate-rise">
           <Wordmark />
           <div className="flex flex-col items-center gap-3">
-            <h1 className="text-3xl font-display font-700 tracking-tight text-center">
-              Central de gestão da sua loja no Mercado Livre
+            <h1 className="text-3xl font-display font-bold tracking-tight text-center">
+              Central de gestão da sua loja no{" "}
+              <span className="brand-text-gradient">Mercado Livre</span>
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm leading-relaxed">
               Acompanhe vendas, desempenho dos seus anúncios, pós-venda e
@@ -242,8 +243,11 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                           isActive={isActive}
                           onClick={() => setLocation(item.path)}
                           tooltip={item.label}
-                          className="h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
+                          className="relative h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground"
                         >
+                          {isActive && (
+                            <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary group-data-[collapsible=icon]:hidden" aria-hidden />
+                          )}
                           <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
                           <span>{item.label}</span>
                           {showBadge && (

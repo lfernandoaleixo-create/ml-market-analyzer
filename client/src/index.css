@@ -59,43 +59,43 @@
 :root {
   --radius: 0.875rem;
 
-  /* Light theme — primary */
-  --background: oklch(0.975 0.004 240);
-  --foreground: oklch(0.27 0.02 250);
+  /* Light theme — primary (more vivid mint/teal, cooler off-white canvas) */
+  --background: oklch(0.982 0.006 200);
+  --foreground: oklch(0.24 0.024 250);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.27 0.02 250);
+  --card-foreground: oklch(0.24 0.024 250);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.27 0.02 250);
-  --primary: oklch(0.72 0.14 168);
+  --popover-foreground: oklch(0.24 0.024 250);
+  --primary: oklch(0.7 0.16 168);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.96 0.008 240);
-  --secondary-foreground: oklch(0.35 0.02 250);
-  --muted: oklch(0.965 0.006 240);
-  --muted-foreground: oklch(0.55 0.015 250);
-  --accent: oklch(0.95 0.03 168);
-  --accent-foreground: oklch(0.32 0.05 168);
-  --destructive: oklch(0.62 0.21 22);
+  --secondary: oklch(0.955 0.012 200);
+  --secondary-foreground: oklch(0.33 0.024 250);
+  --muted: oklch(0.96 0.01 200);
+  --muted-foreground: oklch(0.52 0.018 250);
+  --accent: oklch(0.94 0.045 168);
+  --accent-foreground: oklch(0.3 0.07 168);
+  --destructive: oklch(0.6 0.22 22);
   --destructive-foreground: oklch(0.99 0 0);
-  --success: oklch(0.7 0.16 158);
+  --success: oklch(0.68 0.17 158);
   --success-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.74 0.16 55);
+  --warning: oklch(0.76 0.16 65);
   --warning-foreground: oklch(0.99 0 0);
-  --border: oklch(0.92 0.006 240);
-  --input: oklch(0.92 0.006 240);
-  --ring: oklch(0.72 0.14 168);
-  --chart-1: oklch(0.72 0.14 168);
-  --chart-2: oklch(0.7 0.16 158);
-  --chart-3: oklch(0.62 0.16 250);
-  --chart-4: oklch(0.74 0.16 55);
-  --chart-5: oklch(0.62 0.18 300);
+  --border: oklch(0.9 0.008 220);
+  --input: oklch(0.9 0.008 220);
+  --ring: oklch(0.7 0.16 168);
+  --chart-1: oklch(0.7 0.16 168);
+  --chart-2: oklch(0.68 0.17 158);
+  --chart-3: oklch(0.6 0.17 250);
+  --chart-4: oklch(0.76 0.16 65);
+  --chart-5: oklch(0.6 0.19 300);
   --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.27 0.02 250);
-  --sidebar-primary: oklch(0.72 0.14 168);
+  --sidebar-foreground: oklch(0.24 0.024 250);
+  --sidebar-primary: oklch(0.7 0.16 168);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.95 0.03 168);
-  --sidebar-accent-foreground: oklch(0.32 0.05 168);
-  --sidebar-border: oklch(0.92 0.006 240);
-  --sidebar-ring: oklch(0.72 0.14 168);
+  --sidebar-accent: oklch(0.94 0.045 168);
+  --sidebar-accent-foreground: oklch(0.3 0.07 168);
+  --sidebar-border: oklch(0.9 0.008 220);
+  --sidebar-ring: oklch(0.7 0.16 168);
 }
 
 .dark {
@@ -196,11 +196,60 @@
 
   /* Soft card shadow used across the dashboard */
   .card-soft {
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.05);
+    box-shadow:
+      0 1px 2px rgba(16, 24, 40, 0.04),
+      0 6px 20px -6px rgba(16, 24, 40, 0.08);
+    transition:
+      box-shadow 0.25s var(--ease-out-quint),
+      transform 0.25s var(--ease-out-quint);
+  }
+
+  /* Optional lift on hover for interactive/feature cards */
+  .card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 2px 4px rgba(16, 24, 40, 0.05),
+      0 14px 32px -10px color-mix(in oklch, var(--primary) 30%, rgba(16, 24, 40, 0.16));
   }
 
   .hairline {
     border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  }
+
+  /* Brand gradient used in hero/header accents */
+  .brand-gradient {
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--primary) 92%, white) 0%,
+      var(--primary) 55%,
+      color-mix(in oklch, var(--primary) 78%, black) 100%
+    );
+  }
+
+  .brand-text-gradient {
+    background-image: linear-gradient(
+      120deg,
+      var(--primary) 0%,
+      color-mix(in oklch, var(--primary) 60%, oklch(0.6 0.17 250)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Subtle textured page canvas (soft mint radial wash) */
+  .canvas-wash {
+    background-image:
+      radial-gradient(
+        1200px 480px at 100% -10%,
+        color-mix(in oklch, var(--primary) 10%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 420px at -10% 0%,
+        color-mix(in oklch, oklch(0.6 0.17 250) 7%, transparent),
+        transparent 55%
+      );
   }
 }
 

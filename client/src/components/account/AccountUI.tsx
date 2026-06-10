@@ -12,7 +12,7 @@ export function PageHeader({
   subtitle,
   actions,
 }: {
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   actions?: ReactNode;
 }) {
@@ -43,19 +43,22 @@ export function KpiCard({
   accent?: "primary" | "emerald" | "blue" | "amber" | "violet" | "rose";
   loading?: boolean;
 }) {
-  const accentMap: Record<string, string> = {
-    primary: "bg-primary/10 text-primary",
-    emerald: "bg-emerald-500/10 text-emerald-600",
-    blue: "bg-blue-500/10 text-blue-600",
-    amber: "bg-amber-500/10 text-amber-600",
-    violet: "bg-violet-500/10 text-violet-600",
-    rose: "bg-rose-500/10 text-rose-600",
+  const accentMap: Record<string, { icon: string; bar: string }> = {
+    primary: { icon: "bg-primary/12 text-primary", bar: "bg-primary" },
+    emerald: { icon: "bg-emerald-500/12 text-emerald-600", bar: "bg-emerald-500" },
+    blue: { icon: "bg-blue-500/12 text-blue-600", bar: "bg-blue-500" },
+    amber: { icon: "bg-amber-500/12 text-amber-600", bar: "bg-amber-500" },
+    violet: { icon: "bg-violet-500/12 text-violet-600", bar: "bg-violet-500" },
+    rose: { icon: "bg-rose-500/12 text-rose-600", bar: "bg-rose-500" },
   };
+  const a = accentMap[accent];
   return (
-    <Card className="card-soft border-0 p-5 rounded-2xl">
+    <Card className="card-soft card-lift relative overflow-hidden border-0 p-5 rounded-2xl">
+      {/* Accent rail on the left edge */}
+      <span className={cn("absolute inset-y-0 left-0 w-1", a.bar)} aria-hidden />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
           {loading ? (
             <Skeleton className="h-8 w-28" />
           ) : (
@@ -64,7 +67,7 @@ export function KpiCard({
           {sublabel && <div className="text-xs text-muted-foreground">{sublabel}</div>}
         </div>
         {Icon && (
-          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", accentMap[accent])}>
+          <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-sm", a.icon)}>
             <Icon className="h-5 w-5" strokeWidth={2.2} />
           </div>
         )}
@@ -90,9 +93,14 @@ export function SectionCard({
   return (
     <Card className={cn("card-soft border-0 rounded-2xl", className)}>
       {(title || actions) && (
-        <div className="flex items-center justify-between gap-3 px-5 pt-5">
+        <div className="flex items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "var(--border)" }}>
           <div className="space-y-0.5">
-            {title && <h2 className="font-display text-base tracking-tight">{title}</h2>}
+            {title && (
+              <h2 className="flex items-center gap-2 font-display text-base tracking-tight">
+                <span className="h-4 w-1 rounded-full bg-primary" aria-hidden />
+                {title}
+              </h2>
+            )}
             {description && <p className="text-xs text-muted-foreground">{description}</p>}
           </div>
           {actions}
@@ -146,7 +154,11 @@ export function ErrorState({ message }: { message?: string }) {
 
 /** Page-level container with consistent padding/spacing. */
 export function PageShell({ children }: { children: ReactNode }) {
-  return <div className="container max-w-[1320px] py-6 md:py-8 space-y-6 animate-rise">{children}</div>;
+  return (
+    <div className="canvas-wash min-h-full">
+      <div className="container max-w-[1320px] py-6 md:py-8 space-y-6 animate-rise">{children}</div>
+    </div>
+  );
 }
 
 /** A simple loading skeleton grid for KPIs. */

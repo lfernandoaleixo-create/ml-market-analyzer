@@ -128,13 +128,12 @@ export default function Painel() {
   const totalRevenue = bars.reduce((acc, b) => acc + (b.revenue ?? 0), 0);
   const totalCancelledAmount = bars.reduce((acc, b) => acc + (b.cancelledAmount ?? 0), 0);
 
-  // X-axis label density: on long ranges, showing every single day's label
-  // overlaps into an unreadable smear. Thin them out so labels stay legible
-  // while every day still renders its bars.
-  const labelInterval =
-    bars.length <= 16 ? 0 : bars.length <= 35 ? 1 : Math.ceil(bars.length / 18) - 1;
-  // Wider per-day slot on long ranges keeps the two bars visible after scroll.
-  const perDayWidth = bars.length > 35 ? 26 : 34;
+  // Always show EVERY day's label on the X axis (interval=0). To keep them
+  // legible we widen each day's slot and tilt the labels on longer ranges so
+  // they never overlap (horizontal scroll handles the extra width).
+  const labelInterval = 0;
+  // Wider per-day slot the longer the range, so all day labels stay readable.
+  const perDayWidth = bars.length > 35 ? 36 : bars.length > 16 ? 32 : 38;
 
   const periodTitle =
     kind === "current" || kind === "previous"
@@ -146,7 +145,14 @@ export default function Painel() {
   return (
     <PageShell>
       <PageHeader
-        title={`Olá${conn.data?.nickname ? `, ${conn.data.nickname}` : ""}`}
+        title={
+          <>
+            Olá{conn.data?.nickname ? ", " : ""}
+            {conn.data?.nickname && (
+              <span className="brand-text-gradient">{conn.data.nickname}</span>
+            )}
+          </>
+        }
         subtitle="Visão geral da sua loja no Mercado Livre — vendas, anúncios e reputação em tempo real."
       />
 
@@ -300,15 +306,15 @@ export default function Painel() {
                         separator, with the day number centered in its slot. */}
                     <XAxis
                       dataKey="label"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      tick={{ fontSize: longSpan ? 10 : 11, fill: "var(--muted-foreground)" }}
                       tickLine={{ stroke: "var(--border)" }}
                       tickSize={6}
                       axisLine={{ stroke: "var(--border)" }}
                       interval={labelInterval}
-                      minTickGap={4}
+                      minTickGap={0}
                       angle={longSpan ? -45 : 0}
                       textAnchor={longSpan ? "end" : "middle"}
-                      height={longSpan ? 48 : 24}
+                      height={longSpan ? 52 : 24}
                     />
                     <YAxis
                       tick={{ fontSize: 11, fill: "var(--muted-foreground)", textAnchor: "end" }}
@@ -406,49 +412,80 @@ export default function Painel() {
         >
           {loadingSales ? (
             <div className="space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 10 }).map((_, i) => (
                 <Skeleton key={i} className="h-11 w-full" />
               ))}
             </div>
-          ) : (sales.data?.topProducts.length ?? 0) === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Ainda sem vendas no período.
-            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-xs text-muted-foreground">
-                    <th className="py-2 pr-2 text-left font-medium">#</th>
-                    <th className="py-2 pr-2 text-left font-medium">Produto</th>
-                    <th className="py-2 px-2 text-right font-medium whitespace-nowrap">Preço unit.</th>
-                    <th className="py-2 px-2 text-right font-medium whitespace-nowrap">Vendas</th>
-                    <th className="py-2 pl-2 text-right font-medium whitespace-nowrap">Total</th>
+                  <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <th className="py-2.5 pr-2 text-left font-semibold">#</th>
+                    <th className="py-2.5 pr-2 text-left font-semibold">Produto</th>
+                    <th className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">Preço unit.</th>
+                    <th className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">Vendas</th>
+                    <th className="py-2.5 pl-2 text-right font-semibold whitespace-nowrap">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {sales.data!.topProducts.slice(0, 10).map((p, i) => {
+                  {Array.from({ length: 10 }).map((_, i) => {
+                    const p = sales.data?.topProducts[i];
+                    if (!p) {
+                      // Empty placeholder row — keeps the table at 10 rows even
+                      // when there are fewer (or zero) sales in the period.
+                      return (
+                        <tr key={`empty-${i}`} className="align-middle">
+                          <td className="py-2.5 pr-2 text-center text-sm font-semibold text-muted-foreground/40">
+                            {i + 1}
+                          </td>
+                          <td className="py-2.5 pr-2">
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-9 w-9 shrink-0 rounded-lg bg-secondary" />
+                              <span className="text-sm text-muted-foreground/40">—</span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-2 text-right text-muted-foreground/40">—</td>
+                          <td className="py-2.5 px-2 text-right text-muted-foreground/40">—</td>
+                          <td className="py-2.5 pl-2 text-right text-muted-foreground/40">—</td>
+                        </tr>
+                      );
+                    }
                     const unitPrice = p.unitsSold > 0 ? p.revenue / p.unitsSold : 0;
+                    const rank = i + 1;
                     return (
-                      <tr key={p.itemId} className="align-middle">
-                        <td className="py-2.5 pr-2 text-center text-sm font-semibold text-muted-foreground">
-                          {i + 1}
+                      <tr key={p.itemId} className="align-middle transition-colors hover:bg-secondary/50">
+                        <td className="py-2.5 pr-2 text-center">
+                          <span
+                            className={cn(
+                              "inline-flex h-6 w-6 items-center justify-center rounded-lg text-xs font-bold",
+                              rank === 1
+                                ? "bg-amber-400/20 text-amber-600"
+                                : rank === 2
+                                  ? "bg-slate-300/30 text-slate-600"
+                                  : rank === 3
+                                    ? "bg-orange-400/20 text-orange-700"
+                                    : "text-muted-foreground",
+                            )}
+                          >
+                            {rank}
+                          </span>
                         </td>
                         <td className="py-2.5 pr-2">
                           <div className="flex items-center gap-2.5">
-                            <ProductImage src={p.thumbnail} alt={p.title} className="h-9 w-9 shrink-0 rounded-lg" />
+                            <ProductImage src={p.thumbnail} alt={p.title} className="h-9 w-9 shrink-0 rounded-lg ring-1 ring-border" />
                             <span className="line-clamp-2 max-w-[260px] text-sm font-medium leading-tight">
                               {p.title}
                             </span>
                           </div>
                         </td>
-                        <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">
+                        <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">
                           {formatBRL(unitPrice)}
                         </td>
-                        <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">
+                        <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap font-medium">
                           {formatNumber(p.unitsSold)}
                         </td>
-                        <td className="py-2.5 pl-2 text-right font-semibold tabular-nums whitespace-nowrap">
+                        <td className="py-2.5 pl-2 text-right font-bold tabular-nums whitespace-nowrap text-primary">
                           {formatBRL(p.revenue)}
                         </td>
                       </tr>
@@ -456,6 +493,11 @@ export default function Painel() {
                   })}
                 </tbody>
               </table>
+              {(sales.data?.topProducts.length ?? 0) === 0 && (
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  Ainda sem vendas neste período — as posições serão preenchidas conforme suas vendas.
+                </p>
+              )}
             </div>
           )}
         </SectionCard>
@@ -544,14 +586,20 @@ function SummaryStat({
       : tone === "rose"
         ? "text-rose-600"
         : "text-foreground";
+  const bgCls =
+    tone === "emerald"
+      ? "bg-emerald-500/8"
+      : tone === "rose"
+        ? "bg-rose-500/8"
+        : "bg-secondary/50";
   const dot =
-    tone === "emerald" ? "bg-primary" : tone === "rose" ? "bg-rose-500" : "bg-muted-foreground";
+    tone === "emerald" ? "bg-emerald-500" : tone === "rose" ? "bg-rose-500" : "bg-muted-foreground";
   return (
-    <div className="rounded-xl border bg-secondary/40 p-3" style={{ borderColor: "var(--border)" }}>
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div className={`rounded-xl p-3.5 ${bgCls}`}>
+      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span className={`h-2 w-2 rounded-full ${dot}`} /> {label}
       </p>
-      <p className={`mt-1 font-display text-lg font-semibold leading-tight tracking-tight ${toneCls}`}>
+      <p className={`mt-1.5 font-display text-xl font-bold leading-none tracking-tight ${toneCls}`}>
         {value}
       </p>
     </div>
@@ -604,58 +652,71 @@ function LifetimeCard({
         ? `${years} ${years === 1 ? "ano" : "anos"}${remDays > 0 ? ` e ${remDays} ${remDays === 1 ? "dia" : "dias"}` : ""}`
         : `${daysInBusiness} ${daysInBusiness === 1 ? "dia" : "dias"}`;
 
-  const items = [
+  const items: Array<{
+    icon: typeof Store;
+    label: string;
+    value: string;
+    sub: string;
+    tint: string;
+  }> = [
     {
       icon: CalendarDays,
       label: "Primeira venda",
       value: firstSaleLabel,
       sub: "início efetivo da loja",
+      tint: "bg-blue-500/12 text-blue-600",
     },
     {
       icon: Store,
       label: "Tempo de loja",
       value: ageLabel,
       sub: firstSaleMs != null ? `${formatNumber(daysInBusiness)} dias de existência` : "sem vendas ainda",
+      tint: "bg-violet-500/12 text-violet-600",
     },
     {
       icon: TrendingUp,
       label: "Faturamento total",
       value: formatBRL(totalRevenue),
       sub: "acumulado de todas as vendas",
+      tint: "bg-emerald-500/12 text-emerald-600",
     },
     {
       icon: Receipt,
       label: "Vendas totais",
       value: formatNumber(totalOrders),
       sub: "pedidos pagos no total",
+      tint: "bg-primary/12 text-primary",
     },
   ];
 
   return (
     <Card className="card-soft overflow-hidden border-0 rounded-2xl">
-      <div className="flex items-center gap-2.5 border-b px-5 py-3" style={{ borderColor: "var(--border)" }}>
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Store className="h-4 w-4" />
+      <div className="flex items-center gap-3 border-b px-5 py-4" style={{ borderColor: "var(--border)" }}>
+        <div className="brand-gradient flex h-10 w-10 items-center justify-center rounded-2xl text-primary-foreground shadow-sm">
+          <Store className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-sm font-semibold leading-tight">Desde o início da loja</p>
-          <p className="text-xs text-muted-foreground">Histórico acumulado — atualizado diariamente</p>
+          <p className="font-display text-base font-semibold leading-tight tracking-tight">Histórico acumulado</p>
+          <p className="text-xs text-muted-foreground">Desde o início da loja — atualizado diariamente</p>
         </div>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
         {items.map((it) => (
-          <div key={it.label} className="p-5">
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <it.icon className="h-3.5 w-3.5" /> {it.label}
+          <div key={it.label} className="p-5 transition-colors hover:bg-secondary/40">
+            <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${it.tint}`}>
+                <it.icon className="h-3.5 w-3.5" />
+              </span>
+              {it.label}
             </p>
             {loading ? (
               <Skeleton className="mt-2 h-7 w-24" />
             ) : (
-              <p className="mt-1 font-display text-xl font-semibold leading-tight tracking-tight">
+              <p className="mt-2 font-display text-[1.35rem] font-bold leading-none tracking-tight">
                 {it.value}
               </p>
             )}
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{it.sub}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{it.sub}</p>
           </div>
         ))}
       </div>

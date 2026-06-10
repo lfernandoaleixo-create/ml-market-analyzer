@@ -488,3 +488,14 @@
 - [x] Testes: getStoreLifetime (loja com vendas + loja sem vendas) — 263 testes verdes, TS limpo
 - [x] Validado ao vivo: Primeira venda 24/04/2026 · 47 dias · R$ 2.655,65 · 41 pedidos
 - [x] Testes + validação ao vivo + checkpoint
+
+
+## Melhorias visuais + ajustes (jun/2026)
+- [x] Renomear card para "Histórico acumulado" (título principal)
+- [x] Gráfico mensal: mostrar todos os dias escritos no eixo X (interval=0, sem pular)
+- [x] Top 10 sempre aberto: 10 linhas fixas; preencher com linha em branco quando houver menos vendas
+- [x] Melhoria visual geral: paleta com mais realce/contraste, refinamento de cards, sombras, tipografia e detalhes
+- [x] KpiCard com trilho de cor lateral + ícone destacado; SectionCard com cabeçalho separado; canvas-wash de fundo
+- [x] Sidebar: wordmark com gradiente, item ativo com indicador lateral
+- [x] Títulos com gradiente de marca (nome da loja, landing)
+- [x] Validar ao vivo (60 dias: 56 dias no eixo, Top 10 completo, R$ 2.655,65) + TS limpo + checkpoint
