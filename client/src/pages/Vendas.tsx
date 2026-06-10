@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { ProductImage } from "@/components/ProductImage";
 import { trpc } from "@/lib/trpc";
+import { ProductCell } from "@/components/account/ProductCell";
+import { filterProductsByName } from "@shared/productSearch";
 import {
   PageShell,
   PageHeader,
@@ -55,6 +56,8 @@ import {
   ChevronDown,
   ChevronUp,
   TrendingDown,
+  Search,
+  X,
 } from "lucide-react";
 
 type PeriodKind = "current" | "previous" | "last60" | "custom";
@@ -70,6 +73,8 @@ export default function Vendas() {
   const [kind, setKind] = useState<PeriodKind>("current");
   const [fromIso, setFromIso] = useState(monthStartIsoBrt());
   const [toIso, setToIso] = useState(todayIsoBrt());
+  // Day picked in "Vendas do dia". Lifted so a chart-bar click can select it.
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
 
   const conn = trpc.account.connection.useQuery();
   const connected = conn.data?.connected === true;
@@ -263,6 +268,18 @@ export default function Vendas() {
                     barGap={3}
                     barCategoryGap="20%"
                     margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+                    onClick={(state: any) => {
+                      const d = state?.activePayload?.[0]?.payload?.date as string | undefined;
+                      if (d) {
+                        setPickedDay(d);
+                        setTimeout(() => {
+                          document
+                            .getElementById("vendas-do-dia")
+                            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }, 50);
+                      }
+                    }}
+                    className="cursor-pointer"
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
@@ -331,7 +348,13 @@ export default function Vendas() {
       </SectionCard>
 
       {/* Rich single-day card with full product breakdown */}
-      <DayDetail isCurrentMonth={kind === "current"} days={bars} loading={loadingSales} />
+      <DayDetail
+        isCurrentMonth={kind === "current"}
+        days={bars}
+        loading={loadingSales}
+        pickedDay={pickedDay}
+        onPickDay={setPickedDay}
+      />
 
       {/* FULL ranking (every product sold in the period), expandable */}
       <FullRanking
@@ -354,10 +377,15 @@ function DayDetail({
   isCurrentMonth,
   days,
   loading,
+  pickedDay,
+  onPickDay,
 }: {
   isCurrentMonth: boolean;
   days: Array<{ date: string; revenue: number; orders: number }>;
   loading: boolean;
+  /** Day selected externally (e.g. by clicking a chart bar). null => default. */
+  pickedDay: string | null;
+  onPickDay: (day: string) => void;
 }) {
   const defaultDay = useMemo(() => {
     if (isCurrentMonth) {
@@ -370,11 +398,9 @@ function DayDetail({
     return days.length ? days[days.length - 1].date : todayIsoBrt();
   }, [days, isCurrentMonth]);
 
-  const [selected, setSelected] = useState<string>(defaultDay);
-  const [userPicked, setUserPicked] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const selectionValid = days.some((d) => d.date === selected);
-  const effectiveDay = userPicked && selectionValid ? selected : defaultDay;
+  const selectionValid = pickedDay != null && days.some((d) => d.date === pickedDay);
+  const effectiveDay = selectionValid ? (pickedDay as string) : defaultDay;
 
   const dayQuery = trpc.account.productsByDay.useQuery(
     { date: effectiveDay },
@@ -389,15 +415,15 @@ function DayDetail({
   const avgTicket = data && data.orders > 0 ? data.revenue / data.orders : 0;
 
   return (
+    <div id="vendas-do-dia" className="scroll-mt-4">
     <SectionCard
       title="Vendas do dia"
-      description="Escolha um dia para entender exatamente o que aconteceu: faturamento, pedidos e todos os produtos vendidos."
+      description="Escolha um dia (ou clique numa barra do gráfico acima) para entender exatamente o que aconteceu: faturamento, pedidos e todos os produtos vendidos."
       actions={
         <Select
           value={effectiveDay}
           onValueChange={(v) => {
-            setSelected(v);
-            setUserPicked(true);
+            onPickDay(v);
             setExpanded(false);
           }}
         >
@@ -513,12 +539,12 @@ function DayDetail({
                       {idx + 1}
                     </td>
                     <td className="py-2.5 pr-2">
-                      <div className="flex items-center gap-2.5">
-                        <ProductImage src={p.thumbnail} alt={p.title} className="h-9 w-9 shrink-0 rounded-lg ring-1 ring-border" />
-                        <span className="line-clamp-2 max-w-[280px] text-sm font-medium leading-tight">
-                          {p.title}
-                        </span>
-                      </div>
+                      <ProductCell
+                        title={p.title}
+                        thumbnail={p.thumbnail}
+                        permalink={p.permalink}
+                        titleClassName="max-w-[280px]"
+                      />
                     </td>
                     <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">
                       {formatBRL(unitPrice)}
@@ -557,6 +583,7 @@ function DayDetail({
         </div>
       )}
     </SectionCard>
+    </div>
   );
 }
 
@@ -586,9 +613,20 @@ function FullRanking({
   periodTitle: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [search, setSearch] = useState("");
   const COLLAPSED_COUNT = 10;
-  const hasMore = products.length > COLLAPSED_COUNT;
-  const visible = expanded ? products : products.slice(0, COLLAPSED_COUNT);
+
+  // Filter by product name (case/diacritics-insensitive). When searching we
+  // show ALL matches (no collapse) so nothing relevant stays hidden.
+  const query = search.trim();
+  const filtered = useMemo(
+    () => filterProductsByName(products, query),
+    [products, query],
+  );
+
+  const searching = query.length > 0;
+  const hasMore = !searching && filtered.length > COLLAPSED_COUNT;
+  const visible = searching || expanded ? filtered : filtered.slice(0, COLLAPSED_COUNT);
 
   return (
     <SectionCard
@@ -598,7 +636,37 @@ function FullRanking({
           ? `Todos os produtos de ${periodTitle.toLowerCase()}`
           : `${formatNumber(products.length)} produto${products.length === 1 ? "" : "s"} distinto${products.length === 1 ? "" : "s"} em ${periodTitle.toLowerCase()}`
       }
+      actions={
+        !loading && products.length > 0 ? (
+          <div className="relative w-[240px] max-w-[60vw]">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar produto por nome"
+              className="h-10 pl-8 pr-8"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                title="Limpar busca"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        ) : undefined
+      }
     >
+      {!loading && searching && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          {filtered.length === 0
+            ? `Nenhum produto encontrado para “${search.trim()}”.`
+            : `${formatNumber(filtered.length)} de ${formatNumber(products.length)} produto${products.length === 1 ? "" : "s"} correspondem a “${search.trim()}”.`}
+        </p>
+      )}
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -648,12 +716,12 @@ function FullRanking({
                       </span>
                     </td>
                     <td className="py-2.5 pr-2">
-                      <div className="flex items-center gap-2.5">
-                        <ProductImage src={p.thumbnail} alt={p.title} className="h-9 w-9 shrink-0 rounded-lg ring-1 ring-border" />
-                        <span className="line-clamp-2 max-w-[280px] text-sm font-medium leading-tight">
-                          {p.title}
-                        </span>
-                      </div>
+                      <ProductCell
+                        title={p.title}
+                        thumbnail={p.thumbnail}
+                        permalink={p.permalink}
+                        titleClassName="max-w-[280px]"
+                      />
                     </td>
                     <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">
                       {formatBRL(unitPrice)}
@@ -697,7 +765,7 @@ function FullRanking({
                   </>
                 ) : (
                   <>
-                    <ChevronDown className="h-4 w-4" /> Ver todos os {formatNumber(products.length)} produtos
+                    <ChevronDown className="h-4 w-4" /> Ver todos os {formatNumber(filtered.length)} produtos
                   </>
                 )}
               </Button>

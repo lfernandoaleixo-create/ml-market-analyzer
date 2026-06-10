@@ -542,3 +542,20 @@
 - [x] Backend: getSalesDashboard ganha topLimit (0 = sem limite); enriquecimento de thumbs limitado a 80 itens p/ evitar timeout
 - [x] Ranking expansível listando TODOS os produtos do período (topLimit:0); pódio + link do anúncio; expande quando >10
 - [x] Testes (271 verdes) + TS limpo + validação ao vivo (jun/2026: ranking completo, venda do dia 10/06 enriquecida) + checkpoint
+
+## Produtos clicáveis + interação no gráfico + busca no ranking (10/jun)
+- [ ] Link para o anúncio em TODO produto (clicável em qualquer lugar que apareça): Top 10 Painel, "produtos do dia" Painel/Vendas, ranking Vendas, e demais
+- [ ] Backend: garantir permalink em DayProducts (getProductsByDay) e em topProducts (getSalesDashboard)
+- [ ] Clicar numa barra do gráfico seleciona aquele dia no card de produtos do dia (Vendas e Painel)
+- [ ] Busca/filtro por nome no ranking de produtos (Vendas), com contagem e botão limpar
+- [ ] Testes + TS limpo + validação ao vivo + checkpoint
+
+## Solicitação: produtos clicáveis + clique na barra + busca no ranking
+- [x] Componente reutilizável ProductCell (nome+thumb como link para o anúncio no ML)
+- [x] Painel: Top 10 com produtos clicáveis
+- [x] Painel: "Produtos vendidos por dia" com produtos clicáveis
+- [x] Painel: clicar numa barra do gráfico seleciona aquele dia
+- [x] Vendas: tabela do dia e ranking com produtos clicáveis
+- [x] Vendas: clicar numa barra do gráfico seleciona o dia no card "Vendas do dia"
+- [x] Vendas: busca/filtro por nome no ranking de produtos
+- [x] Utilitário filterProductsByName (case/acento-insensível) + teste vitest

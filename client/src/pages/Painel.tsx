@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { ProductImage } from "@/components/ProductImage";
 import { trpc } from "@/lib/trpc";
+import { ProductCell } from "@/components/account/ProductCell";
 import {
   PageShell,
   PageHeader,
@@ -110,6 +110,9 @@ export default function Painel() {
   const [kind, setKind] = useState<PeriodKind>("current");
   const [fromIso, setFromIso] = useState(monthStartIsoBrt());
   const [toIso, setToIso] = useState(todayIsoBrt());
+  // Day picked in the "Produtos vendidos por dia" card. Lifted here so that
+  // clicking a bar in the chart can select that day. null => follow default.
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
 
   // The range driving the bar chart + sales KPIs.
   const activeRange = useMemo(() => {
@@ -345,6 +348,19 @@ export default function Painel() {
                       barGap={3}
                       barCategoryGap="20%"
                       margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+                      onClick={(state: any) => {
+                        const d = state?.activePayload?.[0]?.payload?.date as string | undefined;
+                        if (d) {
+                          setPickedDay(d);
+                          // Bring the day card into view so the result is visible.
+                          setTimeout(() => {
+                            document
+                              .getElementById("produtos-por-dia")
+                              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }, 50);
+                        }
+                      }}
+                      className="cursor-pointer"
                     >
                       <CartesianGrid
                         strokeDasharray="3 3"
@@ -421,6 +437,8 @@ export default function Painel() {
         fromIso={brtIso(activeRange.fromMs)}
         toIso={brtIso(activeRange.toMs)}
         isCurrentMonth={kind === "current"}
+        pickedDay={pickedDay}
+        onPickDay={setPickedDay}
       />
 
       <SectionCard
@@ -531,12 +549,12 @@ export default function Painel() {
                           </span>
                         </td>
                         <td className="py-2.5 pr-2">
-                          <div className="flex items-center gap-2.5">
-                            <ProductImage src={p.thumbnail} alt={p.title} className="h-9 w-9 shrink-0 rounded-lg ring-1 ring-border" />
-                            <span className="line-clamp-2 max-w-[260px] text-sm font-medium leading-tight">
-                              {p.title}
-                            </span>
-                          </div>
+                          <ProductCell
+                            title={p.title}
+                            thumbnail={p.thumbnail}
+                            permalink={p.permalink}
+                            titleClassName="max-w-[260px]"
+                          />
                         </td>
                         <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">
                           {formatBRL(unitPrice)}
@@ -708,12 +726,17 @@ function DaySales({
   fromIso,
   toIso,
   isCurrentMonth,
+  pickedDay,
+  onPickDay,
 }: {
   days: Array<{ date: string; revenue: number; orders: number }>;
   loading: boolean;
   fromIso: string;
   toIso: string;
   isCurrentMonth: boolean;
+  /** Day selected externally (e.g. by clicking a chart bar). null => default. */
+  pickedDay: string | null;
+  onPickDay: (day: string | null) => void;
 }) {
   // Default selection:
   // - Current month: always today (clamped to the available day list).
@@ -729,13 +752,11 @@ function DaySales({
     return days.length ? days[days.length - 1].date : toIso;
   }, [days, toIso, isCurrentMonth]);
 
-  const [selected, setSelected] = useState<string>(defaultDay);
-  const [userPicked, setUserPicked] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  // While the user hasn't actively chosen a day, follow the computed default
-  // (so switching period / loading the current day works automatically).
-  const selectionValid = days.some((d) => d.date === selected);
-  const effectiveDay = userPicked && selectionValid ? selected : defaultDay;
+  // While no day was actively picked (via the selector OR by clicking a chart
+  // bar), follow the computed default so switching period works automatically.
+  const selectionValid = pickedDay != null && days.some((d) => d.date === pickedDay);
+  const effectiveDay = selectionValid ? (pickedDay as string) : defaultDay;
 
   const dayQuery = trpc.account.productsByDay.useQuery(
     { date: effectiveDay },
@@ -749,15 +770,15 @@ function DaySales({
   const visibleProducts = expanded ? products : products.slice(0, COLLAPSED_COUNT);
 
   return (
+    <div id="produtos-por-dia" className="scroll-mt-4">
     <SectionCard
       title="Produtos vendidos por dia"
-      description="Selecione um dia do período para ver exatamente quais produtos foram vendidos."
+      description="Selecione um dia (ou clique numa barra do gráfico acima) para ver exatamente quais produtos foram vendidos."
       actions={
         <Select
           value={effectiveDay}
           onValueChange={(v) => {
-            setSelected(v);
-            setUserPicked(true);
+            onPickDay(v);
             setExpanded(false);
           }}
         >
@@ -837,12 +858,12 @@ function DaySales({
                 return (
                   <tr key={p.itemId} className="align-middle transition-colors hover:bg-secondary/50">
                     <td className="py-2.5 pr-2">
-                      <div className="flex items-center gap-2.5">
-                        <ProductImage src={p.thumbnail} alt={p.title} className="h-9 w-9 shrink-0 rounded-lg ring-1 ring-border" />
-                        <span className="line-clamp-2 max-w-[280px] text-sm font-medium leading-tight">
-                          {p.title}
-                        </span>
-                      </div>
+                      <ProductCell
+                        title={p.title}
+                        thumbnail={p.thumbnail}
+                        permalink={p.permalink}
+                        titleClassName="max-w-[280px]"
+                      />
                     </td>
                     <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">
                       {formatBRL(unitPrice)}
@@ -881,6 +902,7 @@ function DaySales({
         </div>
       )}
     </SectionCard>
+    </div>
   );
 }
 
