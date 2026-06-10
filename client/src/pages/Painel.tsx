@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { ProductCell } from "@/components/account/ProductCell";
+import type { ListingRow } from "@shared/account";
 import {
   PageShell,
   PageHeader,
@@ -67,6 +68,9 @@ import {
   PackageOpen,
   ChevronDown,
   ChevronUp,
+  PauseCircle,
+  Archive,
+  type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
@@ -477,10 +481,8 @@ export default function Painel() {
         )}
       </SectionCard>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard
+      <SectionCard
           title={`Top 10 produtos (${periodTitle.toLowerCase()})`}
-          className="lg:col-span-2"
           actions={
             <Link href="/anuncios" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
               Meus anúncios <ArrowUpRight className="h-3.5 w-3.5" />
@@ -579,43 +581,8 @@ export default function Painel() {
           )}
         </SectionCard>
 
-        <div className="space-y-4">
-          {!listings.isLoading && (s?.stagnant ?? 0) > 0 && (
-            <Card className="card-soft border-0 rounded-2xl p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-                  <AlertCircle className="h-4.5 w-4.5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">{formatNumber(s!.stagnant)} anúncios sem vendas</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Têm estoque mas não venderam. Revise preço, título e fotos.
-                  </p>
-                  <Link href="/anuncios" className="mt-2 inline-block text-xs text-primary hover:underline">
-                    Revisar anúncios →
-                  </Link>
-                </div>
-              </div>
-            </Card>
-          )}
-          <Card className="card-soft border-0 rounded-2xl p-5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Search className="h-4.5 w-4.5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">Pesquisa de mercado</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Explore mais vendidos, tendências e preços de catálogo do Mercado Livre.
-                </p>
-                <Link href="/mais-vendidos" className="mt-2 inline-block text-xs text-primary hover:underline">
-                  Explorar mercado →
-                </Link>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
+        {/* Detailed listings breakdown — below the ranking, full width */}
+        <ListingsBreakdown items={listings.data?.items} loading={listings.isLoading} />
     </PageShell>
   );
 }
@@ -694,6 +661,169 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/* --------------------------- Listings breakdown --------------------------- */
+
+/** One metric tile in the listings breakdown grid. */
+function ListingStat({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  hint?: string;
+  icon: LucideIcon;
+  tone: "emerald" | "amber" | "rose" | "blue" | "slate" | "violet";
+}) {
+  const toneCls: Record<string, string> = {
+    emerald: "bg-emerald-500/10 text-emerald-600",
+    amber: "bg-amber-500/10 text-amber-600",
+    rose: "bg-rose-500/10 text-rose-600",
+    blue: "bg-blue-500/10 text-blue-600",
+    slate: "bg-slate-400/15 text-slate-600",
+    violet: "bg-violet-500/10 text-violet-600",
+  };
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-secondary/50 p-3.5">
+      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", toneCls[tone])}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="font-display text-2xl font-bold leading-none tracking-tight tabular-nums">
+          {formatNumber(value)}
+        </p>
+        <p className="mt-1 text-sm font-medium leading-tight">{label}</p>
+        {hint && <p className="mt-0.5 text-xs text-muted-foreground leading-tight">{hint}</p>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Detailed breakdown of the seller's listings by status and sales activity.
+ * Computed client-side from the listing rows so we surface actionable buckets:
+ * active, sem vendas, pausados (sem/com venda), sem estoque, encerrados.
+ */
+function ListingsBreakdown({
+  items,
+  loading,
+}: {
+  items?: ListingRow[];
+  loading: boolean;
+}) {
+  const stats = useMemo(() => {
+    const list = items ?? [];
+    const active = list.filter((i) => i.status === "active").length;
+    const paused = list.filter((i) => i.status === "paused");
+    const pausedNoSale = paused.filter((i) => i.soldQuantity === 0).length;
+    const pausedWithSale = paused.filter((i) => i.soldQuantity > 0).length;
+    // "Sem vendas" = active with stock but never sold (actionable now).
+    const activeNoSale = list.filter(
+      (i) => i.status === "active" && i.availableQuantity > 0 && i.soldQuantity === 0,
+    ).length;
+    const outOfStock = list.filter(
+      (i) => i.status === "active" && i.availableQuantity === 0,
+    ).length;
+    const closed = list.filter((i) => i.status === "closed").length;
+    const total = list.length;
+    return {
+      total,
+      active,
+      activeNoSale,
+      pausedNoSale,
+      pausedWithSale,
+      paused: paused.length,
+      outOfStock,
+      closed,
+    };
+  }, [items]);
+
+  return (
+    <SectionCard
+      title="Anúncios em detalhe"
+      description="Distribuição dos seus anúncios por status e atividade de vendas (amostra dos itens mais recentes)."
+      actions={
+        <Link href="/anuncios" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+          Gerenciar anúncios <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
+      }
+    >
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : stats.total === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-secondary/40 py-10 text-center">
+          <PackageOpen className="h-8 w-8 text-muted-foreground/50" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Nenhum anúncio encontrado nesta conta.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <ListingStat
+              label="Ativos"
+              value={stats.active}
+              icon={Package}
+              tone="emerald"
+              hint="Publicados e à venda"
+            />
+            <ListingStat
+              label="Ativos sem vendas"
+              value={stats.activeNoSale}
+              icon={AlertCircle}
+              tone="amber"
+              hint="Com estoque, sem vender"
+            />
+            <ListingStat
+              label="Sem estoque"
+              value={stats.outOfStock}
+              icon={XCircle}
+              tone="rose"
+              hint="Ativos zerados"
+            />
+            <ListingStat
+              label="Pausados sem venda"
+              value={stats.pausedNoSale}
+              icon={PauseCircle}
+              tone="slate"
+              hint="Nunca venderam"
+            />
+            <ListingStat
+              label="Pausados com venda"
+              value={stats.pausedWithSale}
+              icon={PauseCircle}
+              tone="violet"
+              hint="Já venderam — reativar?"
+            />
+            <ListingStat
+              label="Encerrados"
+              value={stats.closed}
+              icon={Archive}
+              tone="slate"
+              hint="Finalizados"
+            />
+          </div>
+          {stats.activeNoSale > 0 && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-500/10 p-3 text-xs text-amber-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <strong>{formatNumber(stats.activeNoSale)}</strong> anúncio(s) ativo(s) com estoque ainda não venderam.
+                Revise preço, título e fotos para destravar as vendas.
+              </span>
+            </div>
+          )}
+        </>
+      )}
+    </SectionCard>
+  );
 }
 
 /** Format a yyyy-mm-dd (BRT) day as a friendly label like "24 de abril". */

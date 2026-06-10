@@ -856,14 +856,12 @@ function DaySummaryCard({
             ? "bg-violet-500/12 text-violet-600"
             : "bg-rose-500/12 text-rose-600";
   return (
-    <div className="rounded-xl bg-secondary/50 p-3.5">
-      <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-        <span className={`flex h-5 w-5 items-center justify-center rounded-md ${tint}`}>
-          <Icon className="h-3 w-3" />
-        </span>
-        {label}
-      </p>
-      <p className="mt-1.5 font-display text-lg font-bold leading-none tracking-tight">{value}</p>
+    <div className="flex flex-col items-center gap-2 rounded-xl bg-secondary/50 p-4 text-center">
+      <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tint}`}>
+        <Icon className="h-4.5 w-4.5" />
+      </span>
+      <p className="font-display text-2xl font-bold leading-none tracking-tight tabular-nums">{value}</p>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     </div>
   );
 }
