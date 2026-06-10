@@ -15,6 +15,8 @@ export interface SalesKpis {
   avgTicket: number;
   /** Cancelled orders in the period. */
   cancelled: number;
+  /** Total value of cancelled orders in the period. */
+  cancelledAmount: number;
   currency: string;
 }
 
@@ -65,6 +67,10 @@ export interface StoreLifetime {
   totalRevenue: number;
   /** Total number of paid orders across the store's lifetime. */
   totalOrders: number;
+  /** Total number of cancelled orders across the store's lifetime. */
+  canceledOrders: number;
+  /** Total accumulated value of cancelled orders (best-effort). */
+  canceledRevenue: number;
   currency: string;
 }
 

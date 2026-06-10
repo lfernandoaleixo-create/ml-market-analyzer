@@ -516,3 +516,11 @@
 - [x] Frontend: lembrete âmbar discreto no canto superior do Painel quando expirado/erro, com atalho para Configurações
 - [x] Ocultar quando conexão estiver ativa (validado ao vivo: oculto) + 6 testes do isConnectionStale (271 testes verdes, TS limpo)
 - [x] Causa raiz da reconexão resolvida: Client Secret estava vazio no banco; reconectado (status connected, secret 32 chars, token renovando)
+
+
+## Campos de cancelamento (jun/2026)
+- [x] Histórico acumulado: 5º campo = vendas canceladas (qtd acumulada) + 6º campo = valor cancelado acumulado (R$) — grid de 6 colunas
+- [x] Backend: getStoreLifetime expõe canceledOrders + canceledRevenue (acumulado); SalesKpis ganha cancelledAmount
+- [x] Card do mês "Faturamento": "10 pedidos pagos" agora aparece dentro deste card (sublabel)
+- [x] Card do mês de pedidos: removido o "1 cancelado" e criado card novo "Cancelados" com qtd + valor (R$)
+- [x] Testes (getStoreLifetime com/sem cancelados) + validação ao vivo (18 / R$ 2.442,40 · mês 1 / R$ 199,40) — 271 testes verdes, TS limpo

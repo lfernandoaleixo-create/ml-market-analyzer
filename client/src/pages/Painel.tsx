@@ -61,6 +61,7 @@ import {
   Store,
   CalendarDays,
   TrendingUp,
+  TrendingDown,
   Receipt,
   ShoppingCart,
   PackageOpen,
@@ -178,6 +179,8 @@ export default function Painel() {
         firstSaleMs={lifetime.data?.firstSaleMs ?? null}
         totalRevenue={lifetime.data?.totalRevenue ?? 0}
         totalOrders={lifetime.data?.totalOrders ?? 0}
+        canceledOrders={lifetime.data?.canceledOrders ?? 0}
+        canceledRevenue={lifetime.data?.canceledRevenue ?? 0}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -187,20 +190,27 @@ export default function Painel() {
           loading={loadingSales}
           icon={DollarSign}
           accent="emerald"
-          sublabel={periodTitle.toLowerCase()}
+          sublabel={
+            loadingSales ? undefined : (
+              <span className="inline-flex items-center gap-1">
+                <ShoppingBag className="h-3 w-3 text-primary" />
+                {formatNumber(k?.orders ?? 0)} pedidos pagos · {periodTitle.toLowerCase()}
+              </span>
+            )
+          }
         />
         <KpiCard
-          label="Pedidos pagos"
-          value={loadingSales ? "" : formatNumber(k?.orders ?? 0)}
+          label="Cancelados"
+          value={loadingSales ? "" : formatNumber(k?.cancelled ?? 0)}
           loading={loadingSales}
-          icon={ShoppingBag}
-          accent="primary"
+          icon={XCircle}
+          accent="rose"
           sublabel={
-            k && k.cancelled > 0 ? (
-              <span className="inline-flex items-center gap-1 text-rose-600">
-                <XCircle className="h-3 w-3" /> {formatNumber(k.cancelled)} cancelados
+            loadingSales ? undefined : (
+              <span className={(k?.cancelledAmount ?? 0) > 0 ? "text-rose-600" : undefined}>
+                {formatBRL(k?.cancelledAmount ?? 0)} cancelados
               </span>
-            ) : undefined
+            )
           }
         />
         <KpiCard
@@ -835,11 +845,15 @@ function LifetimeCard({
   firstSaleMs,
   totalRevenue,
   totalOrders,
+  canceledOrders,
+  canceledRevenue,
 }: {
   loading: boolean;
   firstSaleMs: number | null;
   totalRevenue: number;
   totalOrders: number;
+  canceledOrders: number;
+  canceledRevenue: number;
 }) {
   const firstSaleLabel = firstSaleMs
     ? new Date(firstSaleMs).toLocaleDateString("pt-BR", {
@@ -898,6 +912,20 @@ function LifetimeCard({
       sub: "pedidos pagos no total",
       tint: "bg-primary/12 text-primary",
     },
+    {
+      icon: XCircle,
+      label: "Vendas canceladas",
+      value: formatNumber(canceledOrders),
+      sub: "pedidos cancelados no total",
+      tint: "bg-rose-500/12 text-rose-600",
+    },
+    {
+      icon: TrendingDown,
+      label: "Valor cancelado",
+      value: formatBRL(canceledRevenue),
+      sub: "acumulado ao longo do tempo",
+      tint: "bg-amber-500/12 text-amber-600",
+    },
   ];
 
   return (
@@ -911,7 +939,7 @@ function LifetimeCard({
           <p className="text-[11px] text-muted-foreground">Desde o início da loja — atualizado diariamente</p>
         </div>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
         {items.map((it) => (
           <div key={it.label} className="px-4 py-3 transition-colors hover:bg-secondary/40">
             <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">

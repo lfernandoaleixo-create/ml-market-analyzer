@@ -340,14 +340,17 @@ export class AccountProvider {
     // all-time total, which previously inflated the KPI).
     const cancelledOrders = await this.getCancelledOrders();
     let cancelled = 0;
+    let cancelledAmount = 0;
     for (const o of cancelledOrders) {
       const created = o.date_created ? new Date(o.date_created).getTime() : 0;
       if (created && (created < fromMs || created > toMs)) continue;
       cancelled += 1;
+      const amount = o.total_amount ?? 0;
+      cancelledAmount += amount;
       const dayKey = brtDateKey(created || Date.now());
       const day = dailyMap.get(dayKey) ?? { revenue: 0, orders: 0, cancelled: 0, cancelledAmount: 0 };
       day.cancelled += 1;
-      day.cancelledAmount += o.total_amount ?? 0;
+      day.cancelledAmount += amount;
       dailyMap.set(dayKey, day);
     }
 
@@ -399,6 +402,7 @@ export class AccountProvider {
         unitsSold,
         avgTicket: ordersCount > 0 ? revenue / ordersCount : 0,
         cancelled,
+        cancelledAmount,
         currency: this.currency,
       },
       daily,
@@ -472,10 +476,21 @@ export class AccountProvider {
       totalRevenue += approvedTotal > 0 ? approvedTotal : o.total_amount ?? 0;
     }
 
+    // Cancelled (lifetime): exact count via paging total (cheap) + accumulated
+    // value from the cancelled orders cache (best-effort, capped like paid).
+    const canceledOrders = await this.countOrdersByStatus("cancelled");
+    const cancelledAll = await this.getCancelledOrders();
+    let canceledRevenue = 0;
+    for (const o of cancelledAll) {
+      canceledRevenue += o.total_amount ?? 0;
+    }
+
     return {
       firstSaleMs,
       totalRevenue,
       totalOrders,
+      canceledOrders,
+      canceledRevenue,
       currency: this.currency,
     };
   }

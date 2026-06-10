@@ -454,8 +454,18 @@ describe("AccountProvider.getStoreLifetime", () => {
       ],
     };
 
+    // Lifetime cancelled: count via paging total + accumulated total_amount.
+    const cancelledBody = {
+      paging: { total: 5 },
+      results: [
+        { date_created: "2026-05-10T12:00:00.000Z", status: "cancelled", total_amount: 40 },
+        { date_created: "2026-05-12T12:00:00.000Z", status: "cancelled", total_amount: 60 },
+      ],
+    };
+
     global.fetch = makeFetchRouter([
       { match: /sort=date_asc/, body: oldestBody },
+      { match: /order\.status=cancelled/, body: cancelledBody },
       { match: /order\.status=paid/, body: paidDescBody },
     ]) as unknown as typeof fetch;
 
@@ -465,12 +475,16 @@ describe("AccountProvider.getStoreLifetime", () => {
     expect(lifetime.firstSaleMs).toBe(Date.parse(firstSaleIso));
     expect(lifetime.totalOrders).toBe(412);
     expect(lifetime.totalRevenue).toBe(350);
+    // Count comes from the cancelled paging total (exact); value sums the cache.
+    expect(lifetime.canceledOrders).toBe(5);
+    expect(lifetime.canceledRevenue).toBe(100);
     expect(lifetime.currency).toBe("BRL");
   });
 
   it("returns null first sale and zero totals for a store with no paid orders", async () => {
     global.fetch = makeFetchRouter([
       { match: /sort=date_asc/, body: { paging: { total: 0 }, results: [] } },
+      { match: /order\.status=cancelled/, body: { paging: { total: 0 }, results: [] } },
       { match: /order\.status=paid/, body: { paging: { total: 0 }, results: [] } },
     ]) as unknown as typeof fetch;
 
@@ -480,6 +494,8 @@ describe("AccountProvider.getStoreLifetime", () => {
     expect(lifetime.firstSaleMs).toBeNull();
     expect(lifetime.totalOrders).toBe(0);
     expect(lifetime.totalRevenue).toBe(0);
+    expect(lifetime.canceledOrders).toBe(0);
+    expect(lifetime.canceledRevenue).toBe(0);
   });
 });
 
