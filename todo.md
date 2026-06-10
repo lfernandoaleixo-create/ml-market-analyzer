@@ -578,3 +578,17 @@
 ## Ajustes (10/jun, 4ª rodada)
 - [x] Painel: card "Produtos vendidos por dia" recolhível (expand/retrair), recolhido por padrão (abre auto ao clicar numa barra)
 - [x] Painel: card "Top 10" recolhível (expand/retrair), recolhido por padrão
+
+
+## Reformulação "Meus anúncios" (10/jun)
+- [x] Backend: getListings escala p/ 500+ itens (paginação ampliada) e visitas em lote (/visits/items?ids=)
+- [x] Backend: janela de visitas ajustável (7/30/60/90d) com fallback time_window quando custom
+- [x] Backend: enriquecer ListingRow (createdMs/updatedMs, freeShipping, logisticType, catalogListing, stockValue)
+- [x] Shared: funções puras de faixas (visitas, conversão, estoque, saúde) + classificação de insights + filtros/ordenação/CSV
+- [x] Shared: testes vitest das faixas e insights (12 testes)
+- [x] Frontend: KPIs ampliados (6) + painel de insights acionáveis (6 cards clicáveis)
+- [x] Frontend: distribuição por faixas (visitas/conversão/estoque/saúde) com chips clicáveis
+- [x] Frontend: filtros combináveis (status, tipo, faixa de preço, frete, faixas) + busca + resumo "X de Y"
+- [x] Frontend: ordenação por coluna + janela de visitas ajustável (7/30/60/90d) + export CSV
+- [x] Frontend: exportação CSV do conjunto filtrado
+- [x] Testes + TS limpo + validação + checkpoint

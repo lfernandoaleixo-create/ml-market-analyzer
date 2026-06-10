@@ -203,8 +203,10 @@ describe("AccountProvider.getListings", () => {
 
     global.fetch = makeFetchRouter([
       { match: /\/users\/\d+\/items\/search/, body: idsPage },
-      { match: /\/items\?ids=/, body: itemsBody },
+      // Default 30-day window uses the batch visits endpoint (check first).
+      { match: /\/visits\/items\?ids=/, body: { MLB1: 100, MLB2: 40 } },
       { match: /\/visits\/time_window/, body: { total_visits: 100 } },
+      { match: /api\.mercadolibre\.com\/items\?ids=/, body: itemsBody },
     ]) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
@@ -214,9 +216,44 @@ describe("AccountProvider.getListings", () => {
     expect(res.summary.active).toBe(2);
     expect(res.summary.stagnant).toBe(1); // MLB2 has stock but no sales
     expect(res.summary.outOfStock).toBe(0);
+    expect(res.summary.windowDays).toBe(30);
+    expect(res.summary.totalSold).toBe(5);
+    expect(res.summary.totalStockValue).toBe(50 * 10 + 20 * 8);
     const mlb1 = res.items.find((i) => i.itemId === "MLB1")!;
     expect(mlb1.visits).toBe(100);
     expect(mlb1.conversion).toBeCloseTo(5 / 100);
+    expect(mlb1.stockValue).toBe(500);
+  });
+
+  it("uses the per-item time_window endpoint for non-30-day windows", async () => {
+    const idsPage = { paging: { total: 1 }, results: ["MLB9"] };
+    const itemsBody = [
+      {
+        code: 200,
+        body: {
+          id: "MLB9",
+          title: "Item janela 7d",
+          price: 30,
+          currency_id: "BRL",
+          available_quantity: 3,
+          sold_quantity: 2,
+          status: "active",
+          listing_type_id: "gold_pro",
+        },
+      },
+    ];
+    global.fetch = makeFetchRouter([
+      { match: /\/users\/\d+\/items\/search/, body: idsPage },
+      { match: /\/items\?ids=/, body: itemsBody },
+      { match: /\/visits\/time_window/, body: { total_visits: 12 } },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 7 });
+    expect(res.summary.windowDays).toBe(7);
+    const mlb9 = res.items.find((i) => i.itemId === "MLB9")!;
+    expect(mlb9.visits).toBe(12);
+    expect(mlb9.conversion).toBeCloseTo(2 / 12);
   });
 });
 

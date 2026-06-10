@@ -104,11 +104,13 @@ export class AccountProvider {
 
   // ---- Listings ----------------------------------------------------------
 
-  /** Fetch all of the seller's item ids (paged, capped for safety). */
-  private async getAllItemIds(maxItems = 200): Promise<string[]> {
+  /** Fetch all of the seller's item ids (paged, capped for safety). Returns the
+   *  ids plus whether the cap was hit (more items exist beyond the cap). */
+  private async getAllItemIds(maxItems = 600): Promise<{ ids: string[]; capped: boolean }> {
     const ids: string[] = [];
     let offset = 0;
     const limit = 50;
+    let total = maxItems;
     while (ids.length < maxItems) {
       const data = await this.get(
         `/users/${this.userId}/items/search?limit=${limit}&offset=${offset}`,
@@ -116,28 +118,55 @@ export class AccountProvider {
       const results: string[] = Array.isArray(data?.results) ? data.results : [];
       if (results.length === 0) break;
       ids.push(...results);
-      const total = data?.paging?.total ?? ids.length;
+      total = data?.paging?.total ?? ids.length;
       offset += limit;
       if (offset >= total) break;
     }
-    return ids.slice(0, maxItems);
+    const capped = total > ids.length || ids.length > maxItems;
+    return { ids: ids.slice(0, maxItems), capped };
   }
 
-  /** Multiget item details in batches of 20 (ML multiget cap). */
+  /** Multiget item details in batches of 20 (ML multiget cap), in parallel. */
   private async getItemsDetails(ids: string[]): Promise<any[]> {
+    const batches: string[][] = [];
+    for (let i = 0; i < ids.length; i += 20) batches.push(ids.slice(i, i + 20));
+    const attributes =
+      "id,title,price,currency_id,available_quantity,sold_quantity,status," +
+      "listing_type_id,health,category_id,permalink,thumbnail,pictures," +
+      "date_created,last_updated,shipping,catalog_listing,catalog_product_id";
     const out: any[] = [];
-    for (let i = 0; i < ids.length; i += 20) {
-      const batch = ids.slice(i, i + 20);
-      const data = await this.get(
-        `/items?ids=${batch.join(",")}&attributes=id,title,price,currency_id,available_quantity,sold_quantity,status,listing_type_id,health,category_id,permalink,thumbnail,pictures`,
+    const concurrency = 5;
+    for (let i = 0; i < batches.length; i += concurrency) {
+      const slice = batches.slice(i, i + concurrency);
+      const results = await Promise.all(
+        slice.map((batch) => this.get(`/items?ids=${batch.join(",")}&attributes=${attributes}`)),
       );
-      if (Array.isArray(data)) {
-        for (const row of data) {
-          if (row?.code === 200 && row?.body) out.push(row.body);
+      for (const data of results) {
+        if (Array.isArray(data)) {
+          for (const row of data) {
+            if (row?.code === 200 && row?.body) out.push(row.body);
+          }
         }
       }
     }
     return out;
+  }
+
+  /** Total visits for many items at once via /visits/items?ids= (best effort).
+   *  Used for the default window where ML reports lifetime/recent totals; for a
+   *  custom day window we fall back to the per-item time_window endpoint. */
+  private async getVisitsBatch(ids: string[]): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    for (let i = 0; i < ids.length; i += 20) {
+      const batch = ids.slice(i, i + 20);
+      const data = await this.get(`/visits/items?ids=${batch.join(",")}`);
+      if (data && typeof data === "object") {
+        for (const [id, v] of Object.entries(data)) {
+          if (typeof v === "number") map.set(id, v);
+        }
+      }
+    }
+    return map;
   }
 
   /** Visits in a time window for a single item (best effort). */
@@ -165,33 +194,47 @@ export class AccountProvider {
 
   async getListings(opts: { lastDays?: number; maxItems?: number } = {}): Promise<ListingsResult> {
     const lastDays = opts.lastDays ?? 30;
-    const maxItems = opts.maxItems ?? 120;
-    const ids = await this.getAllItemIds(maxItems);
+    const maxItems = opts.maxItems ?? 600;
+    const { ids, capped } = await this.getAllItemIds(maxItems);
     const details = await this.getItemsDetails(ids);
+    const detailIds = details.map((d) => d.id);
 
-    // Fetch visits in parallel but capped to avoid hammering the API.
+    // Visits strategy:
+    //  - 30-day window → batch endpoint (1 call / 20 items), much cheaper.
+    //  - other windows → per-item time_window (bounded concurrency).
     const visitsMap = new Map<string, number>();
-    const concurrency = 8;
-    for (let i = 0; i < details.length; i += concurrency) {
-      const batch = details.slice(i, i + concurrency);
-      const results = await Promise.all(
-        batch.map(async (d) => [d.id, await this.getItemVisits(d.id, lastDays)] as const),
-      );
-      for (const [id, v] of results) visitsMap.set(id, v);
+    if (lastDays === 30) {
+      const batch = await this.getVisitsBatch(detailIds);
+      batch.forEach((v, id) => visitsMap.set(id, v));
+    } else {
+      const concurrency = 8;
+      for (let i = 0; i < detailIds.length; i += concurrency) {
+        const batch = detailIds.slice(i, i + concurrency);
+        const results = await Promise.all(
+          batch.map(async (id) => [id, await this.getItemVisits(id, lastDays)] as const),
+        );
+        for (const [id, v] of results) visitsMap.set(id, v);
+      }
     }
 
     const items: ListingRow[] = details.map((d) => {
       const visits = visitsMap.get(d.id) ?? 0;
       const soldQuantity = d.sold_quantity ?? 0;
+      const price = d.price ?? 0;
+      const availableQuantity = d.available_quantity ?? 0;
       const thumb =
         d.thumbnail ||
         (Array.isArray(d.pictures) && d.pictures.length ? d.pictures[0].url : undefined);
+      const freeShipping = d.shipping?.free_shipping === true;
+      const logisticType = d.shipping?.logistic_type ?? null;
+      const catalogListing =
+        d.catalog_listing === true || (typeof d.catalog_product_id === "string" && d.catalog_product_id.length > 0);
       return {
         itemId: d.id,
         title: d.title ?? "",
-        price: d.price ?? 0,
+        price,
         currency: d.currency_id ?? this.currency,
-        availableQuantity: d.available_quantity ?? 0,
+        availableQuantity,
         soldQuantity,
         status: this.mapStatus(d.status),
         listingType: d.listing_type_id ?? "",
@@ -201,6 +244,12 @@ export class AccountProvider {
         permalink: d.permalink ?? undefined,
         health: typeof d.health === "number" ? d.health : null,
         categoryId: d.category_id ?? undefined,
+        createdMs: d.date_created ? new Date(d.date_created).getTime() : null,
+        updatedMs: d.last_updated ? new Date(d.last_updated).getTime() : null,
+        freeShipping,
+        logisticType,
+        catalogListing,
+        stockValue: price * availableQuantity,
       };
     });
 
@@ -210,7 +259,8 @@ export class AccountProvider {
     const stagnant = items.filter((i) => i.availableQuantity > 0 && i.soldQuantity === 0).length;
     const outOfStock = items.filter((i) => i.availableQuantity === 0).length;
     const totalVisits = items.reduce((s, i) => s + i.visits, 0);
-    const totalStockValue = items.reduce((s, i) => s + i.price * i.availableQuantity, 0);
+    const totalStockValue = items.reduce((s, i) => s + i.stockValue, 0);
+    const totalSold = items.reduce((s, i) => s + i.soldQuantity, 0);
 
     return {
       summary: {
@@ -222,6 +272,9 @@ export class AccountProvider {
         outOfStock,
         totalVisits,
         totalStockValue,
+        totalSold,
+        windowDays: lastDays,
+        capped,
       },
       items,
     };

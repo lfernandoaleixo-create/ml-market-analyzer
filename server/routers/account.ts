@@ -163,7 +163,7 @@ export const accountRouter = router({
 
   /** Listings performance (visits, sales, conversion, stock, status). */
   listings: protectedProcedure
-    .input(z.object({ lastDays: z.number().int().min(1).max(90).optional() }).optional())
+    .input(z.object({ lastDays: z.number().int().min(1).max(150).optional() }).optional())
     .query(async ({ ctx, input }) => {
       const account = await resolveAccount(ctx.user.id);
       return account.getListings({ lastDays: input?.lastDays ?? 30 });

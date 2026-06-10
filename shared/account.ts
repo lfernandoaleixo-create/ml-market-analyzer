@@ -117,6 +117,18 @@ export interface ListingRow {
   /** Health score 0..1 when provided by ML. */
   health?: number | null;
   categoryId?: string;
+  /** Creation timestamp (ms, UTC) of the listing. */
+  createdMs?: number | null;
+  /** Last update timestamp (ms, UTC) of the listing. */
+  updatedMs?: number | null;
+  /** Whether the listing offers free shipping. */
+  freeShipping?: boolean;
+  /** Logistic mode (e.g. fulfillment, cross_docking, drop_off, self_service). */
+  logisticType?: string | null;
+  /** Whether the listing is associated to a catalog product. */
+  catalogListing?: boolean;
+  /** Total stock value for this listing (price * availableQuantity). */
+  stockValue: number;
 }
 
 export interface ListingsSummary {
@@ -130,6 +142,12 @@ export interface ListingsSummary {
   outOfStock: number;
   totalVisits: number;
   totalStockValue: number;
+  /** Total units sold across all listings (lifetime sold_quantity). */
+  totalSold: number;
+  /** Number of days in the visits window used to compute `visits`. */
+  windowDays: number;
+  /** True when the listing count hit the safety cap (more items exist). */
+  capped: boolean;
 }
 
 export interface ListingsResult {
