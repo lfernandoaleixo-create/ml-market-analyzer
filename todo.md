@@ -462,3 +462,9 @@
 - [x] Gate de "Conecte sua conta" só quando confirmado desconectado, sem isFetching e sem cache (Painel, Vendas, Anúncios, Pós-venda, Reputação)
 - [x] Erros de query só derrubam a página quando não há dados em cache
 - [x] Validado ao vivo (Painel sem badge, sem piscar) + 255 testes verdes + TS limpo + checkpoint
+
+## Painel — redesenho do gráfico + Top 10 (jun/2026)
+- [x] Redesenhar gráfico: cada dia em slot com tick/divisória sob o número do dia; duas barras (faturamento + cancelado) lado a lado dentro do slot
+- [x] Barras grossas e legíveis (maxBarSize 14, barGap 3, barCategoryGap 20%) + scroll horizontal (minWidth ~34px/dia) em períodos longos
+- [x] Top produtos do Painel: tabela com 10 mais vendidos, preço unitário (revenue/unidades), nº de vendas e valor total
+- [x] Validado (inspeção isolada + dados reais: dia 3 com barra vermelha, Top 10 completo) + 255 testes verdes + TS limpo + checkpoint

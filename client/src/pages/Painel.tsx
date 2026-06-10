@@ -259,59 +259,75 @@ export default function Painel() {
               />
             </div>
 
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={bars}
-                  barGap={2}
-                  barCategoryGap={longSpan ? "35%" : "45%"}
-                  margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="var(--border)"
-                    vertical={!longSpan}
-                    verticalCoordinatesGenerator={undefined}
-                  />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                    tickLine={{ stroke: "var(--border)" }}
-                    axisLine={{ stroke: "var(--border)" }}
-                    interval={longSpan ? 2 : 0}
-                    minTickGap={0}
-                    padding={{ left: 8, right: 8 }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)", textAnchor: "end" }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={72}
-                    tickMargin={8}
-                    allowDecimals={false}
-                    tickFormatter={(v) => formatBRLCompact(Number(v))}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "var(--secondary)", opacity: 0.5 }}
-                    content={<RevenueTooltip />}
-                  />
-                  <Bar
-                    dataKey="revenue"
-                    name="Faturamento"
-                    fill="var(--primary)"
-                    radius={[2, 2, 0, 0]}
-                    maxBarSize={longSpan ? 5 : 7}
-                  />
-                  <Bar
-                    dataKey="cancelledAmount"
-                    name="Cancelado"
-                    fill="#f43f5e"
-                    radius={[2, 2, 0, 0]}
-                    maxBarSize={longSpan ? 5 : 7}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            {/* Each day is a slot delimited by vertical divider lines, with the
+                day number centered below and two thick bars (revenue + cancelled)
+                inside. For long periods we enable horizontal scroll so the bars
+                stay wide and readable instead of shrinking to invisible slivers. */}
+            <div className="overflow-x-auto pb-1">
+              <div
+                className="h-72"
+                style={{ minWidth: `${Math.max(bars.length * 34, 320)}px`, width: "100%" }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={bars}
+                      barGap={3}
+                      barCategoryGap="20%"
+                      margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        horizontal
+                        vertical={false}
+                      />
+                    {/* Day axis: a tick line under each day acts as a slot
+                        separator, with the day number centered in its slot. */}
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      tickLine={{ stroke: "var(--border)" }}
+                      tickSize={6}
+                      axisLine={{ stroke: "var(--border)" }}
+                      interval={0}
+                      minTickGap={0}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)", textAnchor: "end" }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={64}
+                      tickMargin={8}
+                      allowDecimals={false}
+                      tickFormatter={(v) => formatBRLCompact(Number(v))}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "var(--secondary)", opacity: 0.5 }}
+                      content={<RevenueTooltip />}
+                    />
+                    <Bar
+                      dataKey="revenue"
+                      name="Faturamento"
+                      fill="var(--primary)"
+                      radius={[3, 3, 0, 0]}
+                      maxBarSize={14}
+                    />
+                    <Bar
+                      dataKey="cancelledAmount"
+                      name="Cancelado"
+                      fill="#f43f5e"
+                      radius={[3, 3, 0, 0]}
+                      maxBarSize={14}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
+            {bars.length > 16 && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Dica: arraste o gráfico para o lado para ver todos os dias.
+              </p>
+            )}
             <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Faturamento
@@ -362,7 +378,7 @@ export default function Painel() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <SectionCard
-          title={`Top produtos (${periodTitle.toLowerCase()})`}
+          title={`Top 10 produtos (${periodTitle.toLowerCase()})`}
           className="lg:col-span-2"
           actions={
             <Link href="/anuncios" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
@@ -372,8 +388,8 @@ export default function Painel() {
         >
           {loadingSales ? (
             <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-11 w-full" />
               ))}
             </div>
           ) : (sales.data?.topProducts.length ?? 0) === 0 ? (
@@ -381,18 +397,47 @@ export default function Painel() {
               Ainda sem vendas no período.
             </p>
           ) : (
-            <div className="divide-y">
-              {sales.data!.topProducts.slice(0, 5).map((p, i) => (
-                <div key={p.itemId} className="flex items-center gap-3 py-2.5">
-                  <span className="w-5 text-center text-sm font-semibold text-muted-foreground">{i + 1}</span>
-                  <ProductImage src={p.thumbnail} alt={p.title} className="h-10 w-10 rounded-lg" />
-                  <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.title}</p>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">{formatBRL(p.revenue)}</p>
-                    <p className="text-xs text-muted-foreground">{formatNumber(p.unitsSold)} un.</p>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-muted-foreground">
+                    <th className="py-2 pr-2 text-left font-medium">#</th>
+                    <th className="py-2 pr-2 text-left font-medium">Produto</th>
+                    <th className="py-2 px-2 text-right font-medium whitespace-nowrap">Preço unit.</th>
+                    <th className="py-2 px-2 text-right font-medium whitespace-nowrap">Vendas</th>
+                    <th className="py-2 pl-2 text-right font-medium whitespace-nowrap">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {sales.data!.topProducts.slice(0, 10).map((p, i) => {
+                    const unitPrice = p.unitsSold > 0 ? p.revenue / p.unitsSold : 0;
+                    return (
+                      <tr key={p.itemId} className="align-middle">
+                        <td className="py-2.5 pr-2 text-center text-sm font-semibold text-muted-foreground">
+                          {i + 1}
+                        </td>
+                        <td className="py-2.5 pr-2">
+                          <div className="flex items-center gap-2.5">
+                            <ProductImage src={p.thumbnail} alt={p.title} className="h-9 w-9 shrink-0 rounded-lg" />
+                            <span className="line-clamp-2 max-w-[260px] text-sm font-medium leading-tight">
+                              {p.title}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">
+                          {formatBRL(unitPrice)}
+                        </td>
+                        <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">
+                          {formatNumber(p.unitsSold)}
+                        </td>
+                        <td className="py-2.5 pl-2 text-right font-semibold tabular-nums whitespace-nowrap">
+                          {formatBRL(p.revenue)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </SectionCard>
