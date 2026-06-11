@@ -28,6 +28,7 @@ import {
   formatBRLCompact,
   reputationLabel,
   reputationColor,
+  isoToWeekdayLong,
 } from "@/lib/format";
 import {
   currentMonthRange,
@@ -49,6 +50,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
 import {
   DollarSign,
   ShoppingBag,
@@ -162,23 +164,12 @@ export default function Painel() {
   const loadingSales = sales.isLoading;
 
   // Whether the range spans more than ~45 days (then label by month-day, else day).
-  const spanDays = Math.round((activeRange.toMs - activeRange.fromMs) / 86400000) + 1;
-  const longSpan = spanDays > 45;
-
-  const bars =
-    sales.data?.daily.map((d) => {
-      const [, mm, dd] = d.date.split("-");
-      return { ...d, label: longSpan ? `${dd}/${mm}` : String(Number(dd)) };
-    }) ?? [];
+  const bars = sales.data?.daily ?? [];
 
   const totalCancelledDays = bars.filter((b) => (b.cancelled ?? 0) > 0).length;
   const totalRevenue = bars.reduce((acc, b) => acc + (b.revenue ?? 0), 0);
   const totalCancelledAmount = bars.reduce((acc, b) => acc + (b.cancelledAmount ?? 0), 0);
 
-  // Always show EVERY day's label on the X axis (interval=0). To keep them
-  // legible we widen each day's slot and tilt the labels on longer ranges so
-  // they never overlap (horizontal scroll handles the extra width).
-  const labelInterval = 0;
   // Wider per-day slot the longer the range, so all day labels stay readable.
   const perDayWidth = bars.length > 35 ? 36 : bars.length > 16 ? 32 : 38;
 
@@ -378,16 +369,9 @@ export default function Painel() {
                     {/* Day axis: a tick line under each day acts as a slot
                         separator, with the day number centered in its slot. */}
                     <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: longSpan ? 10 : 11, fill: "var(--muted-foreground)" }}
-                      tickLine={{ stroke: "var(--border)" }}
-                      tickSize={6}
-                      axisLine={{ stroke: "var(--border)" }}
-                      interval={labelInterval}
-                      minTickGap={0}
-                      angle={longSpan ? -45 : 0}
-                      textAnchor={longSpan ? "end" : "middle"}
-                      height={longSpan ? 52 : 24}
+                      dataKey="date"
+                      tick={<DayAxisTick todayKey={todayIsoBrt()} />}
+                      {...dayAxisProps}
                     />
                     <YAxis
                       tick={{ fontSize: 11, fill: "var(--muted-foreground)", textAnchor: "end" }}
@@ -628,7 +612,7 @@ function RevenueTooltip({ active, payload, label }: any) {
   };
   return (
     <div className="rounded-xl border bg-background p-3 text-xs shadow-sm" style={{ borderColor: "var(--border)" }}>
-      <p className="font-medium">Dia {label}</p>
+      <p className="font-medium">{isoToWeekdayLong(String(label))}</p>
       {d.revenue === 0 && (d.cancelled ?? 0) === 0 ? (
         <p className="mt-1 text-muted-foreground">Sem movimento</p>
       ) : (

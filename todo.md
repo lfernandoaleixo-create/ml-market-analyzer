@@ -712,3 +712,11 @@
 - [x] Oportunidades e alertas: colapsável
 - [x] Lista de produtos: colapsável
 - [x] Verificar status, salvar checkpoint (351 testes OK)
+
+## Padronização visual global (11/06 - 4)
+- [x] KpiCard: mais compacto/baixo e delicado, alinhamento de textos impecável (trilho de cor fino no topo, rótulo+ícone, número, sublabel reservada)
+- [x] Cards expansíveis (SectionCard): cabeçalho fino em uma linha com chevron à direita
+- [x] Regra global de gráficos: eixo de dias idêntico ao "Visitas diárias" (DayAxisTick compartilhado: vertical, dia + dia-da-semana, fim de semana vermelho)
+- [x] Aplicar o eixo unificado a todos os gráficos (Anúncios, Painel, Vendas, Monitoramento)
+- [x] dayAxisLabelParts pura no shared + 15 testes; suíte completa 357 testes
+- [x] Verificar status, rodar testes, salvar checkpoint

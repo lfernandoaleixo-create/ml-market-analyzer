@@ -27,6 +27,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
+import { isoToWeekdayLong } from "@/lib/format";
 import { toast } from "sonner";
 
 type Metric = "price" | "sold" | "position";
@@ -135,12 +137,17 @@ function HistoryDialog({ id, onClose }: { id: number | null; onClose: () => void
   );
 
   const chartData = useMemo(() => {
-    return (data?.snapshots ?? []).map((s) => ({
-      date: new Date(s.capturedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-      price: s.price ?? null,
-      sold: s.soldQuantity ?? null,
-      position: s.position ?? null,
-    }));
+    return (data?.snapshots ?? []).map((s) => {
+      // ISO yyyy-mm-dd (local) so the shared day axis can render "dia + weekday".
+      const d = new Date(s.capturedAt);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return {
+        date: iso,
+        price: s.price ?? null,
+        sold: s.soldQuantity ?? null,
+        position: s.position ?? null,
+      };
+    });
   }, [data]);
 
   const metricMeta: Record<Metric, { label: string; key: string; color: string; invert?: boolean }> = {
@@ -214,7 +221,7 @@ function HistoryDialog({ id, onClose }: { id: number | null; onClose: () => void
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} minTickGap={24} />
+                <XAxis dataKey="date" tick={<DayAxisTick />} {...dayAxisProps} />
                 <YAxis
                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickLine={false}
@@ -231,6 +238,7 @@ function HistoryDialog({ id, onClose }: { id: number | null; onClose: () => void
                     fontSize: 12,
                   }}
                   labelStyle={{ color: "var(--muted-foreground)" }}
+                  labelFormatter={(v) => isoToWeekdayLong(String(v))}
                 />
                 <Area
                   type="monotone"

@@ -21,11 +21,10 @@ import {
   formatNumber,
   formatRatePct,
   formatCompact,
-  isoToWeekdayShort,
-  isoToDayNum,
   isoToWeekdayLong,
 } from "@/lib/format";
-import { isoIsWeekend, computeVisitsTrendPct } from "@shared/visitsTrend";
+import { computeVisitsTrendPct } from "@shared/visitsTrend";
+import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
 import {
   Select,
   SelectContent,
@@ -913,13 +912,8 @@ function VisitsEvolutionChart({
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal vertical={false} />
             <XAxis
               dataKey="date"
-              tick={<WeekdayTick todayKey={todayKey} />}
-              tickLine={false}
-              axisLine={{ stroke: "var(--border)" }}
-              interval={0}
-              minTickGap={0}
-              height={84}
-              tickMargin={8}
+              tick={<DayAxisTick todayKey={todayKey} />}
+              {...dayAxisProps}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
@@ -968,44 +962,6 @@ function VisitsEvolutionChart({
         </ResponsiveContainer>
       </div>
     </div>
-  );
-}
-
-/**
- * Vertical X axis tick. A SINGLE vertical label per day in the form "10 ter"
- * (day number + weekday abbreviation) so there is never any overlap. The whole
- * label is rotated -90° and anchored at its end, which sits right next to the
- * axis — this keeps every day's number perfectly aligned on the same baseline
- * regardless of 1- or 2-digit days. Weekends (Sat/Sun) are red; today uses the
- * primary color.
- */
-function WeekdayTick({ x, y, payload, todayKey }: any) {
-  const iso = payload?.value as string;
-  if (!iso) return null;
-  const isToday = iso === todayKey;
-  const weekend = isoIsWeekend(iso);
-  const weekday = isoToWeekdayShort(iso);
-  const dayNum = isoToDayNum(iso);
-  // Color priority: today (primary) > weekend (red) > weekday (foreground).
-  const color = isToday ? "var(--primary)" : weekend ? "#dc2626" : "var(--foreground)";
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <text
-        x={0}
-        y={0}
-        dy={4}
-        transform="rotate(-90)"
-        textAnchor="end"
-        fontSize={11}
-        fontWeight={isToday || weekend ? 700 : 500}
-        fill={color}
-      >
-        <tspan>{dayNum}</tspan>
-        <tspan dx={5} fontSize={9} fontWeight={isToday || weekend ? 600 : 400} opacity={0.85}>
-          {weekday}
-        </tspan>
-      </text>
-    </g>
   );
 }
 

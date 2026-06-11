@@ -44,3 +44,30 @@ export function computeVisitsTrendPct(
   if (firstHalf === 0) return secondHalf > 0 ? 100 : null;
   return ((secondHalf - firstHalf) / firstHalf) * 100;
 }
+
+/**
+ * GLOBAL day-axis label rule (shared by every time-series chart). Given an ISO
+ * date and the optional "today" key, returns the display parts and the color
+ * priority used by DayAxisTick: today (primary) > weekend (red) > weekday.
+ */
+export function dayAxisLabelParts(
+  iso: string,
+  todayKey?: string | null,
+): {
+  dayNum: string;
+  weekday: string;
+  isWeekend: boolean;
+  isToday: boolean;
+  color: string;
+  bold: boolean;
+} {
+  const dt = isoToUtcDate(iso);
+  const isToday = todayKey != null && iso === todayKey;
+  const isWeekend = isoIsWeekend(iso);
+  const dayNum = dt ? String(dt.getUTCDate()) : "";
+  const weekday = dt
+    ? dt.toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" }).replace(".", "")
+    : "";
+  const color = isToday ? "var(--primary)" : isWeekend ? "#dc2626" : "var(--foreground)";
+  return { dayNum, weekday, isWeekend, isToday, color, bold: isToday || isWeekend };
+}

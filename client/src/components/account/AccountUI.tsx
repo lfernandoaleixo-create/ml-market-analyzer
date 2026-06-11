@@ -66,28 +66,30 @@ export function KpiCard({
   };
   const a = accentMap[accent];
   return (
-    <Card className="card-soft card-lift relative flex h-full min-h-[116px] flex-col overflow-hidden border-0 p-5 rounded-2xl">
-      {/* Accent rail on the left edge */}
-      <span className={cn("absolute inset-y-0 left-0 w-1", a.bar)} aria-hidden />
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+    <Card className="card-soft card-lift relative flex h-full flex-col overflow-hidden border-0 rounded-xl px-4 py-3">
+      {/* Slim accent rail on the top edge (delicate, like the reference). */}
+      <span className={cn("absolute inset-x-0 top-0 h-[3px]", a.bar)} aria-hidden />
+      {/* Header row: compact uppercase label + small icon aligned to the right. */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
         {Icon && (
-          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm", a.icon)}>
-            <Icon className="h-5 w-5" strokeWidth={2.2} />
+          <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", a.icon)}>
+            <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
           </div>
         )}
       </div>
-      <div className="mt-auto pt-3">
+      {/* Value row */}
+      <div className="mt-1.5">
         {loading ? (
-          <Skeleton className="h-9 w-28" />
+          <Skeleton className="h-7 w-24" />
         ) : (
           <p
             className={cn(
               // Proportional, uniform size across every card. clamp() keeps long
-              // numbers from overflowing narrow cards while staying large and
-              // readable on wide ones. All cards share the same baseline.
+              // numbers from overflowing narrow cards while staying readable on
+              // wide ones. All cards share the same baseline.
               "font-display leading-none tracking-tight tabular-nums whitespace-nowrap",
-              "text-[clamp(1.5rem,2.4vw,2rem)]",
+              "text-[clamp(1.35rem,1.9vw,1.7rem)]",
               valueClassName,
             )}
           >
@@ -98,11 +100,11 @@ export function KpiCard({
           <TrendPill pct={trend.pct} caption={trend.label} />
         )}
         {/* Reserve a consistent slot for the small caption so cards WITH and
-            WITHOUT a sublabel keep their big numbers on the same line. */}
+            WITHOUT a sublabel keep their numbers aligned on the same baseline. */}
         {sublabel ? (
-          <div className="mt-1.5 min-h-[1rem] text-xs leading-tight text-muted-foreground">{sublabel}</div>
+          <div className="mt-1 min-h-[0.95rem] text-[11px] leading-tight text-muted-foreground">{sublabel}</div>
         ) : (
-          <div className="mt-1.5 min-h-[1rem]" aria-hidden />
+          <div className="mt-1 min-h-[0.95rem]" aria-hidden />
         )}
       </div>
     </Card>
@@ -163,15 +165,6 @@ export function SectionCard({
   const headerInner = (
     <>
       <div className="flex min-w-0 items-center gap-2">
-        {collapsible && (
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
-              open ? "rotate-0" : "-rotate-90",
-            )}
-            aria-hidden
-          />
-        )}
         <div className="min-w-0 space-y-0.5">
           {title && (
             <h2 className="flex items-center gap-2 font-display text-base tracking-tight">
@@ -182,14 +175,23 @@ export function SectionCard({
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </div>
       </div>
-      {actions && (
-        <div
-          className="flex items-center gap-2"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {actions}
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        {actions && (
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            {actions}
+          </div>
+        )}
+        {/* Chevron lives on the RIGHT for collapsible sections (like the reference). */}
+        {collapsible && (
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              open ? "rotate-0" : "-rotate-90",
+            )}
+            aria-hidden
+          />
+        )}
+      </div>
     </>
   );
 
@@ -201,7 +203,11 @@ export function SectionCard({
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            className="flex w-full items-center justify-between gap-3 border-b px-5 py-4 text-left transition-colors hover:bg-muted/30 rounded-t-2xl"
+            className={cn(
+              "flex w-full items-center justify-between gap-3 px-5 text-left transition-colors hover:bg-muted/30",
+              // Slim header; only show the bottom divider when expanded.
+              open ? "border-b py-3 rounded-t-2xl" : "py-3 rounded-2xl",
+            )}
             style={{ borderColor: "var(--border)" }}
           >
             {headerInner}
