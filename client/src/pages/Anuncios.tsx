@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { formatBRL, formatNumber, formatRatePct, formatBRLCompact } from "@/lib/format";
+import { formatBRL, formatNumber, formatRatePct } from "@/lib/format";
 import type { ListingRow, ListingStatus } from "@shared/account";
 import {
   VISIT_BUCKETS,
@@ -36,10 +36,13 @@ import {
 import {
   Package,
   Eye,
+  EyeOff,
+  PlayCircle,
+  XCircle,
+  Gauge,
   PauseCircle,
   AlertCircle,
   Boxes,
-  Wallet,
   Download,
   Search as SearchIcon,
   ArrowUpDown,
@@ -67,7 +70,6 @@ const INSIGHT_ICON: Record<InsightId, typeof Flame> = {
   selling_low_stock: Flame,
   out_of_stock_active: PackageX,
   paused_with_sales: RefreshCw,
-  stagnant_capital: Wallet,
 };
 
 const INSIGHT_ACCENT: Record<InsightId, string> = {
@@ -76,7 +78,6 @@ const INSIGHT_ACCENT: Record<InsightId, string> = {
   selling_low_stock: "border-orange-500/30 bg-orange-500/5 text-orange-700",
   out_of_stock_active: "border-red-500/30 bg-red-500/5 text-red-700",
   paused_with_sales: "border-blue-500/30 bg-blue-500/5 text-blue-700",
-  stagnant_capital: "border-violet-500/30 bg-violet-500/5 text-violet-700",
 };
 
 const STATUS_FILTERS: { key: ListingStatus; label: string }[] = [
@@ -145,6 +146,17 @@ export default function Anuncios() {
 
   const filtered = useMemo(() => filterListings(items, filters), [items, filters]);
   const sorted = useMemo(() => sortListings(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
+
+  // When an insight card is selected we surface the matching listings right
+  // below the Oportunidades section (in addition to driving the full table).
+  const selectedInsight = useMemo(
+    () => (filters.insightId ? insights.find((i) => i.id === filters.insightId) ?? null : null),
+    [filters.insightId, insights],
+  );
+  const insightRows = useMemo(
+    () => (selectedInsight ? sortListings(selectedInsight.items, sortKey, sortDir) : []),
+    [selectedInsight, sortKey, sortDir],
+  );
 
 
   function toggleArrayFilter(key: keyof ListingFilters, value: string) {
@@ -293,6 +305,60 @@ export default function Anuncios() {
         />
       </div>
 
+      {/* Visits broken down by listing status */}
+      <SectionCard
+        title={`Visualizações por status (${visitWindow}d)`}
+        description="Como as visitas do período se distribuem entre anúncios ativos, pausados e encerrados — e quantos ativos estão realmente recebendo tráfego."
+      >
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <KpiCard
+            label="Visitas · ativos"
+            value={isLoading ? "" : formatNumber(s?.visitsActive ?? 0)}
+            loading={isLoading}
+            icon={Eye}
+            accent="emerald"
+          />
+          <KpiCard
+            label="Visitas · pausados"
+            value={isLoading ? "" : formatNumber(s?.visitsPaused ?? 0)}
+            loading={isLoading}
+            icon={PauseCircle}
+            accent="amber"
+          />
+          <KpiCard
+            label="Visitas · encerrados"
+            value={isLoading ? "" : formatNumber(s?.visitsClosed ?? 0)}
+            loading={isLoading}
+            icon={XCircle}
+            accent="rose"
+          />
+          <KpiCard
+            label="Ativos com visitas"
+            value={isLoading ? "" : formatNumber(s?.activeWithVisits ?? 0)}
+            loading={isLoading}
+            icon={PlayCircle}
+            accent="blue"
+            sublabel={isLoading ? undefined : `de ${formatNumber(s?.active ?? 0)} ativos`}
+          />
+          <KpiCard
+            label="Ativos sem visitas"
+            value={isLoading ? "" : formatNumber(s?.activeNoVisits ?? 0)}
+            loading={isLoading}
+            icon={EyeOff}
+            accent="orange"
+            sublabel="sem tráfego no período"
+          />
+          <KpiCard
+            label="Média por ativo"
+            value={isLoading ? "" : (s?.avgVisitsPerActive ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+            loading={isLoading}
+            icon={Gauge}
+            accent="violet"
+            sublabel="visitas / anúncio ativo"
+          />
+        </div>
+      </SectionCard>
+
       {/* Actionable insights */}
       <SectionCard
         title="Oportunidades e alertas"
@@ -328,17 +394,39 @@ export default function Anuncios() {
                     <span className="font-display text-xl leading-none tabular-nums">{ins.count}</span>
                   </div>
                   <p className="text-xs leading-snug text-muted-foreground">{ins.description}</p>
-                  {ins.id === "stagnant_capital" && ins.stockValue > 0 && (
-                    <span className="mt-0.5 text-xs font-medium">
-                      {formatBRL(ins.stockValue)} parados
-                    </span>
-                  )}
                 </button>
               );
             })}
           </div>
         )}
       </SectionCard>
+
+      {/* Selected-insight result list — appears right below Oportunidades */}
+      {selectedInsight && (
+        <SectionCard
+          title={`${selectedInsight.title} · ${formatNumber(selectedInsight.count)} anúncio${selectedInsight.count === 1 ? "" : "s"}`}
+          description={selectedInsight.description}
+          actions={
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 px-2 text-xs text-muted-foreground"
+              onClick={() => setFilters((p) => ({ ...p, insightId: null }))}
+            >
+              <X className="h-3.5 w-3.5" /> Fechar
+            </Button>
+          }
+        >
+          {insightRows.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <Filter className="h-7 w-7 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Nenhum anúncio neste grupo no momento.</p>
+            </div>
+          ) : (
+            <ListingsTable rows={insightRows} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+          )}
+        </SectionCard>
+      )}
 
       {/* Distribution by bands */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -492,50 +580,7 @@ export default function Anuncios() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <SortableTh label="Anúncio" k="title" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="pr-3" align="left" />
-                  <SortableTh label="Preço" k="price" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableTh label="Estoque" k="availableQuantity" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableTh label="Vendas" k="soldQuantity" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableTh label="Visitas" k="visits" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableTh label="Conversão" k="conversion" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableTh label="Saúde" k="health" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <th className="pb-2 pl-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {sorted.map((r) => (
-                  <tr key={r.itemId} className="group">
-                    <td className="py-3 pr-3">
-                      <ProductCell title={r.title} thumbnail={r.thumbnail} permalink={r.permalink} titleClassName="max-w-[240px]" />
-                    </td>
-                    <td className="px-3 text-right tabular-nums">{formatBRL(r.price)}</td>
-                    <td className="px-3 text-right tabular-nums">
-                      {r.availableQuantity === 0 ? (
-                        <span className="text-rose-600 font-medium">0</span>
-                      ) : (
-                        formatNumber(r.availableQuantity)
-                      )}
-                    </td>
-                    <td className="px-3 text-right tabular-nums">{formatNumber(r.soldQuantity)}</td>
-                    <td className="px-3 text-right tabular-nums">{formatNumber(r.visits)}</td>
-                    <td className="px-3 text-right tabular-nums">{formatRatePct(r.conversion)}</td>
-                    <td className="px-3 text-right tabular-nums">
-                      <HealthDot health={r.health} />
-                    </td>
-                    <td className="pl-3">
-                      <Badge variant="outline" className={STATUS_META[r.status]?.className}>
-                        {STATUS_META[r.status]?.label ?? r.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ListingsTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
         )}
         {isFetching && !isLoading && (
           <p className="mt-3 text-center text-xs text-muted-foreground">Atualizando janela de {visitWindow} dias…</p>
@@ -670,6 +715,65 @@ function SortableTh({
         <Icon className="h-3 w-3" />
       </button>
     </th>
+  );
+}
+
+function ListingsTable({
+  rows,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  rows: ListingRow[];
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (k: SortKey) => void;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <SortableTh label="Anúncio" k="title" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="pr-3" align="left" />
+            <SortableTh label="Preço" k="price" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh label="Estoque" k="availableQuantity" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh label="Vendas" k="soldQuantity" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh label="Visitas" k="visits" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh label="Conversão" k="conversion" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh label="Saúde" k="health" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <th className="pb-2 pl-3 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((r) => (
+            <tr key={r.itemId} className="group">
+              <td className="py-3 pr-3">
+                <ProductCell title={r.title} thumbnail={r.thumbnail} permalink={r.permalink} titleClassName="max-w-[240px]" />
+              </td>
+              <td className="px-3 text-right tabular-nums">{formatBRL(r.price)}</td>
+              <td className="px-3 text-right tabular-nums">
+                {r.availableQuantity === 0 ? (
+                  <span className="text-rose-600 font-medium">0</span>
+                ) : (
+                  formatNumber(r.availableQuantity)
+                )}
+              </td>
+              <td className="px-3 text-right tabular-nums">{formatNumber(r.soldQuantity)}</td>
+              <td className="px-3 text-right tabular-nums">{formatNumber(r.visits)}</td>
+              <td className="px-3 text-right tabular-nums">{formatRatePct(r.conversion)}</td>
+              <td className="px-3 text-right tabular-nums">
+                <HealthDot health={r.health} />
+              </td>
+              <td className="pl-3">
+                <Badge variant="outline" className={STATUS_META[r.status]?.className}>
+                  {STATUS_META[r.status]?.label ?? r.status}
+                </Badge>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

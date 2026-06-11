@@ -95,7 +95,6 @@ export type InsightId =
   | "selling_low_stock"
   | "no_sales_high_visits"
   | "paused_with_sales"
-  | "stagnant_capital"
   | "out_of_stock_active";
 
 export interface InsightDef {
@@ -148,12 +147,6 @@ export const INSIGHTS: InsightDef[] = [
     title: "Pausados que já venderam",
     description: "Anúncios pausados com histórico de vendas — bons candidatos a reativar.",
     match: (r) => r.status === "paused" && r.soldQuantity > 0,
-  },
-  {
-    id: "stagnant_capital",
-    title: "Capital parado",
-    description: "Anúncios com estoque mas sem nenhuma venda — dinheiro imobilizado em prateleira.",
-    match: (r) => r.availableQuantity > 0 && r.soldQuantity === 0,
   },
 ];
 

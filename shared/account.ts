@@ -141,6 +141,16 @@ export interface ListingsSummary {
   /** Items with zero available stock. */
   outOfStock: number;
   totalVisits: number;
+  /** Visits in the selected window broken down by listing status. */
+  visitsActive: number;
+  visitsPaused: number;
+  visitsClosed: number;
+  /** Number of active listings with at least one visit in the window. */
+  activeWithVisits: number;
+  /** Number of active listings with zero visits in the window. */
+  activeNoVisits: number;
+  /** Average visits per active listing (window). */
+  avgVisitsPerActive: number;
   totalStockValue: number;
   /** Total units sold across all listings (lifetime sold_quantity). */
   totalSold: number;

@@ -617,3 +617,11 @@
 - [x] Frontend: removido seletor "2 anos"; seletor de período (30/60/90d) altera de fato as visitas
 - [x] Frontend: rótulos do card de visitas refletindo o período selecionado
 - [x] Testes (time_window por período + sem dados) + TS limpo + checkpoint
+
+
+## Oportunidades + métricas de visitas (10/jun)
+- [x] Remover card "Capital parado" das Oportunidades (frontend + insight no shared)
+- [x] Ao selecionar um card de Oportunidades, mostrar a tabela de produtos logo abaixo (reposicionar bloco)
+- [x] Backend: visitas desmembradas por status (ativos/pausados/encerrados) no summary
+- [x] Frontend: novos cards de métricas (visitas por status e derivadas: ativos com/sem visitas, média por ativo)
+- [x] Testes + TS limpo + checkpoint

@@ -285,6 +285,13 @@ export class AccountProvider {
     const stagnant = items.filter((i) => i.availableQuantity > 0 && i.soldQuantity === 0).length;
     const outOfStock = items.filter((i) => i.availableQuantity === 0).length;
     const totalVisits = items.reduce((s, i) => s + i.visits, 0);
+    const visitsActive = items.filter((i) => i.status === "active").reduce((s, i) => s + i.visits, 0);
+    const visitsPaused = items.filter((i) => i.status === "paused").reduce((s, i) => s + i.visits, 0);
+    const visitsClosed = items.filter((i) => i.status === "closed").reduce((s, i) => s + i.visits, 0);
+    const activeItems = items.filter((i) => i.status === "active");
+    const activeWithVisits = activeItems.filter((i) => i.visits > 0).length;
+    const activeNoVisits = activeItems.filter((i) => i.visits === 0).length;
+    const avgVisitsPerActive = active > 0 ? Math.round(visitsActive / active) : 0;
     const totalStockValue = items.reduce((s, i) => s + i.stockValue, 0);
     const totalSold = items.reduce((s, i) => s + i.soldQuantity, 0);
 
@@ -297,6 +304,12 @@ export class AccountProvider {
         stagnant,
         outOfStock,
         totalVisits,
+        visitsActive,
+        visitsPaused,
+        visitsClosed,
+        activeWithVisits,
+        activeNoVisits,
+        avgVisitsPerActive,
         totalStockValue,
         totalSold,
         windowDays: lastDays,

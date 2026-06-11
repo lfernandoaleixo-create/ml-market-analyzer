@@ -92,16 +92,6 @@ describe("computeInsights", () => {
     expect(by.out_of_stock_active).toBe(1);
   });
 
-  it("sums stock value for stagnant capital", () => {
-    const items = [
-      row({ availableQuantity: 10, price: 10, stockValue: 100, soldQuantity: 0 }),
-      row({ availableQuantity: 5, price: 20, stockValue: 100, soldQuantity: 0 }),
-      row({ availableQuantity: 5, price: 20, stockValue: 100, soldQuantity: 3 }), // has sales -> excluded
-    ];
-    const stagnant = computeInsights(items).find((i) => i.id === "stagnant_capital")!;
-    expect(stagnant.count).toBe(2);
-    expect(stagnant.stockValue).toBe(200);
-  });
 });
 
 describe("filterListings", () => {
