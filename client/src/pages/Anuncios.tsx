@@ -36,10 +36,7 @@ import {
 import type { ListingRow, ListingStatus, VisitsDayPoint } from "@shared/account";
 import {
   VISIT_BUCKETS,
-  CONVERSION_BUCKETS,
-  HEALTH_BUCKETS,
   bucketCounts,
-  conversionPct,
   computeInsights,
   filterListings,
   sortListings,
@@ -138,9 +135,15 @@ export default function Anuncios() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const conn = trpc.account.connection.useQuery();
-  const { data, isLoading, error, isFetching } = trpc.account.listings.useQuery(
+  const { data, isLoading, error, isFetching, dataUpdatedAt } = trpc.account.listings.useQuery(
     { lastDays: visitWindow },
-    { enabled: conn.data?.connected === true },
+    {
+      enabled: conn.data?.connected === true,
+      // Keep the day's evolution fresh: re-pull visits periodically and when
+      // the user returns to the tab, so "today" updates close to real time.
+      refetchInterval: 5 * 60 * 1000,
+      refetchOnWindowFocus: true,
+    },
   );
 
   const items = useMemo<ListingRow[]>(() => data?.items ?? [], [data]);
@@ -148,15 +151,7 @@ export default function Anuncios() {
   const insights = useMemo(() => computeInsights(items), [items]);
 
   const visitDist = useMemo(() => bucketCounts(items, VISIT_BUCKETS, (r) => r.visits), [items]);
-  const convDist = useMemo(
-    () => bucketCounts(items, CONVERSION_BUCKETS, (r) => conversionPct(r)),
-    [items],
-  );
   const visitsSeries = useMemo<VisitsDayPoint[]>(() => data?.visitsSeries ?? [], [data]);
-  const healthDist = useMemo(
-    () => bucketCounts(items, HEALTH_BUCKETS, (r) => r.health ?? null),
-    [items],
-  );
 
   const filtered = useMemo(() => filterListings(items, filters), [items, filters]);
   const sorted = useMemo(() => sortListings(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
@@ -376,7 +371,15 @@ export default function Anuncios() {
       {/* Active listings visits evolution — fixed 30-day window */}
       <SectionCard
         title="Evolução das visitas · anúncios ativos"
-        description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias."
+        description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias (o dia de hoje é parcial e atualiza em tempo real)."
+        actions={
+          !isLoading && dataUpdatedAt ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className={cn("h-1.5 w-1.5 rounded-full", isFetching ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
+              {isFetching ? "Atualizando…" : `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+            </span>
+          ) : undefined
+        }
       >
         <VisitsEvolutionChart series={visitsSeries} loading={isLoading} />
       </SectionCard>
@@ -454,35 +457,15 @@ export default function Anuncios() {
       )}
 
       {/* Distribution by bands */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <DistributionCard
-          title={`Visitas por faixa (${visitWindow}d)`}
-          buckets={VISIT_BUCKETS}
-          counts={visitDist}
-          loading={isLoading}
-          activeIds={filters.visitBucketIds ?? []}
-          onToggle={(id) => toggleArrayFilter("visitBucketIds", id)}
-          accent="blue"
-        />
-        <DistributionCard
-          title="Conversão por faixa"
-          buckets={CONVERSION_BUCKETS}
-          counts={convDist}
-          loading={isLoading}
-          activeIds={filters.conversionBucketIds ?? []}
-          onToggle={(id) => toggleArrayFilter("conversionBucketIds", id)}
-          accent="emerald"
-        />
-        <DistributionCard
-          title="Saúde do anúncio"
-          buckets={HEALTH_BUCKETS}
-          counts={healthDist}
-          loading={isLoading}
-          activeIds={filters.healthBucketIds ?? []}
-          onToggle={(id) => toggleArrayFilter("healthBucketIds", id)}
-          accent="violet"
-        />
-      </div>
+      <DistributionCard
+        title={`Visitas por faixa (${visitWindow}d)`}
+        buckets={VISIT_BUCKETS}
+        counts={visitDist}
+        loading={isLoading}
+        activeIds={filters.visitBucketIds ?? []}
+        onToggle={(id) => toggleArrayFilter("visitBucketIds", id)}
+        accent="blue"
+      />
 
       {/* List + filters */}
       <SectionCard
@@ -554,7 +537,7 @@ export default function Anuncios() {
                 setFilters((p) => ({ ...p, visitBucketIds: v === "all" ? [] : [v] }))
               }
             >
-              <SelectTrigger className="h-7 w-[150px] px-2 text-xs">
+              <SelectTrigger className="h-8 w-[150px] px-2.5 text-xs">
                 <SelectValue placeholder="Todas as faixas" />
               </SelectTrigger>
               <SelectContent>
@@ -578,7 +561,7 @@ export default function Anuncios() {
                 setFilters((p) => ({ ...p, priceMin: e.target.value === "" ? null : Number(e.target.value) }))
               }
               placeholder="mín"
-              className="h-7 w-20 px-2 text-xs"
+              className="h-8 w-20 px-2.5 text-xs"
             />
             <span className="text-xs text-muted-foreground">–</span>
             <Input
@@ -589,14 +572,14 @@ export default function Anuncios() {
                 setFilters((p) => ({ ...p, priceMax: e.target.value === "" ? null : Number(e.target.value) }))
               }
               placeholder="máx"
-              className="h-7 w-20 px-2 text-xs"
+              className="h-8 w-20 px-2.5 text-xs"
             />
           </div>
           {activeFilterCount > 0 && (
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+              className="h-8 gap-1 px-2.5 text-xs text-muted-foreground"
               onClick={() => setFilters((p) => ({ ...emptyFilters, search: p.search }))}
             >
               <X className="h-3.5 w-3.5" /> Limpar filtros ({activeFilterCount})
@@ -645,7 +628,7 @@ function FilterChip({
     <button
       onClick={onClick}
       className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        "inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors",
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-foreground/30",
@@ -853,14 +836,19 @@ function VisitsEvolutionChart({
     );
   }
 
-  const data = series.map((p) => ({ ...p, label: isoDateToShort(p.date) }));
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const data = series.map((p) => ({ ...p, label: isoDateToShort(p.date), isToday: p.date === todayKey }));
   const peak = Math.max(...series.map((p) => p.visits));
   const avg = Math.round(total / series.length);
+  const todayVisits = series.find((p) => p.date === todayKey)?.visits ?? 0;
+  const yesterdayVisits = series.length >= 2 ? series[series.length - 2].visits : 0;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-x-8 gap-y-1 text-sm">
-        <SummaryMini label="Total (30d)" value={formatNumber(total)} tone="primary" />
+        <SummaryMini label="Hoje (parcial)" value={formatNumber(todayVisits)} tone="primary" />
+        <SummaryMini label="Ontem" value={formatNumber(yesterdayVisits)} tone="muted" />
+        <SummaryMini label="Total (30d)" value={formatNumber(total)} tone="muted" />
         <SummaryMini label="Média/dia" value={formatNumber(avg)} tone="muted" />
         <SummaryMini label="Pico" value={formatNumber(peak)} tone="muted" />
       </div>
@@ -891,7 +879,7 @@ function VisitsEvolutionChart({
               allowDecimals={false}
               tickFormatter={(v) => formatCompact(Number(v))}
             />
-            <Tooltip cursor={{ stroke: "var(--border)" }} content={<VisitsTooltip />} />
+            <Tooltip cursor={{ stroke: "var(--border)" }} content={<VisitsTooltip todayKey={todayKey} />} />
             <Area
               type="monotone"
               dataKey="visits"
@@ -899,7 +887,7 @@ function VisitsEvolutionChart({
               stroke="var(--primary)"
               strokeWidth={2}
               fill="url(#visitsFill)"
-              dot={false}
+              dot={<TodayDot todayKey={todayKey} />}
               activeDot={{ r: 4, fill: "var(--primary)" }}
             />
           </AreaChart>
@@ -933,15 +921,30 @@ function SummaryMini({
   );
 }
 
-function VisitsTooltip({ active, payload }: any) {
+/** Render a visible, highlighted dot only on the current day (real-time, partial). */
+function TodayDot({ cx, cy, payload, todayKey }: any) {
+  if (payload?.date !== todayKey || cx == null || cy == null) return null;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={6} fill="var(--primary)" fillOpacity={0.18} />
+      <circle cx={cx} cy={cy} r={3.5} fill="var(--primary)" stroke="var(--background)" strokeWidth={1.5} />
+    </g>
+  );
+}
+
+function VisitsTooltip({ active, payload, todayKey }: any) {
   if (!active || !payload || payload.length === 0) return null;
   const d = payload[0].payload as { date: string; visits: number };
+  const isToday = d.date === todayKey;
   return (
     <div
       className="rounded-xl border bg-background p-3 text-xs shadow-sm"
       style={{ borderColor: "var(--border)" }}
     >
-      <p className="font-medium">{isoDateToShort(d.date)}</p>
+      <p className="font-medium">
+        {isoDateToShort(d.date)}
+        {isToday && <span className="ml-1 text-primary">· hoje (parcial)</span>}
+      </p>
       <p className="mt-1 inline-flex items-center gap-1 text-primary">
         <Eye className="h-3 w-3" /> {formatNumber(d.visits)} visita(s)
       </p>

@@ -361,6 +361,44 @@ describe("AccountProvider.getListings", () => {
     expect(map[day1]).toBe(10);
     expect(map[day2]).toBe(20);
   });
+
+  it("anchors the series to TODAY (UTC) as the last point, in real time", async () => {
+    const idsPage = { results: ["MLB1"], paging: { total: 1, offset: 0, limit: 50 } };
+    const itemsBody = [
+      {
+        code: 200,
+        body: {
+          id: "MLB1",
+          title: "Active",
+          price: 100,
+          currency_id: "BRL",
+          available_quantity: 5,
+          sold_quantity: 1,
+          status: "active",
+          listing_type_id: "gold_pro",
+        },
+      },
+    ];
+    const todayKey = new Date().toISOString().slice(0, 10);
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      let body: any = {};
+      if (/\/users\/\d+\/items\/search/.test(u)) body = idsPage;
+      else if (/api\.mercadolibre\.com\/items\?ids=/.test(u)) body = itemsBody;
+      else if (/\/items\/MLB1\/visits\/time_window/.test(u))
+        body = {
+          total_visits: 7,
+          results: [{ date: `${todayKey}T00:00:00.000Z`, total: 7 }],
+        };
+      return { ok: true, json: async () => body } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30 });
+    const last = res.visitsSeries[res.visitsSeries.length - 1];
+    expect(last.date).toBe(todayKey);
+    expect(last.visits).toBe(7);
+  });
 });
 
 describe("AccountProvider.probe", () => {

@@ -285,13 +285,20 @@ export class AccountProvider {
       }
     }
     // Zero-fill every day in the window so the chart axis is continuous.
+    //
+    // IMPORTANT: ML's time_window returns dates as `YYYY-MM-DDT00:00:00Z` and
+    // the window ends on the CURRENT day (today is included, still partial).
+    // We key each day by its plain calendar date (UTC slice) so the series
+    // aligns exactly with what ML reports — otherwise a timezone shift would
+    // move "today"/"yesterday" by one day. The axis is anchored to today (UTC
+    // calendar day) going back `lastDays-1` days.
     const out: VisitsDayPoint[] = [];
     const DAY = 24 * 60 * 60 * 1000;
-    const todayKey = brtDateKey(Date.now());
-    const endAnchor = Date.parse(`${todayKey}T03:00:00.000Z`);
+    const utcDayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const endAnchor = Date.parse(`${utcDayKey(Date.now())}T00:00:00.000Z`);
     const startAnchor = endAnchor - (lastDays - 1) * DAY;
     for (let t = startAnchor; t <= endAnchor; t += DAY) {
-      const key = brtDateKey(t);
+      const key = utcDayKey(t);
       out.push({ date: key, visits: totals.get(key) ?? 0 });
     }
     return out;
