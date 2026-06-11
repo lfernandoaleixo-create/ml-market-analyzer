@@ -673,3 +673,15 @@
 - [x] Seletor de janela 7 / 30 / 90 dias (controle do topo agora usa 7/30/90; backend aceita lastDays=7)
 - [x] Média móvel de 7 dias (linha tracejada) sobreposta ao gráfico via ComposedChart + Legend
 - [x] Botão "Atualizar agora" no gráfico para forçar o refetch imediato das visitas
+
+## Correção: ML Token Refresh (Conexão expirada — reconectar) — 11/jun
+- [x] Lock por usuário em ensureUserAccessToken (uma renovação por vez; concorrentes aguardam o mesmo resultado)
+- [x] Margem de segurança maior no refresh proativo (renovar antes de expirar)
+- [x] Gravação atômica do novo par access_token + refresh_token
+- [x] Tratamento de erro adequado quando refresh falha (status error + mensagem clara)
+- [x] Retry-on-401 na camada de account/provider (refresh + 1 nova tentativa)
+- [x] Testes: concorrência (uma única chamada de refresh), rotação do refresh_token, falha de refresh, retry 401
+- [x] Rodar todos os testes e validar
+- [x] CAUSA RAIZ: clientSecret vazio no banco impedia o refresh; protegido saveCredentials (não apaga secret vazio) e testCredentials (não rebaixa OAuth saudável)
+- [x] Client Secret real regravado e renovação via refresh_token validada ao vivo (HTTP 200, novo par persistido, status=connected)
+- [ ] Checkpoint + reportar ao usuário

@@ -67,3 +67,40 @@ export function isConnectionStale(input: {
     input.tokenExpiresAt <= now
   );
 }
+
+type ExistingCreds = {
+  appId?: string | null;
+  clientSecret?: string | null;
+  accessToken?: string | null;
+  refreshToken?: string | null;
+} | null | undefined;
+
+/**
+ * Decide how a "save credentials" form submission should be merged with what is
+ * already stored. This is the heart of the fix for the recurring "Conexão
+ * expirada" bug: an empty field in the form MUST NOT wipe a previously stored
+ * value (App ID / Client Secret), and saving must not demote a healthy OAuth
+ * session.
+ *
+ * Returns the values to persist plus the resolved connection status.
+ */
+export function mergeCredentialsForSave(
+  input: { appId: string; clientSecret: string },
+  existing: ExistingCreds,
+): { appId: string; clientSecret: string; status: "connected" | "unconfigured" } {
+  const appId = input.appId.trim() || existing?.appId || "";
+  const clientSecret = input.clientSecret.trim() || existing?.clientSecret || "";
+  const oauthConnected = Boolean(existing?.refreshToken && existing?.accessToken);
+  const keepConnected = oauthConnected && hasValidMlCredentialFormat(appId, clientSecret);
+  return { appId, clientSecret, status: keepConnected ? "connected" : "unconfigured" };
+}
+
+/**
+ * Decide whether a credential probe (testCredentials) is allowed to flip the
+ * stored status to "error". When there is a live OAuth session (both tokens
+ * present), a failed app-level probe must NOT tear it down.
+ */
+export function probeMayFlagError(existing: ExistingCreds): boolean {
+  const oauthConnected = Boolean(existing?.refreshToken && existing?.accessToken);
+  return !oauthConnected;
+}

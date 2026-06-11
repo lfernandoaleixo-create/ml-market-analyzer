@@ -834,3 +834,71 @@ describe("AccountProvider.getProductsByDay", () => {
     expect(day.cancelledProducts[0].revenue).toBe(80);
   });
 });
+
+
+describe("AccountProvider retry-on-401 (token refresh resilience)", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  function resWithStatus(status: number, body: unknown): Response {
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    } as unknown as Response;
+  }
+
+  it("refreshes the token and retries once when a request returns 401", async () => {
+    let call = 0;
+    const fetchSpy = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      call += 1;
+      const auth = (init?.headers as Record<string, string> | undefined)?.["Authorization"];
+      // First call uses the stale token and is rejected with 401.
+      if (call === 1) {
+        expect(auth).toBe("Bearer STALE");
+        return resWithStatus(401, { message: "invalid token" });
+      }
+      // Retry uses the fresh token and succeeds.
+      expect(auth).toBe("Bearer FRESH");
+      return resWithStatus(200, { id: USER_ID, nickname: "LOJADOSRWU", seller_reputation: {} });
+    });
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    const onUnauthorized = vi.fn(async (stale: string) => {
+      expect(stale).toBe("STALE");
+      return "FRESH";
+    });
+
+    const provider = new AccountProvider("STALE", USER_ID, "BRL", onUnauthorized);
+    const rep = await provider.getReputation();
+
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(rep?.nickname).toBe("LOJADOSRWU");
+  });
+
+  it("does not loop forever: a second 401 after refresh returns null", async () => {
+    const fetchSpy = vi.fn(async () => resWithStatus(401, { message: "still bad" }));
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    const onUnauthorized = vi.fn(async () => "FRESH");
+    const provider = new AccountProvider("STALE", USER_ID, "BRL", onUnauthorized);
+    const rep = await provider.getReputation();
+
+    // Original request + exactly one retry = 2 fetches; no infinite loop.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(rep).toBeNull();
+  });
+
+  it("does not retry when no onUnauthorized callback is provided", async () => {
+    const fetchSpy = vi.fn(async () => resWithStatus(401, { message: "bad" }));
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    const provider = new AccountProvider("STALE", USER_ID);
+    const rep = await provider.getReputation();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(rep).toBeNull();
+  });
+});

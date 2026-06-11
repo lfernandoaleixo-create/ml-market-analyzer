@@ -27,7 +27,12 @@ import {
   deleteHeartbeatJob,
   updateHeartbeatJob,
 } from "../_core/heartbeat";
-import { hasValidMlCredentialFormat, isConnectionStale } from "../ml/credentials";
+import {
+  hasValidMlCredentialFormat,
+  isConnectionStale,
+  mergeCredentialsForSave,
+  probeMayFlagError,
+} from "../ml/credentials";
 
 
 export const monitorRouter = router({
@@ -201,25 +206,53 @@ export const monitorRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const existing = await getCredentials(ctx.user.id);
+      // Merge with existing: an empty form field must NEVER wipe a stored value,
+      // and a healthy OAuth session must NOT be demoted. See mergeCredentialsForSave.
+      const merged = mergeCredentialsForSave(
+        { appId: input.appId, clientSecret: input.clientSecret },
+        existing,
+      );
       await upsertCredentials(ctx.user.id, {
-        appId: input.appId,
-        clientSecret: input.clientSecret,
+        appId: merged.appId,
+        clientSecret: merged.clientSecret,
         siteId: input.siteId,
-        status: "unconfigured",
-        statusMessage: null,
+        status: merged.status,
+        statusMessage:
+          merged.status === "connected"
+            ? "Credenciais atualizadas; conexão OAuth mantida."
+            : null,
       });
       return { success: true };
     }),
 
-  /** Test the stored credentials against the ML OAuth endpoint. */
+  /**
+   * Test the stored credentials against the ML OAuth endpoint.
+   *
+   * IMPORTANT: this is a non-destructive probe. It validates the app-level
+   * client_credentials grant but NEVER overwrites the user OAuth access/refresh
+   * tokens (those power the real seller data). It also never demotes an already
+   * connected OAuth session to "error".
+   */
   testCredentials: protectedProcedure.mutation(async ({ ctx }) => {
     const creds = await getCredentials(ctx.user.id);
+    const mayFlagError = probeMayFlagError(creds);
+    const oauthConnected = !mayFlagError;
+
     if (!creds || !hasValidMlCredentialFormat(creds.appId, creds.clientSecret)) {
-      await upsertCredentials(ctx.user.id, {
-        status: "error",
-        statusMessage: "Credenciais ausentes ou em formato inválido.",
-      });
-      return { ok: false, message: "Credenciais ausentes ou em formato inválido." };
+      // Only flag an error when there is no live OAuth session to protect.
+      if (mayFlagError) {
+        await upsertCredentials(ctx.user.id, {
+          status: "error",
+          statusMessage: "Credenciais ausentes ou em formato inválido.",
+        });
+      }
+      return {
+        ok: false,
+        message: oauthConnected
+          ? "O App ID/Client Secret não estão completos para o teste, mas sua conexão OAuth segue ativa."
+          : "Credenciais ausentes ou em formato inválido.",
+      };
     }
     try {
       const body = new URLSearchParams({
@@ -234,24 +267,28 @@ export const monitorRouter = router({
       });
       const json = (await res.json()) as { access_token?: string; error?: string };
       if (json.access_token) {
+        // Mark connected WITHOUT clobbering the user OAuth tokens.
         await upsertCredentials(ctx.user.id, {
           status: "connected",
           statusMessage: "Conexão bem-sucedida.",
-          accessToken: json.access_token,
-          tokenExpiresAt: Date.now() + 3600 * 1000,
         });
         return { ok: true, message: "Conexão bem-sucedida com a API do Mercado Livre." };
       }
-      await upsertCredentials(ctx.user.id, {
-        status: "error",
-        statusMessage: `Falha: ${json.error ?? "desconhecida"}`,
-      });
+      // Probe failed, but keep a healthy OAuth session intact.
+      if (mayFlagError) {
+        await upsertCredentials(ctx.user.id, {
+          status: "error",
+          statusMessage: `Falha: ${json.error ?? "desconhecida"}`,
+        });
+      }
       return { ok: false, message: `Falha na autenticação: ${json.error ?? "desconhecida"}` };
     } catch (err) {
-      await upsertCredentials(ctx.user.id, {
-        status: "error",
-        statusMessage: String(err),
-      });
+      if (mayFlagError) {
+        await upsertCredentials(ctx.user.id, {
+          status: "error",
+          statusMessage: String(err),
+        });
+      }
       return { ok: false, message: `Erro de rede: ${String(err)}` };
     }
   }),

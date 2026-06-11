@@ -46,6 +46,12 @@ export class AccountProvider {
     private token: string,
     private userId: number,
     private currency = "BRL",
+    /**
+     * Optional callback invoked when a request comes back unauthorized (401/403).
+     * It should force-refresh the OAuth token and return the new one (or null).
+     * When provided, `get()` retries the request once with the fresh token.
+     */
+    private onUnauthorized?: (staleToken: string) => Promise<string | null>,
   ) {}
 
   /** Cache of ALL paid orders for this provider instance (one request burst per
@@ -68,7 +74,7 @@ export class AccountProvider {
     return this.cancelledOrdersCache;
   }
 
-  private async get(path: string, timeoutMs = 12000): Promise<any | null> {
+  private async get(path: string, timeoutMs = 12000, _isRetry = false): Promise<any | null> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
@@ -76,6 +82,17 @@ export class AccountProvider {
         headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json" },
         signal: ctrl.signal,
       });
+      // Token died mid-flight (expired/revoked before its advertised expiry).
+      // Force a refresh and retry the request ONCE with the new token.
+      if ((res.status === 401 || res.status === 403) && this.onUnauthorized && !_isRetry) {
+        clearTimeout(timer);
+        const fresh = await this.onUnauthorized(this.token);
+        if (fresh && fresh !== this.token) {
+          this.token = fresh;
+          return this.get(path, timeoutMs, true);
+        }
+        return null;
+      }
       if (!res.ok) return null;
       return await res.json();
     } catch {
