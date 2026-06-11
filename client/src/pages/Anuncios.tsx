@@ -878,8 +878,6 @@ function VisitsEvolutionChart({
   const todayVisits = series.find((p) => p.date === todayKey)?.visits ?? 0;
   const yesterdayVisits = series.length >= 2 ? series[series.length - 2].visits : 0;
   const showMA = series.length >= 7;
-  // Fewer ticks on wider windows keeps the weekday labels readable.
-  const tickInterval = data.length <= 10 ? 0 : data.length <= 35 ? Math.floor(data.length / 8) : Math.floor(data.length / 7);
 
   return (
     <div className="space-y-4">
@@ -890,9 +888,9 @@ function VisitsEvolutionChart({
         <SummaryMini label="Média/dia" value={formatNumber(avg)} tone="muted" />
         <SummaryMini label="Pico" value={formatNumber(peak)} tone="muted" />
       </div>
-      <div className="h-72">
+      <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+          <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
             <defs>
               <linearGradient id="visitsFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.28} />
@@ -905,9 +903,10 @@ function VisitsEvolutionChart({
               tick={<WeekdayTick todayKey={todayKey} />}
               tickLine={false}
               axisLine={{ stroke: "var(--border)" }}
-              interval={tickInterval}
-              minTickGap={8}
-              height={40}
+              interval={0}
+              minTickGap={0}
+              height={84}
+              tickMargin={8}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
@@ -959,35 +958,31 @@ function VisitsEvolutionChart({
   );
 }
 
-/** Two-line X axis tick: weekday on top, day number below. Today is highlighted. */
+/**
+ * Vertical X axis tick: one rotated label per day showing the day number plus
+ * the weekday (e.g. "10 ter"). Today is highlighted. Rotated 90deg so all 30
+ * days fit without overlapping.
+ */
 function WeekdayTick({ x, y, payload, todayKey }: any) {
   const iso = payload?.value as string;
   if (!iso) return null;
   const isToday = iso === todayKey;
   const weekday = isoToWeekdayShort(iso);
   const dayNum = isoToDayNum(iso);
+  const label = `${dayNum} ${weekday}`;
   return (
     <g transform={`translate(${x},${y})`}>
       <text
         x={0}
         y={0}
-        dy={12}
-        textAnchor="middle"
-        fontSize={9}
-        fill="var(--muted-foreground)"
-      >
-        {weekday}
-      </text>
-      <text
-        x={0}
-        y={0}
-        dy={26}
-        textAnchor="middle"
-        fontSize={11}
+        dy={4}
+        transform="rotate(-90)"
+        textAnchor="end"
+        fontSize={10}
         fontWeight={isToday ? 700 : 500}
         fill={isToday ? "var(--primary)" : "var(--foreground)"}
       >
-        {dayNum}
+        {label}
       </text>
     </g>
   );

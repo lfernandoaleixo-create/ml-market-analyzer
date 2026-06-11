@@ -684,4 +684,8 @@
 - [x] Rodar todos os testes e validar
 - [x] CAUSA RAIZ: clientSecret vazio no banco impedia o refresh; protegido saveCredentials (não apaga secret vazio) e testCredentials (não rebaixa OAuth saudável)
 - [x] Client Secret real regravado e renovação via refresh_token validada ao vivo (HTTP 200, novo par persistido, status=connected)
-- [ ] Checkpoint + reportar ao usuário
+- [x] Checkpoint + reportar ao usuário
+
+## Ajuste do gráfico de visitas (11/06)
+- [x] Gráfico de visitas (Evolução das visitas, 30d): exibir rótulo de TODOS os 30 dias no eixo X
+- [x] Cada rótulo com dia + dia da semana, na VERTICAL (rotacionado 90°), destacando hoje
