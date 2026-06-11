@@ -79,7 +79,6 @@ const INSIGHT_ACCENT: Record<InsightId, string> = {
   stagnant_capital: "border-violet-500/30 bg-violet-500/5 text-violet-700",
 };
 
-const WINDOW_OPTIONS = [7, 30, 60, 90] as const;
 const STATUS_FILTERS: { key: ListingStatus; label: string }[] = [
   { key: "active", label: "Ativos" },
   { key: "paused", label: "Pausados" },
@@ -113,19 +112,16 @@ const emptyFilters: ListingFilters = {
 };
 
 export default function Anuncios() {
-  // Visits mode: "total" (default, fast batch endpoint) or a dated window
-  // (7/30/60/90d). The dated window is slower because ML only allows one item
-  // per request, so it is opt-in and best for smaller catalogs.
-  const [visitWindow, setVisitWindow] = useState<number | null>(null); // null = total
+  // Visits window in days. The Visits card reflects REAL visits over this
+  // period (via ML's dated time_window endpoint, one item per request).
+  const [visitWindow, setVisitWindow] = useState<30 | 60 | 90>(30);
   const [filters, setFilters] = useState<ListingFilters>(emptyFilters);
   const [sortKey, setSortKey] = useState<SortKey>("visits");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const conn = trpc.account.connection.useQuery();
   const { data, isLoading, error, isFetching } = trpc.account.listings.useQuery(
-    visitWindow == null
-      ? { windowVisits: false as const }
-      : { lastDays: visitWindow, windowVisits: true as const },
+    { lastDays: visitWindow },
     { enabled: conn.data?.connected === true },
   );
 
@@ -224,23 +220,14 @@ export default function Anuncios() {
         actions={
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 rounded-xl bg-secondary p-1">
-              <Button
-                size="sm"
-                variant={visitWindow == null ? "default" : "ghost"}
-                className="h-8 rounded-lg px-2.5 text-xs"
-                onClick={() => setVisitWindow(null)}
-                title="Visitas acumuladas dos últimos 2 anos (rápido, loja inteira)"
-              >
-                2 anos
-              </Button>
-              {WINDOW_OPTIONS.map((w) => (
+              {([30, 60, 90] as const).map((w) => (
                 <Button
                   key={w}
                   size="sm"
                   variant={visitWindow === w ? "default" : "ghost"}
                   className="h-8 rounded-lg px-2.5 text-xs"
                   onClick={() => setVisitWindow(w)}
-                  title={`Visitas dos últimos ${w} dias (mais lento; ideal p/ catálogos menores)`}
+                  title={`Visitas reais dos últimos ${w} dias`}
                 >
                   {w}d
                 </Button>
@@ -259,13 +246,6 @@ export default function Anuncios() {
         }
       />
 
-      {visitWindow != null && s && s.total > 120 && (
-        <div className="flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-2.5 text-sm text-blue-700">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          A janela de {visitWindow} dias consulta as visitas por anúncio individualmente e fica limitada aos primeiros 120 itens. Para a loja inteira, use “2 anos”.
-        </div>
-      )}
-
       {s?.capped && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-700">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -283,7 +263,7 @@ export default function Anuncios() {
           accent="primary"
         />
         <KpiCard
-          label={visitWindow == null ? "Visitas (2 anos)" : `Visitas (${visitWindow}d)`}
+          label={`Visitas (${visitWindow}d)`}
           value={isLoading ? "" : formatNumber(s?.totalVisits ?? 0)}
           loading={isLoading}
           icon={Eye}
@@ -363,7 +343,7 @@ export default function Anuncios() {
       {/* Distribution by bands */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <DistributionCard
-          title={visitWindow == null ? "Visitas por faixa (2 anos)" : `Visitas por faixa (${visitWindow}d)`}
+          title={`Visitas por faixa (${visitWindow}d)`}
           buckets={VISIT_BUCKETS}
           counts={visitDist}
           loading={isLoading}

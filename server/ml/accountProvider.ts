@@ -157,11 +157,9 @@ export class AccountProvider {
     return out;
   }
 
-  /** Total visits for many items at once via /visits/items?ids= .
-   *  IMPORTANT: per ML docs this returns the item's TOTAL visits over the LAST
-   *  TWO YEARS (not a recent window). It is cheap (20 ids/call) so we use it for
-   *  the fast default load, surfaced in the UI as "Visitas (2 anos)". Recent
-   *  windows (30/60/90d) require the per-item dated endpoint (1 item/request). */
+  /** Lifetime (~2 years) total visits for many items at once via
+   *  /visits/items?ids= . Cheap (20 ids/call) but NOT period-accurate.
+   *  Response shape: { "MLB123": 552, ... }. Kept as a fallback only. */
   private async getVisitsBatch(ids: string[]): Promise<Map<string, number>> {
     const map = new Map<string, number>();
     for (let i = 0; i < ids.length; i += 20) {
@@ -176,12 +174,40 @@ export class AccountProvider {
     return map;
   }
 
-  /** Visits in a time window for a single item (best effort). */
-  private async getItemVisits(itemId: string, lastDays = 30): Promise<number> {
-    const data = await this.get(
-      `/items/${itemId}/visits/time_window?last=${lastDays}&unit=day`,
-    );
-    return typeof data?.total_visits === "number" ? data.total_visits : 0;
+  /** Real visits for a single item over the last N days, via the dated
+   *  time_window endpoint. Returns null on failure so callers can distinguish
+   *  "no data" from a genuine zero. */
+  private async getItemVisits(itemId: string, lastDays = 30): Promise<number | null> {
+    try {
+      const data = await this.get(
+        `/items/${itemId}/visits/time_window?last=${lastDays}&unit=day`,
+      );
+      return typeof data?.total_visits === "number" ? data.total_visits : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Period-accurate visits for many items, using the per-item dated endpoint
+   *  with bounded concurrency. The ML API only allows ONE item per dated
+   *  request, so we fan out in parallel batches. Capped to stay within the
+   *  request timeout. Items beyond the cap (or that error) get null. */
+  private async getVisitsWindow(
+    ids: string[],
+    lastDays: number,
+    cap = 300,
+  ): Promise<Map<string, number | null>> {
+    const map = new Map<string, number | null>();
+    const targets = ids.slice(0, cap);
+    const concurrency = 15;
+    for (let i = 0; i < targets.length; i += concurrency) {
+      const batch = targets.slice(i, i + concurrency);
+      const results = await Promise.all(
+        batch.map(async (id) => [id, await this.getItemVisits(id, lastDays)] as const),
+      );
+      for (const [id, v] of results) map.set(id, v);
+    }
+    return map;
   }
 
   private mapStatus(s: string | undefined): ListingStatus {
@@ -199,40 +225,26 @@ export class AccountProvider {
     }
   }
 
-  async getListings(opts: { lastDays?: number; maxItems?: number; windowVisits?: boolean } = {}): Promise<ListingsResult> {
+  async getListings(opts: { lastDays?: number; maxItems?: number } = {}): Promise<ListingsResult> {
     const lastDays = opts.lastDays ?? 30;
     const maxItems = opts.maxItems ?? 600;
     const { ids, capped } = await this.getAllItemIds(maxItems);
     const details = await this.getItemsDetails(ids);
     const detailIds = details.map((d) => d.id);
 
-    // Visits strategy — performance critical:
-    //  The page must load fast for 500+ items, so we ALWAYS use the cheap batch
-    //  endpoint (/visits/items?ids=, 1 call / 20 items, total visits). The ML
-    //  dated endpoint only accepts ONE item per request, so fetching a custom
-    //  window for every item would mean hundreds of sequential calls (80-100s
-    //  and frequent timeouts). We therefore expose total visits by default and
-    //  only opt into the slow per-item window when explicitly requested AND the
-    //  catalog is small enough to stay responsive.
-    const visitsMap = new Map<string, number>();
-    const windowVisits = opts.windowVisits === true;
-    const PER_ITEM_WINDOW_CAP = 120; // keep well under the request timeout
-    if (windowVisits && lastDays !== 30 && detailIds.length <= PER_ITEM_WINDOW_CAP) {
-      const concurrency = 10;
-      for (let i = 0; i < detailIds.length; i += concurrency) {
-        const batch = detailIds.slice(i, i + concurrency);
-        const results = await Promise.all(
-          batch.map(async (id) => [id, await this.getItemVisits(id, lastDays)] as const),
-        );
-        for (const [id, v] of results) visitsMap.set(id, v);
-      }
-    } else {
-      const batch = await this.getVisitsBatch(detailIds);
-      batch.forEach((v, id) => visitsMap.set(id, v));
-    }
+    // Visits strategy:
+    //  The Visits card must reflect REAL visits over the selected period
+    //  (30/60/90d). The ML dated endpoint (time_window) only accepts ONE item
+    //  per request, so we fan out in parallel with bounded concurrency, capped
+    //  to stay within the request timeout. If the dated endpoint returns no
+    //  data for an item, we leave it null (excluded from totals) rather than
+    //  faking a zero. The cheap lifetime batch endpoint is kept only as a last
+    //  resort and is never mixed into period totals.
+    const windowMap = await this.getVisitsWindow(detailIds, lastDays);
 
     const items: ListingRow[] = details.map((d) => {
-      const visits = visitsMap.get(d.id) ?? 0;
+      const wv = windowMap.get(d.id);
+      const visits = typeof wv === "number" ? wv : 0;
       const soldQuantity = d.sold_quantity ?? 0;
       const price = d.price ?? 0;
       const availableQuantity = d.available_quantity ?? 0;

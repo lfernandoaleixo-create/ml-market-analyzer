@@ -203,9 +203,9 @@ describe("AccountProvider.getListings", () => {
 
     global.fetch = makeFetchRouter([
       { match: /\/users\/\d+\/items\/search/, body: idsPage },
-      // Default 30-day window uses the batch visits endpoint (check first).
-      { match: /\/visits\/items\?ids=/, body: { MLB1: 100, MLB2: 40 } },
-      { match: /\/visits\/time_window/, body: { total_visits: 100 } },
+      // Visits now come from the dated per-item time_window endpoint.
+      { match: /\/items\/MLB1\/visits\/time_window/, body: { total_visits: 100 } },
+      { match: /\/items\/MLB2\/visits\/time_window/, body: { total_visits: 40 } },
       { match: /api\.mercadolibre\.com\/items\?ids=/, body: itemsBody },
     ]) as unknown as typeof fetch;
 
@@ -225,14 +225,14 @@ describe("AccountProvider.getListings", () => {
     expect(mlb1.stockValue).toBe(500);
   });
 
-  it("uses the per-item time_window endpoint for non-30-day windows", async () => {
+  it("reflects the selected window via the dated time_window endpoint", async () => {
     const idsPage = { paging: { total: 1 }, results: ["MLB9"] };
     const itemsBody = [
       {
         code: 200,
         body: {
           id: "MLB9",
-          title: "Item janela 7d",
+          title: "Item janela 90d",
           price: 30,
           currency_id: "BRL",
           available_quantity: 3,
@@ -242,46 +242,14 @@ describe("AccountProvider.getListings", () => {
         },
       },
     ];
-    global.fetch = makeFetchRouter([
-      { match: /\/users\/\d+\/items\/search/, body: idsPage },
-      { match: /\/visits\/items\?ids=/, body: { MLB9: 0 } },
-      { match: /api\.mercadolibre\.com\/items\?ids=/, body: itemsBody },
-      { match: /\/visits\/time_window/, body: { total_visits: 12 } },
-    ]) as unknown as typeof fetch;
-
-    const provider = new AccountProvider("token", USER_ID);
-    const res = await provider.getListings({ lastDays: 7, windowVisits: true });
-    expect(res.summary.windowDays).toBe(7);
-    const mlb9 = res.items.find((i) => i.itemId === "MLB9")!;
-    expect(mlb9.visits).toBe(12);
-    expect(mlb9.conversion).toBeCloseTo(2 / 12);
-  });
-
-  it("uses the fast batch visits endpoint by default (no per-item calls)", async () => {
-    const idsPage = { paging: { total: 1 }, results: ["MLB9"] };
-    const itemsBody = [
-      {
-        code: 200,
-        body: {
-          id: "MLB9",
-          title: "Item 9",
-          price: 10,
-          currency_id: "BRL",
-          available_quantity: 5,
-          sold_quantity: 2,
-          status: "active",
-          listing_type_id: "gold_special",
-        },
-      },
-    ];
-    let timeWindowCalls = 0;
+    const seen: string[] = [];
     global.fetch = vi.fn(async (url: any) => {
       const u = String(url);
-      if (/\/visits\/time_window/.test(u)) timeWindowCalls++;
+      seen.push(u);
       const route = /\/users\/\d+\/items\/search/.test(u)
         ? idsPage
-        : /\/visits\/items\?ids=/.test(u)
-          ? { MLB9: 99 }
+        : /\/visits\/time_window/.test(u)
+          ? { total_visits: 12 }
           : /api\.mercadolibre\.com\/items\?ids=/.test(u)
             ? itemsBody
             : {};
@@ -289,10 +257,43 @@ describe("AccountProvider.getListings", () => {
     }) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
-    const res = await provider.getListings({ lastDays: 7, windowVisits: false });
+    const res = await provider.getListings({ lastDays: 90 });
+    expect(res.summary.windowDays).toBe(90);
     const mlb9 = res.items.find((i) => i.itemId === "MLB9")!;
-    expect(mlb9.visits).toBe(99); // total visits from batch endpoint
-    expect(timeWindowCalls).toBe(0); // never calls the slow per-item endpoint
+    expect(mlb9.visits).toBe(12);
+    expect(mlb9.conversion).toBeCloseTo(2 / 12);
+    // Confirms the dated endpoint was queried with the selected window.
+    expect(seen.some((u) => /\/visits\/time_window\?last=90/.test(u))).toBe(true);
+  });
+
+  it("treats items with no dated visit data as zero (not faked)", async () => {
+    const idsPage = { paging: { total: 1 }, results: ["MLB9"] };
+    const itemsBody = [
+      {
+        code: 200,
+        body: {
+          id: "MLB9",
+          title: "Item sem dados de visita",
+          price: 10,
+          currency_id: "BRL",
+          available_quantity: 5,
+          sold_quantity: 0,
+          status: "active",
+          listing_type_id: "gold_special",
+        },
+      },
+    ];
+    global.fetch = makeFetchRouter([
+      { match: /\/users\/\d+\/items\/search/, body: idsPage },
+      { match: /\/visits\/time_window/, body: {} }, // no total_visits field
+      { match: /api\.mercadolibre\.com\/items\?ids=/, body: itemsBody },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30 });
+    const mlb9 = res.items.find((i) => i.itemId === "MLB9")!;
+    expect(mlb9.visits).toBe(0);
+    expect(mlb9.conversion).toBeNull();
   });
 });
 

@@ -166,19 +166,14 @@ export const accountRouter = router({
     .input(
       z
         .object({
-          lastDays: z.number().int().min(1).max(150).optional(),
-          /** When true, fetch dated per-item visits for `lastDays` (slower,
-           *  small catalogs). Default false → fast total visits in batch. */
-          windowVisits: z.boolean().optional(),
+          /** Visits window in days (real period visits via time_window). */
+          lastDays: z.union([z.literal(30), z.literal(60), z.literal(90)]).optional(),
         })
         .optional(),
     )
     .query(async ({ ctx, input }) => {
       const account = await resolveAccount(ctx.user.id);
-      return account.getListings({
-        lastDays: input?.lastDays ?? 30,
-        windowVisits: input?.windowVisits ?? false,
-      });
+      return account.getListings({ lastDays: input?.lastDays ?? 30 });
     }),
 
   /** Post-sale summary (claims, cancellations). */

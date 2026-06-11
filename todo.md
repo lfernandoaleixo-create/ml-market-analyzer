@@ -609,3 +609,11 @@
 - [x] Removido card "Capital em estoque" (KPI, coluna da tabela, resumo e coluna CSV)
 - [x] Padronizado KpiCard (altura uniforme, rótulo+ícone no topo, valor ancorado)
 - [x] Testes (288) + TS limpo + checkpoint
+
+
+## BUG: Visitas erradas + remover seletor "2 anos" (10/jun)
+- [x] Backend: card de Visitas usa time_window por item (período real 30/60/90d), não o total de 2 anos
+- [x] Backend: visitas do período em paralelo (concorrência 15, cap 300) com timeout; sem dados = null
+- [x] Frontend: removido seletor "2 anos"; seletor de período (30/60/90d) altera de fato as visitas
+- [x] Frontend: rótulos do card de visitas refletindo o período selecionado
+- [x] Testes (time_window por período + sem dados) + TS limpo + checkpoint
