@@ -33,6 +33,12 @@ export interface RawCategoryAttribute {
   tags?: Record<string, boolean> | string[];
   values?: Array<{ id?: string; name?: string }> | null;
   hierarchy?: string | null;
+  /** ML may expose allowed units for number_unit attributes. */
+  allowed_units?: Array<{ id?: string; name?: string }> | null;
+  default_unit?: string | null;
+  /** Hint/example shown by ML in the attribute editor. */
+  hint?: string | null;
+  example?: string | null;
 }
 
 /** Raw shape of an item attribute as returned by the ML API. */
@@ -135,6 +141,16 @@ export function diagnoseListing(params: {
   const attributes: TechAttribute[] = relevant.map((attr) => {
     const itemAttr = itemMap.get(attr.id);
     const filled = isFilled(itemAttr);
+    const allowedValues = Array.isArray(attr.values)
+      ? attr.values
+          .map((v) => (v?.name ?? "").trim())
+          .filter((n) => n.length > 0)
+      : [];
+    const allowedUnits = Array.isArray(attr.allowed_units)
+      ? attr.allowed_units
+          .map((u) => (u?.name ?? u?.id ?? "").trim())
+          .filter((n) => n.length > 0)
+      : [];
     return {
       id: attr.id,
       name: attr.name ?? attr.id,
@@ -142,6 +158,11 @@ export function diagnoseListing(params: {
       required: isRequiredAttribute(attr),
       valueName: filled ? (itemAttr?.value_name ?? null) : null,
       isMissing: !filled,
+      allowedValues,
+      allowedUnits,
+      defaultUnit: attr.default_unit ?? allowedUnits[0] ?? undefined,
+      multivalued: hasTag(attr.tags, "multivalued"),
+      hint: (attr.hint ?? attr.example ?? undefined) || undefined,
     };
   });
 
@@ -203,6 +224,7 @@ export function summarizeTechSpecs(
     totalMissing,
     totalMissingRequired,
     capped,
+    allComplete: total > 0 && incomplete === 0,
   };
 }
 

@@ -259,6 +259,17 @@ export interface TechAttribute {
   valueName: string | null;
   /** True when the attribute has no value on the item (i.e. it's missing). */
   isMissing: boolean;
+  /** Allowed values for `list` attributes (so the correction form offers a
+   *  dropdown instead of free text). Empty for non-list attributes. */
+  allowedValues?: string[];
+  /** Allowed units for `number_unit` attributes (e.g. ["cm","mm"]). */
+  allowedUnits?: string[];
+  /** Optional default unit suggested by ML for `number_unit`. */
+  defaultUnit?: string;
+  /** Whether multiple values are allowed (ML `multivalued`). */
+  multivalued?: boolean;
+  /** Short hint/example to guide the seller while filling. */
+  hint?: string;
 }
 
 /** Technical-sheet diagnosis for a single listing. */
@@ -303,6 +314,8 @@ export interface TechSpecsSummary {
   totalMissingRequired: number;
   /** True when the analysis hit the safety cap (more listings exist). */
   capped: boolean;
+  /** True when EVERY analysed listing has a 100% complete sheet. */
+  allComplete: boolean;
 }
 
 export interface TechSpecsResult {

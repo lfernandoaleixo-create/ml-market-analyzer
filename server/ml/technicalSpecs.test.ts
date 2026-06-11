@@ -169,3 +169,85 @@ describe("summarizeTechSpecs", () => {
     expect(s.avgCompleteness).toBeCloseTo((0.25 + 1) / 2, 5);
   });
 });
+
+describe("allComplete + editable metadata (phase 2)", () => {
+  const cat: RawCategoryAttribute[] = [
+    { id: "BRAND", name: "Marca", value_type: "string", tags: { required: true } },
+    {
+      id: "COLOR",
+      name: "Cor",
+      value_type: "list",
+      tags: {},
+      values: [{ id: "1", name: "Azul" }, { id: "2", name: "Verde" }],
+    },
+    {
+      id: "DEPTH",
+      name: "Profundidade",
+      value_type: "number_unit",
+      tags: {},
+      allowed_units: [{ id: "cm", name: "cm" }, { id: "mm", name: "mm" }],
+      default_unit: "cm",
+    },
+  ];
+
+  it("flags allComplete=false when at least one listing is incomplete", () => {
+    const a = diagnoseListing({
+      itemId: "MLB1",
+      title: "A",
+      status: "active",
+      categoryAttributes: cat,
+      itemAttributes: [
+        { id: "BRAND", value_name: "Acme" },
+        { id: "COLOR", value_name: "Azul" },
+        { id: "DEPTH", value_name: "10 cm" },
+      ],
+    });
+    const b = diagnoseListing({
+      itemId: "MLB2",
+      title: "B",
+      status: "active",
+      categoryAttributes: cat,
+      itemAttributes: [{ id: "BRAND", value_name: "Acme" }],
+    });
+    const summary = summarizeTechSpecs([a, b]);
+    expect(a.complete).toBe(true);
+    expect(b.complete).toBe(false);
+    expect(summary.allComplete).toBe(false);
+    expect(summary.incomplete).toBe(1);
+  });
+
+  it("flags allComplete=true only when every listing is complete", () => {
+    const a = diagnoseListing({
+      itemId: "MLB1",
+      title: "A",
+      status: "active",
+      categoryAttributes: cat,
+      itemAttributes: [
+        { id: "BRAND", value_name: "Acme" },
+        { id: "COLOR", value_name: "Azul" },
+        { id: "DEPTH", value_name: "10 cm" },
+      ],
+    });
+    const summary = summarizeTechSpecs([a]);
+    expect(summary.allComplete).toBe(true);
+  });
+
+  it("allComplete is false for an empty set (nothing analysed)", () => {
+    expect(summarizeTechSpecs([]).allComplete).toBe(false);
+  });
+
+  it("exposes allowedValues for list attributes and units for number_unit", () => {
+    const d = diagnoseListing({
+      itemId: "MLB1",
+      title: "A",
+      status: "active",
+      categoryAttributes: cat,
+      itemAttributes: [{ id: "BRAND", value_name: "Acme" }],
+    });
+    const color = d.attributes.find((x) => x.id === "COLOR");
+    const depth = d.attributes.find((x) => x.id === "DEPTH");
+    expect(color?.allowedValues).toEqual(["Azul", "Verde"]);
+    expect(depth?.allowedUnits).toEqual(["cm", "mm"]);
+    expect(depth?.defaultUnit).toBe("cm");
+  });
+});

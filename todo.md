@@ -645,3 +645,15 @@
 - [x] Frontend: painel de detalhes (atributos faltantes / preenchidos) por anúncio (Sheet lateral)
 - [ ] Edição inline → FASE 2 (não fazer agora)
 - [x] Testes + TS limpo + checkpoint
+
+
+## Raio-X Ficha Técnica — fase 2: correção + 100% dos ativos (11/jun)
+- [x] Backend: analisar TODOS os anúncios ATIVOS da conta (search status=active, paginação completa, cap 5000)
+- [x] Backend: lotes com concorrência limitada (multiget 20, concurrency 5/6) para não estourar tempo
+- [x] Backend: expor catálogo editável por atributo (tipo, valores possíveis da lista, unidades, default unit, hint)
+- [x] Backend: status global allComplete (true/false) + contagem de pendentes
+- [x] Frontend: banner de status global claro (TUDO 100% vs X anúncios pendentes)
+- [x] Frontend: área de correção por anúncio — preencher faltantes (texto/número/lista/unidade/sim-não)
+- [x] Frontend: validação até ficar OK (barra de progresso + botão liberado quando 100%)
+- [x] Frontend: copiar a FICHA COMPLETA ajustada (todos atributos) em bloco para colar no ML
+- [x] Testes + TS limpo + checkpoint (20 testes do Raio-X, 98+ no total)

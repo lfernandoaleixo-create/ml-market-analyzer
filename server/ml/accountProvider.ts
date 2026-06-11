@@ -140,6 +140,31 @@ export class AccountProvider {
     return { ids: ids.slice(0, maxItems), capped };
   }
 
+  /** Fetch ALL of the seller's ACTIVE item ids (paged). Uses the ML search
+   *  `status=active` filter so we only diagnose live listings. Capped high for
+   *  safety; returns whether the cap was hit. */
+  private async getActiveItemIds(
+    maxItems = 5000,
+  ): Promise<{ ids: string[]; capped: boolean }> {
+    const ids: string[] = [];
+    let offset = 0;
+    const limit = 50;
+    let total = maxItems;
+    while (ids.length < maxItems) {
+      const data = await this.get(
+        `/users/${this.userId}/items/search?status=active&limit=${limit}&offset=${offset}`,
+      );
+      const results: string[] = Array.isArray(data?.results) ? data.results : [];
+      if (results.length === 0) break;
+      ids.push(...results);
+      total = data?.paging?.total ?? ids.length;
+      offset += limit;
+      if (offset >= total) break;
+    }
+    const capped = total > ids.length;
+    return { ids: ids.slice(0, maxItems), capped };
+  }
+
   /** Multiget item details in batches of 20 (ML multiget cap), in parallel. */
   private async getItemsDetails(ids: string[]): Promise<any[]> {
     const batches: string[][] = [];
@@ -886,8 +911,9 @@ export class AccountProvider {
   async getTechnicalSpecs(
     opts: { maxItems?: number } = {},
   ): Promise<TechSpecsResult> {
-    const maxItems = opts.maxItems ?? 600;
-    const { ids, capped } = await this.getAllItemIds(maxItems);
+    // Analyse ALL of the seller's ACTIVE listings (high cap for safety).
+    const maxItems = opts.maxItems ?? 5000;
+    const { ids, capped } = await this.getActiveItemIds(maxItems);
     const details = await this.getItemsWithAttributes(ids);
 
     // Fetch all distinct category attribute catalogs (cached, bounded).
@@ -904,7 +930,9 @@ export class AccountProvider {
       await Promise.all(slice.map((c) => this.getCategoryAttributes(c)));
     }
 
-    const items: TechSpecListing[] = details.map((d) => {
+    const items: TechSpecListing[] = details
+      .filter((d) => this.mapStatus(d.status) === "active")
+      .map((d) => {
       const categoryId: string | undefined = d.category_id ?? undefined;
       const categoryAttributes = categoryId
         ? this.categoryAttrCache.get(categoryId) ?? []

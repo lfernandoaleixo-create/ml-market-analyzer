@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet,
   SheetContent,
@@ -13,9 +14,17 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatNumber } from "@/lib/format";
-import type { TechSpecListing } from "@shared/account";
+import { toast } from "sonner";
+import type { TechSpecListing, TechAttribute } from "@shared/account";
 import {
   Stethoscope,
   CheckCircle2,
@@ -29,12 +38,16 @@ import {
   List as ListIcon,
   ToggleLeft,
   Ruler,
+  Copy,
+  Check,
+  PartyPopper,
+  ExternalLink,
 } from "lucide-react";
 
 type FilterMode = "all" | "incomplete" | "required";
 
 const VALUE_TYPE_META: Record<
-  TechSpecListing["attributes"][number]["valueType"],
+  TechAttribute["valueType"],
   { label: string; icon: typeof Type }
 > = {
   string: { label: "Texto", icon: Type },
@@ -51,9 +64,10 @@ function completenessColor(c: number): string {
 }
 
 /**
- * Raio-X da Ficha Técnica — read-only diagnosis of every listing's technical
- * sheet (complete vs incomplete, missing attributes and which are required).
- * Mirrors the Seconds "Ficha Técnica" tool using the ML attributes API.
+ * Raio-X da Ficha Técnica — analyses EVERY active listing's technical sheet,
+ * tells the seller clearly whether everything is 100% complete, and provides a
+ * correction area where missing attributes are filled in until the sheet is OK.
+ * The seller then copies the full adjusted sheet to paste back into ML.
  */
 export function TechSpecsCard({ connected }: { connected: boolean }) {
   const { data, isLoading, isFetching } = trpc.account.technicalSpecs.useQuery(
@@ -62,7 +76,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
   );
 
   const [search, setSearch] = useState("");
-  const [mode, setMode] = useState<FilterMode>("all");
+  const [mode, setMode] = useState<FilterMode>("incomplete");
   const [openId, setOpenId] = useState<string | null>(null);
 
   const items = useMemo<TechSpecListing[]>(() => data?.items ?? [], [data]);
@@ -80,7 +94,6 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
           i.itemId.toLowerCase().includes(q),
       );
     }
-    // Worst first: most missing-required, then most missing, then lowest completeness.
     return [...list].sort((a, b) => {
       if (b.missingRequired !== a.missingRequired)
         return b.missingRequired - a.missingRequired;
@@ -103,22 +116,51 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
   return (
     <SectionCard
       title="Raio-X da Ficha Técnica"
-      description="Cruzamos os atributos exigidos por cada categoria do Mercado Livre com o que está preenchido no anúncio. Veja onde a ficha está incompleta e o que falta para deixá-la perfeita."
+      description="Analisamos TODOS os seus anúncios ativos, cruzando os atributos exigidos por cada categoria do Mercado Livre com o que está preenchido. Corrija o que falta aqui e copie a ficha pronta para colar no anúncio."
       actions={
         isFetching && !isLoading ? (
-          <span className="text-xs text-muted-foreground">Atualizando…</span>
+          <span className="text-xs text-muted-foreground">Analisando…</span>
         ) : undefined
       }
     >
+      {/* Global status banner */}
+      {isLoading ? (
+        <Skeleton className="h-16 w-full rounded-xl" />
+      ) : summary && summary.allComplete ? (
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/8 px-4 py-3.5 text-emerald-800">
+          <PartyPopper className="h-6 w-6 shrink-0 text-emerald-600" />
+          <div>
+            <p className="text-sm font-semibold">
+              Tudo certo! Todas as {formatNumber(summary.total)} fichas dos seus anúncios ativos estão 100% completas.
+            </p>
+            <p className="text-xs text-emerald-700/80">
+              Nenhum atributo faltando. Não há nada para corrigir no momento.
+            </p>
+          </div>
+        </div>
+      ) : summary ? (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3.5 text-amber-900">
+          <AlertTriangle className="h-6 w-6 shrink-0 text-amber-600" />
+          <div>
+            <p className="text-sm font-semibold">
+              {formatNumber(summary.incomplete)} de {formatNumber(summary.total)} anúncios ativos {summary.incomplete === 1 ? "está" : "estão"} com a ficha técnica incompleta.
+            </p>
+            <p className="text-xs text-amber-800/80">
+              Abra cada anúncio abaixo, preencha os atributos faltantes e copie a ficha pronta para atualizar no Mercado Livre.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {/* Summary KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Fichas completas"
           value={isLoading ? "" : `${formatNumber(summary?.complete ?? 0)} / ${formatNumber(summary?.total ?? 0)}`}
           loading={isLoading}
           icon={CheckCircle2}
           accent="emerald"
-          sublabel={isLoading ? undefined : `${completePct}% dos anúncios`}
+          sublabel={isLoading ? undefined : `${completePct}% dos ativos`}
         />
         <KpiCard
           label="Fichas incompletas"
@@ -160,9 +202,9 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
         <div className="flex items-center gap-1 rounded-xl bg-secondary p-1">
           {(
             [
-              { key: "all", label: "Todos" },
-              { key: "incomplete", label: "Incompletos" },
+              { key: "incomplete", label: "Pendentes" },
               { key: "required", label: "Faltam obrigatórios" },
+              { key: "all", label: "Todos" },
             ] as { key: FilterMode; label: string }[]
           ).map((t) => (
             <Button
@@ -211,8 +253,6 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
                   titleClassName="max-w-full pr-2"
                 />
               </div>
-
-              {/* Completeness bar */}
               <div className="hidden w-36 shrink-0 sm:block">
                 <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>{it.filledAttributes}/{it.totalAttributes}</span>
@@ -225,8 +265,6 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
                   />
                 </div>
               </div>
-
-              {/* Status badge */}
               <div className="shrink-0">
                 {it.complete ? (
                   <Badge className="border-emerald-500/20 bg-emerald-500/12 text-emerald-700">
@@ -250,29 +288,85 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
 
       {summary?.capped && !isLoading && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Analisando os primeiros {formatNumber(summary.total)} anúncios da conta.
+          Analisando os primeiros {formatNumber(summary.total)} anúncios ativos da conta.
         </p>
       )}
 
-      {/* Detail drawer */}
+      {/* Correction drawer */}
       <Sheet open={openId != null} onOpenChange={(o) => !o && setOpenId(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          {selected && <TechSpecDetail item={selected} />}
+        <SheetContent className="flex w-full flex-col overflow-y-auto p-0 sm:max-w-lg">
+          {selected && <TechSpecCorrection item={selected} />}
         </SheetContent>
       </Sheet>
     </SectionCard>
   );
 }
 
-function TechSpecDetail({ item }: { item: TechSpecListing }) {
+/** Correction panel: fill in missing attributes until the sheet is OK, then
+ *  copy the full adjusted sheet to paste back into Mercado Livre. */
+function TechSpecCorrection({ item }: { item: TechSpecListing }) {
+  // Local edits keyed by attribute id (the value the seller typed/picked).
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [units, setUnits] = useState<Record<string, string>>({});
+  const [copied, setCopied] = useState(false);
+
   const missing = item.attributes.filter((a) => a.isMissing);
   const filled = item.attributes.filter((a) => !a.isMissing);
+
+  function setEdit(id: string, value: string) {
+    setEdits((prev) => ({ ...prev, [id]: value }));
+  }
+
+  /** Resolved value for a missing attribute: combine number + unit. */
+  function resolvedValue(a: TechAttribute): string {
+    const raw = (edits[a.id] ?? "").trim();
+    if (!raw) return "";
+    if (a.valueType === "number_unit") {
+      const unit = (units[a.id] ?? a.defaultUnit ?? a.allowedUnits?.[0] ?? "").trim();
+      return unit ? `${raw} ${unit}` : raw;
+    }
+    return raw;
+  }
+
+  const stillMissing = missing.filter((a) => resolvedValue(a) === "");
+  const resolvedNow = missing.length - stillMissing.length;
+  const isOk = stillMissing.length === 0;
+
+  // The full adjusted sheet = already-filled attributes + the values typed now.
+  const fullSheetLines = useMemo(() => {
+    const lines: string[] = [];
+    // Keep a stable, readable order: required first, then the rest by name.
+    const ordered = [...item.attributes].sort((a, b) => {
+      if (a.required !== b.required) return a.required ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const a of ordered) {
+      const value = a.isMissing ? resolvedValue(a) : (a.valueName ?? "");
+      if (value && value.trim() !== "") lines.push(`${a.name}: ${value.trim()}`);
+    }
+    return lines;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, edits, units]);
+
+  async function copyFullSheet() {
+    const header = `Ficha técnica — ${item.title}`;
+    const text = [header, "", ...fullSheetLines].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("Ficha completa copiada! Cole no anúncio do Mercado Livre.");
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      toast.error("Não foi possível copiar. Tente novamente.");
+    }
+  }
+
   return (
     <>
-      <SheetHeader className="space-y-3">
+      <SheetHeader className="space-y-3 border-b p-5">
         <SheetTitle className="flex items-center gap-2 text-base">
           <Stethoscope className="h-4 w-4 text-primary" />
-          Detalhes da Ficha Técnica
+          Corrigir Ficha Técnica
         </SheetTitle>
         <div className="flex items-start gap-3 rounded-xl border bg-card p-3">
           <ProductCell
@@ -283,27 +377,43 @@ function TechSpecDetail({ item }: { item: TechSpecListing }) {
           />
         </div>
         <SheetDescription asChild>
-          <div className="flex items-center gap-2">
-            {item.complete ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {isOk ? (
               <Badge className="border-emerald-500/20 bg-emerald-500/12 text-emerald-700">
-                Ficha completa
+                <Check className="mr-1 h-3 w-3" /> Pronto · ficha 100%
               </Badge>
             ) : (
               <Badge className="border-amber-500/20 bg-amber-500/12 text-amber-700">
-                {item.filledAttributes}/{item.totalAttributes} preenchidos · {Math.round(item.completeness * 100)}%
+                Faltam {stillMissing.length} de {missing.length}
               </Badge>
             )}
-            {item.missingRequired > 0 && (
+            {item.missingRequired > 0 && !isOk && (
               <Badge className="border-rose-500/20 bg-rose-500/12 text-rose-700">
-                {item.missingRequired} obrigatório{item.missingRequired === 1 ? "" : "s"} em falta
+                {item.missingRequired} obrigatório{item.missingRequired === 1 ? "" : "s"}
               </Badge>
             )}
           </div>
         </SheetDescription>
       </SheetHeader>
 
-      <div className="mt-6 space-y-6">
-        {/* Missing */}
+      <div className="flex-1 space-y-6 p-5">
+        {/* Progress to OK */}
+        {missing.length > 0 && (
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="font-medium">Preenchimento dos faltantes</span>
+              <span className="tabular-nums text-muted-foreground">{resolvedNow}/{missing.length}</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn("h-full rounded-full transition-all", isOk ? "bg-emerald-500" : "bg-amber-500")}
+                style={{ width: `${missing.length ? Math.round((resolvedNow / missing.length) * 100) : 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Missing — correction fields */}
         <div>
           <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -315,48 +425,61 @@ function TechSpecDetail({ item }: { item: TechSpecListing }) {
               Nenhum atributo faltando. Ficha completa!
             </p>
           ) : (
-            <ul className="space-y-1.5">
+            <div className="space-y-3">
               {missing.map((a) => {
                 const TypeIcon = VALUE_TYPE_META[a.valueType].icon;
+                const done = resolvedValue(a) !== "";
                 return (
-                  <li
+                  <div
                     key={a.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <TypeIcon className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                      <span className="truncate text-sm">{a.name}</span>
-                    </div>
-                    {a.required && (
-                      <Badge variant="outline" className="shrink-0 border-rose-500/30 text-[10px] text-rose-600">
-                        Obrigatório
-                      </Badge>
+                    className={cn(
+                      "rounded-xl border p-3 transition-colors",
+                      done ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/20 bg-amber-500/5",
                     )}
-                  </li>
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <TypeIcon className={cn("h-3.5 w-3.5 shrink-0", done ? "text-emerald-600" : "text-amber-600")} />
+                        <span className="truncate text-sm font-medium">{a.name}</span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {done && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                        {a.required && (
+                          <Badge variant="outline" className="border-rose-500/30 text-[10px] text-rose-600">
+                            Obrigatório
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <AttributeInput
+                      attr={a}
+                      value={edits[a.id] ?? ""}
+                      unit={units[a.id] ?? a.defaultUnit ?? a.allowedUnits?.[0] ?? ""}
+                      onValue={(v) => setEdit(a.id, v)}
+                      onUnit={(u) => setUnits((prev) => ({ ...prev, [a.id]: u }))}
+                    />
+                    {a.hint && (
+                      <p className="mt-1.5 text-[11px] text-muted-foreground">Ex.: {a.hint}</p>
+                    )}
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
         </div>
 
-        {/* Filled */}
-        <div>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            Atributos preenchidos
-            <span className="text-muted-foreground">({filled.length})</span>
-          </h3>
-          {filled.length === 0 ? (
-            <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-              Nenhum atributo preenchido ainda.
-            </p>
-          ) : (
+        {/* Already filled */}
+        {filled.length > 0 && (
+          <div>
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              Já preenchidos
+              <span className="text-muted-foreground">({filled.length})</span>
+            </h3>
             <ul className="space-y-1.5">
               {filled.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2"
-                >
+                <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
                   <span className="truncate text-sm text-muted-foreground">{a.name}</span>
                   <span className="ml-2 shrink-0 truncate text-sm font-medium" title={a.valueName ?? undefined}>
                     {a.valueName ?? "—"}
@@ -364,22 +487,159 @@ function TechSpecDetail({ item }: { item: TechSpecListing }) {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Sticky footer: copy full sheet */}
+      <div className="sticky bottom-0 space-y-2 border-t bg-background/95 p-4 backdrop-blur">
+        {isOk ? (
+          <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            Ficha pronta! Copie abaixo e cole no anúncio do Mercado Livre.
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Preencha os {stillMissing.length} atributo{stillMissing.length === 1 ? "" : "s"} faltante{stillMissing.length === 1 ? "" : "s"} para liberar a ficha completa.
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button
+            className="flex-1 gap-1.5"
+            disabled={!isOk}
+            onClick={copyFullSheet}
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? "Copiado!" : "Copiar ficha completa"}
+          </Button>
+          {item.permalink && (
+            <Button asChild variant="outline" className="gap-1.5 bg-card">
+              <a href={item.permalink} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" /> Abrir no ML
+              </a>
+            </Button>
           )}
         </div>
-
-        <p className="rounded-lg bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">
-          A edição dos atributos direto por aqui chega em breve. Por enquanto, use o
-          {" "}
-          {item.permalink ? (
-            <a href={item.permalink} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline-offset-2 hover:underline">
-              anúncio no Mercado Livre
-            </a>
-          ) : (
-            "anúncio no Mercado Livre"
-          )}
-          {" "}para completar a ficha.
-        </p>
+        {isOk && (
+          <details className="rounded-lg border bg-muted/40 px-3 py-2">
+            <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+              Pré-visualizar ficha que será copiada
+            </summary>
+            <Textarea
+              readOnly
+              value={[`Ficha técnica — ${item.title}`, "", ...fullSheetLines].join("\n")}
+              className="mt-2 h-40 resize-none bg-card font-mono text-xs"
+            />
+          </details>
+        )}
       </div>
     </>
+  );
+}
+
+/** Renders the right input for an attribute's value type. */
+function AttributeInput({
+  attr,
+  value,
+  unit,
+  onValue,
+  onUnit,
+}: {
+  attr: TechAttribute;
+  value: string;
+  unit: string;
+  onValue: (v: string) => void;
+  onUnit: (u: string) => void;
+}) {
+  if (attr.valueType === "list" && (attr.allowedValues?.length ?? 0) > 0) {
+    return (
+      <Select value={value} onValueChange={onValue}>
+        <SelectTrigger className="h-9 bg-card">
+          <SelectValue placeholder="Selecione…" />
+        </SelectTrigger>
+        <SelectContent>
+          {attr.allowedValues!.map((v) => (
+            <SelectItem key={v} value={v}>
+              {v}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (attr.valueType === "boolean") {
+    return (
+      <Select value={value} onValueChange={onValue}>
+        <SelectTrigger className="h-9 bg-card">
+          <SelectValue placeholder="Selecione…" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="Sim">Sim</SelectItem>
+          <SelectItem value="Não">Não</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (attr.valueType === "number_unit") {
+    const hasUnits = (attr.allowedUnits?.length ?? 0) > 0;
+    return (
+      <div className="flex gap-2">
+        <Input
+          type="number"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onValue(e.target.value)}
+          placeholder="Valor"
+          className="h-9 flex-1 bg-card"
+        />
+        {hasUnits ? (
+          <Select value={unit} onValueChange={onUnit}>
+            <SelectTrigger className="h-9 w-28 shrink-0 bg-card">
+              <SelectValue placeholder="Un." />
+            </SelectTrigger>
+            <SelectContent>
+              {attr.allowedUnits!.map((u) => (
+                <SelectItem key={u} value={u}>
+                  {u}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={unit}
+            onChange={(e) => onUnit(e.target.value)}
+            placeholder="Unid."
+            className="h-9 w-24 shrink-0 bg-card"
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (attr.valueType === "number") {
+    return (
+      <Input
+        type="number"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onValue(e.target.value)}
+        placeholder="Digite o número"
+        className="h-9 bg-card"
+      />
+    );
+  }
+
+  // string (default)
+  return (
+    <Input
+      value={value}
+      onChange={(e) => onValue(e.target.value)}
+      placeholder="Digite o valor"
+      className="h-9 bg-card"
+    />
   );
 }
