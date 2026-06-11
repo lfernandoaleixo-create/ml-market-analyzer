@@ -304,10 +304,14 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
 
 /** Correction panel: fill in missing attributes until the sheet is OK, then
  *  copy the full adjusted sheet to paste back into Mercado Livre. */
+const NOT_APPLICABLE_LABEL = "Não se aplica";
+
 function TechSpecCorrection({ item }: { item: TechSpecListing }) {
   // Local edits keyed by attribute id (the value the seller typed/picked).
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [units, setUnits] = useState<Record<string, string>>({});
+  // Attributes the seller explicitly marked as "Não se aplica" (counts as done).
+  const [notApplicable, setNotApplicable] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
 
   const missing = item.attributes.filter((a) => a.isMissing);
@@ -317,8 +321,22 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
     setEdits((prev) => ({ ...prev, [id]: value }));
   }
 
-  /** Resolved value for a missing attribute: combine number + unit. */
+  /** Toggle "Não se aplica" for an attribute. When turned on, clears any typed
+   *  value so the field reads as resolved-via-N/A. */
+  function toggleNA(id: string) {
+    setNotApplicable((prev) => {
+      const next = !prev[id];
+      if (next) {
+        // Clear any partial value when marking N/A.
+        setEdits((e) => ({ ...e, [id]: "" }));
+      }
+      return { ...prev, [id]: next };
+    });
+  }
+
+  /** Resolved value for a missing attribute: combine number + unit, or N/A. */
   function resolvedValue(a: TechAttribute): string {
+    if (notApplicable[a.id]) return NOT_APPLICABLE_LABEL;
     const raw = (edits[a.id] ?? "").trim();
     if (!raw) return "";
     if (a.valueType === "number_unit") {
@@ -346,7 +364,7 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
     }
     return lines;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item, edits, units]);
+  }, [item, edits, units, notApplicable]);
 
   async function copyFullSheet() {
     const header = `Ficha técnica — ${item.title}`;
@@ -363,10 +381,10 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
 
   return (
     <>
-      <SheetHeader className="space-y-3 border-b p-5">
-        <SheetTitle className="flex items-center gap-2 text-base">
-          <Stethoscope className="h-4 w-4 text-primary" />
-          Corrigir Ficha Técnica
+      <SheetHeader className="space-y-3 border-b p-5 pr-12 text-left">
+        <SheetTitle className="flex items-center gap-2 text-base leading-tight">
+          <Stethoscope className="h-4 w-4 shrink-0 text-primary" />
+          <span>Corrigir Ficha Técnica</span>
         </SheetTitle>
         <div className="flex items-start gap-3 rounded-xl border bg-card p-3">
           <ProductCell
@@ -428,6 +446,7 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
             <div className="space-y-3">
               {missing.map((a) => {
                 const TypeIcon = VALUE_TYPE_META[a.valueType].icon;
+                const isNA = !!notApplicable[a.id];
                 const done = resolvedValue(a) !== "";
                 return (
                   <div
@@ -452,16 +471,48 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
                       </div>
                     </div>
 
-                    <AttributeInput
-                      attr={a}
-                      value={edits[a.id] ?? ""}
-                      unit={units[a.id] ?? a.defaultUnit ?? a.allowedUnits?.[0] ?? ""}
-                      onValue={(v) => setEdit(a.id, v)}
-                      onUnit={(u) => setUnits((prev) => ({ ...prev, [a.id]: u }))}
-                    />
-                    {a.hint && (
-                      <p className="mt-1.5 text-[11px] text-muted-foreground">Ex.: {a.hint}</p>
+                    {isNA ? (
+                      <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/8 px-3 py-2 text-sm text-emerald-700">
+                        <Check className="h-4 w-4 shrink-0" />
+                        Marcado como “Não se aplica”
+                      </div>
+                    ) : (
+                      <AttributeInput
+                        attr={a}
+                        value={edits[a.id] ?? ""}
+                        unit={units[a.id] ?? a.defaultUnit ?? a.allowedUnits?.[0] ?? ""}
+                        onValue={(v) => setEdit(a.id, v)}
+                        onUnit={(u) => setUnits((prev) => ({ ...prev, [a.id]: u }))}
+                      />
                     )}
+
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      {a.hint && !isNA ? (
+                        <p className="truncate text-[11px] text-muted-foreground">Ex.: {a.hint}</p>
+                      ) : (
+                        <span />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleNA(a.id)}
+                        className={cn(
+                          "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+                          isNA
+                            ? "bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/20"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-3.5 w-3.5 items-center justify-center rounded border",
+                            isNA ? "border-emerald-500 bg-emerald-500 text-white" : "border-muted-foreground/40",
+                          )}
+                        >
+                          {isNA && <Check className="h-2.5 w-2.5" />}
+                        </span>
+                        Não se aplica
+                      </button>
+                    </div>
                   </div>
                 );
               })}

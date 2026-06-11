@@ -643,7 +643,7 @@
 - [x] Frontend: card Raio-X com resumo (% completos, obrigatórios faltando, completude média)
 - [x] Frontend: lista de anúncios com badge COMPLETA/INCOMPLETA + filtro (Todos/Incompletos/Faltam obrigatórios) + busca
 - [x] Frontend: painel de detalhes (atributos faltantes / preenchidos) por anúncio (Sheet lateral)
-- [ ] Edição inline → FASE 2 (não fazer agora)
+- [x] Edição inline via API descartada nesta fase por decisão do usuário — fluxo adotado: copiar a ficha completa e colar no Mercado Livre (escrita direta fica como possível evolução futura)
 - [x] Testes + TS limpo + checkpoint
 
 
@@ -657,3 +657,7 @@
 - [x] Frontend: validação até ficar OK (barra de progresso + botão liberado quando 100%)
 - [x] Frontend: copiar a FICHA COMPLETA ajustada (todos atributos) em bloco para colar no ML
 - [x] Testes + TS limpo + checkpoint (20 testes do Raio-X, 98+ no total)
+
+## Raio-X Ficha Técnica — ajustes (11/jun)
+- [x] Opção "Não se aplica" em cada atributo faltante (conta como resolvido/preenchido; aparece como "Não se aplica" na ficha copiada)
+- [x] Corrigir título distorcido do painel lateral (pr-12 no SheetHeader para não colidir com o X de fechar)
