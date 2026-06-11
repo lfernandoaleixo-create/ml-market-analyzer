@@ -26,7 +26,9 @@ import {
 } from "@/components/ui/select";
 import {
   Area,
-  AreaChart,
+  ComposedChart,
+  Line,
+  Legend,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -129,13 +131,13 @@ const emptyFilters: ListingFilters = {
 export default function Anuncios() {
   // Visits window in days. The Visits card reflects REAL visits over this
   // period (via ML's dated time_window endpoint, one item per request).
-  const [visitWindow, setVisitWindow] = useState<30 | 60 | 90>(30);
+  const [visitWindow, setVisitWindow] = useState<7 | 30 | 90>(30);
   const [filters, setFilters] = useState<ListingFilters>(emptyFilters);
   const [sortKey, setSortKey] = useState<SortKey>("visits");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const conn = trpc.account.connection.useQuery();
-  const { data, isLoading, error, isFetching, dataUpdatedAt } = trpc.account.listings.useQuery(
+  const { data, isLoading, error, isFetching, dataUpdatedAt, refetch } = trpc.account.listings.useQuery(
     { lastDays: visitWindow },
     {
       enabled: conn.data?.connected === true,
@@ -241,7 +243,7 @@ export default function Anuncios() {
         actions={
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 rounded-xl bg-secondary p-1">
-              {([30, 60, 90] as const).map((w) => (
+              {([7, 30, 90] as const).map((w) => (
                 <Button
                   key={w}
                   size="sm"
@@ -371,17 +373,30 @@ export default function Anuncios() {
       {/* Active listings visits evolution — fixed 30-day window */}
       <SectionCard
         title="Evolução das visitas · anúncios ativos"
-        description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias (o dia de hoje é parcial e atualiza em tempo real)."
+        description={`Total diário de visualizações agregado entre os anúncios ativos nos últimos ${visitWindow} dias (o dia de hoje é parcial e atualiza em tempo real).`}
         actions={
-          !isLoading && dataUpdatedAt ? (
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className={cn("h-1.5 w-1.5 rounded-full", isFetching ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
-              {isFetching ? "Atualizando…" : `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
-            </span>
-          ) : undefined
+          <div className="flex items-center gap-2.5">
+            {!isLoading && dataUpdatedAt ? (
+              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
+                <span className={cn("h-1.5 w-1.5 rounded-full", isFetching ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
+                {isFetching ? "Atualizando…" : `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+              </span>
+            ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 bg-card"
+              onClick={() => refetch()}
+              disabled={isLoading || isFetching}
+              title="Buscar as visitas mais recentes agora"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+              Atualizar agora
+            </Button>
+          </div>
         }
       >
-        <VisitsEvolutionChart series={visitsSeries} loading={isLoading} />
+        <VisitsEvolutionChart series={visitsSeries} loading={isLoading} windowDays={visitWindow} />
       </SectionCard>
 
       {/* Raio-X da Ficha Técnica */}
@@ -815,9 +830,11 @@ function HealthDot({ health }: { health?: number | null }) {
 function VisitsEvolutionChart({
   series,
   loading,
+  windowDays = 30,
 }: {
   series: VisitsDayPoint[];
   loading?: boolean;
+  windowDays?: number;
 }) {
   if (loading) {
     return <Skeleton className="h-64 w-full" />;
@@ -830,31 +847,42 @@ function VisitsEvolutionChart({
       <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
         <TrendingUp className="h-8 w-8 text-muted-foreground/40" />
         <p className="text-sm text-muted-foreground">
-          Sem visitas registradas nos anúncios ativos nos últimos 30 dias.
+          Sem visitas registradas nos anúncios ativos nos últimos {windowDays} dias.
         </p>
       </div>
     );
   }
 
   const todayKey = new Date().toISOString().slice(0, 10);
-  const data = series.map((p) => ({ ...p, label: isoDateToShort(p.date), isToday: p.date === todayKey }));
+  // 7-day trailing moving average to smooth the daily noise. Null until there
+  // are enough points so the line doesn't start with a misleading ramp.
+  const data = series.map((p, i) => {
+    let ma: number | null = null;
+    if (i >= 6) {
+      let sum = 0;
+      for (let k = i - 6; k <= i; k++) sum += series[k].visits;
+      ma = Math.round(sum / 7);
+    }
+    return { ...p, label: isoDateToShort(p.date), isToday: p.date === todayKey, ma };
+  });
   const peak = Math.max(...series.map((p) => p.visits));
   const avg = Math.round(total / series.length);
   const todayVisits = series.find((p) => p.date === todayKey)?.visits ?? 0;
   const yesterdayVisits = series.length >= 2 ? series[series.length - 2].visits : 0;
+  const showMA = series.length >= 7;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-x-8 gap-y-1 text-sm">
         <SummaryMini label="Hoje (parcial)" value={formatNumber(todayVisits)} tone="primary" />
         <SummaryMini label="Ontem" value={formatNumber(yesterdayVisits)} tone="muted" />
-        <SummaryMini label="Total (30d)" value={formatNumber(total)} tone="muted" />
+        <SummaryMini label={`Total (${windowDays}d)`} value={formatNumber(total)} tone="muted" />
         <SummaryMini label="Média/dia" value={formatNumber(avg)} tone="muted" />
         <SummaryMini label="Pico" value={formatNumber(peak)} tone="muted" />
       </div>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+          <ComposedChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
             <defs>
               <linearGradient id="visitsFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.28} />
@@ -880,6 +908,15 @@ function VisitsEvolutionChart({
               tickFormatter={(v) => formatCompact(Number(v))}
             />
             <Tooltip cursor={{ stroke: "var(--border)" }} content={<VisitsTooltip todayKey={todayKey} />} />
+            {showMA && (
+              <Legend
+                verticalAlign="top"
+                align="right"
+                height={24}
+                iconType="plainline"
+                wrapperStyle={{ fontSize: 11, color: "var(--muted-foreground)" }}
+              />
+            )}
             <Area
               type="monotone"
               dataKey="visits"
@@ -890,7 +927,21 @@ function VisitsEvolutionChart({
               dot={<TodayDot todayKey={todayKey} />}
               activeDot={{ r: 4, fill: "var(--primary)" }}
             />
-          </AreaChart>
+            {showMA && (
+              <Line
+                type="monotone"
+                dataKey="ma"
+                name="Média móvel (7d)"
+                stroke="var(--muted-foreground)"
+                strokeWidth={1.5}
+                strokeDasharray="5 4"
+                dot={false}
+                activeDot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+            )}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>

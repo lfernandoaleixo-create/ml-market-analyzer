@@ -668,3 +668,8 @@
 - [x] Padronizar tamanho dos mini-cards de seleção da lista (todos h-8: chips, Select de visualizações, inputs de preço, limpar filtros)
 - [x] Revisar gráfico de linha de visitas: corrigido desalinhamento de fuso (chave de dia em UTC = a do ML); hoje (dia 11) entra como último ponto parcial em tempo real, ontem = dia 10; cards Hoje/Ontem; ponto de hoje destacado; refetch a cada 5min + ao focar; selo "Atualizado às HH:MM"
 - [x] Testes + TS limpo + checkpoint (42 testes do provider/techspecs, incl. novo teste de alinhamento do dia atual)
+
+## Gráfico de visitas — melhorias (11/jun)
+- [x] Seletor de janela 7 / 30 / 90 dias (controle do topo agora usa 7/30/90; backend aceita lastDays=7)
+- [x] Média móvel de 7 dias (linha tracejada) sobreposta ao gráfico via ComposedChart + Legend
+- [x] Botão "Atualizar agora" no gráfico para forçar o refetch imediato das visitas

@@ -167,7 +167,7 @@ export const accountRouter = router({
       z
         .object({
           /** Visits window in days (real period visits via time_window). */
-          lastDays: z.union([z.literal(30), z.literal(60), z.literal(90)]).optional(),
+          lastDays: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional(),
         })
         .optional(),
     )
