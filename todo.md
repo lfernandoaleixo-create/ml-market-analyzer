@@ -689,3 +689,9 @@
 ## Ajuste do gráfico de visitas (11/06)
 - [x] Gráfico de visitas (Evolução das visitas, 30d): exibir rótulo de TODOS os 30 dias no eixo X
 - [x] Cada rótulo com dia + dia da semana, na VERTICAL (rotacionado 90°), destacando hoje
+
+## Ajustes de UX (11/06 - 2)
+- [x] Gráfico de visitas: alinhar números dos dias (mesma linha de base) + sábado/domingo em vermelho
+- [x] Card "Visitas" vira card de evolução (variação % vs. período anterior, seta verde/vermelha)
+- [x] Navegação entre itens do menu sempre rola para o topo da página
+- [x] Helpers compartilhados (shared/visitsTrend.ts) + testes (9 testes passando)

@@ -175,8 +175,16 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const activeMenuItem = menuItems.find((item) => item.path === location);
   const isMobile = useIsMobile();
+
+  // Always scroll back to the top of the page whenever the route changes, so
+  // navigating between menu items never lands the user halfway down a page.
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location]);
 
   const { data: alerts } = trpc.monitor.alerts.useQuery(undefined, {
     refetchInterval: 60_000,
@@ -319,7 +327,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
             </div>
           </div>
         )}
-        <main className="flex-1">{children}</main>
+        <main ref={mainRef} className="flex-1">{children}</main>
       </SidebarInset>
     </>
   );

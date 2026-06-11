@@ -25,6 +25,7 @@ import {
   isoToDayNum,
   isoToWeekdayLong,
 } from "@/lib/format";
+import { isoIsWeekend, computeVisitsTrendPct } from "@shared/visitsTrend";
 import {
   Select,
   SelectContent,
@@ -163,6 +164,13 @@ export default function Anuncios() {
   const visitDist = useMemo(() => bucketCounts(items, VISIT_BUCKETS, (r) => r.visits), [items]);
   const visitsSeries = useMemo<VisitsDayPoint[]>(() => data?.visitsSeries ?? [], [data]);
 
+  // Visits trend: compare the first vs. the second half of the window, ignoring
+  // today (partial). Positive => visits are growing. Null when not enough data.
+  const visitsTrendPct = useMemo<number | null>(
+    () => computeVisitsTrendPct(visitsSeries, new Date().toISOString().slice(0, 10)),
+    [visitsSeries],
+  );
+
   const filtered = useMemo(() => filterListings(items, filters), [items, filters]);
   const sorted = useMemo(() => sortListings(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
 
@@ -299,6 +307,7 @@ export default function Anuncios() {
           loading={isLoading}
           icon={Eye}
           accent="blue"
+          trend={{ pct: visitsTrendPct, label: "vs. período anterior" }}
         />
         <KpiCard
           label="Pausados"
@@ -959,30 +968,49 @@ function VisitsEvolutionChart({
 }
 
 /**
- * Vertical X axis tick: one rotated label per day showing the day number plus
- * the weekday (e.g. "10 ter"). Today is highlighted. Rotated 90deg so all 30
- * days fit without overlapping.
+ * Vertical X axis tick. Two columns of vertical text so every day's NUMBER
+ * stays aligned on the same baseline (right next to the axis) regardless of
+ * 1- or 2-digit day, with the weekday abbreviation just below it. Weekends
+ * (Sat/Sun) are colored red; today is highlighted in the primary color.
  */
 function WeekdayTick({ x, y, payload, todayKey }: any) {
   const iso = payload?.value as string;
   if (!iso) return null;
   const isToday = iso === todayKey;
+  const weekend = isoIsWeekend(iso);
   const weekday = isoToWeekdayShort(iso);
   const dayNum = isoToDayNum(iso);
-  const label = `${dayNum} ${weekday}`;
+  // Color priority: today (primary) > weekend (red) > weekday (foreground).
+  const numColor = isToday ? "var(--primary)" : weekend ? "#dc2626" : "var(--foreground)";
+  const wdColor = isToday ? "var(--primary)" : weekend ? "#dc2626" : "var(--muted-foreground)";
   return (
     <g transform={`translate(${x},${y})`}>
+      {/* Day number — anchored at the top (near axis) so all numbers align. */}
       <text
         x={0}
         y={0}
         dy={4}
         transform="rotate(-90)"
         textAnchor="end"
-        fontSize={10}
-        fontWeight={isToday ? 700 : 500}
-        fill={isToday ? "var(--primary)" : "var(--foreground)"}
+        fontSize={11}
+        fontWeight={isToday || weekend ? 700 : 600}
+        fill={numColor}
       >
-        {label}
+        {dayNum}
+      </text>
+      {/* Weekday abbreviation — second column, slightly inset. */}
+      <text
+        x={0}
+        y={0}
+        dx={14}
+        dy={4}
+        transform="rotate(-90)"
+        textAnchor="end"
+        fontSize={9}
+        fontWeight={isToday || weekend ? 600 : 400}
+        fill={wdColor}
+      >
+        {weekday}
       </text>
     </g>
   );

@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, PlugZap, type LucideIcon } from "lucide-react";
+import { AlertTriangle, PlugZap, TrendingUp, TrendingDown, Minus, type LucideIcon } from "lucide-react";
 import { useLocation } from "wouter";
 
 /** Page header with title, subtitle and optional right-side actions. */
@@ -36,6 +36,7 @@ export function KpiCard({
   accent = "primary",
   loading,
   valueClassName,
+  trend,
 }: {
   label: string;
   value: ReactNode;
@@ -44,6 +45,12 @@ export function KpiCard({
   accent?: "primary" | "emerald" | "blue" | "amber" | "violet" | "rose" | "green" | "yellow" | "orange" | "red";
   loading?: boolean;
   valueClassName?: string;
+  /**
+   * Optional evolution indicator. `pct` is the percentage change vs. a
+   * reference period (e.g. previous half of the window). `label` is the small
+   * caption shown next to the arrow (e.g. "vs. período anterior").
+   */
+  trend?: { pct: number | null; label?: string };
 }) {
   const accentMap: Record<string, { icon: string; bar: string }> = {
     primary: { icon: "bg-primary/12 text-primary", bar: "bg-primary" },
@@ -76,9 +83,35 @@ export function KpiCard({
         ) : (
           <p className={cn("font-display text-2xl md:text-[1.75rem] leading-none tracking-tight tabular-nums", valueClassName)}>{value}</p>
         )}
+        {!loading && trend && trend.pct != null && Number.isFinite(trend.pct) && (
+          <TrendPill pct={trend.pct} caption={trend.label} />
+        )}
         {sublabel && <div className="mt-1.5 text-xs leading-tight text-muted-foreground">{sublabel}</div>}
       </div>
     </Card>
+  );
+}
+
+/** Small up/down/flat pill showing a percentage change, colored by direction. */
+function TrendPill({ pct, caption }: { pct: number; caption?: string }) {
+  const rounded = Math.round(pct);
+  const up = rounded > 0;
+  const down = rounded < 0;
+  const Icon = up ? TrendingUp : down ? TrendingDown : Minus;
+  const color = up
+    ? "text-emerald-600"
+    : down
+      ? "text-rose-600"
+      : "text-muted-foreground";
+  const sign = up ? "+" : "";
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+      <span className={cn("inline-flex items-center gap-0.5 font-semibold tabular-nums", color)}>
+        <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
+        {sign}{rounded}%
+      </span>
+      {caption && <span className="text-muted-foreground">{caption}</span>}
+    </div>
   );
 }
 
