@@ -421,6 +421,8 @@ export default function Anuncios() {
 
       {/* Actionable insights */}
       <SectionCard
+        collapsible
+        defaultOpen
         title="Oportunidades e alertas"
         description="Cruzamentos de métricas que merecem ação. Clique num card para filtrar a lista por ele."
       >
@@ -501,6 +503,8 @@ export default function Anuncios() {
 
       {/* List + filters */}
       <SectionCard
+        collapsible
+        defaultOpen
         title="Lista de anúncios"
         description={
           isLoading
@@ -968,10 +972,12 @@ function VisitsEvolutionChart({
 }
 
 /**
- * Vertical X axis tick. Two columns of vertical text so every day's NUMBER
- * stays aligned on the same baseline (right next to the axis) regardless of
- * 1- or 2-digit day, with the weekday abbreviation just below it. Weekends
- * (Sat/Sun) are colored red; today is highlighted in the primary color.
+ * Vertical X axis tick. A SINGLE vertical label per day in the form "10 ter"
+ * (day number + weekday abbreviation) so there is never any overlap. The whole
+ * label is rotated -90° and anchored at its end, which sits right next to the
+ * axis — this keeps every day's number perfectly aligned on the same baseline
+ * regardless of 1- or 2-digit days. Weekends (Sat/Sun) are red; today uses the
+ * primary color.
  */
 function WeekdayTick({ x, y, payload, todayKey }: any) {
   const iso = payload?.value as string;
@@ -981,11 +987,9 @@ function WeekdayTick({ x, y, payload, todayKey }: any) {
   const weekday = isoToWeekdayShort(iso);
   const dayNum = isoToDayNum(iso);
   // Color priority: today (primary) > weekend (red) > weekday (foreground).
-  const numColor = isToday ? "var(--primary)" : weekend ? "#dc2626" : "var(--foreground)";
-  const wdColor = isToday ? "var(--primary)" : weekend ? "#dc2626" : "var(--muted-foreground)";
+  const color = isToday ? "var(--primary)" : weekend ? "#dc2626" : "var(--foreground)";
   return (
     <g transform={`translate(${x},${y})`}>
-      {/* Day number — anchored at the top (near axis) so all numbers align. */}
       <text
         x={0}
         y={0}
@@ -993,24 +997,13 @@ function WeekdayTick({ x, y, payload, todayKey }: any) {
         transform="rotate(-90)"
         textAnchor="end"
         fontSize={11}
-        fontWeight={isToday || weekend ? 700 : 600}
-        fill={numColor}
+        fontWeight={isToday || weekend ? 700 : 500}
+        fill={color}
       >
-        {dayNum}
-      </text>
-      {/* Weekday abbreviation — second column, slightly inset. */}
-      <text
-        x={0}
-        y={0}
-        dx={14}
-        dy={4}
-        transform="rotate(-90)"
-        textAnchor="end"
-        fontSize={9}
-        fontWeight={isToday || weekend ? 600 : 400}
-        fill={wdColor}
-      >
-        {weekday}
+        <tspan>{dayNum}</tspan>
+        <tspan dx={5} fontSize={9} fontWeight={isToday || weekend ? 600 : 400} opacity={0.85}>
+          {weekday}
+        </tspan>
       </text>
     </g>
   );

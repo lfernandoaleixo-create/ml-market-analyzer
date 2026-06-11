@@ -78,6 +78,10 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState<FilterMode>("incomplete");
   const [openId, setOpenId] = useState<string | null>(null);
+  // Inner sub-expansion: cap the product list and reveal the rest on demand so
+  // accounts with many listings stay tidy.
+  const [showAll, setShowAll] = useState(false);
+  const INITIAL_VISIBLE = 8;
 
   const items = useMemo<TechSpecListing[]>(() => data?.items ?? [], [data]);
   const summary = data?.summary;
@@ -115,6 +119,8 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
 
   return (
     <SectionCard
+      collapsible
+      defaultOpen
       title="Raio-X da Ficha Técnica"
       description="Analisamos TODOS os seus anúncios ativos, cruzando os atributos exigidos por cada categoria do Mercado Livre com o que está preenchido. Corrija o que falta aqui e copie a ficha pronta para colar no anúncio."
       actions={
@@ -236,7 +242,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
             </p>
           </div>
         ) : (
-          filtered.map((it) => (
+          (showAll ? filtered : filtered.slice(0, INITIAL_VISIBLE)).map((it) => (
             <button
               key={it.itemId}
               onClick={() => setOpenId(it.itemId)}
@@ -285,6 +291,30 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
           ))
         )}
       </div>
+
+      {/* Inner sub-expansion control: only when the filtered list exceeds the cap */}
+      {!isLoading && filtered.length > INITIAL_VISIBLE && (
+        <div className="mt-3 flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 bg-card text-xs"
+            onClick={() => setShowAll((v) => !v)}
+          >
+            {showAll ? (
+              <>Ver menos</>
+            ) : (
+              <>Ver todos os {formatNumber(filtered.length)} anúncios</>
+            )}
+            <ChevronRight
+              className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                showAll ? "-rotate-90" : "rotate-90",
+              )}
+            />
+          </Button>
+        </div>
+      )}
 
       {summary?.capped && !isLoading && (
         <p className="mt-3 text-xs text-muted-foreground">

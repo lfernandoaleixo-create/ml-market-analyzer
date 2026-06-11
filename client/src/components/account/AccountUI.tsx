@@ -1,9 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, PlugZap, TrendingUp, TrendingDown, Minus, type LucideIcon } from "lucide-react";
+import { AlertTriangle, PlugZap, TrendingUp, TrendingDown, Minus, ChevronDown, type LucideIcon } from "lucide-react";
 import { useLocation } from "wouter";
 
 /** Page header with title, subtitle and optional right-side actions. */
@@ -79,14 +79,31 @@ export function KpiCard({
       </div>
       <div className="mt-auto pt-3">
         {loading ? (
-          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-9 w-28" />
         ) : (
-          <p className={cn("font-display text-2xl md:text-[1.75rem] leading-none tracking-tight tabular-nums", valueClassName)}>{value}</p>
+          <p
+            className={cn(
+              // Proportional, uniform size across every card. clamp() keeps long
+              // numbers from overflowing narrow cards while staying large and
+              // readable on wide ones. All cards share the same baseline.
+              "font-display leading-none tracking-tight tabular-nums whitespace-nowrap",
+              "text-[clamp(1.5rem,2.4vw,2rem)]",
+              valueClassName,
+            )}
+          >
+            {value}
+          </p>
         )}
         {!loading && trend && trend.pct != null && Number.isFinite(trend.pct) && (
           <TrendPill pct={trend.pct} caption={trend.label} />
         )}
-        {sublabel && <div className="mt-1.5 text-xs leading-tight text-muted-foreground">{sublabel}</div>}
+        {/* Reserve a consistent slot for the small caption so cards WITH and
+            WITHOUT a sublabel keep their big numbers on the same line. */}
+        {sublabel ? (
+          <div className="mt-1.5 min-h-[1rem] text-xs leading-tight text-muted-foreground">{sublabel}</div>
+        ) : (
+          <div className="mt-1.5 min-h-[1rem]" aria-hidden />
+        )}
       </div>
     </Card>
   );
@@ -115,37 +132,89 @@ function TrendPill({ pct, caption }: { pct: number; caption?: string }) {
   );
 }
 
-/** A titled section panel (white card) for charts/tables. */
+/**
+ * A titled section panel (white card) for charts/tables.
+ *
+ * When `collapsible` is true the header becomes a toggle (chevron rotates) and
+ * the body expands/collapses. `defaultOpen` sets the initial state. Any
+ * `actions` stay clickable without toggling the section. Non-collapsible usage
+ * is unchanged and fully backward compatible.
+ */
 export function SectionCard({
   title,
   description,
   actions,
   children,
   className,
+  collapsible = false,
+  defaultOpen = true,
 }: {
   title?: string;
   description?: string;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }) {
-  return (
-    <Card className={cn("card-soft border-0 rounded-2xl", className)}>
-      {(title || actions) && (
-        <div className="flex items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "var(--border)" }}>
-          <div className="space-y-0.5">
-            {title && (
-              <h2 className="flex items-center gap-2 font-display text-base tracking-tight">
-                <span className="h-4 w-1 rounded-full bg-primary" aria-hidden />
-                {title}
-              </h2>
+  const [open, setOpen] = useState(defaultOpen);
+  const showHeader = title || actions;
+
+  const headerInner = (
+    <>
+      <div className="flex min-w-0 items-center gap-2">
+        {collapsible && (
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              open ? "rotate-0" : "-rotate-90",
             )}
-            {description && <p className="text-xs text-muted-foreground">{description}</p>}
-          </div>
+            aria-hidden
+          />
+        )}
+        <div className="min-w-0 space-y-0.5">
+          {title && (
+            <h2 className="flex items-center gap-2 font-display text-base tracking-tight">
+              {!collapsible && <span className="h-4 w-1 rounded-full bg-primary" aria-hidden />}
+              {title}
+            </h2>
+          )}
+          {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        </div>
+      </div>
+      {actions && (
+        <div
+          className="flex items-center gap-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           {actions}
         </div>
       )}
-      <div className="p-5">{children}</div>
+    </>
+  );
+
+  return (
+    <Card className={cn("card-soft border-0 rounded-2xl", className)}>
+      {showHeader &&
+        (collapsible ? (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="flex w-full items-center justify-between gap-3 border-b px-5 py-4 text-left transition-colors hover:bg-muted/30 rounded-t-2xl"
+            style={{ borderColor: "var(--border)" }}
+          >
+            {headerInner}
+          </button>
+        ) : (
+          <div
+            className="flex items-center justify-between gap-3 border-b px-5 py-4"
+            style={{ borderColor: "var(--border)" }}
+          >
+            {headerInner}
+          </div>
+        ))}
+      {(!collapsible || open) && <div className="p-5">{children}</div>}
     </Card>
   );
 }

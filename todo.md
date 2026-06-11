@@ -704,3 +704,11 @@
 - [x] Backfill da conta atual (mlUserId=3308178634)
 - [x] Testes de regressão (resolveMlUserId, 8 testes)
 - [x] Validar ao vivo (itens ativos + visitas reais retornam)
+
+## Ajustes de UX em Meus anúncios (11/06 - 3)
+- [x] KPIs: número proporcional ao card (clamp), todos alinhados, sublabel com slot reservado para harmonia
+- [x] Gráfico de visitas: rótulo vertical único (dia + dia-da-semana) sem sobreposição
+- [x] Card Raio-X: colapsável + sub-expansão (Ver todos / Ver menos) para muitos produtos
+- [x] Oportunidades e alertas: colapsável
+- [x] Lista de produtos: colapsável
+- [x] Verificar status, salvar checkpoint (351 testes OK)
