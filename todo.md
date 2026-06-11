@@ -633,3 +633,15 @@
 - [x] Frontend: remover card "Estoque por faixa" da distribuição
 - [x] Frontend: seletor/filtro por número de visualizações na lista de anúncios (faixas)
 - [x] Testes + TS limpo + checkpoint
+
+
+## Raio-X da Ficha Técnica (fase 1: diagnóstico) (11/jun)
+- [x] Backend: buscar atributos da categoria (GET /categories/{cat}/attributes) + atributos do item
+- [x] Backend: calcular completude (faltantes, obrigatórios faltando, total) por anúncio (módulo puro technicalSpecs.ts)
+- [x] Backend: rota tRPC account.technicalSpecs (resumo + por item)
+- [x] Backend: testes do cálculo de completude (16 testes)
+- [x] Frontend: card Raio-X com resumo (% completos, obrigatórios faltando, completude média)
+- [x] Frontend: lista de anúncios com badge COMPLETA/INCOMPLETA + filtro (Todos/Incompletos/Faltam obrigatórios) + busca
+- [x] Frontend: painel de detalhes (atributos faltantes / preenchidos) por anúncio (Sheet lateral)
+- [ ] Edição inline → FASE 2 (não fazer agora)
+- [x] Testes + TS limpo + checkpoint

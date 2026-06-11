@@ -230,3 +230,82 @@ export interface AccountConnectionState {
   nickname?: string;
   message?: string;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Raio-X da Ficha Técnica (Technical Specifications X-Ray)                    */
+/* -------------------------------------------------------------------------- */
+
+/** The kind of editor a ML attribute uses (mirrors ML `value_type`). */
+export type TechAttrValueType =
+  | "string"
+  | "number"
+  | "number_unit"
+  | "list"
+  | "boolean";
+
+/** One attribute of a listing's technical sheet, with its current value and
+ *  whether it is filled. Mirrors what ML exposes via
+ *  GET /categories/{cat}/technical_specs + the item's own attributes. */
+export interface TechAttribute {
+  /** ML attribute id (e.g. "BRAND", "MODEL", "ANVISA_PRODUCT_..."). */
+  id: string;
+  /** Human-readable attribute name. */
+  name: string;
+  /** Editor type. */
+  valueType: TechAttrValueType;
+  /** Whether ML marks this attribute as required for the category. */
+  required: boolean;
+  /** Current value name on the item (null when not filled). */
+  valueName: string | null;
+  /** True when the attribute has no value on the item (i.e. it's missing). */
+  isMissing: boolean;
+}
+
+/** Technical-sheet diagnosis for a single listing. */
+export interface TechSpecListing {
+  itemId: string;
+  title: string;
+  status: ListingStatus;
+  thumbnail?: string;
+  permalink?: string;
+  categoryId?: string;
+  /** Total relevant attributes considered for the category. */
+  totalAttributes: number;
+  /** How many of those are filled. */
+  filledAttributes: number;
+  /** How many are missing (totalAttributes - filledAttributes). */
+  missingAttributes: number;
+  /** How many REQUIRED attributes are still missing (the critical ones). */
+  missingRequired: number;
+  /** Completeness 0..1 (filled / total). */
+  completeness: number;
+  /** True when there are no missing attributes at all. */
+  complete: boolean;
+  /** Full attribute list (filled + missing) for the detail panel. */
+  attributes: TechAttribute[];
+}
+
+/** Aggregated summary across all diagnosed listings. */
+export interface TechSpecsSummary {
+  /** Listings analysed. */
+  total: number;
+  /** Listings with a complete technical sheet (no missing attributes). */
+  complete: number;
+  /** Listings with at least one missing attribute. */
+  incomplete: number;
+  /** Listings with at least one REQUIRED missing attribute (critical). */
+  withMissingRequired: number;
+  /** Average completeness across analysed listings (0..1). */
+  avgCompleteness: number;
+  /** Total number of missing attributes across all listings. */
+  totalMissing: number;
+  /** Total number of missing REQUIRED attributes across all listings. */
+  totalMissingRequired: number;
+  /** True when the analysis hit the safety cap (more listings exist). */
+  capped: boolean;
+}
+
+export interface TechSpecsResult {
+  summary: TechSpecsSummary;
+  items: TechSpecListing[];
+}

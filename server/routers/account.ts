@@ -182,4 +182,13 @@ export const accountRouter = router({
     const { fromMs } = periodBounds(input?.days ?? 180);
     return account.getPostSale({ fromMs });
   }),
+
+  /**
+   * Raio-X da Ficha Técnica — diagnose each listing's technical sheet
+   * (complete vs incomplete, missing attributes, missing-required). Read-only.
+   */
+  technicalSpecs: protectedProcedure.query(async ({ ctx }) => {
+    const account = await resolveAccount(ctx.user.id);
+    return account.getTechnicalSpecs();
+  }),
 });

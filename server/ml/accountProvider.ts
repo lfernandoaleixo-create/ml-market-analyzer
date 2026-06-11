@@ -12,7 +12,15 @@ import type {
   StoreLifetime,
   DayProducts,
   VisitsDayPoint,
+  TechSpecsResult,
+  TechSpecListing,
 } from "@shared/account";
+import {
+  diagnoseListing,
+  buildTechSpecsResult,
+  type RawCategoryAttribute,
+  type RawItemAttribute,
+} from "@shared/technicalSpecs";
 
 /**
  * AccountProvider — reads REAL data from the connected seller account using the
@@ -822,6 +830,111 @@ export class AccountProvider {
       },
       items: items.sort((a, b) => (b.dateCreated ?? 0) - (a.dateCreated ?? 0)),
     };
+  }
+
+  // ---- Technical sheet (Raio-X da Ficha Técnica) ------------------------
+
+  /** Fetch the full attribute catalog of a category (cached per instance). */
+  private categoryAttrCache = new Map<string, RawCategoryAttribute[]>();
+
+  private async getCategoryAttributes(
+    categoryId: string,
+  ): Promise<RawCategoryAttribute[]> {
+    const cached = this.categoryAttrCache.get(categoryId);
+    if (cached) return cached;
+    const data = await this.get(`/categories/${categoryId}/attributes`);
+    const list: RawCategoryAttribute[] = Array.isArray(data) ? data : [];
+    this.categoryAttrCache.set(categoryId, list);
+    return list;
+  }
+
+  /** Multiget item details INCLUDING their own attributes (separate from the
+   *  listings card, which omits attributes for speed). Batched + parallel. */
+  private async getItemsWithAttributes(ids: string[]): Promise<any[]> {
+    const batches: string[][] = [];
+    for (let i = 0; i < ids.length; i += 20) batches.push(ids.slice(i, i + 20));
+    const attributes =
+      "id,title,status,category_id,permalink,thumbnail,pictures,attributes";
+    const out: any[] = [];
+    const concurrency = 5;
+    for (let i = 0; i < batches.length; i += concurrency) {
+      const slice = batches.slice(i, i + concurrency);
+      const results = await Promise.all(
+        slice.map((batch) =>
+          this.get(`/items?ids=${batch.join(",")}&attributes=${attributes}`),
+        ),
+      );
+      for (const data of results) {
+        if (Array.isArray(data)) {
+          for (const row of data) {
+            if (row?.code === 200 && row?.body) out.push(row.body);
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Raio-X da Ficha Técnica — diagnose every listing's technical sheet against
+   * its category attribute catalog. Reads-only (the inline edit is phase 2).
+   *
+   * For each listing we cross-reference the category's user-fillable attributes
+   * with the values present on the item, flagging what is missing (and which of
+   * those are REQUIRED). Categories are fetched once and cached.
+   */
+  async getTechnicalSpecs(
+    opts: { maxItems?: number } = {},
+  ): Promise<TechSpecsResult> {
+    const maxItems = opts.maxItems ?? 600;
+    const { ids, capped } = await this.getAllItemIds(maxItems);
+    const details = await this.getItemsWithAttributes(ids);
+
+    // Fetch all distinct category attribute catalogs (cached, bounded).
+    const categories = Array.from(
+      new Set(
+        details
+          .map((d) => d.category_id)
+          .filter((c): c is string => typeof c === "string" && c.length > 0),
+      ),
+    );
+    const concurrency = 6;
+    for (let i = 0; i < categories.length; i += concurrency) {
+      const slice = categories.slice(i, i + concurrency);
+      await Promise.all(slice.map((c) => this.getCategoryAttributes(c)));
+    }
+
+    const items: TechSpecListing[] = details.map((d) => {
+      const categoryId: string | undefined = d.category_id ?? undefined;
+      const categoryAttributes = categoryId
+        ? this.categoryAttrCache.get(categoryId) ?? []
+        : [];
+      const itemAttributes: RawItemAttribute[] = Array.isArray(d.attributes)
+        ? d.attributes.map((a: any) => ({
+            id: a.id,
+            name: a.name,
+            value_name: a.value_name ?? null,
+            value_id: a.value_id ?? null,
+          }))
+        : [];
+      const thumb =
+        d.thumbnail ||
+        (Array.isArray(d.pictures) && d.pictures.length
+          ? d.pictures[0].url
+          : undefined);
+      return diagnoseListing({
+        itemId: d.id,
+        title: d.title ?? "",
+        status: this.mapStatus(d.status),
+        thumbnail: thumb,
+        permalink: d.permalink ?? undefined,
+        categoryId,
+        categoryAttributes,
+        itemAttributes,
+      });
+    });
+
+    return buildTechSpecsResult(items, capped);
   }
 
   /** Quick connection probe — returns nickname when the token works. */

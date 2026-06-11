@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { ProductCell } from "@/components/account/ProductCell";
+import { TechSpecsCard } from "@/components/account/TechSpecsCard";
 import {
   PageShell,
   PageHeader,
@@ -379,6 +380,9 @@ export default function Anuncios() {
       >
         <VisitsEvolutionChart series={visitsSeries} loading={isLoading} />
       </SectionCard>
+
+      {/* Raio-X da Ficha Técnica */}
+      <TechSpecsCard connected={conn.data?.connected === true} />
 
       {/* Actionable insights */}
       <SectionCard
