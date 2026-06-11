@@ -113,3 +113,35 @@ export function isoDateToShort(iso: string): string {
     month: "short",
   });
 }
+
+/** Parse an ISO date (yyyy-mm-dd) into a UTC Date (avoids TZ drift). */
+function isoToUtcDate(iso: string): Date | null {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+/** Short weekday label for an ISO date, e.g. "seg", "ter" (pt-BR, UTC). */
+export function isoToWeekdayShort(iso: string): string {
+  const dt = isoToUtcDate(iso);
+  if (!dt) return "";
+  return dt
+    .toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" })
+    .replace(".", "");
+}
+
+/** Day-of-month number for an ISO date, e.g. "10" (UTC). */
+export function isoToDayNum(iso: string): string {
+  const dt = isoToUtcDate(iso);
+  if (!dt) return "";
+  return String(dt.getUTCDate());
+}
+
+/** Long weekday + date label, e.g. "Segunda-feira, 10/06" (pt-BR, UTC). */
+export function isoToWeekdayLong(iso: string): string {
+  const dt = isoToUtcDate(iso);
+  if (!dt) return iso;
+  const weekday = dt.toLocaleDateString("pt-BR", { weekday: "long", timeZone: "UTC" });
+  const date = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${date}`;
+}

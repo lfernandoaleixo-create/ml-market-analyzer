@@ -16,7 +16,15 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { formatBRL, formatNumber, formatRatePct, formatCompact, isoDateToShort } from "@/lib/format";
+import {
+  formatBRL,
+  formatNumber,
+  formatRatePct,
+  formatCompact,
+  isoToWeekdayShort,
+  isoToDayNum,
+  isoToWeekdayLong,
+} from "@/lib/format";
 import {
   Select,
   SelectContent,
@@ -863,26 +871,28 @@ function VisitsEvolutionChart({
       for (let k = i - 6; k <= i; k++) sum += series[k].visits;
       ma = Math.round(sum / 7);
     }
-    return { ...p, label: isoDateToShort(p.date), isToday: p.date === todayKey, ma };
+    return { ...p, isToday: p.date === todayKey, ma };
   });
   const peak = Math.max(...series.map((p) => p.visits));
   const avg = Math.round(total / series.length);
   const todayVisits = series.find((p) => p.date === todayKey)?.visits ?? 0;
   const yesterdayVisits = series.length >= 2 ? series[series.length - 2].visits : 0;
   const showMA = series.length >= 7;
+  // Fewer ticks on wider windows keeps the weekday labels readable.
+  const tickInterval = data.length <= 10 ? 0 : data.length <= 35 ? Math.floor(data.length / 8) : Math.floor(data.length / 7);
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-x-8 gap-y-1 text-sm">
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <SummaryMini label="Hoje (parcial)" value={formatNumber(todayVisits)} tone="primary" />
         <SummaryMini label="Ontem" value={formatNumber(yesterdayVisits)} tone="muted" />
-        <SummaryMini label={`Total (${windowDays}d)`} value={formatNumber(total)} tone="muted" />
+        <SummaryMini label={`Total ${windowDays}d`} value={formatNumber(total)} tone="muted" />
         <SummaryMini label="Média/dia" value={formatNumber(avg)} tone="muted" />
         <SummaryMini label="Pico" value={formatNumber(peak)} tone="muted" />
       </div>
-      <div className="h-64">
+      <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+          <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
             <defs>
               <linearGradient id="visitsFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.28} />
@@ -891,19 +901,20 @@ function VisitsEvolutionChart({
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal vertical={false} />
             <XAxis
-              dataKey="label"
-              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-              tickLine={{ stroke: "var(--border)" }}
+              dataKey="date"
+              tick={<WeekdayTick todayKey={todayKey} />}
+              tickLine={false}
               axisLine={{ stroke: "var(--border)" }}
-              interval={Math.max(0, Math.floor(data.length / 10))}
-              minTickGap={4}
+              interval={tickInterval}
+              minTickGap={8}
+              height={40}
             />
             <YAxis
-              tick={{ fontSize: 11, fill: "var(--muted-foreground)", textAnchor: "end" }}
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               tickLine={false}
               axisLine={false}
-              width={48}
-              tickMargin={8}
+              width={40}
+              tickMargin={6}
               allowDecimals={false}
               tickFormatter={(v) => formatCompact(Number(v))}
             />
@@ -912,9 +923,9 @@ function VisitsEvolutionChart({
               <Legend
                 verticalAlign="top"
                 align="right"
-                height={24}
+                height={22}
                 iconType="plainline"
-                wrapperStyle={{ fontSize: 11, color: "var(--muted-foreground)" }}
+                wrapperStyle={{ fontSize: 11, color: "var(--muted-foreground)", paddingBottom: 4 }}
               />
             )}
             <Area
@@ -922,10 +933,10 @@ function VisitsEvolutionChart({
               dataKey="visits"
               name="Visitas"
               stroke="var(--primary)"
-              strokeWidth={2}
+              strokeWidth={2.25}
               fill="url(#visitsFill)"
               dot={<TodayDot todayKey={todayKey} />}
-              activeDot={{ r: 4, fill: "var(--primary)" }}
+              activeDot={{ r: 4, fill: "var(--primary)", stroke: "var(--background)", strokeWidth: 2 }}
             />
             {showMA && (
               <Line
@@ -948,6 +959,40 @@ function VisitsEvolutionChart({
   );
 }
 
+/** Two-line X axis tick: weekday on top, day number below. Today is highlighted. */
+function WeekdayTick({ x, y, payload, todayKey }: any) {
+  const iso = payload?.value as string;
+  if (!iso) return null;
+  const isToday = iso === todayKey;
+  const weekday = isoToWeekdayShort(iso);
+  const dayNum = isoToDayNum(iso);
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        x={0}
+        y={0}
+        dy={12}
+        textAnchor="middle"
+        fontSize={9}
+        fill="var(--muted-foreground)"
+      >
+        {weekday}
+      </text>
+      <text
+        x={0}
+        y={0}
+        dy={26}
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight={isToday ? 700 : 500}
+        fill={isToday ? "var(--primary)" : "var(--foreground)"}
+      >
+        {dayNum}
+      </text>
+    </g>
+  );
+}
+
 function SummaryMini({
   label,
   value,
@@ -958,11 +1003,20 @@ function SummaryMini({
   tone: "primary" | "muted";
 }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-xs text-muted-foreground">{label}</span>
+    <div
+      className={cn(
+        "flex flex-col gap-1 rounded-lg border px-3 py-2",
+        tone === "primary"
+          ? "border-primary/30 bg-primary/5"
+          : "border-border bg-muted/30",
+      )}
+    >
+      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
       <span
         className={cn(
-          "font-display text-lg leading-tight tabular-nums",
+          "font-display text-xl leading-none tabular-nums",
           tone === "primary" ? "text-primary" : "text-foreground",
         )}
       >
@@ -989,15 +1043,16 @@ function VisitsTooltip({ active, payload, todayKey }: any) {
   const isToday = d.date === todayKey;
   return (
     <div
-      className="rounded-xl border bg-background p-3 text-xs shadow-sm"
+      className="rounded-xl border bg-background px-3 py-2 text-xs shadow-md"
       style={{ borderColor: "var(--border)" }}
     >
-      <p className="font-medium">
-        {isoDateToShort(d.date)}
+      <p className="font-medium text-foreground">
+        {isoToWeekdayLong(d.date)}
         {isToday && <span className="ml-1 text-primary">· hoje (parcial)</span>}
       </p>
-      <p className="mt-1 inline-flex items-center gap-1 text-primary">
-        <Eye className="h-3 w-3" /> {formatNumber(d.visits)} visita(s)
+      <p className="mt-1.5 inline-flex items-center gap-1.5 font-display text-sm text-primary">
+        <Eye className="h-3.5 w-3.5" /> {formatNumber(d.visits)}
+        <span className="text-muted-foreground">visita(s)</span>
       </p>
     </div>
   );
