@@ -695,3 +695,12 @@
 - [x] Card "Visitas" vira card de evolução (variação % vs. período anterior, seta verde/vermelha)
 - [x] Navegação entre itens do menu sempre rola para o topo da página
 - [x] Helpers compartilhados (shared/visitsTrend.ts) + testes (9 testes passando)
+
+## Bug crítico: dados zerados em Anúncios (11/06)
+- [x] Causa raiz: app usava userId LOCAL (1) em vez do ML user_id (3308178634) → ML responde "Searching another user items is restricted" → zeros
+- [x] Adicionar coluna mlUserId em ml_credentials (schema + migração)
+- [x] Salvar ml user_id no OAuth callback e no refresh
+- [x] Provider usa mlUserId (fallback /users/me) em vez do userId local
+- [x] Backfill da conta atual (mlUserId=3308178634)
+- [x] Testes de regressão (resolveMlUserId, 8 testes)
+- [x] Validar ao vivo (itens ativos + visitas reais retornam)

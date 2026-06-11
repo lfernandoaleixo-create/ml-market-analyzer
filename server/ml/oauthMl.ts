@@ -169,6 +169,7 @@ export function registerMlOAuthRoutes(app: Express) {
         access_token?: string;
         refresh_token?: string;
         expires_in?: number;
+        user_id?: number;
         error?: string;
         message?: string;
       };
@@ -188,6 +189,9 @@ export function registerMlOAuthRoutes(app: Express) {
         accessToken: json.access_token,
         refreshToken: json.refresh_token ?? creds.refreshToken ?? null,
         tokenExpiresAt: Date.now() + (json.expires_in ?? 21600) * 1000,
+        // Persist the ML seller id (distinct from the local user id). All ML
+        // API calls that take a user id MUST use this value.
+        ...(typeof json.user_id === "number" ? { mlUserId: json.user_id } : {}),
       });
 
       res.redirect(302, settingsUrl("conectado"));
@@ -263,6 +267,7 @@ async function performRefresh(userId: number, force = false): Promise<string | n
       access_token?: string;
       refresh_token?: string;
       expires_in?: number;
+      user_id?: number;
       error?: string;
       message?: string;
     };
@@ -277,6 +282,9 @@ async function performRefresh(userId: number, force = false): Promise<string | n
         accessToken: json.access_token,
         refreshToken: json.refresh_token ?? creds.refreshToken,
         tokenExpiresAt: Date.now() + (json.expires_in ?? 21600) * 1000,
+        // Keep the ML seller id fresh (backfills rows created before this field
+        // existed, where mlUserId may still be null).
+        ...(typeof json.user_id === "number" ? { mlUserId: json.user_id } : {}),
       });
       return json.access_token;
     }

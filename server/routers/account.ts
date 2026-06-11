@@ -3,6 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthMl";
 import { AccountProvider } from "../ml/accountProvider";
+import { getCredentials, upsertCredentials } from "../dbMl";
+import { resolveMlUserId } from "../ml/resolveMlUserId";
 
 /**
  * Account ("Central de Gestão") router — real data from the connected seller
@@ -20,26 +22,25 @@ async function resolveAccount(manusUserId: number): Promise<AccountProvider> {
         "Conta do Mercado Livre não conectada. Vá em Configurações e conecte sua conta para ver os dados reais.",
     });
   }
-  // The owner ML user id is the numeric suffix of the access token
-  // (APP_USR-<appId>-<date>-<hash>-<userId>). Fallback to /users/me if needed.
-  let mlUserId = 0;
-  const parts = token.split("-");
-  const tail = Number(parts[parts.length - 1]);
-  if (Number.isFinite(tail) && tail > 0) {
-    mlUserId = tail;
-  }
-  if (!mlUserId) {
-    const res = await fetch("https://api.mercadolibre.com/users/me", {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-    });
-    const me = await res.json().catch(() => null);
-    mlUserId = me?.id ?? 0;
-  }
+  // Resolve the ML seller id. Source of truth, in order:
+  //  1) the persisted `mlUserId` column (written by the OAuth token exchange)
+  //  2) /users/me with the fresh token (authoritative)
+  //  3) the numeric suffix of the access token (APP_USR-...-<userId>) as a
+  //     last-resort heuristic
+  // We DO NOT trust the local app user id — using it makes ML reply
+  // "Searching another user items is restricted" and the dashboard shows zeros.
+  const creds = await getCredentials(manusUserId);
+  const { mlUserId, source } = await resolveMlUserId(token, creds?.mlUserId ?? null);
   if (!mlUserId) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
       message: "Não foi possível identificar a conta do Mercado Livre. Reconecte em Configurações.",
     });
+  }
+  // Backfill the column when it was resolved from /users/me or the token suffix
+  // so subsequent requests use the fast, reliable persisted value.
+  if (source !== "db" && creds && creds.mlUserId !== mlUserId) {
+    await upsertCredentials(manusUserId, { mlUserId }).catch(() => {});
   }
   return new AccountProvider(token, mlUserId, "BRL", (staleToken) =>
     forceRefreshUserAccessToken(manusUserId, staleToken),

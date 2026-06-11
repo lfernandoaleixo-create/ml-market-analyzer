@@ -1,0 +1,1 @@
+ALTER TABLE `ml_credentials` ADD `mlUserId` bigint;

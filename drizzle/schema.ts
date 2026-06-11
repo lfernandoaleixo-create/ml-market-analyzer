@@ -41,6 +41,14 @@ export const mlCredentials = mysqlTable("ml_credentials", {
   userId: int("userId").notNull(),
   appId: varchar("appId", { length: 128 }).default("").notNull(),
   clientSecret: varchar("clientSecret", { length: 256 }).default("").notNull(),
+  /**
+   * The Mercado Livre seller user_id (e.g. 3308178634), returned by the OAuth
+   * token exchange / refresh and by GET /users/me. This is DISTINCT from the
+   * local `userId` (the app's own user row id). All ML API calls that take a
+   * user id (e.g. /users/{id}/items/search) MUST use this value — using the
+   * local id causes ML to reply "Searching another user items is restricted".
+   */
+  mlUserId: bigint("mlUserId", { mode: "number" }),
   /** Cached app-level access token (client_credentials grant). */
   accessToken: text("accessToken"),
   /** Refresh token for authorization-code grant (future use). */
