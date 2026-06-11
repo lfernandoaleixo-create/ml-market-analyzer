@@ -295,6 +295,72 @@ describe("AccountProvider.getListings", () => {
     expect(mlb9.visits).toBe(0);
     expect(mlb9.conversion).toBeNull();
   });
+
+  it("builds a 30-day active-visits evolution series (zero-filled, aggregated)", async () => {
+    const idsPage = { paging: { total: 2 }, results: ["MLB1", "MLB2"] };
+    const itemsBody = [
+      {
+        code: 200,
+        body: {
+          id: "MLB1",
+          title: "Ativo A",
+          price: 50,
+          currency_id: "BRL",
+          available_quantity: 10,
+          sold_quantity: 5,
+          status: "active",
+          listing_type_id: "gold_special",
+        },
+      },
+      {
+        code: 200,
+        body: {
+          id: "MLB2",
+          title: "Pausado B",
+          price: 20,
+          currency_id: "BRL",
+          available_quantity: 8,
+          sold_quantity: 0,
+          status: "paused",
+          listing_type_id: "gold_special",
+        },
+      },
+    ];
+    // Two active-only days share a date so we can assert aggregation. MLB2 is
+    // paused, so its series must be ignored entirely.
+    const day1 = "2026-06-01";
+    const day2 = "2026-06-02";
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      let body: any = {};
+      if (/\/users\/\d+\/items\/search/.test(u)) body = idsPage;
+      else if (/api\.mercadolibre\.com\/items\?ids=/.test(u)) body = itemsBody;
+      else if (/\/items\/MLB1\/visits\/time_window/.test(u))
+        body = {
+          total_visits: 30,
+          results: [
+            { date: `${day1}T00:00:00.000-04:00`, total: 10 },
+            { date: `${day2}T00:00:00.000-04:00`, total: 20 },
+          ],
+        };
+      else if (/\/items\/MLB2\/visits\/time_window/.test(u))
+        body = {
+          total_visits: 99,
+          results: [{ date: `${day1}T00:00:00.000-04:00`, total: 99 }],
+        };
+      return { ok: true, json: async () => body } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30 });
+
+    expect(Array.isArray(res.visitsSeries)).toBe(true);
+    expect(res.visitsSeries.length).toBe(30); // zero-filled to a full 30-day window
+    const map = Object.fromEntries(res.visitsSeries.map((p) => [p.date, p.visits]));
+    // Only the ACTIVE listing (MLB1) contributes; paused MLB2 is excluded.
+    expect(map[day1]).toBe(10);
+    expect(map[day2]).toBe(20);
+  });
 });
 
 describe("AccountProvider.probe", () => {

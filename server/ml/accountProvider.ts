@@ -11,6 +11,7 @@ import type {
   PeriodSummary,
   StoreLifetime,
   DayProducts,
+  VisitsDayPoint,
 } from "@shared/account";
 
 /**
@@ -210,6 +211,59 @@ export class AccountProvider {
     return map;
   }
 
+  /** Daily visits time-series for a single item over the last N days. Returns
+   *  a Map<isoDate, visits>. Empty on failure. */
+  private async getItemVisitsSeries(
+    itemId: string,
+    lastDays = 30,
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    const data = await this.get(
+      `/items/${itemId}/visits/time_window?last=${lastDays}&unit=day`,
+    );
+    const results: any[] = Array.isArray(data?.results) ? data.results : [];
+    for (const r of results) {
+      // ML returns { date: "2026-06-01T00:00:00.000-04:00", total: 12 }
+      const iso = typeof r?.date === "string" ? r.date.slice(0, 10) : null;
+      const total = typeof r?.total === "number" ? r.total : 0;
+      if (iso) out.set(iso, (out.get(iso) ?? 0) + total);
+    }
+    return out;
+  }
+
+  /** Aggregated daily visits series (last `lastDays` days) across the provided
+   *  item ids, with bounded concurrency and a hard cap. Always returns one entry
+   *  per calendar day in the window (zero-filled), so the chart shows every day. */
+  private async getVisitsSeries(
+    ids: string[],
+    lastDays = 30,
+    cap = 200,
+  ): Promise<VisitsDayPoint[]> {
+    const totals = new Map<string, number>();
+    const targets = ids.slice(0, cap);
+    const concurrency = 15;
+    for (let i = 0; i < targets.length; i += concurrency) {
+      const batch = targets.slice(i, i + concurrency);
+      const series = await Promise.all(
+        batch.map((id) => this.getItemVisitsSeries(id, lastDays)),
+      );
+      for (const m of series) {
+        for (const [iso, v] of Array.from(m.entries())) totals.set(iso, (totals.get(iso) ?? 0) + v);
+      }
+    }
+    // Zero-fill every day in the window so the chart axis is continuous.
+    const out: VisitsDayPoint[] = [];
+    const DAY = 24 * 60 * 60 * 1000;
+    const todayKey = brtDateKey(Date.now());
+    const endAnchor = Date.parse(`${todayKey}T03:00:00.000Z`);
+    const startAnchor = endAnchor - (lastDays - 1) * DAY;
+    for (let t = startAnchor; t <= endAnchor; t += DAY) {
+      const key = brtDateKey(t);
+      out.push({ date: key, visits: totals.get(key) ?? 0 });
+    }
+    return out;
+  }
+
   private mapStatus(s: string | undefined): ListingStatus {
     switch (s) {
       case "active":
@@ -295,6 +349,12 @@ export class AccountProvider {
     const totalStockValue = items.reduce((s, i) => s + i.stockValue, 0);
     const totalSold = items.reduce((s, i) => s + i.soldQuantity, 0);
 
+    // Evolution chart: daily visits over the last 30 days, aggregated across
+    // ACTIVE listings only. Fixed 30-day window regardless of the KPI window
+    // selector. Best-effort (capped) so it never blocks the page.
+    const activeIds = items.filter((i) => i.status === "active").map((i) => i.itemId);
+    const visitsSeries = await this.getVisitsSeries(activeIds, 30);
+
     return {
       summary: {
         total: items.length,
@@ -316,6 +376,7 @@ export class AccountProvider {
         capped,
       },
       items,
+      visitsSeries,
     };
   }
 

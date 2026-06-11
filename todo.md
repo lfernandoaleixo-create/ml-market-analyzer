@@ -625,3 +625,11 @@
 - [x] Backend: visitas desmembradas por status (ativos/pausados/encerrados) no summary
 - [x] Frontend: novos cards de métricas (visitas por status e derivadas: ativos com/sem visitas, média por ativo)
 - [x] Testes + TS limpo + checkpoint
+
+
+## Gráfico de evolução + filtro de visitas (11/jun)
+- [x] Backend: série diária (30d) de visitas agregadas dos anúncios ativos no listings result
+- [x] Frontend: gráfico de evolução das visualizações dos ativos (sempre 30 dias, área com design do tema)
+- [x] Frontend: remover card "Estoque por faixa" da distribuição
+- [x] Frontend: seletor/filtro por número de visualizações na lista de anúncios (faixas)
+- [x] Testes + TS limpo + checkpoint

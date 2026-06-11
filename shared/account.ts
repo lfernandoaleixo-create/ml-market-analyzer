@@ -160,9 +160,20 @@ export interface ListingsSummary {
   capped: boolean;
 }
 
+/** A single day in the active-listings visits evolution series. */
+export interface VisitsDayPoint {
+  /** ISO date (yyyy-mm-dd). */
+  date: string;
+  /** Aggregated visits across all active listings on this day. */
+  visits: number;
+}
+
 export interface ListingsResult {
   summary: ListingsSummary;
   items: ListingRow[];
+  /** Daily visits evolution for ACTIVE listings over the last 30 days
+   *  (aggregated across items). Empty when the data could not be fetched. */
+  visitsSeries: VisitsDayPoint[];
 }
 
 export interface PostSaleSummary {

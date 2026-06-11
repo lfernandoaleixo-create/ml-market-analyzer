@@ -15,11 +15,26 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { formatBRL, formatNumber, formatRatePct } from "@/lib/format";
-import type { ListingRow, ListingStatus } from "@shared/account";
+import { formatBRL, formatNumber, formatRatePct, formatCompact, isoDateToShort } from "@/lib/format";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import type { ListingRow, ListingStatus, VisitsDayPoint } from "@shared/account";
 import {
   VISIT_BUCKETS,
-  STOCK_BUCKETS,
   CONVERSION_BUCKETS,
   HEALTH_BUCKETS,
   bucketCounts,
@@ -54,6 +69,7 @@ import {
   RefreshCw,
   Flame,
   Filter,
+  TrendingUp,
 } from "lucide-react";
 
 const STATUS_META: Record<ListingStatus, { label: string; className: string }> = {
@@ -135,10 +151,7 @@ export default function Anuncios() {
     () => bucketCounts(items, CONVERSION_BUCKETS, (r) => conversionPct(r)),
     [items],
   );
-  const stockDist = useMemo(
-    () => bucketCounts(items, STOCK_BUCKETS, (r) => r.availableQuantity),
-    [items],
-  );
+  const visitsSeries = useMemo<VisitsDayPoint[]>(() => data?.visitsSeries ?? [], [data]);
   const healthDist = useMemo(
     () => bucketCounts(items, HEALTH_BUCKETS, (r) => r.health ?? null),
     [items],
@@ -359,6 +372,14 @@ export default function Anuncios() {
         </div>
       </SectionCard>
 
+      {/* Active listings visits evolution — fixed 30-day window */}
+      <SectionCard
+        title="Evolução das visitas · anúncios ativos"
+        description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias."
+      >
+        <VisitsEvolutionChart series={visitsSeries} loading={isLoading} />
+      </SectionCard>
+
       {/* Actionable insights */}
       <SectionCard
         title="Oportunidades e alertas"
@@ -449,15 +470,6 @@ export default function Anuncios() {
           accent="emerald"
         />
         <DistributionCard
-          title="Estoque por faixa"
-          buckets={STOCK_BUCKETS}
-          counts={stockDist}
-          loading={isLoading}
-          activeIds={filters.stockBucketIds ?? []}
-          onToggle={(id) => toggleArrayFilter("stockBucketIds", id)}
-          accent="orange"
-        />
-        <DistributionCard
           title="Saúde do anúncio"
           buckets={HEALTH_BUCKETS}
           counts={healthDist}
@@ -529,6 +541,28 @@ export default function Anuncios() {
           >
             Frete grátis
           </FilterChip>
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Visualizações</span>
+            <Select
+              value={(filters.visitBucketIds && filters.visitBucketIds[0]) ?? "all"}
+              onValueChange={(v) =>
+                setFilters((p) => ({ ...p, visitBucketIds: v === "all" ? [] : [v] }))
+              }
+            >
+              <SelectTrigger className="h-7 w-[150px] px-2 text-xs">
+                <SelectValue placeholder="Todas as faixas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as faixas</SelectItem>
+                {VISIT_BUCKETS.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">Preço</span>
@@ -787,5 +821,126 @@ function HealthDot({ health }: { health?: number | null }) {
       <span className={cn("h-2 w-2 rounded-full", color)} />
       {pct}%
     </span>
+  );
+}
+
+
+function VisitsEvolutionChart({
+  series,
+  loading,
+}: {
+  series: VisitsDayPoint[];
+  loading?: boolean;
+}) {
+  if (loading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  const total = series.reduce((s, p) => s + p.visits, 0);
+
+  if (series.length === 0 || total === 0) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
+        <TrendingUp className="h-8 w-8 text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">
+          Sem visitas registradas nos anúncios ativos nos últimos 30 dias.
+        </p>
+      </div>
+    );
+  }
+
+  const data = series.map((p) => ({ ...p, label: isoDateToShort(p.date) }));
+  const peak = Math.max(...series.map((p) => p.visits));
+  const avg = Math.round(total / series.length);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-x-8 gap-y-1 text-sm">
+        <SummaryMini label="Total (30d)" value={formatNumber(total)} tone="primary" />
+        <SummaryMini label="Média/dia" value={formatNumber(avg)} tone="muted" />
+        <SummaryMini label="Pico" value={formatNumber(peak)} tone="muted" />
+      </div>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+            <defs>
+              <linearGradient id="visitsFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.28} />
+                <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              tickLine={{ stroke: "var(--border)" }}
+              axisLine={{ stroke: "var(--border)" }}
+              interval={Math.max(0, Math.floor(data.length / 10))}
+              minTickGap={4}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)", textAnchor: "end" }}
+              tickLine={false}
+              axisLine={false}
+              width={48}
+              tickMargin={8}
+              allowDecimals={false}
+              tickFormatter={(v) => formatCompact(Number(v))}
+            />
+            <Tooltip cursor={{ stroke: "var(--border)" }} content={<VisitsTooltip />} />
+            <Area
+              type="monotone"
+              dataKey="visits"
+              name="Visitas"
+              stroke="var(--primary)"
+              strokeWidth={2}
+              fill="url(#visitsFill)"
+              dot={false}
+              activeDot={{ r: 4, fill: "var(--primary)" }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function SummaryMini({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "primary" | "muted";
+}) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "font-display text-lg leading-tight tabular-nums",
+          tone === "primary" ? "text-primary" : "text-foreground",
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function VisitsTooltip({ active, payload }: any) {
+  if (!active || !payload || payload.length === 0) return null;
+  const d = payload[0].payload as { date: string; visits: number };
+  return (
+    <div
+      className="rounded-xl border bg-background p-3 text-xs shadow-sm"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <p className="font-medium">{isoDateToShort(d.date)}</p>
+      <p className="mt-1 inline-flex items-center gap-1 text-primary">
+        <Eye className="h-3 w-3" /> {formatNumber(d.visits)} visita(s)
+      </p>
+    </div>
   );
 }
