@@ -720,3 +720,11 @@
 - [x] Aplicar o eixo unificado a todos os gráficos (Anúncios, Painel, Vendas, Monitoramento)
 - [x] dayAxisLabelParts pura no shared + 15 testes; suíte completa 357 testes
 - [x] Verificar status, rodar testes, salvar checkpoint
+
+## BUG: Meus anúncios zerado (rate limit 429 do ML) — 12/06
+- [x] Causa: ML retorna 429 (Too Many Requests) e o get() devolvia null → tela zerada; items/search 403/vazio sob limite
+- [x] Tratar 429 no AccountProvider.get(): respeitar Retry-After + backoff exponencial e retry (sem flipar para erro)
+- [x] Reduzir concorrência das chamadas de visitas (15 → 6) para não provocar 429
+- [x] mlUserId correto (3308178634) confirmado no banco; refresh com lock evita renovação redundante
+- [x] Testes do comportamento de 429/backoff (27 testes do provider OK)
+- [~] Validar ao vivo: pendente — ML ainda em rate limit; verificação única mais tarde

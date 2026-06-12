@@ -902,3 +902,47 @@ describe("AccountProvider retry-on-401 (token refresh resilience)", () => {
     expect(rep).toBeNull();
   });
 });
+
+
+describe("AccountProvider rate-limit (429) resilience", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  function resWithHeaders(status: number, body: unknown, headers: Record<string, string> = {}): Response {
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { get: (k: string) => headers[k.toLowerCase()] ?? null },
+      json: async () => body,
+    } as unknown as Response;
+  }
+
+  it("retries after a 429 and succeeds on the next attempt", async () => {
+    let call = 0;
+    const fetchSpy = vi.fn(async () => {
+      call += 1;
+      // First attempt is rate-limited with a tiny Retry-After, then succeeds.
+      if (call === 1) return resWithHeaders(429, { message: "too many requests" }, { "retry-after": "0" });
+      return resWithHeaders(200, { id: USER_ID, nickname: "LOJADOSRWU", seller_reputation: {} });
+    });
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const rep = await provider.getReputation();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(rep?.nickname).toBe("LOJADOSRWU");
+  });
+
+  it("gives up after MAX_RATE_LIMIT_RETRIES consecutive 429s and returns null", async () => {
+    const fetchSpy = vi.fn(async () => resWithHeaders(429, { message: "nope" }, { "retry-after": "0" }));
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const rep = await provider.getReputation();
+
+    // Original attempt + MAX_RATE_LIMIT_RETRIES retries.
+    expect(fetchSpy).toHaveBeenCalledTimes(AccountProvider.MAX_RATE_LIMIT_RETRIES + 1);
+    expect(rep).toBeNull();
+  });
+});

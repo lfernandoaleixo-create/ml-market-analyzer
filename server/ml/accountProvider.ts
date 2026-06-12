@@ -42,6 +42,9 @@ import {
 const API = "https://api.mercadolibre.com";
 
 export class AccountProvider {
+  /** Max retries when ML responds 429 (rate limited). */
+  static readonly MAX_RATE_LIMIT_RETRIES = 4;
+
   constructor(
     private token: string,
     private userId: number,
@@ -74,7 +77,12 @@ export class AccountProvider {
     return this.cancelledOrdersCache;
   }
 
-  private async get(path: string, timeoutMs = 12000, _isRetry = false): Promise<any | null> {
+  private async get(
+    path: string,
+    timeoutMs = 12000,
+    _isRetry = false,
+    _rateLimitAttempt = 0,
+  ): Promise<any | null> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
@@ -82,6 +90,21 @@ export class AccountProvider {
         headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json" },
         signal: ctrl.signal,
       });
+
+      // Rate limited (429): ML throttles bursts. Respect Retry-After when present,
+      // otherwise use a capped exponential backoff, and retry a few times. We do
+      // NOT treat this as a hard failure — the data is there, we just need to wait.
+      if (res.status === 429 && _rateLimitAttempt < AccountProvider.MAX_RATE_LIMIT_RETRIES) {
+        clearTimeout(timer);
+        const retryAfterHeader = res.headers.get("retry-after");
+        const retryAfterMs = retryAfterHeader
+          ? Number(retryAfterHeader) * 1000
+          : Math.min(8000, 500 * 2 ** _rateLimitAttempt);
+        const waitMs = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : 1000;
+        await new Promise((r) => setTimeout(r, waitMs));
+        return this.get(path, timeoutMs, _isRetry, _rateLimitAttempt + 1);
+      }
+
       // Token died mid-flight (expired/revoked before its advertised expiry).
       // Force a refresh and retry the request ONCE with the new token.
       if ((res.status === 401 || res.status === 403) && this.onUnauthorized && !_isRetry) {
@@ -89,7 +112,7 @@ export class AccountProvider {
         const fresh = await this.onUnauthorized(this.token);
         if (fresh && fresh !== this.token) {
           this.token = fresh;
-          return this.get(path, timeoutMs, true);
+          return this.get(path, timeoutMs, true, _rateLimitAttempt);
         }
         return null;
       }
@@ -250,7 +273,7 @@ export class AccountProvider {
   ): Promise<Map<string, number | null>> {
     const map = new Map<string, number | null>();
     const targets = ids.slice(0, cap);
-    const concurrency = 15;
+    const concurrency = 6;
     for (let i = 0; i < targets.length; i += concurrency) {
       const batch = targets.slice(i, i + concurrency);
       const results = await Promise.all(
@@ -291,7 +314,7 @@ export class AccountProvider {
   ): Promise<VisitsDayPoint[]> {
     const totals = new Map<string, number>();
     const targets = ids.slice(0, cap);
-    const concurrency = 15;
+    const concurrency = 6;
     for (let i = 0; i < targets.length; i += concurrency) {
       const batch = targets.slice(i, i + concurrency);
       const series = await Promise.all(
