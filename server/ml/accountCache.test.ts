@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cachedAccount, invalidateAccount, __clearAccountCache } from "./accountCache";
+import {
+  cachedAccount,
+  cachedAccountResilient,
+  invalidateAccount,
+  __clearAccountCache,
+} from "./accountCache";
 
 afterEach(() => {
   __clearAccountCache();
@@ -71,5 +76,77 @@ describe("cachedAccount", () => {
     const second = await cachedAccount(5, "k", loader);
     expect(loader).toHaveBeenCalledTimes(2);
     expect(second).toBeGreaterThanOrEqual(first);
+  });
+});
+
+describe("cachedAccountResilient (stale-while-error)", () => {
+  it("returns fresh value and marks it not stale", async () => {
+    const loader = vi.fn(async () => ({ n: 1 }));
+    const r = await cachedAccountResilient(100, "k", loader);
+    expect(r.value).toEqual({ n: 1 });
+    expect(r.stale).toBe(false);
+    expect(typeof r.asOf).toBe("number");
+  });
+
+  it("serves the last known-good value when a later load FAILS", async () => {
+    const loader = vi
+      .fn()
+      .mockResolvedValueOnce({ n: 1 }) // first: good
+      .mockRejectedValueOnce(new Error("ML rate limited")); // second: fails
+
+    const ttl = 10;
+    const first = await cachedAccountResilient(101, "k", loader, ttl);
+    expect(first.stale).toBe(false);
+    expect(first.value).toEqual({ n: 1 });
+
+    // Let the TTL expire so the next call re-runs the (now failing) loader.
+    await new Promise((res) => setTimeout(res, ttl + 5));
+
+    const second = await cachedAccountResilient(101, "k", loader, ttl);
+    // Instead of throwing, it falls back to the last good snapshot.
+    expect(second.stale).toBe(true);
+    expect(second.value).toEqual({ n: 1 });
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it("propagates the error when there is NO usable fallback yet", async () => {
+    const loader = vi.fn().mockRejectedValue(new Error("ML rate limited"));
+    await expect(cachedAccountResilient(102, "k", loader)).rejects.toThrow(
+      "ML rate limited",
+    );
+  });
+
+  it("does NOT serve a stale fallback older than staleMaxMs", async () => {
+    const loader = vi
+      .fn()
+      .mockResolvedValueOnce({ n: 1 })
+      .mockRejectedValueOnce(new Error("ML rate limited"));
+
+    const ttl = 5;
+    const staleMax = 20;
+    await cachedAccountResilient(103, "k", loader, ttl, staleMax);
+    // Wait past BOTH the ttl and the stale window.
+    await new Promise((res) => setTimeout(res, staleMax + 10));
+    await expect(
+      cachedAccountResilient(103, "k", loader, ttl, staleMax),
+    ).rejects.toThrow("ML rate limited");
+  });
+
+  it("recovers to fresh once the loader succeeds again", async () => {
+    const loader = vi
+      .fn()
+      .mockResolvedValueOnce({ n: 1 })
+      .mockRejectedValueOnce(new Error("blip"))
+      .mockResolvedValueOnce({ n: 2 });
+    const ttl = 5;
+    await cachedAccountResilient(104, "k", loader, ttl);
+    await new Promise((res) => setTimeout(res, ttl + 2));
+    const stale = await cachedAccountResilient(104, "k", loader, ttl);
+    expect(stale.stale).toBe(true);
+    expect(stale.value).toEqual({ n: 1 });
+    await new Promise((res) => setTimeout(res, ttl + 2));
+    const fresh = await cachedAccountResilient(104, "k", loader, ttl);
+    expect(fresh.stale).toBe(false);
+    expect(fresh.value).toEqual({ n: 2 });
   });
 });

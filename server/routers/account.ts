@@ -5,7 +5,7 @@ import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthM
 import { AccountProvider } from "../ml/accountProvider";
 import { getCredentials, upsertCredentials } from "../dbMl";
 import { resolveMlUserId } from "../ml/resolveMlUserId";
-import { cachedAccount } from "../ml/accountCache";
+import { cachedAccount, cachedAccountResilient } from "../ml/accountCache";
 import { MLRateLimitError } from "../ml/accountProvider";
 
 /**
@@ -226,12 +226,24 @@ export const accountRouter = router({
     .query(async ({ ctx, input }) => {
       const lastDays = input?.lastDays ?? 30;
       const includeVisitsSeries = input?.includeVisitsSeries ?? false;
-      return runAccount(() =>
-        cachedAccount(ctx.user.id, `listings:${lastDays}:vs${includeVisitsSeries ? 1 : 0}`, async () => {
+      // Resilient: on a transient ML 429/timeout we serve the last known-good
+      // snapshot (clearly labelled `stale`) instead of crashing the page. This is
+      // what guarantees the Anúncios screen never shows "Não foi possível
+      // carregar" during a live demo.
+      const { value, stale, asOf } = await cachedAccountResilient(
+        ctx.user.id,
+        `listings:${lastDays}:vs${includeVisitsSeries ? 1 : 0}`,
+        async () => {
           const account = await resolveAccount(ctx.user.id);
           return account.getListings({ lastDays, includeVisitsSeries });
-        }),
-      );
+        },
+      ).catch((err) => {
+        if (err instanceof MLRateLimitError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });
+        }
+        throw err;
+      });
+      return { ...value, stale, asOf };
     }),
 
   /** Post-sale summary (claims, cancellations). */

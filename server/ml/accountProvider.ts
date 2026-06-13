@@ -269,7 +269,10 @@ export class AccountProvider {
       "listing_type_id,health,category_id,permalink,thumbnail,pictures," +
       "date_created,last_updated,shipping,catalog_listing,catalog_product_id";
     const out: any[] = [];
-    const concurrency = 5;
+    // Essential call (NOT behind withBudget) — keep concurrency gentle (3) to
+    // avoid provoking ML's 429 throttle on accounts with many listings, since a
+    // failure here is what used to crash the whole Anúncios page.
+    const concurrency = 3;
     for (let i = 0; i < batches.length; i += concurrency) {
       const slice = batches.slice(i, i + concurrency);
       const results = await Promise.all(

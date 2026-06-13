@@ -784,10 +784,19 @@
 - [x] Schema: snapshots diários de campanhas e anúncios (ads_campaign_snapshots, ads_item_snapshots) + log de mudanças (ads_change_log)
 - [x] Heartbeat: job diário que registra snapshots e detecta mudanças da Mamba (endpoint /api/scheduled/adsSnapshot criado e registrado; cron a registrar via CLI após publicar)
 - [x] Filtro de anúncios ATIVOS: helper isActiveAdStatus() robusto + opção activeOnly no getAds; snapshot e categorias seguem só os ativos (8 testes novos)
-- [ ] Após publicar: registrar cron diário (manus-heartbeat create --name ads-snapshot-diario --cron "0 0 6 * * *" --path /api/scheduled/adsSnapshot)
+- [x] Após publicar: cron diário registrado (ads-snapshot-diario, 0 0 9 * * * UTC = 06:00 BRT, task_uid Rnfw8dvH6HaH2qwXZ4Q8Xo). Testado em produção: HTTP 200, 16 ativos / 9 campanhas, idempotente.
 - [x] Backend: detecção de mudanças (diff entre snapshots) + avaliação de coerência + "o que faríamos"
 - [x] Backend: categorização dos anúncios em 5 grupos (espetos, palito de manicure, aromatizador fibra/madeira, hashi, palitos de bambu)
 - [x] Aba "Auditoria Mamba": linha do tempo de mudanças, coerência, recomendação própria, próximos 30 dias
 - [x] Aba "Categorias" (ADS): visões e métricas por grupo em tempo real (visitas, vendas, conversão, gasto Ads)
 - [x] Testes vitest (detecção de mudança, coerência, categorização) — 16 testes
 - [x] Validação ao vivo + checkpoint
+
+## Confiabilidade — eliminar tela "Não foi possível carregar" (13/jun)
+- [x] Causa raiz: chamadas essenciais do getListings (getAllItemIds + getItemsDetails) fora do withBudget; um 429/timeout do ML quebrava a página inteira; cache apagava o último valor bom em falha
+- [x] cachedAccountResilient (stale-while-error): mantém último snapshot bom por até 6h; em falha transitória serve o cache marcado como stale em vez de propagar erro
+- [x] Procedure listings usa cachedAccountResilient e retorna { ...value, stale, asOf }
+- [x] getItemsDetails: concorrência 5→3 (reduz chance de 429 na origem, chamada essencial)
+- [x] Frontend Anúncios: aviso âmbar "Dados em cache · de HH:MM" quando stale, em vez da tela vermelha
+- [x] 6 testes novos do cache resiliente (fresh/stale/no-fallback/staleMax/recover) — 401 testes OK, TS/LSP limpos
+- [ ] Validar ao vivo em produção após publicar (carregar Meus Anúncios e confirmar ausência de erro)

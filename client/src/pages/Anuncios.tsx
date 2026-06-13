@@ -393,7 +393,12 @@ export default function Anuncios() {
         description={`Total diário de visualizações agregado entre os anúncios ativos nos últimos ${visitWindow} dias (o dia de hoje é parcial e atualiza em tempo real).`}
         actions={
           <div className="flex items-center gap-2.5">
-            {!isLoading && dataUpdatedAt ? (
+            {!isLoading && data?.stale ? (
+              <span className="hidden items-center gap-1.5 text-xs text-amber-600 sm:inline-flex" title="O Mercado Livre estava congestionado; exibindo os últimos dados confirmados.">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                {`Dados em cache · ${data?.asOf ? `de ${new Date(data.asOf).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "recentes"}`}
+              </span>
+            ) : !isLoading && dataUpdatedAt ? (
               <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
                 <span className={cn("h-1.5 w-1.5 rounded-full", isFetching ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
                 {isFetching ? "Atualizando…" : `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
