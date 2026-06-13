@@ -760,3 +760,8 @@
 - [x] withBudget: visitas best-effort, nunca derrubam a página
 - [x] Validação ao vivo: users/me 200, 123 anúncios, 46 vendas pagas (sem 429)
 - [x] Testes: 368 passando, incluindo 4 de rate limit
+
+## Navegação: separar Disponível x Em construção
+- [x] Grupo "Disponível": Painel, Vendas, Meus anúncios
+- [x] Grupo "Em construção": demais itens, com selo "Em breve" e aparência discreta
+- [x] Itens em construção continuam navegáveis (mantêm rota) com indicação visual

@@ -45,39 +45,36 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 
-type MenuItem = { icon: typeof LayoutGrid; label: string; path: string };
+type MenuItem = { icon: typeof LayoutGrid; label: string; path: string; comingSoon?: boolean };
 type MenuGroup = { title: string | null; items: MenuItem[] };
 
 const menuGroups: MenuGroup[] = [
   {
-    title: null,
-    items: [{ icon: LayoutGrid, label: "Painel", path: "/" }],
-  },
-  {
-    title: "Minha loja",
+    title: "Disponível",
     items: [
+      { icon: LayoutGrid, label: "Painel", path: "/" },
       { icon: ShoppingBag, label: "Vendas", path: "/vendas" },
       { icon: Package, label: "Meus anúncios", path: "/anuncios" },
-      { icon: Undo2, label: "Pós-venda", path: "/pos-venda" },
-      { icon: Award, label: "Reputação", path: "/reputacao" },
     ],
   },
   {
-    title: "Pesquisa de mercado",
+    title: "Em construção",
     items: [
-      { icon: Radar, label: "Radar de concorrentes", path: "/radar" },
-      { icon: TrendingUp, label: "Mais vendidos", path: "/mais-vendidos" },
-      { icon: Search, label: "Buscar produtos", path: "/buscar" },
-      { icon: Sparkles, label: "Oportunidades", path: "/oportunidades" },
-      { icon: GitCompareArrows, label: "Comparar", path: "/comparar" },
-      { icon: BarChart3, label: "Categorias", path: "/categorias" },
-      { icon: LineChart, label: "Monitoramento", path: "/monitoramento" },
+      { icon: Undo2, label: "Pós-venda", path: "/pos-venda", comingSoon: true },
+      { icon: Award, label: "Reputação", path: "/reputacao", comingSoon: true },
+      { icon: Radar, label: "Radar de concorrentes", path: "/radar", comingSoon: true },
+      { icon: TrendingUp, label: "Mais vendidos", path: "/mais-vendidos", comingSoon: true },
+      { icon: Search, label: "Buscar produtos", path: "/buscar", comingSoon: true },
+      { icon: Sparkles, label: "Oportunidades", path: "/oportunidades", comingSoon: true },
+      { icon: GitCompareArrows, label: "Comparar", path: "/comparar", comingSoon: true },
+      { icon: BarChart3, label: "Categorias", path: "/categorias", comingSoon: true },
+      { icon: LineChart, label: "Monitoramento", path: "/monitoramento", comingSoon: true },
+      { icon: Bell, label: "Alertas", path: "/alertas", comingSoon: true },
     ],
   },
   {
     title: null,
     items: [
-      { icon: Bell, label: "Alertas", path: "/alertas" },
       { icon: Settings, label: "Configurações", path: "/configuracoes" },
     ],
   },
@@ -250,15 +247,20 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                         <SidebarMenuButton
                           isActive={isActive}
                           onClick={() => setLocation(item.path)}
-                          tooltip={item.label}
-                          className="relative h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground"
+                          tooltip={item.comingSoon ? `${item.label} — em breve` : item.label}
+                          className={`relative h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground ${item.comingSoon && !isActive ? "text-muted-foreground/70" : ""}`}
                         >
                           {isActive && (
                             <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary group-data-[collapsible=icon]:hidden" aria-hidden />
                           )}
-                          <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                          <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : item.comingSoon ? "opacity-70" : ""}`} />
                           <span>{item.label}</span>
-                          {showBadge && (
+                          {item.comingSoon && (
+                            <span className="ml-auto rounded-full border border-amber-300/60 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 group-data-[collapsible=icon]:hidden">
+                              Em breve
+                            </span>
+                          )}
+                          {showBadge && !item.comingSoon && (
                             <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
                               {unread}
                             </span>
