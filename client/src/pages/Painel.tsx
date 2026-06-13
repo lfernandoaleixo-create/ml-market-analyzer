@@ -72,6 +72,7 @@ import {
   ChevronUp,
   PauseCircle,
   Archive,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
@@ -163,6 +164,21 @@ export default function Painel() {
   const r = rep.data;
   const loadingSales = sales.isLoading;
 
+  // Detect a Mercado Livre rate limit (429 -> TOO_MANY_REQUESTS) on any of the
+  // core queries. When it happens we must NOT silently show R$ 0,00 — we show an
+  // honest banner with a retry button so a live demo never looks like "no sales".
+  const isRateLimited = [sales.error, listings.error, rep.error, lifetime.error].some(
+    (e) => (e?.data as { code?: string } | undefined)?.code === "TOO_MANY_REQUESTS",
+  );
+  const retryAll = () => {
+    sales.refetch();
+    listings.refetch();
+    rep.refetch();
+    lifetime.refetch();
+  };
+  const anyRefetching =
+    sales.isFetching || listings.isFetching || rep.isFetching || lifetime.isFetching;
+
   // Whether the range spans more than ~45 days (then label by month-day, else day).
   const bars = sales.data?.daily ?? [];
 
@@ -194,6 +210,30 @@ export default function Painel() {
         subtitle="Visão geral da sua loja no Mercado Livre — vendas, anúncios e reputação em tempo real."
         actions={connectionStale ? <ConnectionReminder /> : undefined}
       />
+
+      {isRateLimited && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="text-sm leading-snug">
+              <p className="font-semibold">O Mercado Livre limitou temporariamente as consultas</p>
+              <p className="text-amber-800/90 dark:text-amber-200/80">
+                Isso é momentâneo (excesso de chamadas em sequência). Sua conexão segue ativa — aguarde alguns segundos e atualize. Os números abaixo podem estar incompletos até atualizar.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={retryAll}
+            disabled={anyRefetching}
+            className="shrink-0 border-amber-400 bg-white/70 text-amber-900 hover:bg-white dark:bg-transparent dark:text-amber-100"
+          >
+            <RefreshCw className={cn("mr-1.5 h-4 w-4", anyRefetching && "animate-spin")} />
+            {anyRefetching ? "Atualizando…" : "Atualizar agora"}
+          </Button>
+        </div>
+      )}
 
       {/* Lifetime store card — right under the title, compact */}
       <LifetimeCard

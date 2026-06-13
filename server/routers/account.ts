@@ -6,6 +6,24 @@ import { AccountProvider } from "../ml/accountProvider";
 import { getCredentials, upsertCredentials } from "../dbMl";
 import { resolveMlUserId } from "../ml/resolveMlUserId";
 import { cachedAccount } from "../ml/accountCache";
+import { MLRateLimitError } from "../ml/accountProvider";
+
+/**
+ * Run an account data loader and translate a Mercado Livre rate-limit signal
+ * into an honest, retryable tRPC error. Without this, a 429 used to be masked
+ * as an empty result (a fake all-zero dashboard). Now the UI shows a clear
+ * "ML limitou as consultas, tente novamente" message + retry button instead.
+ */
+async function runAccount<T>(loader: () => Promise<T>): Promise<T> {
+  try {
+    return await loader();
+  } catch (err) {
+    if (err instanceof MLRateLimitError) {
+      throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });
+    }
+    throw err;
+  }
+}
 
 /**
  * Account ("Central de Gestão") router — real data from the connected seller
@@ -71,31 +89,41 @@ export const accountRouter = router({
       const account = await resolveAccount(ctx.user.id);
       const probe = await account.probe();
       return { connected: probe.ok, nickname: probe.nickname };
-    } catch {
+    } catch (err) {
+      // A rate limit is NOT a disconnection: the account is still linked, ML is
+      // just throttling us. Report it as connected-but-rate-limited so the UI
+      // does not scare the user with a false "desconectado" during a demo.
+      if (err instanceof MLRateLimitError) {
+        return { connected: true as const, rateLimited: true as const };
+      }
       return { connected: false as const };
     }
   }),
 
   /** Reputation + account health. */
   reputation: protectedProcedure.query(async ({ ctx }) =>
-    cachedAccount(ctx.user.id, "reputation", async () => {
-      const account = await resolveAccount(ctx.user.id);
-      const rep = await account.getReputation();
-      if (!rep) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Não foi possível carregar a reputação." });
-      }
-      return rep;
-    }),
+    runAccount(() =>
+      cachedAccount(ctx.user.id, "reputation", async () => {
+        const account = await resolveAccount(ctx.user.id);
+        const rep = await account.getReputation();
+        if (!rep) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Não foi possível carregar a reputação." });
+        }
+        return rep;
+      }),
+    ),
   ),
 
   /** Sales dashboard for a period (revenue, orders, ticket, daily, top products). */
   salesDashboard: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 180;
-    return cachedAccount(ctx.user.id, `salesDashboard:${days}`, async () => {
-      const account = await resolveAccount(ctx.user.id);
-      const { fromMs, toMs } = periodBounds(days);
-      return account.getSalesDashboard({ fromMs, toMs });
-    });
+    return runAccount(() =>
+      cachedAccount(ctx.user.id, `salesDashboard:${days}`, async () => {
+        const account = await resolveAccount(ctx.user.id);
+        const { fromMs, toMs } = periodBounds(days);
+        return account.getSalesDashboard({ fromMs, toMs });
+      }),
+    );
   }),
 
   /**
@@ -119,15 +147,17 @@ export const accountRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Intervalo de datas inválido." });
       }
       const key = `salesRange:${input.fromMs}:${input.toMs}:${input.fill ?? false}:${input.topLimit ?? ""}`;
-      return cachedAccount(ctx.user.id, key, async () => {
-        const account = await resolveAccount(ctx.user.id);
-        return account.getSalesDashboard({
-          fromMs: input.fromMs,
-          toMs: input.toMs,
-          fill: input.fill ?? false,
-          topLimit: input.topLimit,
-        });
-      });
+      return runAccount(() =>
+        cachedAccount(ctx.user.id, key, async () => {
+          const account = await resolveAccount(ctx.user.id);
+          return account.getSalesDashboard({
+            fromMs: input.fromMs,
+            toMs: input.toMs,
+            fill: input.fill ?? false,
+            topLimit: input.topLimit,
+          });
+        }),
+      );
     }),
 
   /**
@@ -150,30 +180,36 @@ export const accountRouter = router({
           .max(6),
       }),
     )
-    .query(async ({ ctx, input }) => {
-      const account = await resolveAccount(ctx.user.id);
-      const out: Record<string, Awaited<ReturnType<typeof account.getPeriodSummary>>> = {};
-      for (const p of input.periods) {
-        out[p.key] = await account.getPeriodSummary({ fromMs: p.fromMs, toMs: p.toMs });
-      }
-      return out;
-    }),
+    .query(async ({ ctx, input }) =>
+      runAccount(async () => {
+        const account = await resolveAccount(ctx.user.id);
+        const out: Record<string, Awaited<ReturnType<typeof account.getPeriodSummary>>> = {};
+        for (const p of input.periods) {
+          out[p.key] = await account.getPeriodSummary({ fromMs: p.fromMs, toMs: p.toMs });
+        }
+        return out;
+      }),
+    ),
 
   /** Lifetime store stats: first sale, days in business, total revenue & orders. */
   storeLifetime: protectedProcedure.query(async ({ ctx }) =>
-    cachedAccount(ctx.user.id, "storeLifetime", async () => {
-      const account = await resolveAccount(ctx.user.id);
-      return account.getStoreLifetime();
-    }),
+    runAccount(() =>
+      cachedAccount(ctx.user.id, "storeLifetime", async () => {
+        const account = await resolveAccount(ctx.user.id);
+        return account.getStoreLifetime();
+      }),
+    ),
   ),
 
   /** Products sold on a single BRT calendar day (yyyy-mm-dd). */
   productsByDay: protectedProcedure
     .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (use yyyy-mm-dd).") }))
-    .query(async ({ ctx, input }) => {
-      const account = await resolveAccount(ctx.user.id);
-      return account.getProductsByDay(input.date);
-    }),
+    .query(async ({ ctx, input }) =>
+      runAccount(async () => {
+        const account = await resolveAccount(ctx.user.id);
+        return account.getProductsByDay(input.date);
+      }),
+    ),
 
   /** Listings performance (visits, sales, conversion, stock, status). */
   listings: protectedProcedure
@@ -182,25 +218,32 @@ export const accountRouter = router({
         .object({
           /** Visits window in days (real period visits via time_window). */
           lastDays: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional(),
+          /** Include the per-item daily visits chart (Anúncios only; Painel skips it). */
+          includeVisitsSeries: z.boolean().optional(),
         })
         .optional(),
     )
     .query(async ({ ctx, input }) => {
       const lastDays = input?.lastDays ?? 30;
-      return cachedAccount(ctx.user.id, `listings:${lastDays}`, async () => {
-        const account = await resolveAccount(ctx.user.id);
-        return account.getListings({ lastDays });
-      });
+      const includeVisitsSeries = input?.includeVisitsSeries ?? false;
+      return runAccount(() =>
+        cachedAccount(ctx.user.id, `listings:${lastDays}:vs${includeVisitsSeries ? 1 : 0}`, async () => {
+          const account = await resolveAccount(ctx.user.id);
+          return account.getListings({ lastDays, includeVisitsSeries });
+        }),
+      );
     }),
 
   /** Post-sale summary (claims, cancellations). */
   postSale: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 180;
-    return cachedAccount(ctx.user.id, `postSale:${days}`, async () => {
-      const account = await resolveAccount(ctx.user.id);
-      const { fromMs } = periodBounds(days);
-      return account.getPostSale({ fromMs });
-    });
+    return runAccount(() =>
+      cachedAccount(ctx.user.id, `postSale:${days}`, async () => {
+        const account = await resolveAccount(ctx.user.id);
+        const { fromMs } = periodBounds(days);
+        return account.getPostSale({ fromMs });
+      }),
+    );
   }),
 
   /**
@@ -208,9 +251,11 @@ export const accountRouter = router({
    * (complete vs incomplete, missing attributes, missing-required). Read-only.
    */
   technicalSpecs: protectedProcedure.query(async ({ ctx }) =>
-    cachedAccount(ctx.user.id, "technicalSpecs", async () => {
-      const account = await resolveAccount(ctx.user.id);
-      return account.getTechnicalSpecs();
-    }),
+    runAccount(() =>
+      cachedAccount(ctx.user.id, "technicalSpecs", async () => {
+        const account = await resolveAccount(ctx.user.id);
+        return account.getTechnicalSpecs();
+      }),
+    ),
   ),
 });

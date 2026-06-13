@@ -57,6 +57,12 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       retry: (failureCount, error) => {
         if (isAuthError(error)) return false;
+        // Never auto-retry a rate limit: the server already retried with backoff,
+        // and hammering ML again only deepens the throttle. The user retries
+        // manually via the on-screen "Atualizar agora" button instead.
+        if (error instanceof TRPCClientError && error.data?.code === "TOO_MANY_REQUESTS") {
+          return false;
+        }
         return failureCount < 2;
       },
     },
@@ -100,7 +106,7 @@ queryClient.getMutationCache().subscribe(event => {
  * spinner. The server already has its own (shorter) timeouts; this is a safety
  * net set comfortably above them.
  */
-const CLIENT_REQUEST_TIMEOUT_MS = 20_000;
+const CLIENT_REQUEST_TIMEOUT_MS = 45_000;
 
 const trpcClient = trpc.createClient({
   links: [

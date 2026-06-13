@@ -352,7 +352,7 @@ describe("AccountProvider.getListings", () => {
     }) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
-    const res = await provider.getListings({ lastDays: 30 });
+    const res = await provider.getListings({ lastDays: 30, includeVisitsSeries: true });
 
     expect(Array.isArray(res.visitsSeries)).toBe(true);
     expect(res.visitsSeries.length).toBe(30); // zero-filled to a full 30-day window
@@ -394,7 +394,7 @@ describe("AccountProvider.getListings", () => {
     }) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
-    const res = await provider.getListings({ lastDays: 30 });
+    const res = await provider.getListings({ lastDays: 30, includeVisitsSeries: true });
     const last = res.visitsSeries[res.visitsSeries.length - 1];
     expect(last.date).toBe(todayKey);
     expect(last.visits).toBe(7);
@@ -934,15 +934,62 @@ describe("AccountProvider rate-limit (429) resilience", () => {
     expect(rep?.nickname).toBe("LOJADOSRWU");
   });
 
-  it("gives up after MAX_RATE_LIMIT_RETRIES consecutive 429s and returns null", async () => {
+  it("gives up after MAX_RATE_LIMIT_RETRIES consecutive 429s and SIGNALS the rate limit (no fake empty)", async () => {
     const fetchSpy = vi.fn(async () => resWithHeaders(429, { message: "nope" }, { "retry-after": "0" }));
     global.fetch = fetchSpy as unknown as typeof fetch;
 
+    const { MLRateLimitError } = await import("./accountProvider");
     const provider = new AccountProvider("token", USER_ID);
-    const rep = await provider.getReputation();
 
+    // After exhausting retries we now THROW (so the UI shows an honest retry)
+    // instead of returning null (which used to be masked as an empty dashboard).
+    await expect(provider.getReputation()).rejects.toBeInstanceOf(MLRateLimitError);
     // Original attempt + MAX_RATE_LIMIT_RETRIES retries.
     expect(fetchSpy).toHaveBeenCalledTimes(AccountProvider.MAX_RATE_LIMIT_RETRIES + 1);
-    expect(rep).toBeNull();
+  });
+});
+
+
+describe("AccountProvider rate limit (429) handling", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  /** A 429 Response carrying a Retry-After header. */
+  function rateLimited(retryAfterSec = 1): Response {
+    return {
+      ok: false,
+      status: 429,
+      headers: { get: (k: string) => (k.toLowerCase() === "retry-after" ? String(retryAfterSec) : null) },
+      json: async () => ({}),
+    } as unknown as Response;
+  }
+
+  it("throws MLRateLimitError (not a fake empty result) when ML keeps returning 429", async () => {
+    // Always 429 — exhausts the internal retries, then must SIGNAL the rate limit
+    // instead of masking it as null/zeros (which produced the fake R$ 0,00 demo).
+    global.fetch = vi.fn(async () => rateLimited(1)) as unknown as typeof fetch;
+    const { MLRateLimitError } = await import("./accountProvider");
+    const provider = new AccountProvider("token", USER_ID);
+    await expect(provider.getReputation()).rejects.toBeInstanceOf(MLRateLimitError);
+  });
+
+  it("recovers when ML returns 429 once then succeeds (server-side retry)", async () => {
+    let calls = 0;
+    global.fetch = vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) return rateLimited(0); // first hit throttled
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ id: USER_ID, nickname: "LOJADOSRWU", seller_reputation: {} }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const rep = await provider.getReputation();
+    expect(rep).not.toBeNull();
+    expect(rep!.nickname).toBe("LOJADOSRWU");
+    expect(calls).toBeGreaterThanOrEqual(2);
   });
 });

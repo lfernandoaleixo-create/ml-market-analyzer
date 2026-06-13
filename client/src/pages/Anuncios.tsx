@@ -146,7 +146,7 @@ export default function Anuncios() {
 
   const conn = trpc.account.connection.useQuery();
   const { data, isLoading, error, isFetching, dataUpdatedAt, refetch } = trpc.account.listings.useQuery(
-    { lastDays: visitWindow },
+    { lastDays: visitWindow, includeVisitsSeries: true },
     {
       enabled: conn.data?.connected === true,
       // Keep the day's evolution fresh: re-pull visits periodically and when

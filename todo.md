@@ -745,3 +745,18 @@
 - [x] Selo "Conexao ativa - token renova automaticamente" nas Configuracoes com validade do token
 - [x] Teste vitest do cache (6 casos): fresh hit, dedupe, TTL, nao cacheia erro, namespacing por usuario, invalidate
 - [x] Suite completa: 366 testes OK; TS/LSP limpos
+
+## CORREÇÃO: painel zerado / 4 erros (rate limit 429 do ML) — 12/jun
+- [x] Diagnóstico: 429 do ML mascarado como resultado vazio -> painel R$ 0,00 falso
+- [x] get() lança MLRateLimitError ao esgotar retries de 429 (não retorna mais null)
+- [x] Router account: 429 vira TRPCError TOO_MANY_REQUESTS (erro honesto e retryável)
+- [x] connection: 429 = conectado+rateLimited (não mostra "desconectado" falso)
+- [x] Painel: banner honesto de rate limit com botão "Atualizar agora"
+- [x] Cliente: sem auto-retry em 429 (não piora o throttle)
+- [x] Painel não dispara mais o gráfico de visitas (~200 chamadas a menos por abertura)
+- [x] includeVisitsSeries flag: série só na página de Anúncios
+- [x] Concorrência das visitas reduzida de 6 para 4 (mais gentil com o ML)
+- [x] Timeout do navegador 20s -> 45s (não corta o servidor antes da hora)
+- [x] withBudget: visitas best-effort, nunca derrubam a página
+- [x] Validação ao vivo: users/me 200, 123 anúncios, 46 vendas pagas (sem 429)
+- [x] Testes: 368 passando, incluindo 4 de rate limit

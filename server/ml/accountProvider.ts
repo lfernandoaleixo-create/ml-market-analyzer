@@ -41,6 +41,25 @@ import {
  */
 const API = "https://api.mercadolibre.com";
 
+/**
+ * Thrown when Mercado Livre keeps replying 429 (rate limited) after we have
+ * exhausted our retries. This MUST NOT be swallowed into a null/empty result:
+ * a rate limit means "the data exists, ML just won't serve it right now", which
+ * is completely different from "the store has no sales". Masking it as an empty
+ * result is exactly what produced the all-zero dashboard during the live demo.
+ * Callers surface this as an honest, retryable error in the UI.
+ */
+export class MLRateLimitError extends Error {
+  readonly retryAfterSec: number;
+  constructor(retryAfterSec = 30) {
+    super(
+      `O Mercado Livre limitou temporariamente as consultas (429). Aguarde cerca de ${retryAfterSec}s e tente novamente.`,
+    );
+    this.name = "MLRateLimitError";
+    this.retryAfterSec = retryAfterSec;
+  }
+}
+
 export class AccountProvider {
   /** Max retries when ML responds 429 (rate limited). */
   static readonly MAX_RATE_LIMIT_RETRIES = 4;
@@ -77,6 +96,32 @@ export class AccountProvider {
     return this.cancelledOrdersCache;
   }
 
+  /**
+   * Run `work` but never wait longer than `budgetMs`. If the budget elapses
+   * first, resolve with `fallback` instead of blocking the whole request. The
+   * underlying work keeps running but its (late) result is ignored. Used to keep
+   * the dashboard responsive when the heavy per-item visits fan-out is slow:
+   * the page renders totals/status/stock immediately and the visits series just
+   * comes back empty instead of timing out the entire response.
+   */
+  private async withBudget<T>(work: Promise<T>, budgetMs: number, fallback: T): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const guard = new Promise<T>((resolve) => {
+      timer = setTimeout(() => resolve(fallback), budgetMs);
+    });
+    // Visits are best-effort: if the bounded work REJECTS (e.g. a 429 mid fan-out)
+    // we must NOT let it bubble up and crash the whole dashboard — the page still
+    // has its essential data. Swallow the rejection into the fallback. Essential
+    // calls (orders, users/me) do NOT go through withBudget, so their 429s still
+    // propagate as an honest, retryable error.
+    const safeWork = work.catch(() => fallback);
+    try {
+      return await Promise.race([safeWork, guard]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   private async get(
     path: string,
     timeoutMs = 12000,
@@ -94,15 +139,22 @@ export class AccountProvider {
       // Rate limited (429): ML throttles bursts. Respect Retry-After when present,
       // otherwise use a capped exponential backoff, and retry a few times. We do
       // NOT treat this as a hard failure — the data is there, we just need to wait.
-      if (res.status === 429 && _rateLimitAttempt < AccountProvider.MAX_RATE_LIMIT_RETRIES) {
+      if (res.status === 429) {
         clearTimeout(timer);
         const retryAfterHeader = res.headers.get("retry-after");
-        const retryAfterMs = retryAfterHeader
-          ? Number(retryAfterHeader) * 1000
-          : Math.min(8000, 500 * 2 ** _rateLimitAttempt);
-        const waitMs = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : 1000;
-        await new Promise((r) => setTimeout(r, waitMs));
-        return this.get(path, timeoutMs, _isRetry, _rateLimitAttempt + 1);
+        if (_rateLimitAttempt < AccountProvider.MAX_RATE_LIMIT_RETRIES) {
+          const retryAfterMs = retryAfterHeader
+            ? Number(retryAfterHeader) * 1000
+            : Math.min(8000, 500 * 2 ** _rateLimitAttempt);
+          const waitMs = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : 1000;
+          await new Promise((r) => setTimeout(r, waitMs));
+          return this.get(path, timeoutMs, _isRetry, _rateLimitAttempt + 1);
+        }
+        // Retries exhausted: signal the rate limit instead of masking it as an
+        // empty result. This is what stops the dashboard from showing a fake
+        // R$ 0,00 / zeros when ML is actually just throttling us.
+        const retryAfterSec = retryAfterHeader && Number(retryAfterHeader) > 0 ? Number(retryAfterHeader) : 30;
+        throw new MLRateLimitError(retryAfterSec);
       }
 
       // Token died mid-flight (expired/revoked before its advertised expiry).
@@ -118,7 +170,10 @@ export class AccountProvider {
       }
       if (!res.ok) return null;
       return await res.json();
-    } catch {
+    } catch (err) {
+      // A rate-limit signal must propagate (so the UI can show an honest retry);
+      // everything else (network blip, abort) degrades to null as before.
+      if (err instanceof MLRateLimitError) throw err;
       return null;
     } finally {
       clearTimeout(timer);
@@ -273,7 +328,8 @@ export class AccountProvider {
   ): Promise<Map<string, number | null>> {
     const map = new Map<string, number | null>();
     const targets = ids.slice(0, cap);
-    const concurrency = 6;
+    // Gentler concurrency (4) reduces the chance of tripping ML's 429 throttle.
+    const concurrency = 4;
     for (let i = 0; i < targets.length; i += concurrency) {
       const batch = targets.slice(i, i + concurrency);
       const results = await Promise.all(
@@ -314,7 +370,7 @@ export class AccountProvider {
   ): Promise<VisitsDayPoint[]> {
     const totals = new Map<string, number>();
     const targets = ids.slice(0, cap);
-    const concurrency = 6;
+    const concurrency = 4;
     for (let i = 0; i < targets.length; i += concurrency) {
       const batch = targets.slice(i, i + concurrency);
       const series = await Promise.all(
@@ -359,9 +415,15 @@ export class AccountProvider {
     }
   }
 
-  async getListings(opts: { lastDays?: number; maxItems?: number } = {}): Promise<ListingsResult> {
+  async getListings(
+    opts: { lastDays?: number; maxItems?: number; includeVisitsSeries?: boolean } = {},
+  ): Promise<ListingsResult> {
     const lastDays = opts.lastDays ?? 30;
     const maxItems = opts.maxItems ?? 600;
+    // The daily visits CHART is only needed on the Anúncios page. The Painel just
+    // shows the visits TOTAL, so it skips the chart fan-out (~200 extra per-item
+    // requests) to avoid provoking a 429. Defaults to false (cheaper).
+    const includeVisitsSeries = opts.includeVisitsSeries ?? false;
     const { ids, capped } = await this.getAllItemIds(maxItems);
     const details = await this.getItemsDetails(ids);
     const detailIds = details.map((d) => d.id);
@@ -374,7 +436,15 @@ export class AccountProvider {
     //  data for an item, we leave it null (excluded from totals) rather than
     //  faking a zero. The cheap lifetime batch endpoint is kept only as a last
     //  resort and is never mixed into period totals.
-    const windowMap = await this.getVisitsWindow(detailIds, lastDays);
+    // Period-accurate visits, but bounded: if the per-item fan-out can't finish
+    // within the budget we serve an empty map (visits show 0) so the rest of the
+    // page — totals, status, stock, ranking — still loads fast. Better an honest
+    // "visits pending" than a frozen, all-zero dashboard.
+    const windowMap = await this.withBudget(
+      this.getVisitsWindow(detailIds, lastDays),
+      9000,
+      new Map<string, number | null>(),
+    );
 
     const items: ListingRow[] = details.map((d) => {
       const wv = windowMap.get(d.id);
@@ -433,7 +503,12 @@ export class AccountProvider {
     // ACTIVE listings only. Fixed 30-day window regardless of the KPI window
     // selector. Best-effort (capped) so it never blocks the page.
     const activeIds = items.filter((i) => i.status === "active").map((i) => i.itemId);
-    const visitsSeries = await this.getVisitsSeries(activeIds, 30);
+    // Bounded like the window map above: the daily visits chart is a nice-to-have,
+    // never a blocker. If it can't finish in the budget, return an empty series.
+    // Skipped entirely unless requested (Painel doesn't need it) to cut ML load.
+    const visitsSeries = includeVisitsSeries
+      ? await this.withBudget(this.getVisitsSeries(activeIds, 30), 6000, [] as VisitsDayPoint[])
+      : [];
 
     return {
       summary: {
