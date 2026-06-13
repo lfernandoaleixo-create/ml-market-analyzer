@@ -22,6 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatBRL, formatNumber } from "@/lib/format";
 import { usePeriod } from "@/hooks/usePeriod";
@@ -43,7 +50,10 @@ import {
   Settings2,
   ExternalLink,
   ShieldCheck,
+  AlertTriangle,
+  ChevronRight,
 } from "lucide-react";
+import type { ListingProfitRow } from "@shared/finance";
 
 function pct(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -319,6 +329,9 @@ function RateField({ label, value, onChange }: { label: string; value: number; o
 
 export default function Lucratividade() {
   const [showConfig, setShowConfig] = useState(false);
+  // Listing detail dialog (per-ad profit breakdown) + "loss only" filter.
+  const [selectedListing, setSelectedListing] = useState<ListingProfitRow | null>(null);
+  const [onlyLoss, setOnlyLoss] = useState(false);
 
   // Connection to ML (for the same "connect first" gate as the other pages).
   const connection = trpc.account.connection.useQuery(undefined, { staleTime: 60_000 });
@@ -625,13 +638,36 @@ export default function Lucratividade() {
           <MarginHistory />
 
           {/* Profit by listing */}
+          {(() => {
+            const lossCount = data.listings.filter((r) => r.current.netProfit < 0).length;
+            const visibleListings = onlyLoss
+              ? data.listings.filter((r) => r.current.netProfit < 0)
+              : data.listings;
+            return (
           <SectionCard
             title="Lucro por anúncio"
-            description="Cada anúncio com seu lucro líquido no cenário selecionado (inclui Ads quando houver)."
+            description="Clique em um anúncio para ver a quebra completa do lucro. Inclui Ads quando houver."
+            actions={
+              lossCount > 0 ? (
+                <Button
+                  variant={onlyLoss ? "default" : "outline"}
+                  size="sm"
+                  className={cn(!onlyLoss && "bg-background")}
+                  onClick={() => setOnlyLoss((v) => !v)}
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  {onlyLoss ? "Mostrando só prejuízo" : `Só prejuízo (${lossCount})`}
+                </Button>
+              ) : undefined
+            }
           >
             {data.listings.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 Nenhuma venda com anúncio identificável no período.
+              </p>
+            ) : visibleListings.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Nenhum anúncio em prejuízo no período. 🎉
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -644,21 +680,37 @@ export default function Lucratividade() {
                       <th className="py-2.5 px-3 font-semibold text-right">Custo unit.</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Impostos</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Lucro</th>
-                      <th className="py-2.5 pl-3 font-semibold text-right">Margem</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Margem</th>
+                      <th className="py-2.5 pl-3 font-semibold text-right w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.listings.map((row) => (
-                      <tr key={row.itemId} className="border-b border-dashed last:border-0">
+                    {visibleListings.map((row) => {
+                      const isLoss = row.current.netProfit < 0;
+                      return (
+                      <tr
+                        key={row.itemId}
+                        onClick={() => setSelectedListing(row)}
+                        className={cn(
+                          "group cursor-pointer border-b border-dashed last:border-0 transition-colors",
+                          isLoss ? "bg-rose-500/[0.04] hover:bg-rose-500/[0.09]" : "hover:bg-muted/50",
+                        )}
+                      >
                         <td className="py-2.5 pr-3">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="truncate max-w-[320px]" title={row.title}>
+                            {isLoss && (
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500/12 text-rose-600" title="Anúncio no prejuízo">
+                                <AlertTriangle className="h-3 w-3" />
+                              </span>
+                            )}
+                            <span className="truncate max-w-[300px]" title={row.title}>
                               {row.title}
                             </span>
                             <a
                               href={`https://www.mercadolivre.com.br/p/${row.itemId}`}
                               target="_blank"
                               rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
                               className="text-muted-foreground hover:text-primary shrink-0"
                               title="Abrir no Mercado Livre"
                             >
@@ -679,19 +731,25 @@ export default function Lucratividade() {
                         <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
                           {formatBRL(row.current.tax)}
                         </td>
-                        <td className={cn("py-2.5 px-3 text-right tabular-nums font-semibold", row.current.netProfit >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                        <td className={cn("py-2.5 px-3 text-right tabular-nums font-semibold", isLoss ? "text-rose-600" : "text-emerald-600")}>
                           {formatBRL(row.current.netProfit)}
                         </td>
-                        <td className={cn("py-2.5 pl-3 text-right tabular-nums", marginColor(row.current.margin))}>
+                        <td className={cn("py-2.5 px-3 text-right tabular-nums", marginColor(row.current.margin))}>
                           {pct(row.current.margin)}
                         </td>
+                        <td className="py-2.5 pl-3 text-right">
+                          <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </SectionCard>
+            );
+          })()}
 
           {/* By UF */}
           <SectionCard
@@ -724,6 +782,13 @@ export default function Lucratividade() {
               entrou como zero, então o lucro pode estar superestimado nesses casos.
             </div>
           )}
+
+          {/* Per-listing profit detail dialog */}
+          <ListingDetailDialog
+            listing={selectedListing}
+            ttsOn={ttsOn}
+            onOpenChange={(open) => !open && setSelectedListing(null)}
+          />
 
           {/* Config panel (collapsible) */}
           {showConfig && cfg.data && (
@@ -893,4 +958,128 @@ function MarginHistory() {
 function fmtDay(iso: string): string {
   const [, m, d] = iso.split("-");
   return d && m ? `${d}/${m}` : iso;
+}
+
+/**
+ * Per-listing profit detail. Opens when a row in "Lucro por anúncio" is clicked
+ * and shows the full cost cascade for that single ad, calling out a loss clearly.
+ */
+function ListingDetailDialog({
+  listing,
+  ttsOn,
+  onOpenChange,
+}: {
+  listing: ListingProfitRow | null;
+  ttsOn: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const p = listing?.current;
+  const isLoss = !!p && p.netProfit < 0;
+  // Per-unit net profit helps decide if each extra sale makes or loses money.
+  const perUnit =
+    p && listing && listing.unitsSold > 0 ? p.netProfit / listing.unitsSold : null;
+
+  return (
+    <Dialog open={!!listing} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        {listing && p && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-start gap-2 pr-6 text-left leading-snug">
+                {isLoss && (
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-500/12 text-rose-600">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                  </span>
+                )}
+                <span className="text-base">{listing.title}</span>
+              </DialogTitle>
+              <DialogDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span>{formatNumber(listing.unitsSold)} unidade(s) vendida(s)</span>
+                <span className="text-muted-foreground/50">·</span>
+                <span>{formatNumber(listing.orders)} pedido(s)</span>
+                <span className="text-muted-foreground/50">·</span>
+                <span>Cenário {ttsOn ? "com TTS" : "sem TTS"}</span>
+                <a
+                  href={`https://www.mercadolivre.com.br/p/${listing.itemId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                  Abrir no ML <ExternalLink className="h-3 w-3" />
+                </a>
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Loss / profit verdict banner */}
+            <div
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-xl border px-4 py-3",
+                isLoss
+                  ? "border-rose-500/25 bg-rose-500/[0.06]"
+                  : "border-emerald-500/25 bg-emerald-500/[0.06]",
+              )}
+            >
+              <div className="flex items-center gap-2 text-sm">
+                {isLoss ? (
+                  <AlertTriangle className="h-4 w-4 text-rose-600" />
+                ) : (
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                )}
+                <span className="font-medium">
+                  {isLoss ? "Este anúncio está no prejuízo" : "Este anúncio dá lucro"}
+                </span>
+              </div>
+              <div className="text-right">
+                <p
+                  className={cn(
+                    "font-display text-lg tabular-nums",
+                    isLoss ? "text-rose-600" : "text-emerald-600",
+                  )}
+                >
+                  {formatBRL(p.netProfit)}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Margem {pct(p.margin)}</p>
+              </div>
+            </div>
+
+            {/* Full cascade for this single listing */}
+            <Cascade p={p} />
+
+            {/* Per-unit + missing-cost footnotes */}
+            <div className="space-y-2">
+              {perUnit != null && (
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-xs">
+                  <span className="text-muted-foreground">Lucro por unidade vendida</span>
+                  <span
+                    className={cn(
+                      "font-semibold tabular-nums",
+                      perUnit >= 0 ? "text-emerald-600" : "text-rose-600",
+                    )}
+                  >
+                    {formatBRL(perUnit)}
+                  </span>
+                </div>
+              )}
+              {listing.missingCost && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    Este anúncio tem produto(s) sem custo cadastrado no BaseLinker — o CMV
+                    entrou como zero, então o lucro real pode ser <strong>menor</strong> do que o
+                    mostrado.
+                  </span>
+                </div>
+              )}
+              {isLoss && !listing.missingCost && (
+                <p className="px-1 text-xs text-muted-foreground leading-relaxed">
+                  Cada venda deste anúncio diminui seu lucro. Vale revisar o preço, o custo do
+                  produto, o frete ou o investimento em Ads para reverter o resultado.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }

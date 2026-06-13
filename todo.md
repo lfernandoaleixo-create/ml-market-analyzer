@@ -847,3 +847,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Layout mantido: gráficos com scroll horizontal interno (não a página) já lidam com qualquer período
 - [x] Testes vitest dos ranges (39 do módulo period + 57 das rotas) passando
 - [x] Documentar a regra em references/period-selector.md
+
+## Detalhamento de lucro por anúncio (Lucratividade)
+- [x] Tornar cada linha da tabela "Lucro por anúncio" clicável
+- [x] Abrir diálogo com cascata completa (receita → comissão → frete → CMV → impostos → Ads → lucro líquido) + lucro por unidade
+- [x] Destacar visualmente anúncios em prejuízo (linha + ícone + diálogo) e filtro "só prejuízo"
+- [x] Validar TS (limpo) e testes (47 verdes) e salvar checkpoint
