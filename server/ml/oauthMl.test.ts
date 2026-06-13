@@ -165,6 +165,62 @@ describe("ensureUserAccessToken", () => {
     expect(store.status).toBe("error");
   });
 
+  it("does NOT hang and does NOT flag error when the refresh call times out (AbortError)", async () => {
+    // Make the OAuth timeout tiny so the test is fast.
+    const prev = process.env.ML_OAUTH_TIMEOUT_MS;
+    process.env.ML_OAUTH_TIMEOUT_MS = "20";
+    vi.resetModules();
+    const mod = await import("./oauthMl");
+    store = {
+      appId: "1790005725650717",
+      clientSecret: "secret",
+      accessToken: "OLD",
+      refreshToken: "REFRESH",
+      tokenExpiresAt: Date.now() - 1000,
+      status: "connected",
+    };
+    // fetch that respects the abort signal: rejects with AbortError when aborted,
+    // otherwise would hang "forever" (well past the 20ms deadline).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: any) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal as AbortSignal | undefined;
+          if (signal) {
+            signal.addEventListener("abort", () => {
+              const err = new Error("aborted");
+              err.name = "AbortError";
+              reject(err);
+            });
+          }
+        }),
+      ) as any,
+    );
+
+    const start = Date.now();
+    const token = await mod.ensureUserAccessToken(1);
+    const elapsed = Date.now() - start;
+
+    // It returned (did not hang) well within a sane bound...
+    expect(token).toBeNull();
+    expect(elapsed).toBeLessThan(2000);
+    // ...and the connection is preserved (the refresh_token is still valid), so
+    // the next request can retry instead of forcing a manual reconnect.
+    expect(store.status).toBe("connected");
+
+    // A subsequent call must be able to refresh again (the lock was released).
+    vi.stubGlobal(
+      "fetch",
+      okFetch({ access_token: "AFTER_TIMEOUT", refresh_token: "R2", expires_in: 21600 }),
+    );
+    const token2 = await mod.ensureUserAccessToken(1);
+    expect(token2).toBe("AFTER_TIMEOUT");
+
+    if (prev === undefined) delete process.env.ML_OAUTH_TIMEOUT_MS;
+    else process.env.ML_OAUTH_TIMEOUT_MS = prev;
+    vi.resetModules();
+  });
+
   it("coalesces concurrent refreshes into a SINGLE network call (race fix)", async () => {
     store = {
       appId: "1790005725650717",

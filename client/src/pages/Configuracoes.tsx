@@ -105,9 +105,21 @@ function CredentialsCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Local "redirecting" state so the reconnect button shows clear progress and
+  // cannot be double-clicked. The actual redirect leaves the SPA, so we never
+  // need to clear it; if the browser comes back (user cancels at ML), a fresh
+  // page load resets it.
+  const [redirecting, setRedirecting] = useState(false);
+
   const handleConnect = () => {
+    if (redirecting) return;
+    setRedirecting(true);
     const origin = window.location.origin;
-    window.location.href = `/api/oauth/ml/connect?origin=${encodeURIComponent(origin)}`;
+    // Tiny delay so the button paints its "Redirecionando..." state before the
+    // browser navigates away (otherwise the click feels unresponsive).
+    setTimeout(() => {
+      window.location.href = `/api/oauth/ml/connect?origin=${encodeURIComponent(origin)}`;
+    }, 60);
   };
 
   return (
@@ -216,11 +228,25 @@ function CredentialsCard() {
             className="w-full"
             variant={oauthConnected ? "outline" : "default"}
             onClick={handleConnect}
-            disabled={!canConnect}
+            disabled={!canConnect || redirecting}
           >
-            <Link2 className="h-4 w-4" />
-            {oauthConnected ? "Reconectar ao Mercado Livre" : "Conectar ao Mercado Livre"}
+            {redirecting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Link2 className="h-4 w-4" />
+            )}
+            {redirecting
+              ? "Redirecionando para o Mercado Livre…"
+              : oauthConnected
+                ? "Reconectar ao Mercado Livre"
+                : "Conectar ao Mercado Livre"}
           </Button>
+          {redirecting && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Abrindo a tela de autorização do Mercado Livre. Se não acontecer em alguns
+              segundos, verifique se o navegador bloqueou o redirecionamento.
+            </p>
+          )}
           {!canConnect && (
             <p className="mt-2 text-xs text-muted-foreground">
               Salve um App ID e um Client Secret válidos para habilitar a conexão.

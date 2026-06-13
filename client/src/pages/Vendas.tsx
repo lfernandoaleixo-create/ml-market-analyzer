@@ -106,7 +106,8 @@ export default function Vendas() {
   if (conn.data && !connected && !conn.isFetching && !hasCachedData) {
     return <NotConnected />;
   }
-  if (conn.error && !hasCachedData) return <ErrorState message={conn.error.message} />;
+  if (conn.error && !hasCachedData)
+    return <ErrorState onRetry={() => conn.refetch()} retrying={conn.isFetching} />;
 
   const k = rangeQuery.data?.kpis;
   const loadingSales = rangeQuery.isLoading;

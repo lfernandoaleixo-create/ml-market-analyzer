@@ -15,7 +15,7 @@ import { Undo2, AlertOctagon, XCircle, RotateCcw, ShieldCheck } from "lucide-rea
 
 export default function PosVenda() {
   const conn = trpc.account.connection.useQuery();
-  const { data, isLoading, error } = trpc.account.postSale.useQuery(
+  const { data, isLoading, error, isFetching, refetch } = trpc.account.postSale.useQuery(
     { days: 60 },
     { enabled: conn.data?.connected === true },
   );
@@ -31,7 +31,7 @@ export default function PosVenda() {
   if (conn.data && conn.data.connected !== true && !conn.isFetching && !data) {
     return <NotConnected />;
   }
-  if (error && !data) return <ErrorState message={error.message} />;
+  if (error && !data) return <ErrorState onRetry={() => refetch()} retrying={isFetching} />;
 
   const s = data?.summary;
   const healthy = !isLoading && (s?.openClaims ?? 0) === 0;

@@ -32,7 +32,7 @@ const LEVELS = ["1_red", "2_orange", "3_yellow", "4_light_green", "5_green"];
 
 export default function Reputacao() {
   const conn = trpc.account.connection.useQuery();
-  const { data, isLoading, error } = trpc.account.reputation.useQuery(undefined, {
+  const { data, isLoading, error, isFetching, refetch } = trpc.account.reputation.useQuery(undefined, {
     enabled: conn.data?.connected === true,
   });
 
@@ -47,7 +47,7 @@ export default function Reputacao() {
   if (conn.data && conn.data.connected !== true && !conn.isFetching && !data) {
     return <NotConnected />;
   }
-  if (error && !data) return <ErrorState message={error.message} />;
+  if (error && !data) return <ErrorState onRetry={() => refetch()} retrying={isFetching} />;
 
   const r = data;
   const level = r?.levelId ?? null;

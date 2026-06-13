@@ -92,16 +92,38 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+/**
+ * Client-side request deadline (ms). This is the LAST line of defense against a
+ * frozen screen: even if the server stalls (e.g. ML OAuth/endpoint hanging),
+ * the browser aborts the request after this deadline so the query resolves with
+ * an error and the UI can show a friendly message + retry instead of an endless
+ * spinner. The server already has its own (shorter) timeouts; this is a safety
+ * net set comfortably above them.
+ */
+const CLIENT_REQUEST_TIMEOUT_MS = 20_000;
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
+        // Compose our timeout AbortController with any signal React Query passes
+        // (so component unmount / query cancellation still aborts the request).
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), CLIENT_REQUEST_TIMEOUT_MS);
+        const upstream = init?.signal;
+        if (upstream) {
+          if (upstream.aborted) controller.abort();
+          else upstream.addEventListener("abort", () => controller.abort(), { once: true });
+        }
+        return globalThis
+          .fetch(input, {
+            ...(init ?? {}),
+            credentials: "include",
+            signal: controller.signal,
+          })
+          .finally(() => clearTimeout(timer));
       },
     }),
   ],

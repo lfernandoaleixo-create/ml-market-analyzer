@@ -245,7 +245,8 @@ export default function Anuncios() {
   if (conn.data && conn.data.connected !== true && !conn.isFetching && !data) {
     return <NotConnected />;
   }
-  if (error && !data) return <ErrorState message={error.message} />;
+  if (error && !data)
+    return <ErrorState onRetry={() => refetch()} retrying={isFetching} />;
 
   const s = data?.summary;
   const availableTypes = Array.from(new Set(items.map((i) => i.listingType).filter(Boolean)));

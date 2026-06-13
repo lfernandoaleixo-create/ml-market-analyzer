@@ -29,6 +29,44 @@ const ML_AUTH_BASE: Record<string, string> = {
 const TOKEN_URL = "https://api.mercadolibre.com/oauth/token";
 
 /**
+ * Hard timeout (ms) for every OAuth network call (code exchange + refresh).
+ *
+ * This is critical: the per-user refresh lock awaits this fetch. If the ML
+ * OAuth endpoint ever hangs (slow network, provider incident), WITHOUT a
+ * timeout the lock would never release and EVERY subsequent request for that
+ * user would wait forever — exactly the kind of freeze we must avoid during a
+ * live presentation. With a bounded timeout, a stuck call aborts, the lock
+ * releases, and the next request can retry cleanly.
+ *
+ * 10s is generous for a single token call yet short enough that the UI never
+ * appears frozen (the frontend also has its own deadline as a second layer).
+ */
+const OAUTH_TIMEOUT_MS = (() => {
+  const raw = process.env.ML_OAUTH_TIMEOUT_MS;
+  const parsed = raw !== undefined ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10000;
+})();
+
+/**
+ * fetch() wrapped with an AbortController deadline. Always clears its timer.
+ * Throws (AbortError) if the deadline is hit, so callers fail fast instead of
+ * hanging. Used for both the authorization-code exchange and the refresh.
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = OAUTH_TIMEOUT_MS,
+): Promise<globalThis.Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Proactive refresh margin. We renew the access token when it is within this
  * window of expiring, so we never hand out a token that dies mid-request.
  * ML access tokens last ~6h; a 5-minute margin is generous and safe.
@@ -157,7 +195,7 @@ export function registerMlOAuthRoutes(app: Express) {
         code,
         redirect_uri: redirectUriFor(req),
       });
-      const r = await fetch(TOKEN_URL, {
+      const r = await fetchWithTimeout(TOKEN_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -255,7 +293,7 @@ async function performRefresh(userId: number, force = false): Promise<string | n
       client_secret: creds.clientSecret,
       refresh_token: creds.refreshToken,
     });
-    const r = await fetch(TOKEN_URL, {
+    const r = await fetchWithTimeout(TOKEN_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -296,8 +334,10 @@ async function performRefresh(userId: number, force = false): Promise<string | n
     });
     return null;
   } catch (err) {
-    // Network/transient error: do NOT flip to "error" (the refresh_token is
-    // still valid). Keep the connection so the next request can retry.
+    // Network/transient error OR our own timeout (AbortError): do NOT flip to
+    // "error" (the refresh_token is still valid). We just bail out fast and keep
+    // the connection, so the lock releases immediately and the next request can
+    // retry instead of the whole app hanging.
     return null;
   }
 }

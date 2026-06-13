@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, PlugZap, TrendingUp, TrendingDown, Minus, ChevronDown, type LucideIcon } from "lucide-react";
+import { AlertTriangle, PlugZap, TrendingUp, TrendingDown, Minus, ChevronDown, Loader2, RefreshCw, type LucideIcon } from "lucide-react";
 import { useLocation } from "wouter";
 
 /** Page header with title, subtitle and optional right-side actions. */
@@ -249,8 +249,20 @@ export function NotConnected() {
   );
 }
 
-/** Generic error state. */
-export function ErrorState({ message }: { message?: string }) {
+/**
+ * Generic error state. Optionally renders a "Tentar novamente" button so a
+ * transient ML hiccup (rate limit / timeout) never leaves the user stuck on a
+ * dead screen — they can retry in place without reloading or reconnecting.
+ */
+export function ErrorState({
+  message,
+  onRetry,
+  retrying,
+}: {
+  message?: string;
+  onRetry?: () => void;
+  retrying?: boolean;
+}) {
   return (
     <div className="flex min-h-[50vh] items-center justify-center">
       <Card className="card-soft border-0 rounded-2xl max-w-md w-full p-8 text-center space-y-3">
@@ -259,8 +271,15 @@ export function ErrorState({ message }: { message?: string }) {
         </div>
         <h2 className="font-display text-lg tracking-tight">Não foi possível carregar</h2>
         <p className="text-sm text-muted-foreground">
-          {message ?? "Tente novamente em instantes. Se persistir, reconecte sua conta nas configurações."}
+          {message ??
+            "O Mercado Livre demorou a responder ou está com limite de requisições no momento. Seus dados estão seguros — tente novamente em instantes."}
         </p>
+        {onRetry && (
+          <Button onClick={onRetry} disabled={retrying} className="w-full">
+            {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Tentar novamente
+          </Button>
+        )}
       </Card>
     </div>
   );

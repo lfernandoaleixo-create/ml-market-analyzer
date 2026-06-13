@@ -727,4 +727,13 @@
 - [x] Reduzir concorrência das chamadas de visitas (15 → 6) para não provocar 429
 - [x] mlUserId correto (3308178634) confirmado no banco; refresh com lock evita renovação redundante
 - [x] Testes do comportamento de 429/backoff (27 testes do provider OK)
-- [~] Validar ao vivo: pendente — ML ainda em rate limit; verificação única mais tarde
+- [x] Validar ao vivo (12/06 23h): HTTP 200, rate limit baixou. Total=123 (active=15, paused=88, closed=20). 45 era valor antigo; hoje sao 15 ativos.
+
+## GARANTIA: renovacao automatica do token + sistema nunca trava (travou na apresentacao) - 12/06
+- [x] Servidor: timeout no fetch de refresh/exchange do OAuth (performRefresh + callback) para o lock nunca esperar para sempre
+- [x] Servidor: timeout efetivo via fetchWithTimeout (10s) garante que o lock sempre libera; AbortError tratado como transitorio
+- [x] Frontend: prazo (timeout 20s) no cliente tRPC (AbortController) para nunca ficar em loading infinito
+- [x] Frontend: botao Reconectar com estado Redirecionando + protecao contra clique duplo (Configuracoes.tsx)
+- [x] Frontend: ErrorState com Tentar novamente + mensagem amigavel de rate limit/timeout (Anuncios, Vendas, PosVenda, Reputacao)
+- [x] Teste (vitest) cobrindo timeout/abort do refresh: nao trava, lock liberado, conexao preservada, proximo refresh OK
+- [x] Rodar suite completa (364 testes OK), validar ao vivo e salvar checkpoint
