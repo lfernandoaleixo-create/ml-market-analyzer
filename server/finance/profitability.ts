@@ -74,6 +74,9 @@ export function buildProfitability(params: {
   to: number;
   adsByItem?: AdsByItem;
   currency?: string;
+  excludedCount?: number;
+  totalOrdersSeen?: number;
+  excludedByStatus?: Record<string, number>;
 }): ProfitabilityResult {
   const { orders, costs, config, from, to } = params;
   const scenario: TaxScenario = config.ttsEnabled ? "com_tts" : "sem_tts";
@@ -192,5 +195,8 @@ export function buildProfitability(params: {
     byUF,
     config,
     productsMissingCost: missingCostProducts.size,
+    excludedCount: params.excludedCount ?? 0,
+    totalOrdersSeen: params.totalOrdersSeen ?? orders.length,
+    excludedByStatus: params.excludedByStatus ?? {},
   };
 }

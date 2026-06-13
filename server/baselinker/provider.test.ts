@@ -3,9 +3,20 @@ import {
   normalizeUF,
   normalizeAuctionId,
   getOrders,
+  getOrdersDetailed,
   getProductCosts,
   getInventories,
 } from "./provider";
+import { buildStatusMap } from "./orderStatus";
+
+// Status map shared by the order tests so getOrders doesn't make a network
+// call to getOrderStatusList (which would consume a mock response).
+const STATUS_MAP = buildStatusMap([
+  { id: 0, name: "" },
+  { id: 1, name: "Entregue" },
+  { id: 2, name: "Devolucao" },
+  { id: 3, name: "Cancelado" },
+]);
 
 /** Build a fake fetch that returns the given JSON for each sequential call. */
 function fakeFetchSequence(responses: any[]) {
@@ -105,7 +116,7 @@ describe("getOrders", () => {
       // second page empty => stop
       { status: "SUCCESS", orders: [] },
     ]);
-    const orders = await getOrders(0, opts(f));
+    const orders = await getOrders(0, { ...opts(f), statusMap: STATUS_MAP });
     expect(orders).toHaveLength(1);
     const o = orders[0];
     expect(o.commission).toBeCloseTo(109.42, 2);
@@ -125,11 +136,48 @@ describe("getOrders", () => {
       },
       { status: "SUCCESS", orders: [] },
     ]);
-    const orders = await getOrders(0, opts(f));
+    const orders = await getOrders(0, { ...opts(f), statusMap: STATUS_MAP });
     // No fee text → falls back to numeric commission + delivery_price.
     expect(orders[0].commission).toBe(23.21);
     expect(orders[0].deliveryPrice).toBe(73.99);
     expect(orders[0].feesFromText).toBe(false);
     expect(orders[0].destinationUF).toBe("BA");
+  });
+
+  it("exclui pedidos cancelados/devolvidos e conta os efetivados", async () => {
+    const f = fakeFetchSequence([
+      {
+        status: "SUCCESS",
+        orders: [
+          { order_id: 1, date_confirmed: 1748000000, order_status_id: 1, delivery_state: "SP", admin_comments: "", products: [] },
+          { order_id: 2, date_confirmed: 1748000100, order_status_id: 3, delivery_state: "SP", admin_comments: "", products: [] },
+          { order_id: 3, date_confirmed: 1748000200, order_status_id: 2, delivery_state: "RJ", admin_comments: "", products: [] },
+        ],
+      },
+      { status: "SUCCESS", orders: [] },
+    ]);
+    const res = await getOrdersDetailed(0, { ...opts(f), statusMap: STATUS_MAP });
+    expect(res.totalSeen).toBe(3);
+    expect(res.orders).toHaveLength(1);
+    expect(res.orders[0].orderId).toBe(1);
+    expect(res.excludedCount).toBe(2);
+    expect(res.excludedByStatus["Cancelado"]).toBe(1);
+    expect(res.excludedByStatus["Devolucao"]).toBe(1);
+  });
+
+  it("quando filterEffective=false, mantem todos os pedidos", async () => {
+    const f = fakeFetchSequence([
+      {
+        status: "SUCCESS",
+        orders: [
+          { order_id: 1, date_confirmed: 1748000000, order_status_id: 1, delivery_state: "SP", admin_comments: "", products: [] },
+          { order_id: 2, date_confirmed: 1748000100, order_status_id: 3, delivery_state: "SP", admin_comments: "", products: [] },
+        ],
+      },
+      { status: "SUCCESS", orders: [] },
+    ]);
+    const res = await getOrdersDetailed(0, { ...opts(f), statusMap: STATUS_MAP, filterEffective: false });
+    expect(res.orders).toHaveLength(2);
+    expect(res.excludedCount).toBe(0);
   });
 });

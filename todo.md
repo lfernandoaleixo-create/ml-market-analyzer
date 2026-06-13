@@ -826,3 +826,13 @@
 - [x] Frontend: mini-evolução de margem (gráfico SVG sem TTS x com TTS) na aba Lucratividade
 - [x] Testes vitest do handler (4) + snapshotDayKey (3) — 453 testes no total
 - [ ] Após publicar: registrar cron diário (manus-heartbeat) e validar em produção
+
+## Lucratividade — contar apenas vendas EFETIVADAS
+- [x] Investigar status dos pedidos no BaseLinker (getOrderStatusList + order_status_id por pedido)
+- [x] Mapear status efetivados vs cancelados/devolvidos (classifyStatusName por keyword; resiliente entre contas)
+- [x] Filtrar pedidos não efetivados no provider/serviço (excluir da receita e do lucro; filterEffective ON por padrão)
+- [x] Snapshot diário usa o mesmo serviço, logo já conta só efetivados
+- [x] UI: aviso de vendas efetivadas x excluídas (com motivo) + label "vendas efetivadas" na Receita
+- [x] Testes vitest do filtro de status (orderStatus + provider: exclusão e filterEffective=false) — 461 testes verdes
+- [x] Validado com dados reais: 21 efetivados (10 excluídos) → receita R$ 1.972, margem real sobe de 5,1% para 12,6%
+- [ ] Após publicar: validar em produção

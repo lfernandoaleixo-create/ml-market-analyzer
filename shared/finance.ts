@@ -151,6 +151,12 @@ export interface ProfitabilityResult {
   config: TaxConfig;
   /** Number of distinct products that had no cost in BaseLinker. */
   productsMissingCost: number;
+  /** Orders excluded from the calc (cancelled/returned/etc.). */
+  excludedCount?: number;
+  /** Total orders seen before the effective-sales filter. */
+  totalOrdersSeen?: number;
+  /** Excluded orders broken down by status name. */
+  excludedByStatus?: Record<string, number>;
   /** True when results came from a resilient cache (BaseLinker congested). */
   stale?: boolean;
   /** Unix ms of the underlying data, when stale. */

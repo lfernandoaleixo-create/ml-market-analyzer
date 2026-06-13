@@ -1,6 +1,6 @@
 // Quick end-to-end validation of the profitability pipeline against the REAL
 // BaseLinker account, using tsx to import the TS modules directly.
-import { getInventories, getProductCosts, getOrders } from "../server/baselinker/provider.ts";
+import { getInventories, getProductCosts, getOrdersDetailed } from "../server/baselinker/provider.ts";
 import { buildProfitability } from "../server/finance/profitability.ts";
 import { defaultTaxConfig } from "../shared/finance.ts";
 
@@ -13,14 +13,25 @@ async function main() {
   if (!inv) throw new Error("Sem catálogo");
 
   const from = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const [costs, orders] = await Promise.all([
+  const [costs, ordersResult] = await Promise.all([
     getProductCosts(inv.inventoryId),
-    getOrders(from),
+    getOrdersDetailed(from, { filterEffective: true }),
   ]);
-  console.log(`Produtos com custo (por id): ${costs.byId.size}; pedidos (30d): ${orders.length}`);
+  console.log(`Produtos com custo (por id): ${costs.byId.size}`);
+  console.log(`Pedidos vistos (30d): ${ordersResult.totalSeen} | efetivados: ${ordersResult.orders.length} | EXCLUÍDOS: ${ordersResult.excludedCount}`);
+  console.log(`Excluídos por status:`, ordersResult.excludedByStatus);
 
   const cfg = defaultTaxConfig();
-  const res = buildProfitability({ orders, costs, config: cfg, from, to: Date.now() });
+  const res = buildProfitability({
+    orders: ordersResult.orders,
+    costs,
+    config: cfg,
+    from,
+    to: Date.now(),
+    excludedCount: ordersResult.excludedCount,
+    totalOrdersSeen: ordersResult.totalSeen,
+    excludedByStatus: ordersResult.excludedByStatus,
+  });
 
   console.log("\n=== TOTAIS (SEM TTS) ===");
   console.log("Receita:", fmt(res.totals.revenue));

@@ -526,6 +526,25 @@ export default function Lucratividade() {
             </div>
           )}
 
+          {/* Effective-sales filter notice */}
+          {(data.excludedCount ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-blue-300/50 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+              <span>
+                Contando apenas <strong>vendas efetivadas</strong>:{" "}
+                <strong>{formatNumber(data.orderCount)}</strong> de{" "}
+                {formatNumber(data.totalOrdersSeen ?? data.orderCount)} pedidos.{" "}
+                <strong>{formatNumber(data.excludedCount ?? 0)}</strong> excluídos
+                {data.excludedByStatus && Object.keys(data.excludedByStatus).length > 0
+                  ? ` (${Object.entries(data.excludedByStatus)
+                      .map(([k, v]) => `${v} ${k.toLowerCase()}`)
+                      .join(", ")})`
+                  : ""}
+                . Cancelamentos e devoluções não entram no lucro.
+              </span>
+            </div>
+          )}
+
           {/* KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
@@ -533,7 +552,7 @@ export default function Lucratividade() {
               value={formatBRL(data.totals.revenue)}
               icon={Wallet}
               accent="blue"
-              sublabel={`${formatNumber(data.orderCount)} pedidos`}
+              sublabel={`${formatNumber(data.orderCount)} vendas efetivadas`}
             />
             <KpiCard
               label="Custos totais"

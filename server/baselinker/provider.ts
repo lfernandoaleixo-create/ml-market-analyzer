@@ -10,6 +10,12 @@
 import { callBaselinker, type BlClientOptions } from "./client";
 import { type UF } from "../../shared/finance";
 import { parseOrderFees } from "./feeParser";
+import {
+  buildStatusMap,
+  classifyStatusName,
+  type OrderStatusClass,
+  type StatusInfo,
+} from "./orderStatus";
 
 /** Numeric coercion tolerant to strings like "3.70". */
 function num(v: unknown): number {
@@ -67,6 +73,17 @@ export function normalizeAuctionId(raw: unknown): string | null {
 export interface BlInventory {
   inventoryId: number;
   name: string;
+}
+
+/** Fetch the account's order status list, classified for profitability. */
+export async function getOrderStatuses(
+  opts: BlClientOptions = {},
+): Promise<Map<number, StatusInfo>> {
+  const res = await callBaselinker<{ statuses?: any[] }>("getOrderStatusList", {}, opts);
+  const list = Array.isArray(res?.statuses) ? res.statuses : [];
+  return buildStatusMap(
+    list.map((s) => ({ id: num(s.id), name: str(s.name) })),
+  );
 }
 
 /** List catalogs (inventories) available to the token. */
@@ -179,7 +196,24 @@ export interface BlOrder {
   destinationUF: UF | null;
   /** Source label (e.g. "melibr"). */
   source: string;
+  /** BaseLinker status id of the order. */
+  statusId: number;
+  /** Human-readable status name. */
+  statusName: string;
+  /** Classified status: effective sale vs cancelled/returned (excluded). */
+  statusClass: OrderStatusClass;
   lines: BlOrderLine[];
+}
+
+export interface OrdersResult {
+  /** Orders kept (effective sales only when filterEffective=true). */
+  orders: BlOrder[];
+  /** How many orders were excluded (cancelled/returned/etc.). */
+  excludedCount: number;
+  /** Total orders seen before filtering. */
+  totalSeen: number;
+  /** Breakdown of excluded orders by status name. */
+  excludedByStatus: Record<string, number>;
 }
 
 /**
@@ -188,11 +222,39 @@ export interface BlOrder {
  */
 export async function getOrders(
   fromMs: number,
-  opts: BlClientOptions = {},
+  opts: BlClientOptions & { filterEffective?: boolean; statusMap?: Map<number, StatusInfo> } = {},
 ): Promise<BlOrder[]> {
-  const out: BlOrder[] = [];
+  const res = await getOrdersDetailed(fromMs, opts);
+  return res.orders;
+}
+
+/**
+ * Like getOrders but returns the effective/excluded breakdown too.
+ * When `filterEffective` is true (default), cancelled/returned orders are
+ * dropped from `orders` and counted in `excludedCount`/`excludedByStatus`.
+ */
+export async function getOrdersDetailed(
+  fromMs: number,
+  opts: BlClientOptions & { filterEffective?: boolean; statusMap?: Map<number, StatusInfo> } = {},
+): Promise<OrdersResult> {
+  const filterEffective = opts.filterEffective !== false; // default ON
+  // Resolve status map once (so we can name/classify by id).
+  let statusMap = opts.statusMap;
+  if (!statusMap) {
+    try {
+      statusMap = await getOrderStatuses(opts);
+    } catch {
+      statusMap = new Map();
+    }
+  }
+
+  const kept: BlOrder[] = [];
+  let excludedCount = 0;
+  let totalSeen = 0;
+  const excludedByStatus: Record<string, number> = {};
   let cursor = Math.floor(fromMs / 1000); // BaseLinker uses unix seconds.
   const seen = new Set<number>();
+  const out = kept;
 
   for (let i = 0; i < 60; i++) {
     const res = await callBaselinker<{ orders?: any[] }>(
@@ -222,6 +284,20 @@ export async function getOrders(
         ? parsed.sellerShipping
         : num(o.delivery_price);
 
+      totalSeen += 1;
+      const statusId = num(o.order_status_id);
+      const info = statusMap?.get(statusId);
+      const statusName = info?.name ?? str(o.order_status) ?? "";
+      const statusClass: OrderStatusClass =
+        info?.klass ?? classifyStatusName(statusName);
+
+      if (filterEffective && statusClass === "excluded") {
+        excludedCount += 1;
+        const key = statusName || `status ${statusId}`;
+        excludedByStatus[key] = (excludedByStatus[key] ?? 0) + 1;
+        continue; // drop non-sales from the calculation
+      }
+
       const lines: BlOrderLine[] = Array.isArray(o.products)
         ? o.products.map((p: any) => ({
             productId: str(p.product_id) || str(p.storage_id),
@@ -242,6 +318,9 @@ export async function getOrders(
         feesFromText: parsed.matched,
         destinationUF: normalizeUF(o.delivery_state),
         source: str(o.order_source) || str(o.order_source_id),
+        statusId,
+        statusName,
+        statusClass,
         lines,
       });
     }
@@ -253,5 +332,5 @@ export async function getOrders(
     cursor = next;
   }
 
-  return out;
+  return { orders: kept, excludedCount, totalSeen, excludedByStatus };
 }

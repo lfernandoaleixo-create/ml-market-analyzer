@@ -10,7 +10,7 @@
 
 import { defaultTaxConfig, type TaxConfig, type UF } from "../../shared/finance";
 import { BaselinkerError } from "../baselinker/client";
-import { getInventories, getProductCosts, getOrders } from "../baselinker/provider";
+import { getInventories, getProductCosts, getOrdersDetailed } from "../baselinker/provider";
 import { buildProfitability, type AdsByItem } from "./profitability";
 import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthMl";
 import { AdsProvider } from "../ml/adsProvider";
@@ -91,13 +91,23 @@ export async function computeProfitabilityForUser(
   const now = Date.now();
   const from = now - days * 24 * 60 * 60 * 1000;
 
-  const [costs, orders, adsByItem] = await Promise.all([
+  const [costs, ordersResult, adsByItem] = await Promise.all([
     getProductCosts(inventoryId),
-    getOrders(from),
+    getOrdersDetailed(from, { filterEffective: true }),
     opts.skipAds ? Promise.resolve(new Map() as AdsByItem) : loadAdsByItem(userId, days),
   ]);
 
-  return buildProfitability({ orders, costs, config, from, to: now, adsByItem });
+  return buildProfitability({
+    orders: ordersResult.orders,
+    costs,
+    config,
+    from,
+    to: now,
+    adsByItem,
+    excludedCount: ordersResult.excludedCount,
+    totalOrdersSeen: ordersResult.totalSeen,
+    excludedByStatus: ordersResult.excludedByStatus,
+  });
 }
 
 /** YYYY-MM-DD for a given instant in America/Sao_Paulo. */
