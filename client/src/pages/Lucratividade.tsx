@@ -1,0 +1,768 @@
+import { useMemo, useState } from "react";
+import { trpc } from "@/lib/trpc";
+import {
+  PageShell,
+  PageHeader,
+  KpiCard,
+  KpiSkeletonRow,
+  SectionCard,
+  NotConnected,
+  ErrorState,
+} from "@/components/account/AccountUI";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { formatBRL, formatNumber } from "@/lib/format";
+import { toast } from "sonner";
+import type { ProfitBreakdown, TaxConfig, UF } from "@shared/finance";
+import {
+  Wallet,
+  Coins,
+  Receipt,
+  TrendingUp,
+  Sparkles,
+  Truck,
+  Package,
+  Megaphone,
+  Clock,
+  Info,
+  MapPin,
+  Settings2,
+  ExternalLink,
+  ShieldCheck,
+} from "lucide-react";
+
+type Period = "7" | "15" | "30" | "60" | "90";
+const PERIOD_LABEL: Record<Period, string> = {
+  "7": "7 dias",
+  "15": "15 dias",
+  "30": "30 dias",
+  "60": "60 dias",
+  "90": "90 dias",
+};
+
+function pct(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `${(n * 100).toFixed(1)}%`;
+}
+
+function marginColor(margin: number | null): string {
+  if (margin == null) return "text-muted-foreground";
+  if (margin >= 0.15) return "text-emerald-600";
+  if (margin >= 0.05) return "text-amber-600";
+  if (margin >= 0) return "text-orange-600";
+  return "text-rose-600";
+}
+
+/** A single row in the cost cascade (how revenue turns into profit). */
+function CascadeRow({
+  icon: Icon,
+  label,
+  amount,
+  tone,
+  isResult,
+  hint,
+}: {
+  icon: typeof Coins;
+  label: string;
+  amount: number;
+  tone: "revenue" | "cost" | "profit";
+  isResult?: boolean;
+  hint?: string;
+}) {
+  const sign = tone === "cost" ? "−" : "";
+  const color =
+    tone === "revenue"
+      ? "text-foreground"
+      : tone === "cost"
+        ? "text-rose-600"
+        : amount >= 0
+          ? "text-emerald-600"
+          : "text-rose-600";
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 py-2.5",
+        isResult ? "border-t pt-3 mt-1" : "border-b border-dashed",
+      )}
+      style={{ borderColor: "var(--border)" }}
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+            tone === "revenue"
+              ? "bg-blue-500/10 text-blue-600"
+              : tone === "cost"
+                ? "bg-rose-500/10 text-rose-600"
+                : "bg-emerald-500/10 text-emerald-600",
+          )}
+        >
+          <Icon className="h-4 w-4" strokeWidth={2.2} />
+        </div>
+        <div className="min-w-0">
+          <p className={cn("truncate text-sm", isResult && "font-semibold")}>{label}</p>
+          {hint && <p className="text-[11px] text-muted-foreground truncate">{hint}</p>}
+        </div>
+      </div>
+      <p className={cn("tabular-nums whitespace-nowrap font-display", isResult ? "text-lg" : "text-sm", color)}>
+        {sign}
+        {formatBRL(Math.abs(amount))}
+      </p>
+    </div>
+  );
+}
+
+function Cascade({ p }: { p: ProfitBreakdown }) {
+  return (
+    <div>
+      <CascadeRow icon={Wallet} label="Receita das vendas" amount={p.revenue} tone="revenue" />
+      <CascadeRow icon={Coins} label="Comissão Mercado Livre" amount={p.commission} tone="cost" />
+      <CascadeRow icon={Truck} label="Frete pago pelo vendedor" amount={p.shipping} tone="cost" />
+      <CascadeRow icon={Package} label="Custo dos produtos (CMV)" amount={p.cmv} tone="cost" />
+      <CascadeRow icon={Receipt} label="Impostos (estimativa)" amount={p.tax} tone="cost" />
+      {p.ads > 0 && <CascadeRow icon={Megaphone} label="Investimento em Ads" amount={p.ads} tone="cost" />}
+      <CascadeRow
+        icon={TrendingUp}
+        label="Lucro líquido"
+        amount={p.netProfit}
+        tone="profit"
+        isResult
+        hint={`Margem ${pct(p.margin)}`}
+      />
+    </div>
+  );
+}
+
+/** Editable tax-config panel. Self-contained: hydrates from query, saves on demand. */
+function ConfigPanel({
+  config,
+  ufList,
+  inventoryId,
+  onSaved,
+}: {
+  config: TaxConfig;
+  ufList: UF[];
+  inventoryId: number | null;
+  onSaved: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const [draft, setDraft] = useState<TaxConfig>(config);
+  const inventories = trpc.finance.inventories.useQuery(undefined, { staleTime: 5 * 60_000 });
+  const [invId, setInvId] = useState<number | null>(inventoryId);
+
+  const save = trpc.finance.saveConfig.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.finance.profitability.invalidate(),
+        utils.finance.getConfig.invalidate(),
+        utils.finance.status.invalidate(),
+      ]);
+      toast.success("Configuração salva.");
+      onSaved();
+    },
+    onError: (e) => toast.error(e.message || "Falha ao salvar."),
+  });
+
+  function setNum(key: keyof TaxConfig, v: string) {
+    const n = Number(v.replace(",", "."));
+    setDraft((d) => ({ ...d, [key]: Number.isFinite(n) ? n : 0 }));
+  }
+  function setUF(uf: UF, v: string) {
+    const n = Number(v.replace(",", "."));
+    setDraft((d) => ({
+      ...d,
+      icmsInternalByUF: { ...d.icmsInternalByUF, [uf]: Number.isFinite(n) ? n : 0 },
+    }));
+  }
+
+  const federalSum = draft.pis + draft.cofins + draft.irpjEffective + draft.csllEffective;
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl bg-blue-500/5 border border-blue-500/15 p-3 flex gap-2.5">
+        <Info className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Estes valores são uma <strong>estimativa gerencial</strong> para te ajudar a precificar e
+          decidir. A apuração e o recolhimento oficial dos tributos continuam sendo
+          responsabilidade do seu contador. Todos os campos são editáveis.
+        </p>
+      </div>
+
+      {/* Catalog selector */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Catálogo do BaseLinker (origem dos custos)
+        </Label>
+        <Select
+          value={invId != null ? String(invId) : undefined}
+          onValueChange={(v) => setInvId(Number(v))}
+        >
+          <SelectTrigger className="max-w-md">
+            <SelectValue placeholder={inventories.isLoading ? "Carregando…" : "Selecione o catálogo"} />
+          </SelectTrigger>
+          <SelectContent>
+            {(inventories.data ?? []).map((inv) => (
+              <SelectItem key={inv.inventoryId} value={String(inv.inventoryId)}>
+                {inv.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Federal */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Tributos federais (sobre a receita)</h3>
+          <Badge variant="secondary" className="tabular-nums">
+            Soma: {federalSum.toFixed(2)}%
+          </Badge>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <RateField label="PIS" value={draft.pis} onChange={(v) => setNum("pis", v)} />
+          <RateField label="COFINS" value={draft.cofins} onChange={(v) => setNum("cofins", v)} />
+          <RateField label="IRPJ efetivo" value={draft.irpjEffective} onChange={(v) => setNum("irpjEffective", v)} />
+          <RateField label="CSLL efetiva" value={draft.csllEffective} onChange={(v) => setNum("csllEffective", v)} />
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Lucro Presumido: IRPJ efetivo ≈ 15% × 8% de presunção = 1,2%; CSLL ≈ 9% × 12% = 1,08%.
+        </p>
+      </div>
+
+      {/* TTS scenario rates */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold">ICMS com o benefício TTS (Minas Gerais)</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <RateField label="ICMS interestadual (TTS)" value={draft.ttsInterstate} onChange={(v) => setNum("ttsInterstate", v)} />
+          <RateField label="ICMS dentro de MG (TTS)" value={draft.ttsInternal} onChange={(v) => setNum("ttsInternal", v)} />
+          <RateField label="ICMS interno MG (sem TTS)" value={draft.icmsInternalOrigin} onChange={(v) => setNum("icmsInternalOrigin", v)} />
+        </div>
+      </div>
+
+      {/* Per-UF internal ICMS (without TTS) */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold">
+          ICMS interno por estado de destino <span className="font-normal text-muted-foreground">(cenário sem TTS)</span>
+        </h3>
+        <p className="text-[11px] text-muted-foreground -mt-1">
+          Em venda interestadual ao consumidor final, a carga efetiva de ICMS equivale à alíquota
+          interna do estado de destino (parcela interestadual + DIFAL).
+        </p>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-9 gap-2">
+          {ufList.map((uf) => (
+            <div key={uf} className="space-y-1">
+              <Label className="text-[10px] font-semibold text-muted-foreground">{uf}</Label>
+              <Input
+                inputMode="decimal"
+                value={String(draft.icmsInternalByUF[uf] ?? 0)}
+                onChange={(e) => setUF(uf, e.target.value)}
+                className="h-8 text-xs tabular-nums px-2"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <Button
+          onClick={() =>
+            save.mutate({
+              config: {
+                ttsEnabled: draft.ttsEnabled,
+                originUF: draft.originUF,
+                pis: draft.pis,
+                cofins: draft.cofins,
+                irpjEffective: draft.irpjEffective,
+                csllEffective: draft.csllEffective,
+                icmsInternalOrigin: draft.icmsInternalOrigin,
+                icmsInternalByUF: draft.icmsInternalByUF,
+                fcpByUF: draft.fcpByUF ?? {},
+                ttsInterstate: draft.ttsInterstate,
+                ttsInternal: draft.ttsInternal,
+              },
+              inventoryId: invId,
+            })
+          }
+          disabled={save.isPending}
+        >
+          {save.isPending ? "Salvando…" : "Salvar configuração"}
+        </Button>
+        <Button variant="outline" className="bg-background" onClick={() => setDraft(config)} disabled={save.isPending}>
+          Desfazer
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function RateField({ label, value, onChange }: { label: string; value: number; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>
+      <div className="relative">
+        <Input
+          inputMode="decimal"
+          value={String(value)}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 tabular-nums pr-7"
+        />
+        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+      </div>
+    </div>
+  );
+}
+
+export default function Lucratividade() {
+  const [period, setPeriod] = useState<Period>("30");
+  const [showConfig, setShowConfig] = useState(false);
+
+  // Connection to ML (for the same "connect first" gate as the other pages).
+  const connection = trpc.account.connection.useQuery(undefined, { staleTime: 60_000 });
+  const status = trpc.finance.status.useQuery(undefined, { staleTime: 30_000 });
+
+  const days = Number(period) as 7 | 15 | 30 | 60 | 90;
+  const profitInput = useMemo(() => ({ days }), [days]);
+
+  const profit = trpc.finance.profitability.useQuery(profitInput, {
+    enabled: !!status.data?.baselinkerConfigured,
+    staleTime: 2 * 60_000,
+    retry: false,
+  });
+  const cfg = trpc.finance.getConfig.useQuery(undefined, {
+    enabled: !!status.data?.baselinkerConfigured,
+    staleTime: 60_000,
+  });
+
+  const utils = trpc.useUtils();
+  const toggleTts = trpc.finance.toggleTts.useMutation({
+    onMutate: async ({ enabled }) => {
+      await utils.finance.profitability.cancel();
+      const prev = utils.finance.profitability.getData(profitInput);
+      // Optimistic: swap the displayed totals to the other scenario instantly.
+      if (prev) {
+        const totals = enabled ? prev.comparison.comTts : prev.comparison.semTts;
+        utils.finance.profitability.setData(profitInput, {
+          ...prev,
+          scenario: enabled ? "com_tts" : "sem_tts",
+          totals,
+        });
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) utils.finance.profitability.setData(profitInput, ctx.prev);
+      toast.error("Não foi possível alternar o cenário.");
+    },
+    onSettled: () => {
+      utils.finance.profitability.invalidate();
+      utils.finance.status.invalidate();
+      utils.finance.getConfig.invalidate();
+    },
+  });
+
+  // --- Gates -----------------------------------------------------------------
+  if (connection.isLoading || status.isLoading) {
+    return (
+      <PageShell>
+        <PageHeader title="Lucratividade Real" subtitle="Carregando…" />
+        <KpiSkeletonRow count={4} />
+      </PageShell>
+    );
+  }
+  if (connection.data && connection.data.connected !== true) {
+    return (
+      <PageShell>
+        <NotConnected />
+      </PageShell>
+    );
+  }
+  if (status.data && !status.data.baselinkerConfigured) {
+    return (
+      <PageShell>
+        <PageHeader title="Lucratividade Real" />
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <div className="card-soft border-0 rounded-2xl max-w-md w-full p-8 text-center space-y-3 bg-card">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
+              <Info className="h-6 w-6" />
+            </div>
+            <h2 className="font-display text-lg tracking-tight">Conecte o BaseLinker</h2>
+            <p className="text-sm text-muted-foreground">
+              O cálculo de lucro real usa o custo dos produtos e os pedidos do seu BaseLinker.
+              O token ainda não está configurado neste ambiente.
+            </p>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+  const ttsOn = status.data?.ttsEnabled ?? false;
+  const data = profit.data;
+  const comp = data?.comparison;
+
+  return (
+    <PageShell>
+      <PageHeader
+        title="Lucratividade Real"
+        subtitle="Lucro líquido por venda e por anúncio — receita menos comissão, frete, custo do produto, impostos e Ads."
+        actions={
+          <div className="flex items-center gap-2">
+            <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(PERIOD_LABEL) as Period[]).map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {PERIOD_LABEL[p]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              className="bg-background"
+              onClick={() => setShowConfig((v) => !v)}
+            >
+              <Settings2 className="h-4 w-4" />
+              Configurar
+            </Button>
+          </div>
+        }
+      />
+
+      {/* TTS hero toggle */}
+      <div
+        className={cn(
+          "rounded-2xl border p-4 md:p-5 transition-colors",
+          ttsOn
+            ? "border-emerald-500/30 bg-emerald-500/[0.06]"
+            : "border-amber-500/25 bg-amber-500/[0.05]",
+        )}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                ttsOn ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600",
+              )}
+            >
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-base tracking-tight">Benefício TTS — Minas Gerais</h2>
+                <Badge
+                  className={cn(
+                    "border",
+                    ttsOn
+                      ? "bg-emerald-500/12 text-emerald-700 border-emerald-500/20"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {ttsOn ? "Ativado" : "Desativado"}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground max-w-xl mt-0.5 leading-relaxed">
+                Quando você conseguir o TTS, ligue aqui para ver o lucro com a carga de ICMS
+                reduzida. Os números do painel passam a refletir o cenário escolhido.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {comp && (
+              <div className="text-right">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Ganho potencial no período
+                </p>
+                <p className="font-display text-lg text-emerald-600 tabular-nums">
+                  + {formatBRL(comp.ttsGain)}
+                </p>
+              </div>
+            )}
+            <Switch
+              checked={ttsOn}
+              disabled={toggleTts.isPending}
+              onCheckedChange={(v) => toggleTts.mutate({ enabled: v })}
+              aria-label="Ativar TTS"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Error / loading for the data itself */}
+      {profit.isError ? (
+        <ErrorState
+          message={profit.error?.message}
+          onRetry={() => profit.refetch()}
+          retrying={profit.isFetching}
+        />
+      ) : profit.isLoading || !data ? (
+        <>
+          <KpiSkeletonRow count={4} />
+          <Skeleton className="h-72 w-full rounded-2xl" />
+        </>
+      ) : (
+        <>
+          {/* Stale indicator */}
+          {data.stale && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <Clock className="h-3.5 w-3.5" />
+              Dados em cache{data.asOf ? ` · de ${new Date(data.asOf).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}.
+              O BaseLinker está congestionado; mostrando o último resultado bom.
+            </div>
+          )}
+
+          {/* KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard
+              label="Receita"
+              value={formatBRL(data.totals.revenue)}
+              icon={Wallet}
+              accent="blue"
+              sublabel={`${formatNumber(data.orderCount)} pedidos`}
+            />
+            <KpiCard
+              label="Custos totais"
+              value={formatBRL(
+                data.totals.commission + data.totals.shipping + data.totals.cmv + data.totals.ads,
+              )}
+              icon={Coins}
+              accent="orange"
+              sublabel="Comissão + frete + CMV + Ads"
+            />
+            <KpiCard
+              label="Impostos (estim.)"
+              value={formatBRL(data.totals.tax)}
+              icon={Receipt}
+              accent="violet"
+              sublabel={ttsOn ? "Com TTS" : "Sem TTS"}
+            />
+            <KpiCard
+              label="Lucro líquido"
+              value={formatBRL(data.totals.netProfit)}
+              icon={TrendingUp}
+              accent={data.totals.netProfit >= 0 ? "emerald" : "rose"}
+              valueClassName={marginColor(data.totals.margin)}
+              sublabel={`Margem ${pct(data.totals.margin)}`}
+            />
+          </div>
+
+          {/* Cascade + scenario comparison */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SectionCard
+              title="De onde vem o lucro"
+              description={`Composição no período — cenário ${ttsOn ? "com TTS" : "sem TTS"}.`}
+            >
+              <Cascade p={data.totals} />
+            </SectionCard>
+
+            <SectionCard
+              title="Comparativo de cenários"
+              description="Mesmo período, com e sem o benefício TTS."
+            >
+              {comp && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <ScenarioMini
+                      title="Sem TTS"
+                      p={comp.semTts}
+                      active={!ttsOn}
+                    />
+                    <ScenarioMini
+                      title="Com TTS"
+                      p={comp.comTts}
+                      active={ttsOn}
+                      highlight
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-emerald-500/[0.07] border border-emerald-500/15 px-4 py-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                      Lucro adicional com o TTS
+                    </div>
+                    <span className="font-display text-lg text-emerald-600 tabular-nums">
+                      + {formatBRL(comp.ttsGain)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+          </div>
+
+          {/* Profit by listing */}
+          <SectionCard
+            title="Lucro por anúncio"
+            description="Cada anúncio com seu lucro líquido no cenário selecionado (inclui Ads quando houver)."
+          >
+            {data.listings.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Nenhuma venda com anúncio identificável no período.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="py-2.5 pr-3 font-semibold">Anúncio</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Un.</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Receita</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Custo unit.</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Impostos</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Lucro</th>
+                      <th className="py-2.5 pl-3 font-semibold text-right">Margem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.listings.map((row) => (
+                      <tr key={row.itemId} className="border-b border-dashed last:border-0">
+                        <td className="py-2.5 pr-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="truncate max-w-[320px]" title={row.title}>
+                              {row.title}
+                            </span>
+                            <a
+                              href={`https://www.mercadolivre.com.br/p/${row.itemId}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-muted-foreground hover:text-primary shrink-0"
+                              title="Abrir no Mercado Livre"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                            {row.missingCost && (
+                              <Badge variant="outline" className="shrink-0 text-[10px] text-amber-700 border-amber-300/60">
+                                custo faltando
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums">{formatNumber(row.unitsSold)}</td>
+                        <td className="py-2.5 px-3 text-right tabular-nums">{formatBRL(row.current.revenue)}</td>
+                        <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
+                          {row.unitCost != null ? formatBRL(row.unitCost) : "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
+                          {formatBRL(row.current.tax)}
+                        </td>
+                        <td className={cn("py-2.5 px-3 text-right tabular-nums font-semibold", row.current.netProfit >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                          {formatBRL(row.current.netProfit)}
+                        </td>
+                        <td className={cn("py-2.5 pl-3 text-right tabular-nums", marginColor(row.current.margin))}>
+                          {pct(row.current.margin)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+
+          {/* By UF */}
+          <SectionCard
+            title="Vendas por estado de destino"
+            description="O imposto (ICMS/DIFAL) varia conforme o destino — por isso o estado importa."
+          >
+            {data.byUF.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Sem dados de destino no período.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {data.byUF.map((u) => (
+                  <div key={u.uf} className="rounded-xl border bg-card p-3" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {u.uf === "??" ? "Não informado" : u.uf}
+                    </div>
+                    <p className="mt-1 font-display tabular-nums">{formatBRL(u.revenue)}</p>
+                    <p className="text-[11px] text-muted-foreground">{formatNumber(u.orders)} pedidos</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Missing-cost note */}
+          {data.productsMissingCost > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <Info className="h-3.5 w-3.5" />
+              {data.productsMissingCost} produto(s) sem custo cadastrado no BaseLinker — o CMV deles
+              entrou como zero, então o lucro pode estar superestimado nesses casos.
+            </div>
+          )}
+
+          {/* Config panel (collapsible) */}
+          {showConfig && cfg.data && (
+            <SectionCard title="Configuração de impostos" description="Ajuste as alíquotas. Tudo editável.">
+              <ConfigPanel
+                config={cfg.data.config}
+                ufList={cfg.data.ufList}
+                inventoryId={cfg.data.inventoryId}
+                onSaved={() => setShowConfig(false)}
+              />
+            </SectionCard>
+          )}
+        </>
+      )}
+    </PageShell>
+  );
+}
+
+function ScenarioMini({
+  title,
+  p,
+  active,
+  highlight,
+}: {
+  title: string;
+  p: ProfitBreakdown;
+  active?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3.5 transition-colors",
+        active
+          ? highlight
+            ? "border-emerald-500/40 bg-emerald-500/[0.07]"
+            : "border-primary/40 bg-primary/[0.05]"
+          : "border-border bg-card",
+      )}
+      style={!active ? { borderColor: "var(--border)" } : undefined}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
+        {active && (
+          <Badge variant="secondary" className="text-[10px]">
+            Atual
+          </Badge>
+        )}
+      </div>
+      <p
+        className={cn(
+          "mt-1.5 font-display text-xl tabular-nums",
+          p.netProfit >= 0 ? "text-emerald-600" : "text-rose-600",
+        )}
+      >
+        {formatBRL(p.netProfit)}
+      </p>
+      <p className="text-[11px] text-muted-foreground">
+        Margem {pct(p.margin)} · imposto {formatBRL(p.tax)}
+      </p>
+    </div>
+  );
+}

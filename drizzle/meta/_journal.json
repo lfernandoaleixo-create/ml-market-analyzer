@@ -43,6 +43,13 @@
       "when": 1781361151510,
       "tag": "0005_curious_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1781378480599,
+      "tag": "0006_many_gunslinger",
+      "breakpoints": true
     }
   ]
 }

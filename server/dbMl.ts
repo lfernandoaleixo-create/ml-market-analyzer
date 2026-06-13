@@ -5,10 +5,13 @@ import {
   mlCredentials,
   monitoredProducts,
   productSnapshots,
+  taxConfigs,
   type InsertAlert,
   type InsertMlCredential,
   type InsertMonitoredProduct,
   type InsertProductSnapshot,
+  type InsertTaxConfigRow,
+  type TaxConfigRow,
 } from "../drizzle/schema";
 import { getDb } from "./db";
 
@@ -200,4 +203,36 @@ export async function upsertAppConfig(data: Partial<typeof appConfig.$inferInser
     await db.insert(appConfig).values(data as typeof appConfig.$inferInsert);
   }
   return getAppConfig();
+}
+
+// ---- Tax / Profitability config -----------------------------------------
+
+/** Read the per-user tax config row (undefined when not set yet). */
+export async function getTaxConfigRow(userId: number): Promise<TaxConfigRow | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(taxConfigs)
+    .where(eq(taxConfigs.userId, userId))
+    .limit(1);
+  return rows[0];
+}
+
+/** Create or update the per-user tax config row. */
+export async function upsertTaxConfigRow(
+  userId: number,
+  data: Partial<InsertTaxConfigRow>,
+): Promise<TaxConfigRow | undefined> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+  const existing = await getTaxConfigRow(userId);
+  if (existing) {
+    await db.update(taxConfigs).set(data).where(eq(taxConfigs.id, existing.id));
+  } else {
+    await db
+      .insert(taxConfigs)
+      .values({ userId, ttsEnabled: false, config: {}, ...data } as InsertTaxConfigRow);
+  }
+  return getTaxConfigRow(userId);
 }

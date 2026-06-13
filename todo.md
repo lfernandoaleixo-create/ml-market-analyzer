@@ -800,3 +800,20 @@
 - [x] Frontend Anúncios: aviso âmbar "Dados em cache · de HH:MM" quando stale, em vez da tela vermelha
 - [x] 6 testes novos do cache resiliente (fresh/stale/no-fallback/staleMax/recover) — 401 testes OK, TS/LSP limpos
 - [ ] Validar ao vivo em produção após publicar (carregar Meus Anúncios e confirmar ausência de erro)
+
+
+## Lucratividade Real (integração BaseLinker + motor de imposto)
+- [x] Pesquisar tributação Lucro Presumido (PIS/COFINS cumulativo, IRPJ/CSLL sobre presunção, ICMS)
+- [x] Pesquisar ICMS interestadual (7%/12%) + DIFAL por estado de destino (venda a consumidor final)
+- [x] Pesquisar benefício TTS-MG (Tratamento Tributário Setorial/Específico de Minas Gerais)
+- [x] Motor de imposto com 2 cenários: COM TTS e SEM TTS (server/finance/taxEngine.ts, 15 testes)
+- [x] Tratar DIFAL por UF de destino (delivery_state do pedido BaseLinker; carga = alíquota interna do destino sem TTS)
+- [x] Sincronização BaseLinker: custos por SKU (average_cost) + pedidos (commission, delivery_price, auction_id)
+- [x] Comissão/frete reais extraídos do campo admin_comments do pedido (feeParser.ts) — não vêm no campo numérico nesta conta
+- [x] Cálculo de lucro por venda e por anúncio (cruzar auction_id -> MLB; rateio de comissão/frete por receita)
+- [x] Aba Lucratividade Real no frontend com toggle de cenário TTS (botão hero + comparativo lado a lado)
+- [x] Config editável de alíquotas (presunção, PIS/COFINS, ICMS por UF, carga TTS) + seletor de catálogo
+- [x] Testes vitest: motor (15), provider (10), parser, lucratividade, router finance (6) — 446 testes no total
+- [x] Cache resiliente (stale-while-error) na lucratividade, igual ao da página de Anúncios
+- [ ] (Futuro) Snapshot diário automático da lucratividade via Heartbeat
+- [ ] (Futuro) FCP por UF e adicional de 10% do IRPJ acima de R$ 60k/trimestre (campos já previstos, ligar quando necessário)

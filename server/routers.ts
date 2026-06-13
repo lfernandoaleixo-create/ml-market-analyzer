@@ -7,6 +7,7 @@ import { monitorRouter } from "./routers/monitor";
 import { accountRouter } from "./routers/account";
 import { competitorsRouter } from "./routers/competitors";
 import { adsRouter } from "./routers/ads";
+import { financeRouter } from "./routers/finance";
 
 export const appRouter = router({
   system: systemRouter,
@@ -26,6 +27,7 @@ export const appRouter = router({
   account: accountRouter,
   competitors: competitorsRouter,
   ads: adsRouter,
+  finance: financeRouter,
 });
 
 export type AppRouter = typeof appRouter;

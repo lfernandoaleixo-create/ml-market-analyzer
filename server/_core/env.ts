@@ -28,4 +28,9 @@ export const ENV = {
   // ScrapingBee API key. Same isolation guarantees as the other scrapers.
   // Empty string until the user provides it via project secrets.
   scrapingBeeApiKey: process.env.SCRAPINGBEE_API_KEY ?? "",
+  // BaseLinker API token (the ERP that holds product cost, taxes and orders
+  // with marketplace commission). Used by the server/baselinker module to pull
+  // the financial inputs for the "Lucratividade Real" feature. Empty string
+  // until the user provides it via project secrets.
+  baselinkerApiToken: process.env.BASELINKER_API_TOKEN ?? "",
 };

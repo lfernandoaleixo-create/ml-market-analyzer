@@ -367,3 +367,32 @@ export const adsChangeLog = mysqlTable(
 
 export type AdsChangeLog = typeof adsChangeLog.$inferSelect;
 export type InsertAdsChangeLog = typeof adsChangeLog.$inferInsert;
+
+/**
+ * Per-user tax/profitability configuration backing the "Lucratividade Real"
+ * feature. Single row per user. The `config` JSON stores the full, editable
+ * TaxConfig (federal rates, ICMS per UF, FCP, TTS effective rates). The TTS
+ * toggle is duplicated as a column for cheap querying, but `config.ttsEnabled`
+ * is the source of truth used by the engine.
+ */
+export const taxConfigs = mysqlTable(
+  "tax_config",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** Master TTS switch (mirrors config.ttsEnabled for quick reads). */
+    ttsEnabled: boolean("ttsEnabled").default(false).notNull(),
+    /** Full TaxConfig object (shared/finance.ts) as JSON — fully editable. */
+    config: json("config").notNull(),
+    /** BaseLinker inventory (catalog) id to pull product costs from. */
+    baselinkerInventoryId: bigint("baselinkerInventoryId", { mode: "number" }),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    userIdx: index("tax_config_user_idx").on(t.userId),
+  }),
+);
+
+export type TaxConfigRow = typeof taxConfigs.$inferSelect;
+export type InsertTaxConfigRow = typeof taxConfigs.$inferInsert;
