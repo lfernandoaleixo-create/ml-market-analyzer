@@ -782,7 +782,9 @@
 ## Aba Auditoria Mamba + Rastreio por Categoria (ADS) — 13/jun
 - [x] Investigar campos auditáveis de campanha (ACOS-alvo, budget, status) e títulos dos anúncios ativos
 - [x] Schema: snapshots diários de campanhas e anúncios (ads_campaign_snapshots, ads_item_snapshots) + log de mudanças (ads_change_log)
-- [ ] Heartbeat: job diário que registra snapshots e detecta mudanças da Mamba (ativar após publicar; hoje há captura sob demanda ao abrir a aba)
+- [x] Heartbeat: job diário que registra snapshots e detecta mudanças da Mamba (endpoint /api/scheduled/adsSnapshot criado e registrado; cron a registrar via CLI após publicar)
+- [x] Filtro de anúncios ATIVOS: helper isActiveAdStatus() robusto + opção activeOnly no getAds; snapshot e categorias seguem só os ativos (8 testes novos)
+- [ ] Após publicar: registrar cron diário (manus-heartbeat create --name ads-snapshot-diario --cron "0 0 6 * * *" --path /api/scheduled/adsSnapshot)
 - [x] Backend: detecção de mudanças (diff entre snapshots) + avaliação de coerência + "o que faríamos"
 - [x] Backend: categorização dos anúncios em 5 grupos (espetos, palito de manicure, aromatizador fibra/madeira, hashi, palitos de bambu)
 - [x] Aba "Auditoria Mamba": linha do tempo de mudanças, coerência, recomendação própria, próximos 30 dias

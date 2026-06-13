@@ -11,6 +11,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { monitorScheduledHandler } from "../scheduled/monitor";
 import { radarSweepScheduledHandler } from "../scheduled/radarSweep";
+import { adsSnapshotScheduledHandler } from "../scheduled/adsSnapshot";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -43,6 +44,7 @@ async function startServer() {
   // Scheduled (Heartbeat cron) callbacks — must be registered before Vite/static fallthrough.
   app.post("/api/scheduled/monitor", monitorScheduledHandler);
   app.post("/api/scheduled/radarSweep", radarSweepScheduledHandler);
+  app.post("/api/scheduled/adsSnapshot", adsSnapshotScheduledHandler);
   // tRPC API
   app.use(
     "/api/trpc",

@@ -18,6 +18,7 @@ import type {
   AdsChangeVerdict,
   AdsMetrics,
 } from "@shared/ads";
+import { isActiveAdStatus } from "./adsProvider";
 
 /* ------------------------------------------------------------------ *
  * 1. Categorization
@@ -147,7 +148,7 @@ export function buildCategoryStats(
       key,
       label: labels[key as AdsCategoryKey] ?? key,
       adCount: list.length,
-      activeAdCount: list.filter((a: AdsAdRow) => a.status === "active").length,
+      activeAdCount: list.filter((a: AdsAdRow) => isActiveAdStatus(a.status)).length,
       metrics,
       derived: derive(metrics),
       sampleAds,

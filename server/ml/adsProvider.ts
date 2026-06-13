@@ -52,6 +52,33 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? (n as number) : 0;
 }
 
+/**
+ * Whether a Mercado Ads ad status means the ad is currently RUNNING.
+ *
+ * The ADS audit/category tracking must always follow ACTIVE ads only — never
+ * paused/idle/closed ones. We treat the label defensively so a future API
+ * wording change does not silently break the filter: anything that clearly
+ * signals "off" is excluded; everything else (active/enabled, or an empty
+ * label when the item is being served) counts as active.
+ */
+export function isActiveAdStatus(status: string | null | undefined): boolean {
+  const s = (status ?? "").toLowerCase().trim();
+  if (s === "") return true; // ML sometimes omits status for a served ad
+  const inactive = [
+    "paused",
+    "idle",
+    "closed",
+    "inactive",
+    "deleted",
+    "finished",
+    "under_review",
+    "rejected",
+    "disabled",
+  ];
+  if (inactive.includes(s)) return false;
+  return s === "active" || s === "enabled" || s === "running";
+}
+
 /** Normalize the ML metric block (snake_case) into our AdsMetrics (camelCase). */
 function mapMetrics(m: any): AdsMetrics {
   m = m ?? {};
@@ -224,8 +251,19 @@ export class AdsProvider {
     return out;
   }
 
-  /** Ads (item-level) with metrics. Optionally filter to a single campaign. */
-  async getAds(days = 30, campaignId?: number, maxAds = 300): Promise<AdsAdRow[]> {
+  /**
+   * Ads (item-level) with metrics. Optionally filter to a single campaign.
+   *
+   * Pass `activeOnly: true` to keep only ads that are currently running. The
+   * audit/category snapshot ALWAYS uses this so the tracking follows the active
+   * set, never paused/closed ads.
+   */
+  async getAds(
+    days = 30,
+    campaignId?: number,
+    maxAds = 300,
+    options?: { activeOnly?: boolean },
+  ): Promise<AdsAdRow[]> {
     const adv = await this.getAdvertiserId();
     if (!adv) return [];
     const out: AdsAdRow[] = [];
@@ -261,7 +299,15 @@ export class AdsProvider {
       offset += limit;
       if (offset >= total || results.length === 0) break;
     }
+    if (options?.activeOnly) {
+      return out.filter((a) => isActiveAdStatus(a.status));
+    }
     return out;
+  }
+
+  /** Convenience: only ads that are currently running. */
+  async getActiveAds(days = 30, campaignId?: number, maxAds = 300): Promise<AdsAdRow[]> {
+    return this.getAds(days, campaignId, maxAds, { activeOnly: true });
   }
 
   /** Build the account-level summary from the campaign list. */

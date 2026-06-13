@@ -25,6 +25,16 @@ export async function getCredentials(userId: number) {
   return rows[0];
 }
 
+/** All user ids that have ML credentials stored (for project-wide cron jobs). */
+export async function listUsersWithMlCredentials(): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({ userId: mlCredentials.userId })
+    .from(mlCredentials);
+  return rows.map((r) => r.userId);
+}
+
 export async function upsertCredentials(userId: number, data: Partial<InsertMlCredential>) {
   const db = await getDb();
   if (!db) throw new Error("DB indisponível");

@@ -150,7 +150,8 @@ export const adsRouter = router({
           if (!advertiserId) {
             return { connection: "no_ads_access" as const, periodDays: Number(days), categories: [], computedAt: Date.now() };
           }
-          const adRows = await ads.getAds(Number(days), undefined, 400);
+          // Track ACTIVE ads only — categories and snapshot follow the live set.
+          const adRows = await ads.getAds(Number(days), undefined, 400, { activeOnly: true });
           // Fire-and-forget daily snapshot so history accrues without blocking.
           const campaigns = await ads.getCampaigns(Number(days));
           captureDailySnapshot(ctx.user.id, campaigns, adRows).catch((e) =>
@@ -191,7 +192,8 @@ export const adsRouter = router({
       const campaigns = await ads.getCampaigns(Number(days));
       // Capture today's snapshot (idempotent) and diff vs the prior day.
       try {
-        const adRows = await ads.getAds(Number(days), undefined, 400);
+        // Snapshot tracks ACTIVE ads only (not paused/closed).
+        const adRows = await ads.getAds(Number(days), undefined, 400, { activeOnly: true });
         await captureDailySnapshot(ctx.user.id, campaigns, adRows);
       } catch (e) {
         console.warn("[ads] snapshot (audit) failed:", (e as Error)?.message ?? e);
