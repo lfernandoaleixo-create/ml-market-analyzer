@@ -708,6 +708,7 @@ export default function Lucratividade() {
                   <thead>
                     <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <th className="py-2.5 pr-3 font-semibold">Anúncio</th>
+                      <th className="py-2.5 px-3 font-semibold">Status</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Un.</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Receita</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Custo unit.</th>
@@ -755,6 +756,13 @@ export default function Lucratividade() {
                               </Badge>
                             )}
                           </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {listingMetaById.get(row.itemId) ? (
+                            <StatusBadge status={listingMetaById.get(row.itemId)!.status} />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 text-right tabular-nums">{formatNumber(row.unitsSold)}</td>
                         <td className="py-2.5 px-3 text-right tabular-nums">{formatBRL(row.current.revenue)}</td>
