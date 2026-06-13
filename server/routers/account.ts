@@ -5,6 +5,7 @@ import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthM
 import { AccountProvider } from "../ml/accountProvider";
 import { getCredentials, upsertCredentials } from "../dbMl";
 import { resolveMlUserId } from "../ml/resolveMlUserId";
+import { cachedAccount } from "../ml/accountCache";
 
 /**
  * Account ("Central de Gestão") router — real data from the connected seller
@@ -76,20 +77,25 @@ export const accountRouter = router({
   }),
 
   /** Reputation + account health. */
-  reputation: protectedProcedure.query(async ({ ctx }) => {
-    const account = await resolveAccount(ctx.user.id);
-    const rep = await account.getReputation();
-    if (!rep) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Não foi possível carregar a reputação." });
-    }
-    return rep;
-  }),
+  reputation: protectedProcedure.query(async ({ ctx }) =>
+    cachedAccount(ctx.user.id, "reputation", async () => {
+      const account = await resolveAccount(ctx.user.id);
+      const rep = await account.getReputation();
+      if (!rep) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Não foi possível carregar a reputação." });
+      }
+      return rep;
+    }),
+  ),
 
   /** Sales dashboard for a period (revenue, orders, ticket, daily, top products). */
   salesDashboard: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
-    const account = await resolveAccount(ctx.user.id);
-    const { fromMs, toMs } = periodBounds(input?.days ?? 180);
-    return account.getSalesDashboard({ fromMs, toMs });
+    const days = input?.days ?? 180;
+    return cachedAccount(ctx.user.id, `salesDashboard:${days}`, async () => {
+      const account = await resolveAccount(ctx.user.id);
+      const { fromMs, toMs } = periodBounds(days);
+      return account.getSalesDashboard({ fromMs, toMs });
+    });
   }),
 
   /**
@@ -112,12 +118,15 @@ export const accountRouter = router({
       if (input.toMs < input.fromMs) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Intervalo de datas inválido." });
       }
-      const account = await resolveAccount(ctx.user.id);
-      return account.getSalesDashboard({
-        fromMs: input.fromMs,
-        toMs: input.toMs,
-        fill: input.fill ?? false,
-        topLimit: input.topLimit,
+      const key = `salesRange:${input.fromMs}:${input.toMs}:${input.fill ?? false}:${input.topLimit ?? ""}`;
+      return cachedAccount(ctx.user.id, key, async () => {
+        const account = await resolveAccount(ctx.user.id);
+        return account.getSalesDashboard({
+          fromMs: input.fromMs,
+          toMs: input.toMs,
+          fill: input.fill ?? false,
+          topLimit: input.topLimit,
+        });
       });
     }),
 
@@ -151,10 +160,12 @@ export const accountRouter = router({
     }),
 
   /** Lifetime store stats: first sale, days in business, total revenue & orders. */
-  storeLifetime: protectedProcedure.query(async ({ ctx }) => {
-    const account = await resolveAccount(ctx.user.id);
-    return account.getStoreLifetime();
-  }),
+  storeLifetime: protectedProcedure.query(async ({ ctx }) =>
+    cachedAccount(ctx.user.id, "storeLifetime", async () => {
+      const account = await resolveAccount(ctx.user.id);
+      return account.getStoreLifetime();
+    }),
+  ),
 
   /** Products sold on a single BRT calendar day (yyyy-mm-dd). */
   productsByDay: protectedProcedure
@@ -175,23 +186,31 @@ export const accountRouter = router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      const account = await resolveAccount(ctx.user.id);
-      return account.getListings({ lastDays: input?.lastDays ?? 30 });
+      const lastDays = input?.lastDays ?? 30;
+      return cachedAccount(ctx.user.id, `listings:${lastDays}`, async () => {
+        const account = await resolveAccount(ctx.user.id);
+        return account.getListings({ lastDays });
+      });
     }),
 
   /** Post-sale summary (claims, cancellations). */
   postSale: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
-    const account = await resolveAccount(ctx.user.id);
-    const { fromMs } = periodBounds(input?.days ?? 180);
-    return account.getPostSale({ fromMs });
+    const days = input?.days ?? 180;
+    return cachedAccount(ctx.user.id, `postSale:${days}`, async () => {
+      const account = await resolveAccount(ctx.user.id);
+      const { fromMs } = periodBounds(days);
+      return account.getPostSale({ fromMs });
+    });
   }),
 
   /**
    * Raio-X da Ficha Técnica — diagnose each listing's technical sheet
    * (complete vs incomplete, missing attributes, missing-required). Read-only.
    */
-  technicalSpecs: protectedProcedure.query(async ({ ctx }) => {
-    const account = await resolveAccount(ctx.user.id);
-    return account.getTechnicalSpecs();
-  }),
+  technicalSpecs: protectedProcedure.query(async ({ ctx }) =>
+    cachedAccount(ctx.user.id, "technicalSpecs", async () => {
+      const account = await resolveAccount(ctx.user.id);
+      return account.getTechnicalSpecs();
+    }),
+  ),
 });

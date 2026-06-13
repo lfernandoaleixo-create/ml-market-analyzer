@@ -737,3 +737,11 @@
 - [x] Frontend: ErrorState com Tentar novamente + mensagem amigavel de rate limit/timeout (Anuncios, Vendas, PosVenda, Reputacao)
 - [x] Teste (vitest) cobrindo timeout/abort do refresh: nao trava, lock liberado, conexao preservada, proximo refresh OK
 - [x] Rodar suite completa (364 testes OK), validar ao vivo e salvar checkpoint
+
+## Melhorias pos-checkpoint (sugestoes 1 e 2)
+- [x] Cache de servidor (5 min) por usuario+endpoint para dados da conta (accountCache.ts): reputacao, salesDashboard, salesRange, storeLifetime, listings, postSale, technicalSpecs
+- [x] De-duplicacao de chamadas simultaneas (page burst => 1 fetch) e nao cacheia erros
+- [x] connection deixada SEM cache (selo reflete estado real)
+- [x] Selo "Conexao ativa - token renova automaticamente" nas Configuracoes com validade do token
+- [x] Teste vitest do cache (6 casos): fresh hit, dedupe, TTL, nao cacheia erro, namespacing por usuario, invalidate
+- [x] Suite completa: 366 testes OK; TS/LSP limpos

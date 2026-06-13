@@ -20,6 +20,7 @@ import {
   Link2,
   Loader2,
   Plug,
+  ShieldCheck,
   SlidersHorizontal,
   XCircle,
 } from "lucide-react";
@@ -87,6 +88,11 @@ function CredentialsCard() {
   const status = creds.data?.status ?? "unconfigured";
   const oauthConnected = creds.data?.oauthConnected ?? false;
   const canConnect = creds.data?.configured ?? false;
+  const tokenExpiresAt = creds.data?.tokenExpiresAt ?? null;
+  const tokenExpired = creds.data?.tokenExpired ?? false;
+  // O selo de "conexão ativa" só deve aparecer quando há OAuth conectado, sem
+  // erro e com o token ainda válido (a renovação automática mantém isso).
+  const connectionHealthy = oauthConnected && status !== "error" && !tokenExpired;
 
   // Handle the OAuth callback redirect (?ml=conectado|erro|sem-credenciais).
   useEffect(() => {
@@ -246,6 +252,25 @@ function CredentialsCard() {
               Abrindo a tela de autorização do Mercado Livre. Se não acontecer em alguns
               segundos, verifique se o navegador bloqueou o redirecionamento.
             </p>
+          )}
+
+          {/* Selo de tranquilidade: conexão ativa + renovação automática. */}
+          {connectionHealthy && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+              <div className="space-y-0.5">
+                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  Conexão ativa · token renova automaticamente
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Você não precisa reconectar antes de apresentar. O sistema renova o acesso
+                  sozinho, com antecedência
+                  {tokenExpiresAt
+                    ? `. Validade atual do token: ${new Date(tokenExpiresAt).toLocaleString("pt-BR")}.`
+                    : "."}
+                </p>
+              </div>
+            </div>
           )}
           {!canConnect && (
             <p className="mt-2 text-xs text-muted-foreground">
