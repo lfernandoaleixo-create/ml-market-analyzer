@@ -13,7 +13,6 @@ import {
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -30,17 +29,10 @@ import {
   reputationColor,
   isoToWeekdayLong,
 } from "@/lib/format";
-import {
-  currentMonthRange,
-  currentMonthFullRange,
-  previousMonthRange,
-  lastNDaysRange,
-  customRangeFromIso,
-  monthStartIsoBrt,
-  todayIsoBrt,
-  monthLabel,
-} from "@/lib/period";
+import { todayIsoBrt } from "@/lib/period";
 import { isoDateBrt as brtIso } from "@shared/period";
+import { usePeriod } from "@/hooks/usePeriod";
+import { PeriodSelector } from "@/components/PeriodSelector";
 import {
   Bar,
   BarChart,
@@ -60,7 +52,6 @@ import {
   AlertCircle,
   Search,
   XCircle,
-  CalendarRange,
   Store,
   CalendarDays,
   TrendingUp,
@@ -76,15 +67,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-
-type PeriodKind = "current" | "previous" | "last60" | "custom";
-
-const TABS: Array<{ key: PeriodKind; label: string }> = [
-  { key: "current", label: "Mês atual" },
-  { key: "previous", label: "Mês anterior" },
-  { key: "last60", label: "60 dias" },
-  { key: "custom", label: "Personalizado" },
-];
 
 /** Maps a Mercado Livre reputation level id to a KpiCard accent color. */
 function reputationAccent(
@@ -114,9 +96,6 @@ export default function Painel() {
   });
   const connectionStale = creds.data?.tokenExpired === true;
 
-  const [kind, setKind] = useState<PeriodKind>("current");
-  const [fromIso, setFromIso] = useState(monthStartIsoBrt());
-  const [toIso, setToIso] = useState(todayIsoBrt());
   // Day picked in the "Produtos vendidos por dia" card. Lifted here so that
   // clicking a bar in the chart can select that day. null => follow default.
   const [pickedDay, setPickedDay] = useState<string | null>(null);
@@ -124,24 +103,25 @@ export default function Painel() {
   // scroll past it quickly when there are many products.
   const [topOpen, setTopOpen] = useState(false);
 
-  // The range driving the bar chart + sales KPIs.
-  const activeRange = useMemo(() => {
-    if (kind === "current") return currentMonthFullRange();
-    if (kind === "previous") return previousMonthRange();
-    if (kind === "last60") return lastNDaysRange(60);
-    return customRangeFromIso(fromIso, toIso) ?? currentMonthRange();
-  }, [kind, fromIso, toIso]);
-
   // Keep querying as long as we believe we're connected OR we still have a
   // cached connection from before a transient session hiccup.
   const everConnected = conn.data?.connected === true;
+  const lifetime = trpc.account.storeLifetime.useQuery(undefined, { enabled: everConnected });
+
+  // Unified period selector (system-wide standard). `historic` uses the store's
+  // first sale instant from storeLifetime.
+  const period = usePeriod({
+    initialKey: "current",
+    firstSaleMs: lifetime.data?.firstSaleMs ?? null,
+  });
+  const activeRange = period.range;
+
   const sales = trpc.account.salesRange.useQuery(
     { fromMs: activeRange.fromMs, toMs: activeRange.toMs, fill: true },
     { enabled: everConnected },
   );
   const listings = trpc.account.listings.useQuery({ lastDays: 30 }, { enabled: everConnected });
   const rep = trpc.account.reputation.useQuery(undefined, { enabled: everConnected });
-  const lifetime = trpc.account.storeLifetime.useQuery(undefined, { enabled: everConnected });
 
   // First load (no cached connection result yet): show skeleton.
   if (conn.isLoading && conn.data === undefined) {
@@ -189,12 +169,7 @@ export default function Painel() {
   // Wider per-day slot the longer the range, so all day labels stay readable.
   const perDayWidth = bars.length > 35 ? 36 : bars.length > 16 ? 32 : 38;
 
-  const periodTitle =
-    kind === "current" || kind === "previous"
-      ? capitalize(monthLabel(activeRange.fromMs))
-      : kind === "last60"
-        ? "Últimos 60 dias"
-        : `${fromIso} a ${toIso}`;
+  const periodTitle = period.title;
 
   return (
     <PageShell>
@@ -246,44 +221,15 @@ export default function Painel() {
       />
 
       {/* Period selector — controls both the KPI cards and the chart below */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-secondary p-1">
-          {TABS.map((t) => (
-            <Button
-              key={t.key}
-              size="sm"
-              variant={kind === t.key ? "default" : "ghost"}
-              className="h-8 rounded-lg px-3 text-xs"
-              onClick={() => setKind(t.key)}
-            >
-              {t.label}
-            </Button>
-          ))}
-        </div>
-        {kind === "custom" && (
-          <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              value={fromIso}
-              max={toIso || todayIsoBrt()}
-              onChange={(e) => setFromIso(e.target.value)}
-              className="h-9 w-[150px]"
-            />
-            <span className="text-sm text-muted-foreground">até</span>
-            <Input
-              type="date"
-              value={toIso}
-              min={fromIso}
-              max={todayIsoBrt()}
-              onChange={(e) => setToIso(e.target.value)}
-              className="h-9 w-[150px]"
-            />
-          </div>
-        )}
-        <span className="ml-auto inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
-          <CalendarRange className="h-4 w-4" /> {periodTitle}
-        </span>
-      </div>
+      <PeriodSelector
+        value={period.key}
+        onChange={period.setKey}
+        fromIso={period.fromIso}
+        toIso={period.toIso}
+        onFromIso={period.setFromIso}
+        onToIso={period.setToIso}
+        title={periodTitle}
+      />
 
       {/* KPI cards for the selected period */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -467,7 +413,7 @@ export default function Painel() {
         loading={loadingSales}
         fromIso={brtIso(activeRange.fromMs)}
         toIso={brtIso(activeRange.toMs)}
-        isCurrentMonth={kind === "current"}
+        isCurrentMonth={period.key === "current"}
         pickedDay={pickedDay}
         onPickDay={setPickedDay}
       />

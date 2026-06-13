@@ -46,9 +46,12 @@ async function resolveAds(manusUserId: number): Promise<AdsProvider> {
   );
 }
 
+// The unified period selector resolves any selection into an equivalent number
+// of rolling days, so Ads accepts any sane day count (default 30) rather than a
+// fixed set. The provider clamps/uses it as a date_from/date_to window.
 const periodInput = z
   .object({
-    days: z.union([z.literal(7), z.literal(15), z.literal(30), z.literal(60), z.literal(90)]).optional(),
+    days: z.number().int().min(1).max(1095).optional(),
   })
   .optional();
 
@@ -112,7 +115,7 @@ export const adsRouter = router({
   ads: protectedProcedure
     .input(
       z.object({
-        days: z.union([z.literal(7), z.literal(15), z.literal(30), z.literal(60), z.literal(90)]).optional(),
+        days: z.number().int().min(1).max(1095).optional(),
         campaignId: z.number().int().positive().optional(),
       }),
     )

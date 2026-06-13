@@ -13,15 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatBRL, formatNumber, formatCompact, formatRatePct } from "@/lib/format";
+import { usePeriod } from "@/hooks/usePeriod";
+import { PeriodSelector } from "@/components/PeriodSelector";
 import type {
   AdsCampaign,
   AdsAdRow,
@@ -57,14 +52,8 @@ import {
   HelpCircle,
 } from "lucide-react";
 
-type AdsPeriod = "7" | "15" | "30" | "60" | "90";
-const PERIOD_LABEL: Record<AdsPeriod, string> = {
-  "7": "7 dias",
-  "15": "15 dias",
-  "30": "30 dias",
-  "60": "60 dias",
-  "90": "90 dias",
-};
+/** Props every Ads tab receives from the unified period selector. */
+type TabPeriod = { days: number; periodLabel: string };
 
 /** Map an ML campaign strategy to a human label + color. */
 function strategyMeta(s: string): { label: string; accent: string } {
@@ -102,11 +91,22 @@ function acosColor(acos: number, target?: number | null): string {
 }
 
 export default function Ads() {
-  const [period, setPeriod] = useState<AdsPeriod>("30");
   const [tab, setTab] = useState("dashboard");
 
   // Connection / Ads-access probe (cheap, uncached on purpose for honest status).
   const access = trpc.ads.access.useQuery(undefined, { staleTime: 60_000 });
+  // Lifetime (first sale) powers the "Base histórica" option.
+  const lifetime = trpc.account.storeLifetime.useQuery(undefined, {
+    enabled: access.data?.connected === true,
+  });
+
+  // Unified period selector (system-wide standard). Ads runs on a rolling-day
+  // window, so we pass the equivalent day count + the active title to each tab.
+  const period = usePeriod({
+    initialKey: "current",
+    firstSaleMs: lifetime.data?.firstSaleMs ?? null,
+  });
+  const tabPeriod: TabPeriod = { days: period.days, periodLabel: period.title.toLowerCase() };
 
   if (access.isLoading) {
     return (
@@ -155,20 +155,17 @@ export default function Ads() {
           </span>
         }
         subtitle="Central de Mercado Ads — campanhas, anúncios patrocinados e inteligência com dados reais da sua conta."
-        actions={
-          <Select value={period} onValueChange={(v) => setPeriod(v as AdsPeriod)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(PERIOD_LABEL) as AdsPeriod[]).map((p) => (
-                <SelectItem key={p} value={p}>
-                  Últimos {PERIOD_LABEL[p]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        }
+      />
+
+      {/* Unified period selector (system-wide standard). */}
+      <PeriodSelector
+        value={period.key}
+        onChange={period.setKey}
+        fromIso={period.fromIso}
+        toIso={period.toIso}
+        onFromIso={period.setFromIso}
+        onToIso={period.setToIso}
+        title={period.title}
       />
 
       {access.data?.rateLimited && (
@@ -202,22 +199,22 @@ export default function Ads() {
         </TabsList>
 
         <TabsContent value="dashboard">
-          <DashboardTab period={period} />
+          <DashboardTab period={tabPeriod} />
         </TabsContent>
         <TabsContent value="campaigns">
-          <CampaignsTab period={period} />
+          <CampaignsTab period={tabPeriod} />
         </TabsContent>
         <TabsContent value="ads">
-          <AdsTab period={period} />
+          <AdsTab period={tabPeriod} />
         </TabsContent>
         <TabsContent value="categories">
-          <CategoriesTab period={period} />
+          <CategoriesTab period={tabPeriod} />
         </TabsContent>
         <TabsContent value="audit">
-          <AuditTab period={period} />
+          <AuditTab period={tabPeriod} />
         </TabsContent>
         <TabsContent value="intel">
-          <IntelTab period={period} />
+          <IntelTab period={tabPeriod} />
         </TabsContent>
       </Tabs>
     </PageShell>
@@ -227,8 +224,8 @@ export default function Ads() {
 /* ----------------------------------------------------------------------- */
 /* Dashboard tab — quick view that reunites the whole picture.             */
 /* ----------------------------------------------------------------------- */
-function DashboardTab({ period }: { period: AdsPeriod }) {
-  const q = trpc.ads.dashboard.useQuery({ days: Number(period) as 7 | 15 | 30 | 60 | 90 });
+function DashboardTab({ period }: { period: TabPeriod }) {
+  const q = trpc.ads.dashboard.useQuery({ days: period.days });
 
   if (q.isLoading) {
     return (
@@ -318,7 +315,7 @@ function DashboardTab({ period }: { period: AdsPeriod }) {
       )}
 
       {/* Top campaigns quick table */}
-      <SectionCard title="Campanhas com maior investimento" description={`Período: últimos ${PERIOD_LABEL[period]}`}>
+      <SectionCard title="Campanhas com maior investimento" description={`Período: ${period.periodLabel}`}>
         <CampaignTable campaigns={q.data.topCampaigns} compact />
       </SectionCard>
 
@@ -333,8 +330,8 @@ function DashboardTab({ period }: { period: AdsPeriod }) {
 /* ----------------------------------------------------------------------- */
 /* Campaigns tab                                                           */
 /* ----------------------------------------------------------------------- */
-function CampaignsTab({ period }: { period: AdsPeriod }) {
-  const q = trpc.ads.campaigns.useQuery({ days: Number(period) as 7 | 15 | 30 | 60 | 90 });
+function CampaignsTab({ period }: { period: TabPeriod }) {
+  const q = trpc.ads.campaigns.useQuery({ days: period.days });
 
   if (q.isLoading) return <Skeleton className="h-96 w-full rounded-2xl" />;
   if (q.isError || !q.data) {
@@ -354,7 +351,7 @@ function CampaignsTab({ period }: { period: AdsPeriod }) {
   return (
     <SectionCard
       title={`${q.data.length} campanha(s)`}
-      description={`Dados reais de Product Ads · últimos ${PERIOD_LABEL[period]}`}
+      description={`Dados reais de Product Ads · ${period.periodLabel}`}
     >
       <CampaignTable campaigns={sorted} />
     </SectionCard>
@@ -424,8 +421,8 @@ function CampaignTable({ campaigns, compact = false }: { campaigns: AdsCampaign[
 /* ----------------------------------------------------------------------- */
 /* Ads tab                                                                 */
 /* ----------------------------------------------------------------------- */
-function AdsTab({ period }: { period: AdsPeriod }) {
-  const q = trpc.ads.ads.useQuery({ days: Number(period) as 7 | 15 | 30 | 60 | 90 });
+function AdsTab({ period }: { period: TabPeriod }) {
+  const q = trpc.ads.ads.useQuery({ days: period.days });
   const [onlyActive, setOnlyActive] = useState(false);
 
   if (q.isLoading) return <Skeleton className="h-96 w-full rounded-2xl" />;
@@ -438,7 +435,7 @@ function AdsTab({ period }: { period: AdsPeriod }) {
   return (
     <SectionCard
       title={`${q.data.length} anúncio(s) patrocinado(s)`}
-      description={`Métricas por anúncio · últimos ${PERIOD_LABEL[period]}`}
+      description={`Métricas por anúncio · ${period.periodLabel}`}
       actions={
         <Button
           variant={onlyActive ? "default" : "outline"}
@@ -521,8 +518,8 @@ const SEVERITY_META: Record<AdsInsightSeverity, { icon: typeof Info; cls: string
   info: { icon: Info, cls: "text-blue-600 bg-blue-500/10", ring: "border-blue-500/20", label: "Informação" },
 };
 
-function IntelTab({ period }: { period: AdsPeriod }) {
-  const q = trpc.ads.insights.useQuery({ days: Number(period) as 7 | 15 | 30 | 60 | 90 });
+function IntelTab({ period }: { period: TabPeriod }) {
+  const q = trpc.ads.insights.useQuery({ days: period.days });
 
   if (q.isLoading) {
     return (
@@ -607,8 +604,8 @@ const CATEGORY_ACCENT: Record<string, string> = {
   outros: "from-slate-500/15 to-slate-500/5 text-slate-700 border-slate-500/20",
 };
 
-function CategoriesTab({ period }: { period: AdsPeriod }) {
-  const q = trpc.ads.categories.useQuery({ days: Number(period) as 7 | 15 | 30 | 60 | 90 });
+function CategoriesTab({ period }: { period: TabPeriod }) {
+  const q = trpc.ads.categories.useQuery({ days: period.days });
   const [openKey, setOpenKey] = useState<string | null>(null);
 
   if (q.isLoading) {
@@ -755,8 +752,8 @@ const FIELD_LABEL: Record<string, string> = {
   strategy: "Estratégia",
 };
 
-function AuditTab({ period }: { period: AdsPeriod }) {
-  const q = trpc.ads.audit.useQuery({ days: Number(period) as 7 | 15 | 30 | 60 | 90 });
+function AuditTab({ period }: { period: TabPeriod }) {
+  const q = trpc.ads.audit.useQuery({ days: period.days });
 
   if (q.isLoading) {
     return (

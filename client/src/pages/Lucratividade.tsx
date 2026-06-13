@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatBRL, formatNumber } from "@/lib/format";
+import { usePeriod } from "@/hooks/usePeriod";
+import { PeriodSelector } from "@/components/PeriodSelector";
 import { toast } from "sonner";
 import type { ProfitBreakdown, TaxConfig, UF } from "@shared/finance";
 import {
@@ -42,15 +44,6 @@ import {
   ExternalLink,
   ShieldCheck,
 } from "lucide-react";
-
-type Period = "7" | "15" | "30" | "60" | "90";
-const PERIOD_LABEL: Record<Period, string> = {
-  "7": "7 dias",
-  "15": "15 dias",
-  "30": "30 dias",
-  "60": "60 dias",
-  "90": "90 dias",
-};
 
 function pct(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -325,14 +318,23 @@ function RateField({ label, value, onChange }: { label: string; value: number; o
 }
 
 export default function Lucratividade() {
-  const [period, setPeriod] = useState<Period>("30");
   const [showConfig, setShowConfig] = useState(false);
 
   // Connection to ML (for the same "connect first" gate as the other pages).
   const connection = trpc.account.connection.useQuery(undefined, { staleTime: 60_000 });
   const status = trpc.finance.status.useQuery(undefined, { staleTime: 30_000 });
+  const lifetime = trpc.account.storeLifetime.useQuery(undefined, {
+    enabled: connection.data?.connected === true,
+  });
 
-  const days = Number(period) as 7 | 15 | 30 | 60 | 90;
+  // Unified period selector (system-wide standard). The finance backend works on
+  // a rolling-day window, so we feed it the equivalent day count for the active
+  // selection (historic -> days since the first sale, etc.).
+  const period = usePeriod({
+    initialKey: "current",
+    firstSaleMs: lifetime.data?.firstSaleMs ?? null,
+  });
+  const days = period.days;
   const profitInput = useMemo(() => ({ days }), [days]);
 
   const profit = trpc.finance.profitability.useQuery(profitInput, {
@@ -418,29 +420,26 @@ export default function Lucratividade() {
         title="Lucratividade Real"
         subtitle="Lucro líquido por venda e por anúncio — receita menos comissão, frete, custo do produto, impostos e Ads."
         actions={
-          <div className="flex items-center gap-2">
-            <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-              <SelectTrigger className="w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(PERIOD_LABEL) as Period[]).map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {PERIOD_LABEL[p]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              className="bg-background"
-              onClick={() => setShowConfig((v) => !v)}
-            >
-              <Settings2 className="h-4 w-4" />
-              Configurar
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            className="bg-background"
+            onClick={() => setShowConfig((v) => !v)}
+          >
+            <Settings2 className="h-4 w-4" />
+            Configurar
+          </Button>
         }
+      />
+
+      {/* Unified period selector (system-wide standard). */}
+      <PeriodSelector
+        value={period.key}
+        onChange={period.setKey}
+        fromIso={period.fromIso}
+        toIso={period.toIso}
+        onFromIso={period.setFromIso}
+        onToIso={period.setToIso}
+        title={period.title}
       />
 
       {/* TTS hero toggle */}

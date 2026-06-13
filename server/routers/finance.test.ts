@@ -165,4 +165,26 @@ describe("finance.profitability", () => {
       /BaseLinker não configurado/,
     );
   });
+
+  // The unified period selector resolves "Mês atual", "Base histórica", etc. into
+  // arbitrary day counts (not the old 7/15/30/60/90 set). The schema must accept
+  // any sane day count so those selections do not get rejected at the boundary.
+  it("accepts arbitrary (non-preset) day counts from the unified selector", async () => {
+    bl.isBaselinkerConfigured.mockReturnValue(false);
+    db.getTaxConfigRow.mockResolvedValue(null);
+    const caller = await makeCaller();
+    for (const days of [1, 13, 137, 365, 1095]) {
+      // It still throws because BaseLinker is not configured here — but the point
+      // is it reaches that logic instead of failing input validation.
+      await expect(caller.finance.profitability({ days })).rejects.toThrow(
+        /BaseLinker não configurado/,
+      );
+    }
+  });
+
+  it("rejects out-of-range day counts (0 and > 1095)", async () => {
+    const caller = await makeCaller();
+    await expect(caller.finance.profitability({ days: 0 })).rejects.toThrow();
+    await expect(caller.finance.profitability({ days: 5000 })).rejects.toThrow();
+  });
 });

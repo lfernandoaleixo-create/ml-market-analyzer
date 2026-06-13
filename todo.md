@@ -836,3 +836,14 @@
 - [x] Testes vitest do filtro de status (orderStatus + provider: exclusão e filterEffective=false) — 461 testes verdes
 - [x] Validado com dados reais: 21 efetivados (10 excluídos) → receita R$ 1.972, margem real sobe de 5,1% para 12,6%
 - [ ] Após publicar: validar em produção
+
+## Padronização do seletor de período (sistema inteiro)
+Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a 1ª venda) · Personalizado
+- [x] Mapear todos os seletores de data/período existentes nas páginas
+- [x] Criar componente único PeriodSelector (5 opções) reutilizável
+- [x] Criar helper compartilhado de cálculo de ranges (mês atual, mês anterior, 60d, histórico, custom)
+- [x] Backend: data da primeira venda já disponível via account.storeLifetime.firstSaleMs
+- [x] Aplicar o PeriodSelector em Painel, Vendas, Lucratividade e Ads (Anúncios usa janela de visitas técnica do ML — exceção documentada)
+- [x] Layout mantido: gráficos com scroll horizontal interno (não a página) já lidam com qualquer período
+- [x] Testes vitest dos ranges (39 do módulo period + 57 das rotas) passando
+- [x] Documentar a regra em references/period-selector.md

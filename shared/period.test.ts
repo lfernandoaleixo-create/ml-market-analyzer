@@ -186,3 +186,140 @@ describe("lastNDaysRange", () => {
     expect(r.toMs).toBe(brtEndOfDayMs(2026, 5, 10));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Unified period model
+// ---------------------------------------------------------------------------
+import {
+  STANDARD_PERIOD_OPTIONS,
+  resolveStandardRange,
+  resolveStandardDays,
+  rangeToDays,
+  standardPeriodTitle,
+} from "./period";
+
+const DAY = 24 * 60 * 60 * 1000;
+
+describe("STANDARD_PERIOD_OPTIONS", () => {
+  it("exposes exactly the five canonical options in order", () => {
+    expect(STANDARD_PERIOD_OPTIONS.map((o) => o.key)).toEqual([
+      "current",
+      "previous",
+      "last60",
+      "historic",
+      "custom",
+    ]);
+    expect(STANDARD_PERIOD_OPTIONS.map((o) => o.label)).toEqual([
+      "Mês atual",
+      "Mês anterior",
+      "60 dias",
+      "Base histórica",
+      "Personalizado",
+    ]);
+  });
+});
+
+describe("resolveStandardRange", () => {
+  it("current -> full current calendar month in BRT", () => {
+    const r = resolveStandardRange({ key: "current" }, JUN_10_2026_BRT_NOON);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 5, 1));
+    expect(r.toMs).toBe(brtEndOfDayMs(2026, 5, 30)); // June has 30 days
+  });
+
+  it("previous -> full previous calendar month (May 2026)", () => {
+    const r = resolveStandardRange({ key: "previous" }, JUN_10_2026_BRT_NOON);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 4, 1));
+    expect(r.toMs).toBe(brtEndOfDayMs(2026, 4, 31));
+  });
+
+  it("last60 -> rolling last 60 days ending today", () => {
+    const r = resolveStandardRange({ key: "last60" }, JUN_10_2026_BRT_NOON);
+    expect(r).toEqual(lastNDaysRange(JUN_10_2026_BRT_NOON, 60));
+  });
+
+  it("historic -> from the BRT start-of-day of the first sale to end of today", () => {
+    const firstSaleMs = Date.UTC(2024, 0, 15, 18, 0, 0, 0); // 2024-01-15 15:00 BRT
+    const r = resolveStandardRange({ key: "historic", firstSaleMs }, JUN_10_2026_BRT_NOON);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2024, 0, 15));
+    expect(r.toMs).toBe(brtEndOfDayMs(2026, 5, 10));
+  });
+
+  it("historic without firstSale falls back to a wide window (>= 2 years)", () => {
+    const r = resolveStandardRange({ key: "historic", firstSaleMs: null }, JUN_10_2026_BRT_NOON);
+    expect(JUN_10_2026_BRT_NOON - r.fromMs).toBeGreaterThan(2 * 365 * DAY);
+  });
+
+  it("custom -> inclusive ISO range", () => {
+    const r = resolveStandardRange(
+      { key: "custom", fromIso: "2026-03-05", toIso: "2026-04-20" },
+      JUN_10_2026_BRT_NOON,
+    );
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 2, 5));
+    expect(r.toMs).toBe(brtEndOfDayMs(2026, 3, 20));
+  });
+
+  it("custom with missing dates falls back to current month start", () => {
+    const r = resolveStandardRange({ key: "custom" }, JUN_10_2026_BRT_NOON);
+    expect(r.fromMs).toBe(brtStartOfDayMs(2026, 5, 1));
+  });
+});
+
+describe("rangeToDays / resolveStandardDays", () => {
+  it("rangeToDays clamps a future-ending range to now", () => {
+    // Full current month ends Jun 30, but only 10 days have elapsed by Jun 10.
+    const r = resolveStandardRange({ key: "current" }, JUN_10_2026_BRT_NOON);
+    expect(rangeToDays(r, JUN_10_2026_BRT_NOON)).toBe(10);
+  });
+
+  it("last60 -> 60 days", () => {
+    expect(resolveStandardDays({ key: "last60" }, JUN_10_2026_BRT_NOON)).toBe(60);
+  });
+
+  it("previous month -> the number of days in that month (May = 31)", () => {
+    expect(resolveStandardDays({ key: "previous" }, JUN_10_2026_BRT_NOON)).toBe(31);
+  });
+
+  it("historic -> days since the first sale (inclusive, rounded up)", () => {
+    // 2026-05-11 start-of-day .. 2026-06-10 end-of-day spans 31 day-boundaries.
+    const firstSaleMs = Date.UTC(2026, 4, 11, 15, 0, 0, 0); // 2026-05-11 BRT
+    const days = resolveStandardDays({ key: "historic", firstSaleMs }, JUN_10_2026_BRT_NOON);
+    expect(days).toBe(31);
+  });
+
+  it("custom -> span between the two dates (inclusive-ish, rounded up)", () => {
+    const days = resolveStandardDays(
+      { key: "custom", fromIso: "2026-06-01", toIso: "2026-06-10" },
+      JUN_10_2026_BRT_NOON,
+    );
+    expect(days).toBe(10);
+  });
+});
+
+describe("standardPeriodTitle", () => {
+  const ml = (fromMs: number) =>
+    new Date(fromMs).toLocaleDateString("pt-BR", {
+      month: "long",
+      year: "numeric",
+      timeZone: "America/Sao_Paulo",
+    });
+
+  it("capitalizes the month label for current/previous", () => {
+    expect(standardPeriodTitle({ key: "current" }, JUN_10_2026_BRT_NOON, ml)).toMatch(/^Junho/);
+    expect(standardPeriodTitle({ key: "previous" }, JUN_10_2026_BRT_NOON, ml)).toMatch(/^Maio/);
+  });
+
+  it("uses fixed labels for last60 and historic", () => {
+    expect(standardPeriodTitle({ key: "last60" }, JUN_10_2026_BRT_NOON, ml)).toBe("Últimos 60 dias");
+    expect(standardPeriodTitle({ key: "historic" }, JUN_10_2026_BRT_NOON, ml)).toBe("Base histórica");
+  });
+
+  it("shows the ISO range for custom", () => {
+    expect(
+      standardPeriodTitle(
+        { key: "custom", fromIso: "2026-06-01", toIso: "2026-06-10" },
+        JUN_10_2026_BRT_NOON,
+        ml,
+      ),
+    ).toBe("2026-06-01 a 2026-06-10");
+  });
+});

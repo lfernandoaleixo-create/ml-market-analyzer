@@ -120,3 +120,129 @@ export function monthStartIsoBrt(nowMs: number): string {
   const { year, month } = brtParts(nowMs);
   return `${year}-${String(month + 1).padStart(2, "0")}-01`;
 }
+
+// ---------------------------------------------------------------------------
+// Unified period model (system-wide standard)
+// ---------------------------------------------------------------------------
+// Every page that filters by date MUST use the same five options:
+//   current  -> "Mês atual"            (day 1 of this month .. now)
+//   previous -> "Mês anterior"         (full previous calendar month)
+//   last60   -> "60 dias"              (rolling last 60 days)
+//   historic -> "Base histórica"       (first sale ever .. now)
+//   custom   -> "Personalizado"        (free ISO range chosen by the user)
+//
+// `historic` needs the account's first-sale instant (firstSaleMs), which the
+// backend already exposes via account.storeLifetime. When it is unknown we fall
+// back to a wide rolling window so the UI never breaks.
+
+export type StandardPeriodKey = "current" | "previous" | "last60" | "historic" | "custom";
+
+export interface StandardPeriodOption {
+  key: StandardPeriodKey;
+  label: string;
+}
+
+/** The canonical, ordered list of options shown in every selector. */
+export const STANDARD_PERIOD_OPTIONS: StandardPeriodOption[] = [
+  { key: "current", label: "Mês atual" },
+  { key: "previous", label: "Mês anterior" },
+  { key: "last60", label: "60 dias" },
+  { key: "historic", label: "Base histórica" },
+  { key: "custom", label: "Personalizado" },
+];
+
+export interface StandardPeriodInput {
+  key: StandardPeriodKey;
+  /** ISO yyyy-mm-dd, only used when key === "custom". */
+  fromIso?: string;
+  /** ISO yyyy-mm-dd, only used when key === "custom". */
+  toIso?: string;
+  /** First sale instant (unix ms). Required for a precise "historic" range. */
+  firstSaleMs?: number | null;
+}
+
+/** Fallback start for "historic" when the first sale is unknown: ~3 years back. */
+const HISTORIC_FALLBACK_MS = 3 * 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Resolve any standard period selection into a concrete [fromMs, toMs] range,
+ * anchored to BRT day boundaries. `nowMs` is injected so this stays pure/testable.
+ */
+export function resolveStandardRange(input: StandardPeriodInput, nowMs: number): PeriodRange {
+  switch (input.key) {
+    case "current":
+      // Full current calendar month so charts can show every day (zeros ahead).
+      return currentMonthFullRange(nowMs);
+    case "previous":
+      return previousMonthRange(nowMs);
+    case "last60":
+      return lastNDaysRange(nowMs, 60);
+    case "historic": {
+      const { year, month, day } = brtParts(nowMs);
+      const toMs = brtEndOfDayMs(year, month, day);
+      const startMs =
+        input.firstSaleMs && input.firstSaleMs > 0
+          ? // Anchor to the BRT start-of-day of the first sale.
+            (() => {
+              const p = brtParts(input.firstSaleMs);
+              return brtStartOfDayMs(p.year, p.month, p.day);
+            })()
+          : nowMs - HISTORIC_FALLBACK_MS;
+      return { fromMs: startMs, toMs };
+    }
+    case "custom": {
+      if (input.fromIso && input.toIso) {
+        const r = customRangeFromIso(input.fromIso, input.toIso);
+        if (r) return r;
+      }
+      // Safe fallback: current month so the UI never renders an invalid range.
+      return currentMonthRange(nowMs);
+    }
+  }
+}
+
+/** Whole days (rounded up, min 1) covered by a range. Used to drive day-window
+ *  backends (Ads, Lucratividade) from the unified selector without refactoring
+ *  their rolling-day contracts. */
+export function rangeToDays(range: PeriodRange, nowMs: number): number {
+  // For ranges that end in the future (e.g. full current month), clamp the end
+  // to "now" so the day count reflects elapsed time, not the whole month.
+  const effectiveTo = Math.min(range.toMs, nowMs);
+  const ms = Math.max(0, effectiveTo - range.fromMs);
+  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
+  return Math.max(1, days);
+}
+
+/**
+ * Resolve a standard selection straight into the equivalent number of days for
+ * backends that only accept a rolling window. `current` counts elapsed days of
+ * the month; `previous` the length of last month; `last60` is 60; `historic`
+ * counts days since the first sale; `custom` the span between the two dates.
+ */
+export function resolveStandardDays(input: StandardPeriodInput, nowMs: number): number {
+  if (input.key === "last60") return 60;
+  const range = resolveStandardRange(input, nowMs);
+  return rangeToDays(range, nowMs);
+}
+
+/** Human-readable title for the active selection (for the header chip). */
+export function standardPeriodTitle(
+  input: StandardPeriodInput,
+  nowMs: number,
+  monthLabelFn: (fromMs: number) => string,
+): string {
+  switch (input.key) {
+    case "current":
+    case "previous": {
+      const range = resolveStandardRange(input, nowMs);
+      const label = monthLabelFn(range.fromMs);
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    }
+    case "last60":
+      return "Últimos 60 dias";
+    case "historic":
+      return "Base histórica";
+    case "custom":
+      return input.fromIso && input.toIso ? `${input.fromIso} a ${input.toIso}` : "Personalizado";
+  }
+}

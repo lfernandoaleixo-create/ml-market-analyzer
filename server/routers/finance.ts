@@ -44,9 +44,11 @@ function mapBlError(err: unknown): never {
   throw err;
 }
 
-const periodDaysSchema = z
-  .union([z.literal(7), z.literal(15), z.literal(30), z.literal(60), z.literal(90)])
-  .optional();
+// The unified period selector resolves any selection into an equivalent number
+// of rolling days (current month -> elapsed days, previous month -> its length,
+// historic -> days since the first sale, etc.). So we accept any sane day count
+// rather than a fixed set, while keeping a default of 30.
+const periodDaysSchema = z.number().int().min(1).max(1095).optional();
 
 export const financeRouter = router({
   /** Whether BaseLinker is configured (token present). */
