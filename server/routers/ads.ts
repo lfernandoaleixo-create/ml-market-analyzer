@@ -5,6 +5,11 @@ import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthM
 import { AdsProvider, buildAdsInsights } from "../ml/adsProvider";
 import { MLRateLimitError } from "../ml/accountProvider";
 import { cachedAccount } from "../ml/accountCache";
+import {
+  buildAuditReport,
+  buildCategoryReport,
+  captureDailySnapshot,
+} from "../ml/adsAuditStore";
 
 /**
  * ADS ("Mercado Ads") router — REAL Product Ads data for the connected seller,
@@ -126,6 +131,75 @@ export const adsRouter = router({
         ),
       );
     }),
+
+  /**
+   * Category tracker (real-time): group the live ads into product families
+   * (espetos, manicure, aroma fibra/madeira, hashi, palitos de bambu) and
+   * aggregate metrics per group. Also opportunistically captures the daily
+   * snapshot so the Mamba audit keeps building history.
+   */
+  categories: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
+    const days = input?.days ?? 30;
+    return runAds(async () => {
+      const report = await cachedAccount(
+        ctx.user.id,
+        `ads:categories:${days}`,
+        async () => {
+          const ads = await resolveAds(ctx.user.id);
+          const advertiserId = await ads.getAdvertiserId();
+          if (!advertiserId) {
+            return { connection: "no_ads_access" as const, periodDays: Number(days), categories: [], computedAt: Date.now() };
+          }
+          const adRows = await ads.getAds(Number(days), undefined, 400);
+          // Fire-and-forget daily snapshot so history accrues without blocking.
+          const campaigns = await ads.getCampaigns(Number(days));
+          captureDailySnapshot(ctx.user.id, campaigns, adRows).catch((e) =>
+            console.warn("[ads] snapshot (categories) failed:", e?.message ?? e),
+          );
+          const base = buildCategoryReport(adRows, Number(days));
+          return { connection: "connected" as const, ...base };
+        },
+        ADS_TTL_MS,
+      );
+      return report;
+    });
+  }),
+
+  /**
+   * Mamba audit: the change log we detected day over day (with our coherence
+   * verdict + what we would do) plus our read-only verdict on each campaign's
+   * CURRENT configuration. Capturing the snapshot here too guarantees the
+   * audit keeps accruing history whenever the tab is opened.
+   */
+  audit: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
+    const days = input?.days ?? 30;
+    return runAds(async () => {
+      const ads = await resolveAds(ctx.user.id);
+      const advertiserId = await ads.getAdvertiserId();
+      if (!advertiserId) {
+        return {
+          connection: "no_ads_access" as const,
+          trackingSince: null,
+          daysTracked: 0,
+          snapshotDays: 0,
+          changes: [],
+          managedCampaigns: [],
+          summary: { totalChanges: 0, coherent: 0, questionable: 0, mambaCampaigns: 0 },
+          computedAt: Date.now(),
+        };
+      }
+      const campaigns = await ads.getCampaigns(Number(days));
+      // Capture today's snapshot (idempotent) and diff vs the prior day.
+      try {
+        const adRows = await ads.getAds(Number(days), undefined, 400);
+        await captureDailySnapshot(ctx.user.id, campaigns, adRows);
+      } catch (e) {
+        console.warn("[ads] snapshot (audit) failed:", (e as Error)?.message ?? e);
+      }
+      const report = await buildAuditReport(ctx.user.id, campaigns);
+      return { connection: "connected" as const, ...report };
+    });
+  }),
 
   /** Read-only intelligence: actionable insights computed from real metrics. */
   insights: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {

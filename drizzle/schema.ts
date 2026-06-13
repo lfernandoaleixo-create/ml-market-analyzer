@@ -257,3 +257,113 @@ export const competitorResults = mysqlTable(
 
 export type CompetitorResult = typeof competitorResults.$inferSelect;
 export type InsertCompetitorResult = typeof competitorResults.$inferInsert;
+
+
+/**
+ * Daily snapshot of each Mercado Ads campaign's auditable state + metrics.
+ * One row per (campaign, captureDay). Powers the Mamba audit (diffing the
+ * controllable knobs day over day) and the campaign performance history.
+ *
+ * "captureDay" is a YYYY-MM-DD string in the America/Sao_Paulo timezone so a
+ * day always groups the same calendar date the seller experiences, regardless
+ * of when the snapshot is taken.
+ */
+export const adsCampaignSnapshots = mysqlTable(
+  "ads_campaign_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    captureDay: varchar("captureDay", { length: 10 }).notNull(),
+    campaignId: bigint("campaignId", { mode: "number" }).notNull(),
+    name: varchar("name", { length: 256 }).notNull(),
+    /** Controllable knobs we audit for changes. */
+    status: varchar("status", { length: 32 }).notNull(),
+    strategy: varchar("strategy", { length: 64 }),
+    acosTarget: double("acosTarget"),
+    roasTarget: double("roasTarget"),
+    budget: double("budget"),
+    automaticBudget: boolean("automaticBudget").default(false).notNull(),
+    /** ML's own last_updated timestamp for the campaign (string as returned). */
+    mlLastUpdated: varchar("mlLastUpdated", { length: 40 }),
+    /** Full metrics block for the trailing window as JSON. */
+    metrics: json("metrics"),
+    capturedAt: timestamp("capturedAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    dayIdx: index("ads_camp_snap_day_idx").on(t.userId, t.captureDay),
+    campIdx: index("ads_camp_snap_camp_idx").on(t.campaignId),
+  }),
+);
+
+export type AdsCampaignSnapshot = typeof adsCampaignSnapshots.$inferSelect;
+export type InsertAdsCampaignSnapshot = typeof adsCampaignSnapshots.$inferInsert;
+
+/**
+ * Daily snapshot of each advertised item (ad) with its metrics and the
+ * inferred category group. Powers the category tracker time series.
+ */
+export const adsItemSnapshots = mysqlTable(
+  "ads_item_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    captureDay: varchar("captureDay", { length: 10 }).notNull(),
+    itemId: varchar("itemId", { length: 32 }).notNull(),
+    campaignId: bigint("campaignId", { mode: "number" }),
+    title: varchar("title", { length: 512 }).notNull(),
+    /** Inferred category group key (espetos, manicure, aroma_fibra, ...). */
+    categoryKey: varchar("categoryKey", { length: 32 }).notNull(),
+    status: varchar("status", { length: 32 }),
+    price: double("price"),
+    metrics: json("metrics"),
+    capturedAt: timestamp("capturedAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    dayIdx: index("ads_item_snap_day_idx").on(t.userId, t.captureDay),
+    catIdx: index("ads_item_snap_cat_idx").on(t.userId, t.categoryKey),
+    itemIdx: index("ads_item_snap_item_idx").on(t.itemId),
+  }),
+);
+
+export type AdsItemSnapshot = typeof adsItemSnapshots.$inferSelect;
+export type InsertAdsItemSnapshot = typeof adsItemSnapshots.$inferInsert;
+
+/**
+ * Audit log of every detected change to a campaign's controllable knobs
+ * (status / acosTarget / budget / automaticBudget / strategy). Each row is one
+ * field change between two consecutive snapshots, with our own coherence
+ * verdict and "what we would do" recommendation attached.
+ *
+ * This is the heart of the Mamba audit: it answers "what did they change, when,
+ * and was it a good call?".
+ */
+export const adsChangeLog = mysqlTable(
+  "ads_change_log",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    campaignId: bigint("campaignId", { mode: "number" }).notNull(),
+    campaignName: varchar("campaignName", { length: 256 }).notNull(),
+    /** YYYY-MM-DD when the change was detected. */
+    detectedDay: varchar("detectedDay", { length: 10 }).notNull(),
+    field: varchar("field", { length: 40 }).notNull(),
+    oldValue: varchar("oldValue", { length: 128 }),
+    newValue: varchar("newValue", { length: 128 }),
+    /** coherent | questionable | neutral — our verdict on the change. */
+    verdict: mysqlEnum("verdict", ["coherent", "questionable", "neutral"])
+      .default("neutral")
+      .notNull(),
+    /** Human-readable rationale + what we would do instead. */
+    assessment: text("assessment"),
+    recommendation: text("recommendation"),
+    detectedAt: timestamp("detectedAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    userIdx: index("ads_change_user_idx").on(t.userId),
+    dayIdx: index("ads_change_day_idx").on(t.userId, t.detectedDay),
+    campIdx: index("ads_change_camp_idx").on(t.campaignId),
+  }),
+);
+
+export type AdsChangeLog = typeof adsChangeLog.$inferSelect;
+export type InsertAdsChangeLog = typeof adsChangeLog.$inferInsert;

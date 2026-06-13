@@ -778,3 +778,14 @@
 - [ ] (Futuro) Escrita de Ads: liberar escopo write no DevCenter + reconexão
 - [ ] (Futuro) Robôs internos de otimização 24/7 (após escrita liberada)
 - [ ] (Futuro) Snapshots diários para gráfico de evolução por dia
+
+## Aba Auditoria Mamba + Rastreio por Categoria (ADS) — 13/jun
+- [x] Investigar campos auditáveis de campanha (ACOS-alvo, budget, status) e títulos dos anúncios ativos
+- [x] Schema: snapshots diários de campanhas e anúncios (ads_campaign_snapshots, ads_item_snapshots) + log de mudanças (ads_change_log)
+- [ ] Heartbeat: job diário que registra snapshots e detecta mudanças da Mamba (ativar após publicar; hoje há captura sob demanda ao abrir a aba)
+- [x] Backend: detecção de mudanças (diff entre snapshots) + avaliação de coerência + "o que faríamos"
+- [x] Backend: categorização dos anúncios em 5 grupos (espetos, palito de manicure, aromatizador fibra/madeira, hashi, palitos de bambu)
+- [x] Aba "Auditoria Mamba": linha do tempo de mudanças, coerência, recomendação própria, próximos 30 dias
+- [x] Aba "Categorias" (ADS): visões e métricas por grupo em tempo real (visitas, vendas, conversão, gasto Ads)
+- [x] Testes vitest (detecção de mudança, coerência, categorização) — 16 testes
+- [x] Validação ao vivo + checkpoint

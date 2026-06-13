@@ -113,3 +113,115 @@ export type AdsInsight = {
   /** Quantified impact when measurable (e.g. wasted spend in R$). */
   metric?: { label: string; value: string };
 };
+
+
+/* ------------------------------------------------------------------ *
+ * Category tracking (group active ads into product families)
+ * ------------------------------------------------------------------ */
+
+/** Stable category keys for the seller's product families. */
+export type AdsCategoryKey =
+  | "espetos"
+  | "manicure"
+  | "aroma_fibra"
+  | "aroma_madeira"
+  | "hashi"
+  | "palitos_bambu"
+  | "outros";
+
+export type AdsCategoryDef = {
+  key: AdsCategoryKey;
+  label: string;
+};
+
+/** All categories in display order. "outros" catches anything unmatched. */
+export const ADS_CATEGORIES: AdsCategoryDef[] = [
+  { key: "espetos", label: "Espetos" },
+  { key: "manicure", label: "Palito de manicure" },
+  { key: "aroma_fibra", label: "Aromatizador (fibra)" },
+  { key: "aroma_madeira", label: "Aromatizador (madeira)" },
+  { key: "hashi", label: "Hashi" },
+  { key: "palitos_bambu", label: "Palitos de bambu" },
+  { key: "outros", label: "Outros" },
+];
+
+/** One category's aggregated, real-time view. */
+export type AdsCategoryStat = {
+  key: AdsCategoryKey;
+  label: string;
+  adCount: number;
+  activeAdCount: number;
+  metrics: AdsMetrics;
+  /** Derived, never fabricated. */
+  derived: {
+    roas: number | null;
+    acos: number | null;
+    conversionRate: number | null;
+    organicShare: number | null;
+  };
+  /** Up to a few representative ads (highest cost) for drill-in. */
+  sampleAds: AdsAdRow[];
+};
+
+export type AdsCategoryReport = {
+  connection: AdsConnectionState;
+  periodDays: number;
+  categories: AdsCategoryStat[];
+  /** ISO timestamp of when this report was computed. */
+  computedAt: number;
+};
+
+/* ------------------------------------------------------------------ *
+ * Mamba audit (track the agency's changes and judge coherence)
+ * ------------------------------------------------------------------ */
+
+export type AdsChangeVerdict = "coherent" | "questionable" | "neutral";
+
+export type AdsChangeEntry = {
+  id: number;
+  campaignId: number;
+  campaignName: string;
+  detectedDay: string; // YYYY-MM-DD
+  field: string; // status | acosTarget | budget | automaticBudget | strategy
+  oldValue: string | null;
+  newValue: string | null;
+  verdict: AdsChangeVerdict;
+  assessment: string | null;
+  recommendation: string | null;
+  detectedAt: number; // unix ms
+};
+
+/** Per-campaign snapshot of the agency's current configuration. */
+export type AdsManagedCampaign = {
+  campaignId: number;
+  name: string;
+  managedByMamba: boolean; // inferred from the name
+  status: AdsCampaignStatus;
+  acosTarget: number | null;
+  budget: number | null;
+  automaticBudget: boolean;
+  strategy: AdsStrategy;
+  metrics: AdsMetrics;
+  /** Our own read-only verdict on the CURRENT configuration. */
+  ourVerdict: AdsChangeVerdict;
+  ourComment: string;
+};
+
+export type AdsAuditReport = {
+  connection: AdsConnectionState;
+  /** Day the audit window started (when tracking began / Mamba took over). */
+  trackingSince: string | null; // YYYY-MM-DD
+  daysTracked: number;
+  /** How many daily snapshots we have captured so far. */
+  snapshotDays: number;
+  changes: AdsChangeEntry[]; // most recent first
+  managedCampaigns: AdsManagedCampaign[];
+  /** Headline counts for the quick view. */
+  summary: {
+    totalChanges: number;
+    coherent: number;
+    questionable: number;
+    mambaCampaigns: number;
+  };
+  computedAt: number;
+};
