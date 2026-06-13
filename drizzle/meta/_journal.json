@@ -50,6 +50,13 @@
       "when": 1781378480599,
       "tag": "0006_many_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1781379811283,
+      "tag": "0007_common_agent_brand",
+      "breakpoints": true
     }
   ]
 }

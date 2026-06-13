@@ -5,12 +5,15 @@ import {
   mlCredentials,
   monitoredProducts,
   productSnapshots,
+  profitSnapshots,
   taxConfigs,
   type InsertAlert,
   type InsertMlCredential,
   type InsertMonitoredProduct,
   type InsertProductSnapshot,
+  type InsertProfitSnapshotRow,
   type InsertTaxConfigRow,
+  type ProfitSnapshotRow,
   type TaxConfigRow,
 } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -235,4 +238,50 @@ export async function upsertTaxConfigRow(
       .values({ userId, ttsEnabled: false, config: {}, ...data } as InsertTaxConfigRow);
   }
   return getTaxConfigRow(userId);
+}
+
+// ---- Profitability snapshots --------------------------------------------
+
+/**
+ * Upsert the daily profitability snapshot for a user (idempotent by day).
+ * Re-running the same day overwrites the row so a re-run never duplicates.
+ */
+export async function upsertProfitSnapshot(
+  data: InsertProfitSnapshotRow,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+  const existing = await db
+    .select({ id: profitSnapshots.id })
+    .from(profitSnapshots)
+    .where(
+      and(
+        eq(profitSnapshots.userId, data.userId),
+        eq(profitSnapshots.snapshotDate, data.snapshotDate),
+      ),
+    )
+    .limit(1);
+  if (existing[0]) {
+    await db
+      .update(profitSnapshots)
+      .set(data)
+      .where(eq(profitSnapshots.id, existing[0].id));
+  } else {
+    await db.insert(profitSnapshots).values(data);
+  }
+}
+
+/** List the most recent profitability snapshots for a user (newest first). */
+export async function listProfitSnapshots(
+  userId: number,
+  limit = 60,
+): Promise<ProfitSnapshotRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(profitSnapshots)
+    .where(eq(profitSnapshots.userId, userId))
+    .orderBy(desc(profitSnapshots.snapshotDate))
+    .limit(limit);
 }

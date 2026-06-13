@@ -396,3 +396,49 @@ export const taxConfigs = mysqlTable(
 
 export type TaxConfigRow = typeof taxConfigs.$inferSelect;
 export type InsertTaxConfigRow = typeof taxConfigs.$inferInsert;
+
+
+/**
+ * Daily profitability snapshot — one row per user per day.
+ *
+ * Captures the period totals (last 30 days as of the capture) under BOTH tax
+ * scenarios so we can chart the margin evolution over time. Re-running the same
+ * day overwrites the row (idempotent), keyed by (userId, snapshotDate).
+ */
+export const profitSnapshots = mysqlTable(
+  "profit_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** Local snapshot day as YYYY-MM-DD (America/Sao_Paulo). */
+    snapshotDate: varchar("snapshotDate", { length: 10 }).notNull(),
+    /** Window the totals refer to (rolling period end = capture time). */
+    periodDays: int("periodDays").default(30).notNull(),
+    /** Whether TTS was ON for the user's "current" scenario at capture time. */
+    ttsEnabled: boolean("ttsEnabled").default(false).notNull(),
+    orderCount: int("orderCount").default(0).notNull(),
+    /** Revenue (gross) in the period, BRL. */
+    revenue: double("revenue").default(0).notNull(),
+    /** Net profit under each scenario, BRL. */
+    netProfitSemTts: double("netProfitSemTts").default(0).notNull(),
+    netProfitComTts: double("netProfitComTts").default(0).notNull(),
+    /** Margin (%) under each scenario. */
+    marginSemTts: double("marginSemTts").default(0).notNull(),
+    marginComTts: double("marginComTts").default(0).notNull(),
+    /** Cost breakdown (BRL) for the selected/current scenario. */
+    commission: double("commission").default(0).notNull(),
+    shipping: double("shipping").default(0).notNull(),
+    cmv: double("cmv").default(0).notNull(),
+    taxes: double("taxes").default(0).notNull(),
+    ads: double("ads").default(0).notNull(),
+    capturedAt: bigint("capturedAt", { mode: "number" }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    userDateIdx: index("profit_snapshots_user_date_idx").on(t.userId, t.snapshotDate),
+  }),
+);
+
+export type ProfitSnapshotRow = typeof profitSnapshots.$inferSelect;
+export type InsertProfitSnapshotRow = typeof profitSnapshots.$inferInsert;

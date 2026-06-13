@@ -1,27 +1,21 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import {
-  defaultTaxConfig,
-  type TaxConfig,
-  type UF,
-} from "../../shared/finance";
-import { getTaxConfigRow, upsertTaxConfigRow } from "../dbMl";
+import { defaultTaxConfig, type TaxConfig } from "../../shared/finance";
+import { getTaxConfigRow, upsertTaxConfigRow, listProfitSnapshots } from "../dbMl";
+import type { ProfitSnapshotRow } from "../../drizzle/schema";
 import {
   callBaselinker,
   isBaselinkerConfigured,
   BaselinkerError,
 } from "../baselinker/client";
+import { getInventories } from "../baselinker/provider";
 import {
-  getInventories,
-  getProductCosts,
-  getOrders,
-} from "../baselinker/provider";
-import { buildProfitability, type AdsByItem } from "../finance/profitability";
+  computeProfitabilityForUser,
+  hydrateConfig,
+  ALL_UF_LIST,
+} from "../finance/profitabilityService";
 import { cachedAccountResilient } from "../ml/accountCache";
-import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthMl";
-import { AdsProvider } from "../ml/adsProvider";
-import { MLRateLimitError } from "../ml/accountProvider";
 
 /**
  * Finance router — the "Lucratividade Real" feature.
@@ -32,25 +26,6 @@ import { MLRateLimitError } from "../ml/accountProvider";
  *
  * Read-only: nothing here writes back to BaseLinker or Mercado Livre.
  */
-
-const ALL_UF: UF[] = [
-  "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB",
-  "PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO",
-];
-
-/** Merge a stored partial config over the defaults so new fields appear. */
-function hydrateConfig(stored: unknown, ttsEnabled: boolean): TaxConfig {
-  const base = defaultTaxConfig();
-  const s = (stored && typeof stored === "object" ? stored : {}) as Partial<TaxConfig>;
-  const merged: TaxConfig = {
-    ...base,
-    ...s,
-    icmsInternalByUF: { ...base.icmsInternalByUF, ...(s.icmsInternalByUF ?? {}) },
-    fcpByUF: { ...(base.fcpByUF ?? {}), ...(s.fcpByUF ?? {}) },
-    ttsEnabled,
-  };
-  return merged;
-}
 
 /** Translate provider errors into honest, user-facing tRPC errors. */
 function mapBlError(err: unknown): never {
@@ -72,32 +47,6 @@ function mapBlError(err: unknown): never {
 const periodDaysSchema = z
   .union([z.literal(7), z.literal(15), z.literal(30), z.literal(60), z.literal(90)])
   .optional();
-
-/** Build a per-listing Ads spend map (best-effort; never throws). */
-async function loadAdsByItem(userId: number, days: number): Promise<AdsByItem> {
-  const map: AdsByItem = new Map();
-  try {
-    const token = await ensureUserAccessToken(userId);
-    if (!token) return map;
-    const ads = new AdsProvider(token, "MLB", (stale) =>
-      forceRefreshUserAccessToken(userId, stale),
-    );
-    const advertiserId = await ads.getAdvertiserId();
-    if (!advertiserId) return map;
-    const rows = await ads.getAds(days, undefined, 400);
-    for (const r of rows) {
-      const prev = map.get(r.itemId) ?? 0;
-      map.set(r.itemId, prev + (r.metrics?.cost ?? 0));
-    }
-  } catch (err) {
-    // Ads is optional for profitability; a rate-limit or no-access must not
-    // break the financial view. Just return whatever we have.
-    if (!(err instanceof MLRateLimitError)) {
-      console.warn("[finance] loadAdsByItem failed:", (err as Error)?.message ?? err);
-    }
-  }
-  return map;
-}
 
 export const financeRouter = router({
   /** Whether BaseLinker is configured (token present). */
@@ -150,7 +99,7 @@ export const financeRouter = router({
     return {
       config,
       inventoryId: row?.baselinkerInventoryId ?? null,
-      ufList: ALL_UF,
+      ufList: ALL_UF_LIST,
     };
   }),
 
@@ -211,8 +160,7 @@ export const financeRouter = router({
       const days = input?.days ?? 30;
       const row = await getTaxConfigRow(ctx.user.id);
       const ttsEnabled = row?.ttsEnabled ?? false;
-      const config = hydrateConfig(row?.config, ttsEnabled);
-      let inventoryId = row?.baselinkerInventoryId ?? null;
+      const inventoryId = row?.baselinkerInventoryId ?? null;
 
       const TTL = 5 * 60 * 1000;
       const key = `finance:profit:${days}:${ttsEnabled ? "tts" : "no"}:${inventoryId ?? "auto"}`;
@@ -221,33 +169,7 @@ export const financeRouter = router({
         const result = await cachedAccountResilient(
           ctx.user.id,
           key,
-          async () => {
-            // Resolve inventory if not chosen yet (use the first catalog).
-            if (inventoryId == null) {
-              const invs = await getInventories();
-              inventoryId = invs[0]?.inventoryId ?? null;
-              if (inventoryId == null) {
-                throw new BaselinkerError("api_error", "Nenhum catálogo encontrado no BaseLinker.");
-              }
-            }
-            const now = Date.now();
-            const from = now - days * 24 * 60 * 60 * 1000;
-
-            const [costs, orders, adsByItem] = await Promise.all([
-              getProductCosts(inventoryId!),
-              getOrders(from),
-              loadAdsByItem(ctx.user.id, days),
-            ]);
-
-            return buildProfitability({
-              orders,
-              costs,
-              config,
-              from,
-              to: now,
-              adsByItem,
-            });
-          },
+          () => computeProfitabilityForUser(ctx.user.id, days),
           TTL,
         );
         return { ...result.value, stale: result.stale, asOf: result.asOf };
@@ -255,4 +177,31 @@ export const financeRouter = router({
         mapBlError(err);
       }
     }),
+
+  /**
+   * Margin history — the daily snapshots captured by the Heartbeat job.
+   * Returns chronological points so the UI can chart the evolution.
+   */
+  history: protectedProcedure
+    .input(z.object({ days: z.number().int().min(7).max(180).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const limit = input?.days ?? 60;
+      const rows = await listProfitSnapshots(ctx.user.id, limit);
+      return rows
+        .map((r: ProfitSnapshotRow) => ({
+          date: r.snapshotDate,
+          revenue: r.revenue,
+          netProfitSemTts: r.netProfitSemTts,
+          netProfitComTts: r.netProfitComTts,
+          marginSemTts: r.marginSemTts,
+          marginComTts: r.marginComTts,
+          orderCount: r.orderCount,
+          capturedAt: r.capturedAt,
+        }))
+        .sort((a: { date: string }, b: { date: string }) =>
+          a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
+        );
+    }),
 });
+
+export { defaultTaxConfig };

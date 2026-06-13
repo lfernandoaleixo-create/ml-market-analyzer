@@ -603,6 +603,9 @@ export default function Lucratividade() {
             </SectionCard>
           </div>
 
+          {/* Margin history (daily snapshots) */}
+          <MarginHistory />
+
           {/* Profit by listing */}
           <SectionCard
             title="Lucro por anúncio"
@@ -765,4 +768,111 @@ function ScenarioMini({
       </p>
     </div>
   );
+}
+
+/**
+ * Daily margin history fed by the Heartbeat snapshots. Renders a compact,
+ * dependency-free SVG line chart comparing net profit (sem TTS x com TTS) over
+ * the captured days. Hidden until at least two data points exist.
+ */
+function MarginHistory() {
+  const history = trpc.finance.history.useQuery(
+    { days: 60 },
+    { staleTime: 5 * 60_000, retry: false },
+  );
+  const points = history.data ?? [];
+
+  if (history.isLoading) {
+    return <Skeleton className="h-56 w-full rounded-2xl" />;
+  }
+  if (points.length < 2) {
+    return (
+      <SectionCard
+        title="Evolução da margem"
+        description="Histórico diário de lucro, capturado automaticamente todos os dias."
+      >
+        <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+            <TrendingUp className="h-5 w-5" />
+          </div>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            O histórico começa a aparecer assim que houver pelo menos dois dias de
+            captura. O robô diário registra automaticamente o lucro de cada dia.
+          </p>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  const W = 720;
+  const H = 200;
+  const PAD = { top: 16, right: 16, bottom: 28, left: 52 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  const values = points.flatMap((p) => [p.netProfitSemTts, p.netProfitComTts]);
+  const minV = Math.min(0, ...values);
+  const maxV = Math.max(0, ...values);
+  const span = maxV - minV || 1;
+
+  const x = (i: number) =>
+    PAD.left + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+  const y = (v: number) => PAD.top + innerH - ((v - minV) / span) * innerH;
+
+  const line = (key: "netProfitSemTts" | "netProfitComTts") =>
+    points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p[key]).toFixed(1)}`).join(" ");
+
+  const zeroY = y(0);
+  const last = points[points.length - 1];
+
+  return (
+    <SectionCard
+      title="Evolução da margem"
+      description="Lucro líquido por dia — comparando os dois cenários. Capturado automaticamente."
+    >
+      <div className="flex flex-wrap items-center gap-4 mb-3 text-xs">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-400" /> Sem TTS
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" /> Com TTS
+        </span>
+        <span className="ml-auto text-muted-foreground">
+          Último dia: <strong className="text-foreground">{formatBRL(last.netProfitComTts)}</strong> (com TTS)
+        </span>
+      </div>
+      <div className="w-full overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 480 }} role="img" aria-label="Histórico de lucro diário">
+          {/* zero baseline */}
+          <line x1={PAD.left} y1={zeroY} x2={W - PAD.right} y2={zeroY} stroke="var(--border)" strokeDasharray="3 3" />
+          {/* y labels */}
+          <text x={8} y={y(maxV) + 4} className="fill-muted-foreground" style={{ fontSize: 10 }}>
+            {formatBRL(maxV)}
+          </text>
+          <text x={8} y={zeroY + 4} className="fill-muted-foreground" style={{ fontSize: 10 }}>
+            R$ 0
+          </text>
+          {/* lines */}
+          <path d={line("netProfitSemTts")} fill="none" stroke="#94a3b8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={line("netProfitComTts")} fill="none" stroke="#10b981" strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />
+          {/* last-point dots */}
+          <circle cx={x(points.length - 1)} cy={y(last.netProfitSemTts)} r={3} fill="#94a3b8" />
+          <circle cx={x(points.length - 1)} cy={y(last.netProfitComTts)} r={3.4} fill="#10b981" />
+          {/* x labels: first & last */}
+          <text x={PAD.left} y={H - 8} className="fill-muted-foreground" style={{ fontSize: 10 }}>
+            {fmtDay(points[0].date)}
+          </text>
+          <text x={W - PAD.right} y={H - 8} textAnchor="end" className="fill-muted-foreground" style={{ fontSize: 10 }}>
+            {fmtDay(last.date)}
+          </text>
+        </svg>
+      </div>
+    </SectionCard>
+  );
+}
+
+/** YYYY-MM-DD -> DD/MM */
+function fmtDay(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return d && m ? `${d}/${m}` : iso;
 }

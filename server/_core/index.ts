@@ -12,6 +12,7 @@ import { serveStatic, setupVite } from "./vite";
 import { monitorScheduledHandler } from "../scheduled/monitor";
 import { radarSweepScheduledHandler } from "../scheduled/radarSweep";
 import { adsSnapshotScheduledHandler } from "../scheduled/adsSnapshot";
+import { profitSnapshotScheduledHandler } from "../scheduled/profitSnapshot";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -45,6 +46,7 @@ async function startServer() {
   app.post("/api/scheduled/monitor", monitorScheduledHandler);
   app.post("/api/scheduled/radarSweep", radarSweepScheduledHandler);
   app.post("/api/scheduled/adsSnapshot", adsSnapshotScheduledHandler);
+  app.post("/api/scheduled/profitSnapshot", profitSnapshotScheduledHandler);
   // tRPC API
   app.use(
     "/api/trpc",

@@ -815,5 +815,14 @@
 - [x] Config editável de alíquotas (presunção, PIS/COFINS, ICMS por UF, carga TTS) + seletor de catálogo
 - [x] Testes vitest: motor (15), provider (10), parser, lucratividade, router finance (6) — 446 testes no total
 - [x] Cache resiliente (stale-while-error) na lucratividade, igual ao da página de Anúncios
-- [ ] (Futuro) Snapshot diário automático da lucratividade via Heartbeat
+- [x] Snapshot diário automático da lucratividade via Heartbeat (implementado — ver bloco abaixo)
 - [ ] (Futuro) FCP por UF e adicional de 10% do IRPJ acima de R$ 60k/trimestre (campos já previstos, ligar quando necessário)
+
+## Snapshot diário automático de Lucratividade (Heartbeat)
+- [x] Tabela profit_snapshots (por usuário + dia) com totais de margem e quebra de custos
+- [x] Função reutilizável captureProfitSnapshotForUser + computeProfitabilityForUser (compartilhada router/cron)
+- [x] Handler /api/scheduled/profitSnapshot + registro no index.ts (cron-only, best-effort por usuário)
+- [x] Procedure finance.history para expor o histórico de margem
+- [x] Frontend: mini-evolução de margem (gráfico SVG sem TTS x com TTS) na aba Lucratividade
+- [x] Testes vitest do handler (4) + snapshotDayKey (3) — 453 testes no total
+- [ ] Após publicar: registrar cron diário (manus-heartbeat) e validar em produção
