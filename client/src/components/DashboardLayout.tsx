@@ -35,6 +35,7 @@ import {
   TrendingUp,
   Store,
   Radar,
+  Megaphone,
   ShoppingBag,
   Package,
   Undo2,
@@ -55,6 +56,7 @@ const menuGroups: MenuGroup[] = [
       { icon: LayoutGrid, label: "Painel", path: "/" },
       { icon: ShoppingBag, label: "Vendas", path: "/vendas" },
       { icon: Package, label: "Meus anúncios", path: "/anuncios" },
+      { icon: Megaphone, label: "ADS", path: "/ads" },
     ],
   },
   {

@@ -765,3 +765,16 @@
 - [x] Grupo "Disponível": Painel, Vendas, Meus anúncios
 - [x] Grupo "Em construção": demais itens, com selo "Em breve" e aparência discreta
 - [x] Itens em construção continuam navegáveis (mantêm rota) com indicação visual
+
+## Módulo ADS (Mercado Ads) — leitura completa — 13/jun
+- [x] Tipos compartilhados de Ads (shared/ads.ts)
+- [x] Provider de Ads no servidor (leitura, cache 5min, tratamento 429)
+- [x] Router tRPC ads (access, dashboard, campanhas, anúncios, inteligência)
+- [x] Página /ads com abas (Dashboard, Campanhas, Anúncios, Inteligência)
+- [x] Item "ADS" no grupo Disponível do menu lateral
+- [x] Validação ao vivo (9 campanhas, ROAS 4.75x, ACOS 21%, 36% orgânico)
+- [x] Testes vitest (buildSummary, buildAdsInsights, aggregateMetrics) — 8 casos
+- [x] Suíte completa: 376 testes OK; TS limpo
+- [ ] (Futuro) Escrita de Ads: liberar escopo write no DevCenter + reconexão
+- [ ] (Futuro) Robôs internos de otimização 24/7 (após escrita liberada)
+- [ ] (Futuro) Snapshots diários para gráfico de evolução por dia
