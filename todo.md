@@ -853,3 +853,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Abrir diálogo com cascata completa (receita → comissão → frete → CMV → impostos → Ads → lucro líquido) + lucro por unidade
 - [x] Destacar visualmente anúncios em prejuízo (linha + ícone + diálogo) e filtro "só prejuízo"
 - [x] Validar TS (limpo) e testes (47 verdes) e salvar checkpoint
+
+## Lucratividade — preço unitário + card "Todos os anúncios"
+- [x] Mostrar preço de venda unitário no diálogo de detalhe do anúncio
+- [x] Mostrar etiqueta de status (ativo/pausado/encerrado) no diálogo do anúncio
+- [x] Criar 2º card retrátil "Todos os anúncios" no fim da página
+- [x] Card novo: seletor de data INDEPENDENTE (com base histórica)
+- [x] Card novo: seletor de status (Todos/Ativo/Pausado/Encerrado)
+- [x] Cruzar lucro por anúncio com status atual (mostrar pausados/encerrados que venderam)
+- [x] Validar TS/testes e salvar checkpoint

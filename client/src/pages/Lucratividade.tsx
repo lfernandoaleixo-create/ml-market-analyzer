@@ -52,8 +52,29 @@ import {
   ShieldCheck,
   AlertTriangle,
   ChevronRight,
+  ListFilter,
+  PackageSearch,
 } from "lucide-react";
 import type { ListingProfitRow } from "@shared/finance";
+import type { ListingRow, ListingStatus } from "@shared/account";
+
+/** Human label + color classes for each ML listing status. */
+const LISTING_STATUS_META: Record<ListingStatus, { label: string; cls: string }> = {
+  active: { label: "Ativo", cls: "bg-emerald-500/12 text-emerald-700 border-emerald-500/20" },
+  paused: { label: "Pausado", cls: "bg-amber-500/12 text-amber-700 border-amber-500/25" },
+  closed: { label: "Encerrado", cls: "bg-rose-500/12 text-rose-700 border-rose-500/20" },
+  under_review: { label: "Em revisão", cls: "bg-blue-500/12 text-blue-700 border-blue-500/20" },
+  inactive: { label: "Inativo", cls: "bg-muted text-muted-foreground border-border" },
+};
+
+function StatusBadge({ status }: { status: ListingStatus }) {
+  const meta = LISTING_STATUS_META[status] ?? LISTING_STATUS_META.inactive;
+  return (
+    <Badge variant="outline" className={cn("shrink-0 border text-[10px]", meta.cls)}>
+      {meta.label}
+    </Badge>
+  );
+}
 
 function pct(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -359,6 +380,18 @@ export default function Lucratividade() {
     enabled: !!status.data?.baselinkerConfigured,
     staleTime: 60_000,
   });
+
+  // Current listing status/price (matched by itemId) so the profit dialog and
+  // the "Todos os anúncios" card can show whether an ad is active/paused/closed.
+  const listingsQuery = trpc.account.listings.useQuery(
+    { lastDays: 30 },
+    { enabled: connection.data?.connected === true, staleTime: 5 * 60_000, retry: false },
+  );
+  const listingMetaById = useMemo(() => {
+    const map = new Map<string, ListingRow>();
+    for (const it of listingsQuery.data?.items ?? []) map.set(it.itemId, it);
+    return map;
+  }, [listingsQuery.data]);
 
   const utils = trpc.useUtils();
   const toggleTts = trpc.finance.toggleTts.useMutation({
@@ -783,10 +816,20 @@ export default function Lucratividade() {
             </div>
           )}
 
+          {/* Collapsible "all listings" card with its OWN period + status filter */}
+          <AllListingsCard
+            firstSaleMs={lifetime.data?.firstSaleMs ?? null}
+            baselinkerConfigured={!!status.data?.baselinkerConfigured}
+            connected={connection.data?.connected === true}
+            listingMetaById={listingMetaById}
+            onOpenListing={setSelectedListing}
+          />
+
           {/* Per-listing profit detail dialog */}
           <ListingDetailDialog
             listing={selectedListing}
             ttsOn={ttsOn}
+            meta={selectedListing ? listingMetaById.get(selectedListing.itemId) : undefined}
             onOpenChange={(open) => !open && setSelectedListing(null)}
           />
 
@@ -960,6 +1003,198 @@ function fmtDay(iso: string): string {
   return d && m ? `${d}/${m}` : iso;
 }
 
+type StatusFilter = "all" | ListingStatus;
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "Todos os status" },
+  { value: "active", label: "Ativos" },
+  { value: "paused", label: "Pausados" },
+  { value: "closed", label: "Encerrados" },
+  { value: "under_review", label: "Em revisão" },
+  { value: "inactive", label: "Inativos" },
+];
+
+/**
+ * Collapsible "Todos os anúncios" card with its OWN independent period selector
+ * (defaulting to the historic base) and a status filter. It merges the profit
+ * per listing (for the chosen period) with the current listing status/price so
+ * paused/closed ads that still had sales are clearly surfaced.
+ */
+function AllListingsCard({
+  firstSaleMs,
+  baselinkerConfigured,
+  connected,
+  listingMetaById,
+  onOpenListing,
+}: {
+  firstSaleMs: number | null;
+  baselinkerConfigured: boolean;
+  connected: boolean;
+  listingMetaById: Map<string, ListingRow>;
+  onOpenListing: (row: ListingProfitRow) => void;
+}) {
+  // Independent period selector — starts on the historic base by request.
+  const period = usePeriod({ initialKey: "historic", firstSaleMs });
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const allInput = useMemo(() => ({ days: period.days }), [period.days]);
+  // Query is cached/deduped by tRPC; it shares the cache key with the main card
+  // when the day count matches, so this rarely costs an extra round-trip.
+  const profit = trpc.finance.profitability.useQuery(allInput, {
+    enabled: baselinkerConfigured && connected,
+    staleTime: 2 * 60_000,
+    retry: false,
+  });
+
+  const rows = useMemo(() => {
+    const list = profit.data?.listings ?? [];
+    if (statusFilter === "all") return list;
+    return list.filter((r) => {
+      const meta = listingMetaById.get(r.itemId);
+      // Unknown status only matches "all".
+      return meta?.status === statusFilter;
+    });
+  }, [profit.data, statusFilter, listingMetaById]);
+
+  const counts = useMemo(() => {
+    const list = profit.data?.listings ?? [];
+    const c: Record<string, number> = {};
+    for (const r of list) {
+      const s = listingMetaById.get(r.itemId)?.status ?? "unknown";
+      c[s] = (c[s] ?? 0) + 1;
+    }
+    return c;
+  }, [profit.data, listingMetaById]);
+
+  return (
+    <SectionCard
+      collapsible
+      defaultOpen={false}
+      title="Todos os anúncios (filtro independente)"
+      description="Período e status próprios deste card. Inclui anúncios pausados/encerrados que tiveram vendas no período."
+      actions={
+        <Badge variant="outline" className="bg-background text-[10px]">
+          <PackageSearch className="mr-1 h-3 w-3" />
+          {profit.data ? `${formatNumber(profit.data.listings.length)} anúncios` : "abrir"}
+        </Badge>
+      }
+    >
+      {/* Controls: independent period + status filter */}
+      <div className="space-y-3">
+        <PeriodSelector
+          value={period.key}
+          onChange={period.setKey}
+          fromIso={period.fromIso}
+          toIso={period.toIso}
+          onFromIso={period.setFromIso}
+          onToIso={period.setToIso}
+          title={period.title}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <ListFilter className="h-4 w-4 text-muted-foreground" />
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+            <SelectTrigger className="h-9 w-[200px] bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_FILTER_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                  {opt.value !== "all" && counts[opt.value]
+                    ? ` (${counts[opt.value]})`
+                    : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="mt-4">
+        {profit.isError ? (
+          <ErrorState
+            message={profit.error?.message}
+            onRetry={() => profit.refetch()}
+            retrying={profit.isFetching}
+          />
+        ) : profit.isLoading || !profit.data ? (
+          <Skeleton className="h-48 w-full rounded-xl" />
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Nenhum anúncio para este período e status.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="py-2.5 pr-3 font-semibold">Anúncio</th>
+                  <th className="py-2.5 px-3 font-semibold">Status</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Un.</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Preço un.</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Receita</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Lucro</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Margem</th>
+                  <th className="py-2.5 pl-3 font-semibold text-right w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const meta = listingMetaById.get(row.itemId);
+                  const isLoss = row.current.netProfit < 0;
+                  const unitPrice =
+                    row.unitsSold > 0 ? row.current.revenue / row.unitsSold : null;
+                  return (
+                    <tr
+                      key={row.itemId}
+                      onClick={() => onOpenListing(row)}
+                      className={cn(
+                        "group cursor-pointer border-b border-dashed last:border-0 transition-colors",
+                        isLoss ? "bg-rose-500/[0.04] hover:bg-rose-500/[0.09]" : "hover:bg-muted/50",
+                      )}
+                    >
+                      <td className="py-2.5 pr-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isLoss && (
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500/12 text-rose-600" title="Anúncio no prejuízo">
+                              <AlertTriangle className="h-3 w-3" />
+                            </span>
+                          )}
+                          <span className="truncate max-w-[260px]" title={row.title}>
+                            {row.title}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {meta ? <StatusBadge status={meta.status} /> : <span className="text-xs text-muted-foreground">—</span>}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">{formatNumber(row.unitsSold)}</td>
+                      <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
+                        {unitPrice != null ? formatBRL(unitPrice) : "—"}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">{formatBRL(row.current.revenue)}</td>
+                      <td className={cn("py-2.5 px-3 text-right tabular-nums font-semibold", isLoss ? "text-rose-600" : "text-emerald-600")}>
+                        {formatBRL(row.current.netProfit)}
+                      </td>
+                      <td className={cn("py-2.5 px-3 text-right tabular-nums", marginColor(row.current.margin))}>
+                        {pct(row.current.margin)}
+                      </td>
+                      <td className="py-2.5 pl-3 text-right">
+                        <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </SectionCard>
+  );
+}
+
 /**
  * Per-listing profit detail. Opens when a row in "Lucro por anúncio" is clicked
  * and shows the full cost cascade for that single ad, calling out a loss clearly.
@@ -967,10 +1202,13 @@ function fmtDay(iso: string): string {
 function ListingDetailDialog({
   listing,
   ttsOn,
+  meta,
   onOpenChange,
 }: {
   listing: ListingProfitRow | null;
   ttsOn: boolean;
+  /** Current listing status/price from account.listings, matched by itemId. */
+  meta?: ListingRow;
   onOpenChange: (open: boolean) => void;
 }) {
   const p = listing?.current;
@@ -978,6 +1216,9 @@ function ListingDetailDialog({
   // Per-unit net profit helps decide if each extra sale makes or loses money.
   const perUnit =
     p && listing && listing.unitsSold > 0 ? p.netProfit / listing.unitsSold : null;
+  // Average sale price per unit in the period (revenue / units sold).
+  const avgUnitPrice =
+    p && listing && listing.unitsSold > 0 ? p.revenue / listing.unitsSold : null;
 
   return (
     <Dialog open={!!listing} onOpenChange={onOpenChange}>
@@ -992,6 +1233,7 @@ function ListingDetailDialog({
                   </span>
                 )}
                 <span className="text-base">{listing.title}</span>
+                {meta && <StatusBadge status={meta.status} />}
               </DialogTitle>
               <DialogDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span>{formatNumber(listing.unitsSold)} unidade(s) vendida(s)</span>
@@ -1047,6 +1289,17 @@ function ListingDetailDialog({
 
             {/* Per-unit + missing-cost footnotes */}
             <div className="space-y-2">
+              {avgUnitPrice != null && (
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-xs">
+                  <span className="text-muted-foreground">
+                    Preço de venda por unidade
+                    {meta?.price != null && Math.abs(meta.price - avgUnitPrice) > 0.01 ? (
+                      <span className="text-muted-foreground/70"> (anúncio hoje: {formatBRL(meta.price)})</span>
+                    ) : null}
+                  </span>
+                  <span className="font-semibold tabular-nums">{formatBRL(avgUnitPrice)}</span>
+                </div>
+              )}
               {perUnit != null && (
                 <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-xs">
                   <span className="text-muted-foreground">Lucro por unidade vendida</span>
