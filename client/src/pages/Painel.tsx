@@ -1307,9 +1307,9 @@ function LifetimeCard({
               <span className="truncate">{it.label}</span>
             </p>
             {loading ? (
-              <Skeleton className="mt-1 h-5 w-16" />
+              <Skeleton className="mt-1 h-6 w-20" />
             ) : (
-              <p className={cn("mt-0.5 font-display text-[15px] font-bold leading-tight tracking-tight tabular-nums", it.valueClass)}>
+              <p className={cn("mt-0.5 font-display text-lg font-bold leading-tight tracking-tight tabular-nums", it.valueClass)}>
                 {it.value}
               </p>
             )}
@@ -1409,10 +1409,15 @@ function HistoricProfitCard({
       ]
     : [];
 
-  const colsClass =
-    cells.length === 8
-      ? "grid-cols-4 lg:grid-cols-8"
-      : "grid-cols-4 lg:grid-cols-7";
+  // Use exactly as many columns as there are cells so the dividers fall between
+  // equal-width columns (no leftover empty slot). Maps to fixed Tailwind classes.
+  const lgColsMap: Record<number, string> = {
+    5: "lg:grid-cols-5",
+    6: "lg:grid-cols-6",
+    7: "lg:grid-cols-7",
+    8: "lg:grid-cols-8",
+  };
+  const colsClass = cn("grid-cols-3", lgColsMap[cells.length] ?? "lg:grid-cols-7");
 
   return (
     <Card className="card-soft overflow-hidden border-0 rounded-2xl">
@@ -1424,12 +1429,6 @@ function HistoricProfitCard({
           <p className="font-display text-[13px] font-semibold leading-tight tracking-tight">Da receita ao resultado</p>
           <p className="text-[10px] text-muted-foreground">Base histórica</p>
         </div>
-        <Link
-          href="/lucratividade"
-          className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
-        >
-          Detalhes <ArrowUpRight className="h-2.5 w-2.5" />
-        </Link>
       </div>
 
       {notConfigured ? (
@@ -1456,13 +1455,13 @@ function HistoricProfitCard({
         <div className={cn("grid divide-y divide-x sm:divide-y-0", colsClass)} style={{ borderColor: "var(--border)" }}>
           {cells.map((c) => (
             <div key={c.label} className="px-3 py-1.5 transition-colors hover:bg-secondary/40">
-              <p className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+              <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
                 <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${c.tint}`}>
                   <c.icon className="h-2.5 w-2.5" />
                 </span>
                 <span className="truncate">{c.label}</span>
               </p>
-              <p className={cn("mt-0.5 font-display text-[15px] font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
+              <p className={cn("mt-0.5 font-display text-lg font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
                 {c.value}
               </p>
               <p className="text-[10px] text-muted-foreground tabular-nums">{c.pctOnly}</p>
