@@ -33,6 +33,7 @@ import { todayIsoBrt } from "@/lib/period";
 import { isoDateBrt as brtIso } from "@shared/period";
 import { usePeriod } from "@/hooks/usePeriod";
 import { PeriodSelector } from "@/components/PeriodSelector";
+import { ProfitFlow } from "@/components/finance/ProfitFlow";
 import {
   Bar,
   BarChart,
@@ -122,6 +123,31 @@ export default function Painel() {
   );
   const listings = trpc.account.listings.useQuery({ lastDays: 30 }, { enabled: everConnected });
   const rep = trpc.account.reputation.useQuery(undefined, { enabled: everConnected });
+
+  // Historic-base profit summary (mirror of the Lucratividade "Da receita ao
+  // resultado" card), pinned below the lifetime card. Uses days since the first
+  // sale so it always reflects the whole store history. Requires BaseLinker for
+  // CMV; otherwise we show a friendly hint instead of misleading numbers.
+  const financeStatus = trpc.finance.status.useQuery(undefined, {
+    enabled: everConnected,
+    staleTime: 60_000,
+  });
+  const historicDays = useMemo(() => {
+    const first = lifetime.data?.firstSaleMs;
+    if (!first) return 0;
+    const ms = Date.now() - first;
+    return Math.max(1, Math.ceil(ms / 86_400_000));
+  }, [lifetime.data?.firstSaleMs]);
+  const historicProfit = trpc.finance.profitability.useQuery(
+    { days: historicDays },
+    {
+      enabled:
+        everConnected &&
+        historicDays > 0 &&
+        financeStatus.data?.baselinkerConfigured === true,
+      staleTime: 2 * 60_000,
+    },
+  );
 
   // First load (no cached connection result yet): show skeleton.
   if (conn.isLoading && conn.data === undefined) {
@@ -219,6 +245,45 @@ export default function Painel() {
         canceledOrders={lifetime.data?.canceledOrders ?? 0}
         canceledRevenue={lifetime.data?.canceledRevenue ?? 0}
       />
+
+      {/* Historic-base "Revenue → result" flow, pinned right under the lifetime
+          card. Mirrors the Lucratividade card but is locked to the historic base. */}
+      <SectionCard
+        title="Da receita ao resultado"
+        description="Base histórica — desde a primeira venda da loja"
+        actions={
+          <Link href="/lucratividade" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            Ver lucratividade <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        }
+      >
+        {!financeStatus.isLoading && financeStatus.data?.baselinkerConfigured !== true ? (
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-secondary/40 py-8 text-center">
+            <Receipt className="h-7 w-7 text-muted-foreground/50" />
+            <p className="text-sm font-medium text-muted-foreground">
+              Configure os custos (BaseLinker e impostos) para ver a quebra de lucro.
+            </p>
+            <Link href="/lucratividade" className="text-sm font-medium text-primary hover:underline">
+              Abrir Lucratividade Real
+            </Link>
+          </div>
+        ) : historicProfit.isLoading || lifetime.isLoading || financeStatus.isLoading ? (
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="h-[88px] flex-1 min-w-[120px] rounded-xl" />
+            ))}
+          </div>
+        ) : historicProfit.data && historicProfit.data.totals.revenue > 0 ? (
+          <ProfitFlow p={historicProfit.data.totals} />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-secondary/40 py-8 text-center">
+            <TrendingUp className="h-7 w-7 text-muted-foreground/50" />
+            <p className="text-sm font-medium text-muted-foreground">
+              Sem dados de lucro histórico ainda.
+            </p>
+          </div>
+        )}
+      </SectionCard>
 
       {/* Period selector — controls both the KPI cards and the chart below */}
       <PeriodSelector

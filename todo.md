@@ -871,3 +871,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend (Meus anúncios): cards/coluna de visitas mostram "—/carregando" + aviso com botão Atualizar quando pendente
 - [x] Frontend (Painel): breakdown não usa visitas (sem 0 falso) — nada a alterar
 - [x] Testes vitest do estado pendente (3 casos: full miss, zero real, parcial) — 481 testes ok
+
+## Card "Da receita ao resultado" no Painel (base histórica) — 14/06
+- [x] Extrair ProfitFlow/FlowCard para componente compartilhado (components/finance/ProfitFlow.tsx)
+- [x] Lucratividade passa a importar o ProfitFlow compartilhado (sem duplicação)
+- [x] Painel: query finance.profitability com dias desde a primeira venda (base histórica) + finance.status
+- [x] Painel: renderizar o card travado logo abaixo do "Histórico acumulado" (LifetimeCard) com estados carregando/não-configurado/sem-dados
+- [x] TS limpo e 481 testes passando
