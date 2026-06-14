@@ -266,8 +266,6 @@ export default function Painel() {
         loadingSales={loadingSales}
         revenue={k?.revenue ?? 0}
         orders={k?.orders ?? 0}
-        cancelledAmount={k?.cancelledAmount ?? 0}
-        cancelled={k?.cancelled ?? 0}
         activeListings={s?.active ?? 0}
         totalListings={s?.total ?? 0}
         listingsLoading={listings.isLoading}
@@ -1452,8 +1450,6 @@ function PeriodFlowStrip({
   loadingSales,
   revenue,
   orders,
-  cancelledAmount,
-  cancelled,
   activeListings,
   totalListings,
   listingsLoading,
@@ -1465,8 +1461,6 @@ function PeriodFlowStrip({
   loadingSales: boolean;
   revenue: number;
   orders: number;
-  cancelledAmount: number;
-  cancelled: number;
   activeListings: number;
   totalListings: number;
   listingsLoading: boolean;
@@ -1560,24 +1554,15 @@ function PeriodFlowStrip({
     costCell(Package, "Custo (CMV)", breakdown?.cmv),
     costCell(Receipt, "Impostos", breakdown?.tax),
     costCell(Megaphone, "Ads", breakdown?.ads),
-    {
-      icon: XCircle,
-      label: "Cancelados",
-      value: formatBRL(cancelledAmount),
-      sub: `${formatNumber(cancelled)} ${cancelled === 1 ? "pedido" : "pedidos"}`,
-      tint: "bg-rose-500/12 text-rose-600",
-      valueClass: "text-rose-600",
-      loading: loadingSales,
-    },
     resultCell,
   ];
 
-  const count = cells.length; // 9
+  const count = cells.length; // 8 (Anúncios ativos, Receita, 5 custos, Resultado)
   const lgColsMap: Record<number, string> = {
+    7: "lg:grid-cols-7",
     8: "lg:grid-cols-8",
-    9: "lg:grid-cols-9",
   };
-  const colsClass = cn("grid-cols-3", lgColsMap[count] ?? "lg:grid-cols-9");
+  const colsClass = cn("grid-cols-3", lgColsMap[count] ?? "lg:grid-cols-8");
 
   return (
     <Card className="card-soft overflow-hidden border-0 rounded-2xl">
