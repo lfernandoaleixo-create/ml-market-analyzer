@@ -110,6 +110,10 @@ export interface ListingRow {
   listingType: string;
   /** Visits in the selected window (e.g. last 30 days). */
   visits: number;
+  /** Whether REAL visit data was obtained for this item from ML in this window.
+   *  When false, `visits` is NOT a real zero — ML did not return the data in time
+   *  (rate limit / timeout). The UI must show "carregando", never "0". */
+  visitsAvailable: boolean;
   /** Conversion = soldQuantity / visits (0..1), null when no visits. */
   conversion: number | null;
   thumbnail?: string;
@@ -141,6 +145,14 @@ export interface ListingsSummary {
   /** Items with zero available stock. */
   outOfStock: number;
   totalVisits: number;
+  /** True when ML did NOT return visit data for ALL items within the time budget
+   *  (rate limit / congestion). In this case visit-derived numbers are NOT real
+   *  zeros and the UI must show a "carregando" state with a refresh option. */
+  visitsPending: boolean;
+  /** How many items we tried to fetch visits for, and how many actually resolved
+   *  with real data. visitsResolved < visitsAttempted => partial/pending. */
+  visitsAttempted: number;
+  visitsResolved: number;
   /** Visits in the selected window broken down by listing status. */
   visitsActive: number;
   visitsPaused: number;

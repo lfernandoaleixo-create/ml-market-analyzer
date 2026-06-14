@@ -294,6 +294,90 @@ describe("AccountProvider.getListings", () => {
     const mlb9 = res.items.find((i) => i.itemId === "MLB9")!;
     expect(mlb9.visits).toBe(0);
     expect(mlb9.conversion).toBeNull();
+    // No real visit data arrived: must be flagged unavailable + pending (NOT a real 0).
+    expect(mlb9.visitsAvailable).toBe(false);
+    expect(res.summary.visitsPending).toBe(true);
+    expect(res.summary.visitsResolved).toBe(0);
+    expect(res.summary.visitsAttempted).toBe(1);
+  });
+
+  it("marks visitsAvailable=true and NOT pending when ML returns a genuine 0", async () => {
+    const idsPage = { paging: { total: 1 }, results: ["MLB7"] };
+    const itemsBody = [
+      {
+        code: 200,
+        body: {
+          id: "MLB7",
+          title: "Item com zero visitas reais",
+          price: 15,
+          currency_id: "BRL",
+          available_quantity: 4,
+          sold_quantity: 0,
+          status: "active",
+          listing_type_id: "gold_special",
+        },
+      },
+    ];
+    global.fetch = makeFetchRouter([
+      { match: /\/users\/\d+\/items\/search/, body: idsPage },
+      // ML explicitly answers 0 visits — this IS a real zero, not a miss.
+      { match: /\/visits\/time_window/, body: { total_visits: 0 } },
+      { match: /api\.mercadolibre\.com\/items\?ids=/, body: itemsBody },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30 });
+    const mlb7 = res.items.find((i) => i.itemId === "MLB7")!;
+    expect(mlb7.visits).toBe(0);
+    expect(mlb7.visitsAvailable).toBe(true); // real 0, available
+    expect(res.summary.visitsPending).toBe(false);
+    expect(res.summary.visitsResolved).toBe(1);
+  });
+
+  it("is NOT pending when at least one item resolves (partial data)", async () => {
+    const idsPage = { paging: { total: 2 }, results: ["MLB1", "MLB2"] };
+    const itemsBody = [
+      {
+        code: 200,
+        body: {
+          id: "MLB1",
+          title: "Resolveu",
+          price: 50,
+          currency_id: "BRL",
+          available_quantity: 10,
+          sold_quantity: 5,
+          status: "active",
+          listing_type_id: "gold_special",
+        },
+      },
+      {
+        code: 200,
+        body: {
+          id: "MLB2",
+          title: "Não resolveu",
+          price: 20,
+          currency_id: "BRL",
+          available_quantity: 8,
+          sold_quantity: 0,
+          status: "active",
+          listing_type_id: "gold_special",
+        },
+      },
+    ];
+    global.fetch = makeFetchRouter([
+      { match: /\/users\/\d+\/items\/search/, body: idsPage },
+      { match: /\/items\/MLB1\/visits\/time_window/, body: { total_visits: 100 } },
+      { match: /\/items\/MLB2\/visits\/time_window/, body: {} }, // miss
+      { match: /api\.mercadolibre\.com\/items\?ids=/, body: itemsBody },
+    ]) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30 });
+    expect(res.summary.visitsPending).toBe(false); // partial still renders
+    expect(res.summary.visitsResolved).toBe(1);
+    expect(res.summary.visitsAttempted).toBe(2);
+    expect(res.items.find((i) => i.itemId === "MLB1")!.visitsAvailable).toBe(true);
+    expect(res.items.find((i) => i.itemId === "MLB2")!.visitsAvailable).toBe(false);
   });
 
   it("builds a 30-day active-visits evolution series (zero-filled, aggregated)", async () => {

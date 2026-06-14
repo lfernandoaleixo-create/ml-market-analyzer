@@ -445,12 +445,15 @@ export class AccountProvider {
     // "visits pending" than a frozen, all-zero dashboard.
     const windowMap = await this.withBudget(
       this.getVisitsWindow(detailIds, lastDays),
-      9000,
+      13000,
       new Map<string, number | null>(),
     );
 
     const items: ListingRow[] = details.map((d) => {
       const wv = windowMap.get(d.id);
+      // A real number means ML answered (even a genuine 0). undefined/null means
+      // the data did NOT arrive (timeout / rate limit) and must NOT be shown as 0.
+      const visitsAvailable = typeof wv === "number";
       const visits = typeof wv === "number" ? wv : 0;
       const soldQuantity = d.sold_quantity ?? 0;
       const price = d.price ?? 0;
@@ -472,7 +475,8 @@ export class AccountProvider {
         status: this.mapStatus(d.status),
         listingType: d.listing_type_id ?? "",
         visits,
-        conversion: visits > 0 ? soldQuantity / visits : null,
+        visitsAvailable,
+        conversion: visitsAvailable && visits > 0 ? soldQuantity / visits : null,
         thumbnail: thumb,
         permalink: d.permalink ?? undefined,
         health: typeof d.health === "number" ? d.health : null,
@@ -496,8 +500,15 @@ export class AccountProvider {
     const visitsPaused = items.filter((i) => i.status === "paused").reduce((s, i) => s + i.visits, 0);
     const visitsClosed = items.filter((i) => i.status === "closed").reduce((s, i) => s + i.visits, 0);
     const activeItems = items.filter((i) => i.status === "active");
-    const activeWithVisits = activeItems.filter((i) => i.visits > 0).length;
-    const activeNoVisits = activeItems.filter((i) => i.visits === 0).length;
+    const activeWithVisits = activeItems.filter((i) => i.visitsAvailable && i.visits > 0).length;
+    const activeNoVisits = activeItems.filter((i) => i.visitsAvailable && i.visits === 0).length;
+    // Visit availability: how many items actually got REAL visit data back from ML.
+    // If none (or only a fraction) resolved, visit-derived KPIs are pending, not 0.
+    const visitsAttempted = items.length;
+    const visitsResolved = items.filter((i) => i.visitsAvailable).length;
+    // Pending when ML returned visit data for NO item at all (the all-zero case the
+    // user saw). Partial resolution still renders, but a full miss must show "carregando".
+    const visitsPending = visitsAttempted > 0 && visitsResolved === 0;
     const avgVisitsPerActive = active > 0 ? Math.round(visitsActive / active) : 0;
     const totalStockValue = items.reduce((s, i) => s + i.stockValue, 0);
     const totalSold = items.reduce((s, i) => s + i.soldQuantity, 0);
@@ -522,6 +533,9 @@ export class AccountProvider {
         stagnant,
         outOfStock,
         totalVisits,
+        visitsPending,
+        visitsAttempted,
+        visitsResolved,
         visitsActive,
         visitsPaused,
         visitsClosed,

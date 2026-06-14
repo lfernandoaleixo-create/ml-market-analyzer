@@ -862,3 +862,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Card novo: seletor de status (Todos/Ativo/Pausado/Encerrado)
 - [x] Cruzar lucro por anúncio com status atual (mostrar pausados/encerrados que venderam)
 - [x] Validar TS/testes e salvar checkpoint
+
+
+## Robustez das visitas (nunca mostrar 0 falso) — 14/06
+- [x] Backend: distinguir "visitas pendentes/indisponíveis" de "0 real" (flag visitsPending)
+- [x] Backend: retentativa com backoff quando ML responde 429 no time_window (já existente, validado)
+- [x] Backend: ampliar orçamento de tempo (9s->13s) e expor visitsAttempted/visitsResolved
+- [x] Frontend (Meus anúncios): cards/coluna de visitas mostram "—/carregando" + aviso com botão Atualizar quando pendente
+- [x] Frontend (Painel): breakdown não usa visitas (sem 0 falso) — nada a alterar
+- [x] Testes vitest do estado pendente (3 casos: full miss, zero real, parcial) — 481 testes ok

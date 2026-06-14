@@ -251,6 +251,15 @@ export default function Anuncios() {
   const s = data?.summary;
   const availableTypes = Array.from(new Set(items.map((i) => i.listingType).filter(Boolean)));
 
+  // Visit data can be "pending": ML did not return visits for ANY item within the
+  // time budget (rate limit / congestion). In that case visit numbers are NOT real
+  // zeros, so we show "Carregando…" instead of "0" and offer a refresh.
+  const visitsPending = !isLoading && s?.visitsPending === true;
+  const LOADING = "—";
+  /** Show the real number, or a loading dash when visits are pending. */
+  const visitVal = (n: number | undefined) =>
+    isLoading ? "" : visitsPending ? LOADING : formatNumber(n ?? 0);
+
   return (
     <PageShell>
       <PageHeader
@@ -292,6 +301,27 @@ export default function Anuncios() {
         </div>
       )}
 
+      {visitsPending && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-2.5 text-sm text-blue-700">
+          <div className="flex items-center gap-2">
+            <RefreshCw className={cn("h-4 w-4 shrink-0", isFetching && "animate-spin")} />
+            <span>
+              As <strong>visitas</strong> ainda estão sendo carregadas do Mercado Livre (o ML limita a consulta de visitas a um anúncio por vez). Os demais dados já estão atualizados. <strong>Isto não é zero de visitas</strong> — é carregamento.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 bg-card text-blue-700"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            {isFetching ? "Atualizando…" : "Atualizar visitas"}
+          </Button>
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <KpiCard
@@ -303,11 +333,12 @@ export default function Anuncios() {
         />
         <KpiCard
           label={`Visitas (${visitWindow}d)`}
-          value={isLoading ? "" : formatNumber(s?.totalVisits ?? 0)}
+          value={visitVal(s?.totalVisits)}
           loading={isLoading}
           icon={Eye}
           accent="blue"
-          trend={{ pct: visitsTrendPct, label: "vs. período anterior" }}
+          sublabel={visitsPending ? "carregando do Mercado Livre…" : undefined}
+          trend={visitsPending ? undefined : { pct: visitsTrendPct, label: "vs. período anterior" }}
         />
         <KpiCard
           label="Pausados"
@@ -341,44 +372,44 @@ export default function Anuncios() {
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <KpiCard
             label="Visitas · ativos"
-            value={isLoading ? "" : formatNumber(s?.visitsActive ?? 0)}
+            value={visitVal(s?.visitsActive)}
             loading={isLoading}
             icon={Eye}
             accent="emerald"
           />
           <KpiCard
             label="Visitas · pausados"
-            value={isLoading ? "" : formatNumber(s?.visitsPaused ?? 0)}
+            value={visitVal(s?.visitsPaused)}
             loading={isLoading}
             icon={PauseCircle}
             accent="amber"
           />
           <KpiCard
             label="Visitas · encerrados"
-            value={isLoading ? "" : formatNumber(s?.visitsClosed ?? 0)}
+            value={visitVal(s?.visitsClosed)}
             loading={isLoading}
             icon={XCircle}
             accent="rose"
           />
           <KpiCard
             label="Ativos com visitas"
-            value={isLoading ? "" : formatNumber(s?.activeWithVisits ?? 0)}
+            value={visitVal(s?.activeWithVisits)}
             loading={isLoading}
             icon={PlayCircle}
             accent="blue"
-            sublabel={isLoading ? undefined : `de ${formatNumber(s?.active ?? 0)} ativos`}
+            sublabel={isLoading || visitsPending ? undefined : `de ${formatNumber(s?.active ?? 0)} ativos`}
           />
           <KpiCard
             label="Ativos sem visitas"
-            value={isLoading ? "" : formatNumber(s?.activeNoVisits ?? 0)}
+            value={visitVal(s?.activeNoVisits)}
             loading={isLoading}
             icon={EyeOff}
             accent="orange"
-            sublabel="sem tráfego no período"
+            sublabel={visitsPending ? undefined : "sem tráfego no período"}
           />
           <KpiCard
             label="Média por ativo"
-            value={isLoading ? "" : (s?.avgVisitsPerActive ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+            value={isLoading ? "" : visitsPending ? LOADING : (s?.avgVisitsPerActive ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
             loading={isLoading}
             icon={Gauge}
             accent="violet"
@@ -821,8 +852,20 @@ function ListingsTable({
                 )}
               </td>
               <td className="px-3 text-right tabular-nums">{formatNumber(r.soldQuantity)}</td>
-              <td className="px-3 text-right tabular-nums">{formatNumber(r.visits)}</td>
-              <td className="px-3 text-right tabular-nums">{formatRatePct(r.conversion)}</td>
+              <td className="px-3 text-right tabular-nums">
+                {r.visitsAvailable ? (
+                  formatNumber(r.visits)
+                ) : (
+                  <span className="text-muted-foreground/50" title="Visitas ainda carregando do Mercado Livre">—</span>
+                )}
+              </td>
+              <td className="px-3 text-right tabular-nums">
+                {r.visitsAvailable ? (
+                  formatRatePct(r.conversion)
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )}
+              </td>
               <td className="px-3 text-right tabular-nums">
                 <HealthDot health={r.health} />
               </td>
