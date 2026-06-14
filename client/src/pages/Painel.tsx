@@ -256,6 +256,15 @@ export default function Painel() {
         />
       </div>
 
+      {/* Visits evolution chart (same as Meus Anúncios) — above the period
+          selector, below the historic "Da receita ao resultado" card. */}
+      <SectionCard
+        title="Evolução das visitas · anúncios ativos"
+        description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias (o dia de hoje é parcial e atualiza em tempo real)."
+      >
+        <VisitsEvolutionChart series={visitsSeries} loading={listings.isLoading} windowDays={30} />
+      </SectionCard>
+
       {/* Period selector — controls both the KPI cards and the chart below */}
       <PeriodSelector
         value={period.key}
@@ -266,15 +275,6 @@ export default function Painel() {
         onToIso={period.setToIso}
         title={periodTitle}
       />
-
-      {/* Visits evolution chart (same as Meus Anúncios) — between the period
-          selector and the "Da receita ao resultado" strip. */}
-      <SectionCard
-        title="Evolução das visitas · anúncios ativos"
-        description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias (o dia de hoje é parcial e atualiza em tempo real)."
-      >
-        <VisitsEvolutionChart series={visitsSeries} loading={listings.isLoading} windowDays={30} />
-      </SectionCard>
 
       {/* Single "Da receita ao resultado" strip for the selected period */}
       <PeriodFlowStrip
