@@ -1293,7 +1293,7 @@ function LifetimeCard({
           <Store className="h-3 w-3" />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <p className="font-display text-[13px] font-semibold leading-tight tracking-tight">Histórico acumulado</p>
+          <p className="font-display text-base font-semibold leading-tight tracking-tight">Histórico acumulado</p>
           <p className="text-[10px] text-muted-foreground">Desde o início da loja</p>
         </div>
       </div>
@@ -1426,7 +1426,7 @@ function HistoricProfitCard({
           <Wallet className="h-3 w-3" />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <p className="font-display text-[13px] font-semibold leading-tight tracking-tight">Da receita ao resultado</p>
+          <p className="font-display text-base font-semibold leading-tight tracking-tight">Da receita ao resultado</p>
           <p className="text-[10px] text-muted-foreground">Base histórica</p>
         </div>
       </div>
