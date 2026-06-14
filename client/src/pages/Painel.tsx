@@ -33,7 +33,7 @@ import { todayIsoBrt } from "@/lib/period";
 import { isoDateBrt as brtIso } from "@shared/period";
 import { usePeriod } from "@/hooks/usePeriod";
 import { PeriodSelector } from "@/components/PeriodSelector";
-import { ProfitFlow } from "@/components/finance/ProfitFlow";
+import type { ProfitBreakdown } from "@shared/finance";
 import {
   Bar,
   BarChart,
@@ -58,6 +58,10 @@ import {
   TrendingUp,
   TrendingDown,
   Receipt,
+  Wallet,
+  Coins,
+  Truck,
+  Megaphone,
   ShoppingCart,
   PackageOpen,
   ChevronDown,
@@ -246,44 +250,13 @@ export default function Painel() {
         canceledRevenue={lifetime.data?.canceledRevenue ?? 0}
       />
 
-      {/* Historic-base "Revenue → result" flow, pinned right under the lifetime
-          card. Mirrors the Lucratividade card but is locked to the historic base. */}
-      <SectionCard
-        title="Da receita ao resultado"
-        description="Base histórica — desde a primeira venda da loja"
-        actions={
-          <Link href="/lucratividade" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-            Ver lucratividade <ArrowUpRight className="h-3.5 w-3.5" />
-          </Link>
-        }
-      >
-        {!financeStatus.isLoading && financeStatus.data?.baselinkerConfigured !== true ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-secondary/40 py-8 text-center">
-            <Receipt className="h-7 w-7 text-muted-foreground/50" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Configure os custos (BaseLinker e impostos) para ver a quebra de lucro.
-            </p>
-            <Link href="/lucratividade" className="text-sm font-medium text-primary hover:underline">
-              Abrir Lucratividade Real
-            </Link>
-          </div>
-        ) : historicProfit.isLoading || lifetime.isLoading || financeStatus.isLoading ? (
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={i} className="h-[88px] flex-1 min-w-[120px] rounded-xl" />
-            ))}
-          </div>
-        ) : historicProfit.data && historicProfit.data.totals.revenue > 0 ? (
-          <ProfitFlow p={historicProfit.data.totals} />
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-secondary/40 py-8 text-center">
-            <TrendingUp className="h-7 w-7 text-muted-foreground/50" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Sem dados de lucro histórico ainda.
-            </p>
-          </div>
-        )}
-      </SectionCard>
+      {/* Historic-base "Revenue → result" card, styled exactly like the lifetime
+          "Histórico acumulado" card and kept as compact as possible. */}
+      <HistoricProfitCard
+        loading={historicProfit.isLoading || lifetime.isLoading || financeStatus.isLoading}
+        notConfigured={!financeStatus.isLoading && financeStatus.data?.baselinkerConfigured !== true}
+        breakdown={historicProfit.data && historicProfit.data.totals.revenue > 0 ? historicProfit.data.totals : null}
+      />
 
       {/* Period selector — controls both the KPI cards and the chart below */}
       <PeriodSelector
@@ -1344,6 +1317,166 @@ function LifetimeCard({
           </div>
         ))}
       </div>
+    </Card>
+  );
+}
+
+/**
+ * Compact "Da receita ao resultado" card, styled identically to LifetimeCard
+ * (gradient header + a single row of divided cells). Locked to the historic
+ * base. Each cell shows the value and what % of revenue it represents.
+ */
+function HistoricProfitCard({
+  loading,
+  notConfigured,
+  breakdown,
+}: {
+  loading: boolean;
+  notConfigured: boolean;
+  breakdown: ProfitBreakdown | null;
+}) {
+  const rev = breakdown?.revenue ?? 0;
+  const pct = (v: number) => (rev > 0 ? `${((v / rev) * 100).toFixed(1)}%` : "—");
+  const isLoss = (breakdown?.netProfit ?? 0) < 0;
+
+  const cells: Array<{
+    icon: typeof Store;
+    label: string;
+    value: string;
+    sub: string;
+    tint: string;
+    valueClass?: string;
+  }> = breakdown
+    ? [
+        {
+          icon: Wallet,
+          label: "Receita",
+          value: formatBRL(breakdown.revenue),
+          sub: "100% · total de vendas",
+          tint: "bg-blue-500/12 text-blue-600",
+        },
+        {
+          icon: Coins,
+          label: "Comissão ML",
+          value: `−${formatBRL(breakdown.commission)}`,
+          sub: `${pct(breakdown.commission)} da receita`,
+          tint: "bg-rose-500/12 text-rose-600",
+          valueClass: "text-rose-600",
+        },
+        {
+          icon: Truck,
+          label: "Frete",
+          value: `−${formatBRL(breakdown.shipping)}`,
+          sub: `${pct(breakdown.shipping)} da receita`,
+          tint: "bg-rose-500/12 text-rose-600",
+          valueClass: "text-rose-600",
+        },
+        {
+          icon: Package,
+          label: "Custo (CMV)",
+          value: `−${formatBRL(breakdown.cmv)}`,
+          sub: `${pct(breakdown.cmv)} da receita`,
+          tint: "bg-rose-500/12 text-rose-600",
+          valueClass: "text-rose-600",
+        },
+        {
+          icon: Receipt,
+          label: "Impostos",
+          value: `−${formatBRL(breakdown.tax)}`,
+          sub: `${pct(breakdown.tax)} da receita`,
+          tint: "bg-rose-500/12 text-rose-600",
+          valueClass: "text-rose-600",
+        },
+        ...(breakdown.ads > 0
+          ? [
+              {
+                icon: Megaphone,
+                label: "Ads",
+                value: `−${formatBRL(breakdown.ads)}`,
+                sub: `${pct(breakdown.ads)} da receita`,
+                tint: "bg-rose-500/12 text-rose-600",
+                valueClass: "text-rose-600",
+              } as const,
+            ]
+          : []),
+        {
+          icon: TrendingUp,
+          label: "Resultado",
+          value: formatBRL(breakdown.netProfit),
+          sub: `${pct(breakdown.netProfit)} de margem`,
+          tint: isLoss ? "bg-rose-500/12 text-rose-600" : "bg-emerald-500/12 text-emerald-600",
+          valueClass: isLoss ? "text-rose-600" : "text-emerald-600",
+        },
+      ]
+    : [];
+
+  const colsClass =
+    cells.length === 8
+      ? "grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
+      : "grid-cols-2 lg:grid-cols-4 xl:grid-cols-7";
+
+  return (
+    <Card className="card-soft overflow-hidden border-0 rounded-2xl">
+      <div className="flex items-center gap-2.5 border-b px-4 py-2.5" style={{ borderColor: "var(--border)" }}>
+        <div className="brand-gradient flex h-7 w-7 items-center justify-center rounded-xl text-primary-foreground shadow-sm">
+          <Wallet className="h-3.5 w-3.5" />
+        </div>
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <p className="font-display text-sm font-semibold leading-tight tracking-tight">Da receita ao resultado</p>
+          <p className="text-[11px] text-muted-foreground">Base histórica — desde a primeira venda</p>
+        </div>
+        <Link
+          href="/lucratividade"
+          className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+        >
+          Detalhes <ArrowUpRight className="h-3 w-3" />
+        </Link>
+      </div>
+
+      {notConfigured ? (
+        <div className="flex items-center justify-center gap-2 px-4 py-4 text-center">
+          <Receipt className="h-4 w-4 text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground">
+            Configure os custos (BaseLinker e impostos) na{" "}
+            <Link href="/lucratividade" className="font-medium text-primary hover:underline">
+              Lucratividade
+            </Link>{" "}
+            para ver a quebra de lucro.
+          </p>
+        </div>
+      ) : loading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="px-4 py-3">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="mt-1.5 h-5 w-20" />
+              <Skeleton className="mt-1.5 h-2.5 w-12" />
+            </div>
+          ))}
+        </div>
+      ) : breakdown ? (
+        <div className={cn("grid divide-y divide-x sm:divide-y-0", colsClass)} style={{ borderColor: "var(--border)" }}>
+          {cells.map((c) => (
+            <div key={c.label} className="px-4 py-3 transition-colors hover:bg-secondary/40">
+              <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                <span className={`flex h-5 w-5 items-center justify-center rounded-md ${c.tint}`}>
+                  <c.icon className="h-3 w-3" />
+                </span>
+                {c.label}
+              </p>
+              <p className={cn("mt-1.5 font-display text-base font-bold leading-none tracking-tight tabular-nums", c.valueClass)}>
+                {c.value}
+              </p>
+              <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">{c.sub}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-2 px-4 py-4 text-center">
+          <TrendingUp className="h-4 w-4 text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground">Sem dados de lucro histórico ainda.</p>
+        </div>
+      )}
     </Card>
   );
 }
