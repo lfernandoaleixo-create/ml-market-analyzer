@@ -211,7 +211,17 @@ export default function Painel() {
           </>
         }
         subtitle="Visão geral da sua loja no Mercado Livre — vendas, anúncios e reputação em tempo real."
-        actions={connectionStale ? <ConnectionReminder /> : undefined}
+        actions={
+          <>
+            {connectionStale && <ConnectionReminder />}
+            <AccountHealthBadge
+              loading={rep.isLoading}
+              levelId={r?.levelId ?? null}
+              positive={r?.ratingsPositive ?? 0}
+              negative={r?.ratingsNegative ?? 0}
+            />
+          </>
+        }
       />
 
       {isRateLimited && (
@@ -428,42 +438,6 @@ export default function Painel() {
       />
 
       <SectionCard
-        title="Saúde da conta"
-        actions={
-          <Link href="/reputacao" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-            Detalhes <ArrowUpRight className="h-3.5 w-3.5" />
-          </Link>
-        }
-      >
-        {rep.isLoading ? (
-          <Skeleton className="h-24 w-full" />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-sm text-muted-foreground">Nível atual</p>
-              <p className="font-display text-lg tracking-tight">
-                {r?.levelId ? reputationLabel(r.levelId) : "—"}
-              </p>
-              <div className="mt-2 flex gap-1">
-                {["1_red", "2_orange", "3_yellow", "4_light_green", "5_green"].map((lvl) => (
-                  <div
-                    key={lvl}
-                    className={`h-2 flex-1 rounded-full ${lvl === r?.levelId ? reputationColor(lvl) : "bg-secondary"}`}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-2">
-              <MiniStat label="Concluídas" value={formatNumber(r?.transactionsCompleted ?? 0)} />
-              <MiniStat label="Canceladas" value={formatNumber(r?.transactionsCanceled ?? 0)} />
-              <MiniStat label="Positivas" value={formatNumber(r?.ratingsPositive ?? 0)} />
-              <MiniStat label="Negativas" value={formatNumber(r?.ratingsNegative ?? 0)} />
-            </div>
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard
           title={`Top 10 produtos (${periodTitle.toLowerCase()})`}
           actions={
             <div className="flex items-center gap-3">
@@ -657,12 +631,62 @@ function SummaryStat({
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+/**
+ * Compact account-health chip shown in the page header (top-right), next to the
+ * title. Surfaces the current reputation level (label + mini 5-step bar) and a
+ * link to the full Reputação page — a space-efficient replacement for the old
+ * full-width "Saúde da conta" card.
+ */
+function AccountHealthBadge({
+  loading,
+  levelId,
+  positive,
+  negative,
+}: {
+  loading?: boolean;
+  levelId: string | null;
+  positive: number;
+  negative: number;
+}) {
+  if (loading) {
+    return <Skeleton className="h-10 w-44 rounded-xl" />;
+  }
+  const levels = ["1_red", "2_orange", "3_yellow", "4_light_green", "5_green"];
+  const total = positive + negative;
+  const posPct = total > 0 ? Math.round((positive / total) * 100) : null;
   return (
-    <div className="rounded-xl bg-secondary/60 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-display text-lg leading-tight tracking-tight">{value}</p>
-    </div>
+    <Link
+      href="/reputacao"
+      className="group flex items-center gap-2.5 rounded-xl border bg-card px-3 py-1.5 transition-colors hover:border-primary/40"
+      style={{ borderColor: "var(--border)" }}
+      title="Ver detalhes da reputação"
+    >
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Star className="h-3.5 w-3.5 text-primary" />
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Saúde da conta
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-display text-sm leading-none tracking-tight">
+            {levelId ? reputationLabel(levelId) : "—"}
+          </span>
+          {posPct !== null && (
+            <span className="text-[11px] text-muted-foreground">{posPct}% positivas</span>
+          )}
+        </div>
+        <div className="flex gap-0.5">
+          {levels.map((lvl) => (
+            <div
+              key={lvl}
+              className={`h-1.5 w-5 rounded-full ${lvl === levelId ? reputationColor(lvl) : "bg-secondary"}`}
+            />
+          ))}
+        </div>
+      </div>
+      <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+    </Link>
   );
 }
 
