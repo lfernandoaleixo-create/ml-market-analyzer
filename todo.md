@@ -883,10 +883,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 
 ## Painel — reestruturar cards abaixo do seletor (14/06)
 - [x] Aumentar a fonte da porcentagem no card "Da receita ao resultado" (topo)
-- [ ] Substituir os 4 KpiCards por faixa "Da receita ao resultado" que acompanha o período selecionado
-- [ ] Adicionar colunas "Anúncios ativos" e "Cancelados" nessa faixa
-- [ ] Remover o card de Reputação do bloco abaixo do seletor
-- [ ] TS limpo + testes + checkpoint
+- [x] Substituir os 4 KpiCards por faixa "Da receita ao resultado" que acompanha o período selecionado
+- [x] Adicionar colunas "Anúncios ativos" e "Cancelados" nessa faixa
+- [x] Remover o card de Reputação do bloco abaixo do seletor
+- [x] TS limpo + testes + checkpoint
 
 ## Painel — substituir 4 KpiCards por faixa única "Da receita ao resultado" (15/06)
 - [x] Faixa com Anúncios ativos | Receita | Comissão | Frete | CMV | Impostos | Ads | Cancelados | Resultado seguindo o período selecionado
@@ -895,3 +895,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Tratar BaseLinker não configurado (colunas de custo como "—" + dica "configurar")
 - [x] Limpeza de imports/função órfãos (KpiCard, DollarSign, ShoppingBag, reputationAccent)
 - [x] TS limpo, 485 testes passando
+
+## BUG Ads na Lucratividade (15/06) — relatado por Fernando
+- [x] Totais (result.totals) ignoram o gasto de Ads (computeProfit forçado com ads:0) — Ads aparece zerado na faixa do Painel e some no card do topo
+- [x] Lucro por anúncio conta Ads por LINHA (dupla contagem quando o item tem vários pedidos/linhas)
+- [x] Corrigir buildProfitability: somar Ads UMA vez por item (totais e por anúncio)
+- [x] Garantir que Ads não sofre imposto (já correto no taxEngine) e netProfit recalculado
+- [x] Atualizar/adicionar testes vitest cobrindo Ads nos totais e ausência de dupla contagem
+- [x] TS limpo + suíte verde + checkpoint

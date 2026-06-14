@@ -132,7 +132,7 @@ describe("buildProfitability", () => {
     expect(b.current.commission).toBeCloseTo(25, 1);
   });
 
-  it("inclui gasto de Ads por anúncio quando fornecido", () => {
+  it("inclui gasto de Ads por anúncio E nos totais quando fornecido", () => {
     const orders: BlOrder[] = [
       order({
         orderId: 1,
@@ -152,6 +152,57 @@ describe("buildProfitability", () => {
     });
     const row = res.listings.find((l) => l.itemId === "MLB1")!;
     expect(row.current.ads).toBe(80);
+
+    // The totals must also reflect the Ads spend (this was the bug: totals were
+    // built with ads:0, so Ads showed as zero in the Painel/strip).
+    expect(res.totals.ads).toBe(80);
+    expect(res.comparison.semTts.ads).toBe(80);
+    expect(res.comparison.comTts.ads).toBe(80);
+    // netProfit = 1000 - tax - 80 ; whatever the tax, the Ads must be subtracted.
+    const expectedNet = res.totals.revenue - res.totals.tax - 80;
+    expect(res.totals.netProfit).toBeCloseTo(expectedNet, 2);
+  });
+
+  it("não conta Ads em dobro quando o item aparece em vários pedidos/linhas", () => {
+    // The same listing (MLB1) sold across 3 orders. The Ads API reports the
+    // TOTAL spend for the period (R$90), not per order — so the result must
+    // subtract R$90 once, never R$90 × 3.
+    const orders: BlOrder[] = [
+      order({ orderId: 1, commission: 0, destinationUF: "SP", lines: [{ productId: "100", sku: "A", itemId: "MLB1", name: "A", quantity: 1, priceBrutto: 100 }] }),
+      order({ orderId: 2, commission: 0, destinationUF: "SP", lines: [{ productId: "100", sku: "A", itemId: "MLB1", name: "A", quantity: 1, priceBrutto: 100 }] }),
+      order({ orderId: 3, commission: 0, destinationUF: "SP", lines: [{ productId: "100", sku: "A", itemId: "MLB1", name: "A", quantity: 1, priceBrutto: 100 }] }),
+    ];
+    const adsByItem = new Map<string, number>([["MLB1", 90]]);
+    const res = buildProfitability({
+      orders,
+      costs: costs([{ productId: "100", averageCost: 0 }]),
+      config,
+      from: 0,
+      to: 1,
+      adsByItem,
+    });
+    // Exactly 90, not 270.
+    expect(res.totals.ads).toBe(90);
+    const row = res.listings.find((l) => l.itemId === "MLB1")!;
+    expect(row.current.ads).toBe(90);
+  });
+
+  it("ignora Ads de itens sem vendas no período (consistência totais x linhas)", () => {
+    const orders: BlOrder[] = [
+      order({ orderId: 1, commission: 0, destinationUF: "SP", lines: [{ productId: "100", sku: "A", itemId: "MLB1", name: "A", quantity: 1, priceBrutto: 1000 }] }),
+    ];
+    // MLB2 had ad spend but no sales in the window — must not enter the P&L.
+    const adsByItem = new Map<string, number>([["MLB1", 40], ["MLB2", 999]]);
+    const res = buildProfitability({
+      orders,
+      costs: costs([{ productId: "100", averageCost: 0 }]),
+      config,
+      from: 0,
+      to: 1,
+      adsByItem,
+    });
+    expect(res.totals.ads).toBe(40);
+    expect(res.listings.some((l) => l.itemId === "MLB2")).toBe(false);
   });
 
   it("distribui vendas por UF de destino", () => {

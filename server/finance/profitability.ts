@@ -109,8 +109,6 @@ export function buildProfitability(params: {
       if (unitCost == null && line.productId) missingCostProducts.add(line.productId);
       const cmv = (unitCost ?? 0) * line.quantity;
 
-      const adsForItem = line.itemId ? (adsByItem.get(line.itemId) ?? 0) : 0;
-
       const baseInput = {
         revenue: lineRevenue,
         commission,
@@ -119,12 +117,16 @@ export function buildProfitability(params: {
         destinationUF: uf as UF | null,
       };
 
+      // Ads is a per-LISTING spend already aggregated over the period by the Ads
+      // API; it is NOT proportional to the number of order lines. So we exclude
+      // it from the per-line math here and fold it in exactly once per item AFTER
+      // the loop (see below) — both in the totals and in the per-listing profit.
       const pSem = computeProfit({ ...baseInput, ads: 0 }, "sem_tts", config);
       const pCom = computeProfit({ ...baseInput, ads: 0 }, "com_tts", config);
       totalsSem = addProfit(totalsSem, pSem);
       totalsCom = addProfit(totalsCom, pCom);
 
-      // Per-listing accumulation (scenario-selected, includes Ads).
+      // Per-listing accumulation (scenario-selected; Ads added once, post-loop).
       const itemId = line.itemId;
       if (itemId) {
         const acc =
@@ -141,11 +143,7 @@ export function buildProfitability(params: {
           } satisfies ListingAccumulator);
         acc.unitsSold += line.quantity;
         acc.orderIds.add(order.orderId);
-        const pSel = computeProfit(
-          { ...baseInput, ads: adsForItem },
-          scenario,
-          config,
-        );
+        const pSel = computeProfit({ ...baseInput, ads: 0 }, scenario, config);
         acc.profit = addProfit(acc.profit, pSel);
         if (unitCost != null) {
           acc.totalCostUnits += unitCost * line.quantity;
@@ -157,6 +155,47 @@ export function buildProfitability(params: {
         listings.set(itemId, acc);
       }
     }
+  }
+
+  // Fold Ads spend in exactly ONCE per item. The Ads API already reports the
+  // total spend for each listing over the period, so we must not multiply it by
+  // the number of orders/lines. Ads is tax-free (no impost on ad spend), so it
+  // simply reduces netProfit by the same amount in both scenarios.
+  //
+  // We only attribute spend for items that actually had sales in the window
+  // (i.e. exist in `listings`), so the totals stay consistent with the per
+  // listing rows. Ads for items without sales in the period is left out of the
+  // sale-based P&L on purpose.
+  let adsTotal = 0;
+  for (const acc of Array.from(listings.values())) {
+    const spend = adsByItem.get(acc.itemId) ?? 0;
+    if (spend <= 0) continue;
+    adsTotal += spend;
+    const adsBreakdown: ProfitBreakdown = {
+      revenue: 0,
+      commission: 0,
+      shipping: 0,
+      cmv: 0,
+      tax: 0,
+      ads: spend,
+      netProfit: -spend,
+      margin: null,
+    };
+    acc.profit = addProfit(acc.profit, adsBreakdown);
+  }
+  if (adsTotal > 0) {
+    const adsTotalBreakdown: ProfitBreakdown = {
+      revenue: 0,
+      commission: 0,
+      shipping: 0,
+      cmv: 0,
+      tax: 0,
+      ads: adsTotal,
+      netProfit: -adsTotal,
+      margin: null,
+    };
+    totalsSem = addProfit(totalsSem, adsTotalBreakdown);
+    totalsCom = addProfit(totalsCom, adsTotalBreakdown);
   }
 
   const listingRows: ListingProfitRow[] = Array.from(listings.values())
