@@ -903,3 +903,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Garantir que Ads não sofre imposto (já correto no taxEngine) e netProfit recalculado
 - [x] Atualizar/adicionar testes vitest cobrindo Ads nos totais e ausência de dupla contagem
 - [x] TS limpo + suíte verde + checkpoint
+
+## Painel — ajustes faixa + remover card de anúncios (15/06) — Fernando
+- [x] Remover o card "Anúncios em detalhe" do Painel (informação fica na aba Meus Anúncios)
+- [x] Mover "Anúncios ativos" para o FINAL da faixa, começando pela Receita
+- [x] Limpeza de imports órfãos (PauseCircle, Archive, LucideIcon, ListingRow) + remoção de ListingStat/ListingsBreakdown
+- [x] TS limpo + 487 testes passando + checkpoint
