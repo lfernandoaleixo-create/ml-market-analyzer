@@ -878,3 +878,4 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Painel: query finance.profitability com dias desde a primeira venda (base histórica) + finance.status
 - [x] Painel: renderizar o card travado logo abaixo do "Histórico acumulado" (LifetimeCard) com estados carregando/não-configurado/sem-dados
 - [x] TS limpo e 481 testes passando
+- [x] Reestilizar o card para ficar idêntico ao "Histórico acumulado" (header gradiente + faixa de células), compacto/estreito

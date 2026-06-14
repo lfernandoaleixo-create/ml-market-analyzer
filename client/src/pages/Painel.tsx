@@ -240,23 +240,23 @@ export default function Painel() {
         </div>
       )}
 
-      {/* Lifetime store card — right under the title, compact */}
-      <LifetimeCard
-        loading={lifetime.isLoading}
-        firstSaleMs={lifetime.data?.firstSaleMs ?? null}
-        totalRevenue={lifetime.data?.totalRevenue ?? 0}
-        totalOrders={lifetime.data?.totalOrders ?? 0}
-        canceledOrders={lifetime.data?.canceledOrders ?? 0}
-        canceledRevenue={lifetime.data?.canceledRevenue ?? 0}
-      />
-
-      {/* Historic-base "Revenue → result" card, styled exactly like the lifetime
-          "Histórico acumulado" card and kept as compact as possible. */}
-      <HistoricProfitCard
-        loading={historicProfit.isLoading || lifetime.isLoading || financeStatus.isLoading}
-        notConfigured={!financeStatus.isLoading && financeStatus.data?.baselinkerConfigured !== true}
-        breakdown={historicProfit.data && historicProfit.data.totals.revenue > 0 ? historicProfit.data.totals : null}
-      />
+      {/* Two compact summary cards pulled tight to the top, stacked with minimal
+          spacing so they take the least vertical room possible. */}
+      <div className="-mt-2 space-y-2">
+        <LifetimeCard
+          loading={lifetime.isLoading}
+          firstSaleMs={lifetime.data?.firstSaleMs ?? null}
+          totalRevenue={lifetime.data?.totalRevenue ?? 0}
+          totalOrders={lifetime.data?.totalOrders ?? 0}
+          canceledOrders={lifetime.data?.canceledOrders ?? 0}
+          canceledRevenue={lifetime.data?.canceledRevenue ?? 0}
+        />
+        <HistoricProfitCard
+          loading={historicProfit.isLoading || lifetime.isLoading || financeStatus.isLoading}
+          notConfigured={!financeStatus.isLoading && financeStatus.data?.baselinkerConfigured !== true}
+          breakdown={historicProfit.data && historicProfit.data.totals.revenue > 0 ? historicProfit.data.totals : null}
+        />
+      </div>
 
       {/* Period selector — controls both the KPI cards and the chart below */}
       <PeriodSelector
@@ -1288,32 +1288,31 @@ function LifetimeCard({
 
   return (
     <Card className="card-soft overflow-hidden border-0 rounded-2xl">
-      <div className="flex items-center gap-2.5 border-b px-4 py-2.5" style={{ borderColor: "var(--border)" }}>
-        <div className="brand-gradient flex h-7 w-7 items-center justify-center rounded-xl text-primary-foreground shadow-sm">
-          <Store className="h-3.5 w-3.5" />
+      <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "var(--border)" }}>
+        <div className="brand-gradient flex h-5 w-5 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
+          <Store className="h-3 w-3" />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <p className="font-display text-sm font-semibold leading-tight tracking-tight">Histórico acumulado</p>
-          <p className="text-[11px] text-muted-foreground">Desde o início da loja — atualizado diariamente</p>
+          <p className="font-display text-[13px] font-semibold leading-tight tracking-tight">Histórico acumulado</p>
+          <p className="text-[10px] text-muted-foreground">Desde o início da loja</p>
         </div>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
+      <div className="grid grid-cols-3 lg:grid-cols-6 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
         {items.map((it) => (
-          <div key={it.label} className="px-4 py-3 transition-colors hover:bg-secondary/40">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-              <span className={`flex h-5 w-5 items-center justify-center rounded-md ${it.tint}`}>
-                <it.icon className="h-3 w-3" />
+          <div key={it.label} className="px-3 py-1.5 transition-colors hover:bg-secondary/40">
+            <p className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+              <span className={`flex h-4 w-4 items-center justify-center rounded ${it.tint}`}>
+                <it.icon className="h-2.5 w-2.5" />
               </span>
-              {it.label}
+              <span className="truncate">{it.label}</span>
             </p>
             {loading ? (
-              <Skeleton className="mt-1.5 h-6 w-20" />
+              <Skeleton className="mt-1 h-5 w-16" />
             ) : (
-              <p className={cn("mt-1.5 font-display text-lg font-bold leading-none tracking-tight", it.valueClass)}>
+              <p className={cn("mt-0.5 font-display text-[15px] font-bold leading-tight tracking-tight tabular-nums", it.valueClass)}>
                 {it.value}
               </p>
             )}
-            <p className="mt-1 text-[10px] text-muted-foreground">{it.sub}</p>
           </div>
         ))}
       </div>
@@ -1343,7 +1342,7 @@ function HistoricProfitCard({
     icon: typeof Store;
     label: string;
     value: string;
-    sub: string;
+    pctOnly: string;
     tint: string;
     valueClass?: string;
   }> = breakdown
@@ -1352,14 +1351,14 @@ function HistoricProfitCard({
           icon: Wallet,
           label: "Receita",
           value: formatBRL(breakdown.revenue),
-          sub: "100% · total de vendas",
+          pctOnly: "100%",
           tint: "bg-blue-500/12 text-blue-600",
         },
         {
           icon: Coins,
           label: "Comissão ML",
           value: `−${formatBRL(breakdown.commission)}`,
-          sub: `${pct(breakdown.commission)} da receita`,
+          pctOnly: pct(breakdown.commission),
           tint: "bg-rose-500/12 text-rose-600",
           valueClass: "text-rose-600",
         },
@@ -1367,7 +1366,7 @@ function HistoricProfitCard({
           icon: Truck,
           label: "Frete",
           value: `−${formatBRL(breakdown.shipping)}`,
-          sub: `${pct(breakdown.shipping)} da receita`,
+          pctOnly: pct(breakdown.shipping),
           tint: "bg-rose-500/12 text-rose-600",
           valueClass: "text-rose-600",
         },
@@ -1375,7 +1374,7 @@ function HistoricProfitCard({
           icon: Package,
           label: "Custo (CMV)",
           value: `−${formatBRL(breakdown.cmv)}`,
-          sub: `${pct(breakdown.cmv)} da receita`,
+          pctOnly: pct(breakdown.cmv),
           tint: "bg-rose-500/12 text-rose-600",
           valueClass: "text-rose-600",
         },
@@ -1383,7 +1382,7 @@ function HistoricProfitCard({
           icon: Receipt,
           label: "Impostos",
           value: `−${formatBRL(breakdown.tax)}`,
-          sub: `${pct(breakdown.tax)} da receita`,
+          pctOnly: pct(breakdown.tax),
           tint: "bg-rose-500/12 text-rose-600",
           valueClass: "text-rose-600",
         },
@@ -1393,7 +1392,7 @@ function HistoricProfitCard({
                 icon: Megaphone,
                 label: "Ads",
                 value: `−${formatBRL(breakdown.ads)}`,
-                sub: `${pct(breakdown.ads)} da receita`,
+                pctOnly: pct(breakdown.ads),
                 tint: "bg-rose-500/12 text-rose-600",
                 valueClass: "text-rose-600",
               } as const,
@@ -1403,7 +1402,7 @@ function HistoricProfitCard({
           icon: TrendingUp,
           label: "Resultado",
           value: formatBRL(breakdown.netProfit),
-          sub: `${pct(breakdown.netProfit)} de margem`,
+          pctOnly: `${pct(breakdown.netProfit)} margem`,
           tint: isLoss ? "bg-rose-500/12 text-rose-600" : "bg-emerald-500/12 text-emerald-600",
           valueClass: isLoss ? "text-rose-600" : "text-emerald-600",
         },
@@ -1412,31 +1411,31 @@ function HistoricProfitCard({
 
   const colsClass =
     cells.length === 8
-      ? "grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
-      : "grid-cols-2 lg:grid-cols-4 xl:grid-cols-7";
+      ? "grid-cols-4 lg:grid-cols-8"
+      : "grid-cols-4 lg:grid-cols-7";
 
   return (
     <Card className="card-soft overflow-hidden border-0 rounded-2xl">
-      <div className="flex items-center gap-2.5 border-b px-4 py-2.5" style={{ borderColor: "var(--border)" }}>
-        <div className="brand-gradient flex h-7 w-7 items-center justify-center rounded-xl text-primary-foreground shadow-sm">
-          <Wallet className="h-3.5 w-3.5" />
+      <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "var(--border)" }}>
+        <div className="brand-gradient flex h-5 w-5 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
+          <Wallet className="h-3 w-3" />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <p className="font-display text-sm font-semibold leading-tight tracking-tight">Da receita ao resultado</p>
-          <p className="text-[11px] text-muted-foreground">Base histórica — desde a primeira venda</p>
+          <p className="font-display text-[13px] font-semibold leading-tight tracking-tight">Da receita ao resultado</p>
+          <p className="text-[10px] text-muted-foreground">Base histórica</p>
         </div>
         <Link
           href="/lucratividade"
-          className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+          className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
         >
-          Detalhes <ArrowUpRight className="h-3 w-3" />
+          Detalhes <ArrowUpRight className="h-2.5 w-2.5" />
         </Link>
       </div>
 
       {notConfigured ? (
-        <div className="flex items-center justify-center gap-2 px-4 py-4 text-center">
+        <div className="flex items-center justify-center gap-2 px-3 py-2.5 text-center">
           <Receipt className="h-4 w-4 text-muted-foreground/50" />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             Configure os custos (BaseLinker e impostos) na{" "}
             <Link href="/lucratividade" className="font-medium text-primary hover:underline">
               Lucratividade
@@ -1445,36 +1444,35 @@ function HistoricProfitCard({
           </p>
         </div>
       ) : loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
+        <div className="grid grid-cols-4 lg:grid-cols-7 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
           {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="px-4 py-3">
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="mt-1.5 h-5 w-20" />
-              <Skeleton className="mt-1.5 h-2.5 w-12" />
+            <div key={i} className="px-3 py-1.5">
+              <Skeleton className="h-2.5 w-12" />
+              <Skeleton className="mt-1 h-4 w-16" />
             </div>
           ))}
         </div>
       ) : breakdown ? (
         <div className={cn("grid divide-y divide-x sm:divide-y-0", colsClass)} style={{ borderColor: "var(--border)" }}>
           {cells.map((c) => (
-            <div key={c.label} className="px-4 py-3 transition-colors hover:bg-secondary/40">
-              <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                <span className={`flex h-5 w-5 items-center justify-center rounded-md ${c.tint}`}>
-                  <c.icon className="h-3 w-3" />
+            <div key={c.label} className="px-3 py-1.5 transition-colors hover:bg-secondary/40">
+              <p className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${c.tint}`}>
+                  <c.icon className="h-2.5 w-2.5" />
                 </span>
-                {c.label}
+                <span className="truncate">{c.label}</span>
               </p>
-              <p className={cn("mt-1.5 font-display text-base font-bold leading-none tracking-tight tabular-nums", c.valueClass)}>
+              <p className={cn("mt-0.5 font-display text-[15px] font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
                 {c.value}
               </p>
-              <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">{c.sub}</p>
+              <p className="text-[10px] text-muted-foreground tabular-nums">{c.pctOnly}</p>
             </div>
           ))}
         </div>
       ) : (
-        <div className="flex items-center justify-center gap-2 px-4 py-4 text-center">
+        <div className="flex items-center justify-center gap-2 px-3 py-2.5 text-center">
           <TrendingUp className="h-4 w-4 text-muted-foreground/50" />
-          <p className="text-xs text-muted-foreground">Sem dados de lucro histórico ainda.</p>
+          <p className="text-[11px] text-muted-foreground">Sem dados de lucro histórico ainda.</p>
         </div>
       )}
     </Card>
