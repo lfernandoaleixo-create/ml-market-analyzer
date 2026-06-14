@@ -909,3 +909,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Mover "Anúncios ativos" para o FINAL da faixa, começando pela Receita
 - [x] Limpeza de imports órfãos (PauseCircle, Archive, LucideIcon, ListingRow) + remoção de ListingStat/ListingsBreakdown
 - [x] TS limpo + 487 testes passando + checkpoint
+
+## Painel — gráfico Evolução das visitas (15/06) — Fernando
+- [x] Extrair VisitsEvolutionChart (+ helpers) para componente compartilhado em components/charts
+- [x] Inserir o gráfico no Painel, entre o seletor de dias e o card "Da receita ao resultado"
+- [x] Buscar a série de visitas no Painel (mesma fonte da aba Meus Anúncios)
+- [x] TS limpo + testes + checkpoint

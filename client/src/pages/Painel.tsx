@@ -42,6 +42,8 @@ import {
   YAxis,
 } from "recharts";
 import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
+import { VisitsEvolutionChart } from "@/components/charts/VisitsEvolutionChart";
+import type { VisitsDayPoint } from "@shared/account";
 import {
   Package,
   Star,
@@ -99,7 +101,15 @@ export default function Painel() {
     { fromMs: activeRange.fromMs, toMs: activeRange.toMs, fill: true },
     { enabled: everConnected },
   );
-  const listings = trpc.account.listings.useQuery({ lastDays: 30 }, { enabled: everConnected });
+  const listings = trpc.account.listings.useQuery(
+    { lastDays: 30, includeVisitsSeries: true },
+    {
+      enabled: everConnected,
+      // Keep "hoje (parcial)" fresh, mirroring the Anúncios tab behavior.
+      refetchInterval: 5 * 60 * 1000,
+      refetchOnWindowFocus: true,
+    },
+  );
   const rep = trpc.account.reputation.useQuery(undefined, { enabled: everConnected });
 
   // Historic-base profit summary (mirror of the Lucratividade "Da receita ao
@@ -160,6 +170,7 @@ export default function Painel() {
   const s = listings.data?.summary;
   const r = rep.data;
   const loadingSales = sales.isLoading;
+  const visitsSeries: VisitsDayPoint[] = listings.data?.visitsSeries ?? [];
 
   // Detect a Mercado Livre rate limit (429 -> TOO_MANY_REQUESTS) on any of the
   // core queries. When it happens we must NOT silently show R$ 0,00 — we show an
@@ -255,6 +266,15 @@ export default function Painel() {
         onToIso={period.setToIso}
         title={periodTitle}
       />
+
+      {/* Visits evolution chart (same as Meus Anúncios) — between the period
+          selector and the "Da receita ao resultado" strip. */}
+      <SectionCard
+        title="Evolução das visitas · anúncios ativos"
+        description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias (o dia de hoje é parcial e atualiza em tempo real)."
+      >
+        <VisitsEvolutionChart series={visitsSeries} loading={listings.isLoading} windowDays={30} />
+      </SectionCard>
 
       {/* Single "Da receita ao resultado" strip for the selected period */}
       <PeriodFlowStrip
