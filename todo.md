@@ -879,3 +879,19 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Painel: renderizar o card travado logo abaixo do "Histórico acumulado" (LifetimeCard) com estados carregando/não-configurado/sem-dados
 - [x] TS limpo e 481 testes passando
 - [x] Reestilizar o card para ficar idêntico ao "Histórico acumulado" (header gradiente + faixa de células), compacto/estreito
+
+
+## Painel — reestruturar cards abaixo do seletor (14/06)
+- [x] Aumentar a fonte da porcentagem no card "Da receita ao resultado" (topo)
+- [ ] Substituir os 4 KpiCards por faixa "Da receita ao resultado" que acompanha o período selecionado
+- [ ] Adicionar colunas "Anúncios ativos" e "Cancelados" nessa faixa
+- [ ] Remover o card de Reputação do bloco abaixo do seletor
+- [ ] TS limpo + testes + checkpoint
+
+## Painel — substituir 4 KpiCards por faixa única "Da receita ao resultado" (15/06)
+- [x] Faixa com Anúncios ativos | Receita | Comissão | Frete | CMV | Impostos | Ads | Cancelados | Resultado seguindo o período selecionado
+- [x] Estilo idêntico ao card do topo (header gradiente + células com divisórias)
+- [x] Remover card de Reputação da faixa de período
+- [x] Tratar BaseLinker não configurado (colunas de custo como "—" + dica "configurar")
+- [x] Limpeza de imports/função órfãos (KpiCard, DollarSign, ShoppingBag, reputationAccent)
+- [x] TS limpo, 485 testes passando

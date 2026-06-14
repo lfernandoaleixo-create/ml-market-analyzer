@@ -5,7 +5,6 @@ import type { ListingRow } from "@shared/account";
 import {
   PageShell,
   PageHeader,
-  KpiCard,
   KpiSkeletonRow,
   SectionCard,
   NotConnected,
@@ -45,8 +44,6 @@ import {
 } from "recharts";
 import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
 import {
-  DollarSign,
-  ShoppingBag,
   Package,
   Star,
   ArrowUpRight,
@@ -72,25 +69,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-
-/** Maps a Mercado Livre reputation level id to a KpiCard accent color. */
-function reputationAccent(
-  levelId?: string | null,
-): "green" | "yellow" | "orange" | "red" | "violet" {
-  switch (levelId) {
-    case "5_green":
-    case "4_light_green":
-      return "green";
-    case "3_yellow":
-      return "yellow";
-    case "2_orange":
-      return "orange";
-    case "1_red":
-      return "red";
-    default:
-      return "violet";
-  }
-}
 
 export default function Painel() {
   const conn = trpc.account.connection.useQuery();
@@ -148,6 +126,19 @@ export default function Painel() {
       enabled:
         everConnected &&
         historicDays > 0 &&
+        financeStatus.data?.baselinkerConfigured === true,
+      staleTime: 2 * 60_000,
+    },
+  );
+
+  // Profit breakdown that follows the SELECTED period (not the historic base),
+  // powering the "Da receita ao resultado" strip below the period selector.
+  const periodProfit = trpc.finance.profitability.useQuery(
+    { days: period.days },
+    {
+      enabled:
+        everConnected &&
+        period.days > 0 &&
         financeStatus.data?.baselinkerConfigured === true,
       staleTime: 2 * 60_000,
     },
@@ -269,55 +260,21 @@ export default function Painel() {
         title={periodTitle}
       />
 
-      {/* KPI cards for the selected period */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          label="Faturamento"
-          value={loadingSales ? "" : formatBRL(k?.revenue ?? 0)}
-          loading={loadingSales}
-          icon={DollarSign}
-          accent="emerald"
-          sublabel={
-            loadingSales ? undefined : (
-              <span className="inline-flex items-center gap-1">
-                <ShoppingBag className="h-3 w-3 text-primary" />
-                <span className="font-display text-sm font-bold text-foreground">{formatNumber(k?.orders ?? 0)}</span>{" "}
-                {(k?.orders ?? 0) === 1 ? "pedido" : "pedidos"}
-              </span>
-            )
-          }
-        />
-        <KpiCard
-          label="Cancelados"
-          value={loadingSales ? "" : formatBRL(k?.cancelledAmount ?? 0)}
-          loading={loadingSales}
-          icon={XCircle}
-          accent="rose"
-          sublabel={
-            loadingSales ? undefined : (
-              <span className="inline-flex items-center gap-1">
-                <span className="font-display text-sm font-bold text-foreground">{formatNumber(k?.cancelled ?? 0)}</span>{" "}
-                {(k?.cancelled ?? 0) === 1 ? "pedido cancelado" : "pedidos cancelados"}
-              </span>
-            )
-          }
-        />
-        <KpiCard
-          label="Anúncios ativos"
-          value={listings.isLoading ? "" : `${formatNumber(s?.active ?? 0)} / ${formatNumber(s?.total ?? 0)}`}
-          loading={listings.isLoading}
-          icon={Package}
-          accent="blue"
-        />
-        <KpiCard
-          label="Reputação"
-          value={rep.isLoading ? "" : (r?.levelId ? reputationLabel(r.levelId).split(" ")[0] : "—")}
-          loading={rep.isLoading}
-          icon={Star}
-          accent={reputationAccent(r?.levelId)}
-          sublabel={r ? `${formatNumber(r.transactionsCompleted)} concluídas` : undefined}
-        />
-      </div>
+      {/* Single "Da receita ao resultado" strip for the selected period */}
+      <PeriodFlowStrip
+        periodTitle={periodTitle}
+        loadingSales={loadingSales}
+        revenue={k?.revenue ?? 0}
+        orders={k?.orders ?? 0}
+        cancelledAmount={k?.cancelledAmount ?? 0}
+        cancelled={k?.cancelled ?? 0}
+        activeListings={s?.active ?? 0}
+        totalListings={s?.total ?? 0}
+        listingsLoading={listings.isLoading}
+        notConfigured={financeStatus.data?.baselinkerConfigured !== true}
+        profitLoading={periodProfit.isLoading}
+        breakdown={periodProfit.data && periodProfit.data.totals.revenue > 0 ? periodProfit.data.totals : null}
+      />
 
       {/* Bar chart — full width, two thin bars per day (sales + cancellations) */}
       <SectionCard
@@ -1464,7 +1421,7 @@ function HistoricProfitCard({
               <p className={cn("mt-0.5 font-display text-lg font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
                 {c.value}
               </p>
-              <p className="text-[10px] text-muted-foreground tabular-nums">{c.pctOnly}</p>
+              <p className="text-[13px] font-semibold text-muted-foreground tabular-nums">{c.pctOnly}</p>
             </div>
           ))}
         </div>
@@ -1478,6 +1435,190 @@ function HistoricProfitCard({
   );
 }
 
+
+/**
+ * Single divided strip below the period selector that summarizes the SELECTED
+ * period: Anúncios ativos · Receita · (custos) · Cancelados · Resultado.
+ * Visually identical to HistoricProfitCard (gradient header + divide-x cells),
+ * but follows the chosen period instead of being pinned to the historic base.
+ *
+ * Sales-side columns (Anúncios ativos, Receita, Cancelados) always render from
+ * the sales/listings KPIs. The cost columns (Comissão, Frete, CMV, Impostos,
+ * Ads) and Resultado require BaseLinker; when it is not configured they render
+ * as "—" with a subtle hint.
+ */
+function PeriodFlowStrip({
+  periodTitle,
+  loadingSales,
+  revenue,
+  orders,
+  cancelledAmount,
+  cancelled,
+  activeListings,
+  totalListings,
+  listingsLoading,
+  notConfigured,
+  profitLoading,
+  breakdown,
+}: {
+  periodTitle: string;
+  loadingSales: boolean;
+  revenue: number;
+  orders: number;
+  cancelledAmount: number;
+  cancelled: number;
+  activeListings: number;
+  totalListings: number;
+  listingsLoading: boolean;
+  notConfigured: boolean;
+  profitLoading: boolean;
+  breakdown: ProfitBreakdown | null;
+}) {
+  const rev = breakdown?.revenue ?? revenue;
+  const pct = (v: number) => (rev > 0 ? `${((v / rev) * 100).toFixed(1)}%` : "—");
+  const isLoss = (breakdown?.netProfit ?? 0) < 0;
+  const dash = "—";
+
+  type Cell = {
+    icon: typeof Store;
+    label: string;
+    value: string;
+    sub: string;
+    tint: string;
+    valueClass?: string;
+    loading?: boolean;
+  };
+
+  // Cost columns: real values when configured, otherwise muted placeholders.
+  const costCell = (
+    icon: typeof Store,
+    label: string,
+    amount: number | undefined,
+  ): Cell => {
+    if (notConfigured) {
+      return {
+        icon,
+        label,
+        value: dash,
+        sub: "configurar",
+        tint: "bg-muted text-muted-foreground",
+        valueClass: "text-muted-foreground/60",
+      };
+    }
+    const a = amount ?? 0;
+    return {
+      icon,
+      label,
+      value: `−${formatBRL(a)}`,
+      sub: pct(a),
+      tint: "bg-rose-500/12 text-rose-600",
+      valueClass: "text-rose-600",
+      loading: profitLoading,
+    };
+  };
+
+  const resultCell: Cell = notConfigured
+    ? {
+        icon: TrendingUp,
+        label: "Resultado",
+        value: dash,
+        sub: "configurar",
+        tint: "bg-muted text-muted-foreground",
+        valueClass: "text-muted-foreground/60",
+      }
+    : {
+        icon: TrendingUp,
+        label: "Resultado",
+        value: formatBRL(breakdown?.netProfit ?? 0),
+        sub: `${pct(breakdown?.netProfit ?? 0)} margem`,
+        tint: isLoss ? "bg-rose-500/12 text-rose-600" : "bg-emerald-500/12 text-emerald-600",
+        valueClass: isLoss ? "text-rose-600" : "text-emerald-600",
+        loading: profitLoading,
+      };
+
+  const cells: Cell[] = [
+    {
+      icon: Package,
+      label: "Anúncios ativos",
+      value: `${formatNumber(activeListings)} / ${formatNumber(totalListings)}`,
+      sub: "ativos / total",
+      tint: "bg-blue-500/12 text-blue-600",
+      valueClass: "text-blue-600",
+      loading: listingsLoading,
+    },
+    {
+      icon: Wallet,
+      label: "Receita",
+      value: formatBRL(revenue),
+      sub: `${formatNumber(orders)} ${orders === 1 ? "pedido" : "pedidos"}`,
+      tint: "bg-emerald-500/12 text-emerald-600",
+      valueClass: "text-emerald-600",
+      loading: loadingSales,
+    },
+    costCell(Coins, "Comissão ML", breakdown?.commission),
+    costCell(Truck, "Frete", breakdown?.shipping),
+    costCell(Package, "Custo (CMV)", breakdown?.cmv),
+    costCell(Receipt, "Impostos", breakdown?.tax),
+    costCell(Megaphone, "Ads", breakdown?.ads),
+    {
+      icon: XCircle,
+      label: "Cancelados",
+      value: formatBRL(cancelledAmount),
+      sub: `${formatNumber(cancelled)} ${cancelled === 1 ? "pedido" : "pedidos"}`,
+      tint: "bg-rose-500/12 text-rose-600",
+      valueClass: "text-rose-600",
+      loading: loadingSales,
+    },
+    resultCell,
+  ];
+
+  const count = cells.length; // 9
+  const lgColsMap: Record<number, string> = {
+    8: "lg:grid-cols-8",
+    9: "lg:grid-cols-9",
+  };
+  const colsClass = cn("grid-cols-3", lgColsMap[count] ?? "lg:grid-cols-9");
+
+  return (
+    <Card className="card-soft overflow-hidden border-0 rounded-2xl">
+      <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "var(--border)" }}>
+        <div className="brand-gradient flex h-5 w-5 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
+          <TrendingUp className="h-3 w-3" />
+        </div>
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <p className="font-display text-base font-semibold leading-tight tracking-tight">Da receita ao resultado</p>
+          <p className="text-[10px] text-muted-foreground">{periodTitle}</p>
+        </div>
+      </div>
+
+      <div className={cn("grid divide-y divide-x sm:divide-y-0", colsClass)} style={{ borderColor: "var(--border)" }}>
+        {cells.map((c) => (
+          <div key={c.label} className="px-3 py-1.5 transition-colors hover:bg-secondary/40">
+            <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${c.tint}`}>
+                <c.icon className="h-2.5 w-2.5" />
+              </span>
+              <span className="truncate">{c.label}</span>
+            </p>
+            {c.loading ? (
+              <>
+                <Skeleton className="mt-1 h-4 w-16" />
+                <Skeleton className="mt-1 h-2.5 w-10" />
+              </>
+            ) : (
+              <>
+                <p className={cn("mt-0.5 font-display text-lg font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
+                  {c.value}
+                </p>
+                <p className="text-[13px] font-semibold text-muted-foreground tabular-nums">{c.sub}</p>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 /**
  * Discreet reminder shown in the top-right of the dashboard header only when the
