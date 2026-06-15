@@ -22,6 +22,9 @@ import {
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
+import { Input } from "./ui/input";
+import { toast } from "sonner";
+import { Lock, Loader2 } from "lucide-react";
 import {
   BarChart3,
   Bell,
@@ -109,6 +112,106 @@ function Wordmark() {
   );
 }
 
+function AccessGate() {
+  const { refresh } = useAuth();
+  const { data: gate, isLoading } = trpc.auth.gateInfo.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const [password, setPassword] = useState("");
+  const login = trpc.auth.passwordLogin.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      window.location.reload();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Não foi possível entrar.");
+      setPassword("");
+    },
+  });
+
+  const passwordGate = gate?.passwordGateEnabled ?? false;
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!password.trim() || login.isPending) return;
+    login.mutate({ password });
+  }
+
+  return (
+    <div className="canvas-wash flex items-center justify-center min-h-screen bg-background">
+      <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full animate-rise">
+        <Wordmark />
+        <div className="flex flex-col items-center gap-3">
+          <h1 className="text-3xl font-display font-bold tracking-tight text-center">
+            Central de gestão da sua loja no{" "}
+            <span className="brand-text-gradient">Mercado Livre</span>
+          </h1>
+          <p className="text-sm text-muted-foreground text-center max-w-sm leading-relaxed">
+            Acompanhe vendas, desempenho dos seus anúncios, lucratividade e
+            reputação — com dados reais da loja, em um só lugar.
+          </p>
+        </div>
+
+        {isLoading ? (
+          <div className="flex h-12 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : passwordGate ? (
+          <form onSubmit={submit} className="w-full flex flex-col gap-3">
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="password"
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Digite a senha de acesso"
+                className="h-12 pl-10 text-base"
+                disabled={login.isPending}
+              />
+            </div>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full shadow-lg hover:shadow-xl transition-all"
+              disabled={login.isPending || !password.trim()}
+            >
+              {login.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Entrando…
+                </>
+              ) : (
+                "Entrar"
+              )}
+            </Button>
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = getLoginUrl();
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+            >
+              Entrar como administrador (Mercado Livre)
+            </button>
+          </form>
+        ) : (
+          <Button
+            onClick={() => {
+              window.location.href = getLoginUrl();
+            }}
+            size="lg"
+            className="w-full shadow-lg hover:shadow-xl transition-all"
+          >
+            Entrar para começar
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
@@ -125,32 +228,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   if (!user) {
-    return (
-      <div className="canvas-wash flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full animate-rise">
-          <Wordmark />
-          <div className="flex flex-col items-center gap-3">
-            <h1 className="text-3xl font-display font-bold tracking-tight text-center">
-              Central de gestão da sua loja no{" "}
-              <span className="brand-text-gradient">Mercado Livre</span>
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm leading-relaxed">
-              Acompanhe vendas, desempenho dos seus anúncios, pós-venda e
-              reputação — com dados reais da sua conta, em um só lugar.
-            </p>
-          </div>
-          <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
-          >
-            Entrar para começar
-          </Button>
-        </div>
-      </div>
-    );
+    return <AccessGate />;
   }
 
   return (

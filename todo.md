@@ -996,4 +996,14 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Causa: painel "Configuração de impostos" estava DENTRO do ramo else do ternário de profit (só renderizava com dados de lucro OK) + condição extra `&& cfg.data`
 - [x] Mover o painel para FORA do ternário (logo após o seletor de período) → abre sempre que "Configurar" é clicado, independente do estado da query de lucro
 - [x] Tratar estados de loading/erro da própria config (skeleton + ErrorState com retry) em vez de não renderizar nada
-- [x] TypeScript limpo + validação visual na preview + checkpoint
+- [x] TypeScript limpo + validação visual na preview (botão abre o painel com campos editáveis + Salvar/Desfazer) + checkpoint
+
+
+## Acesso por senha compartilhada (qualquer pessoa com o link entra)
+- [x] Decisão de segurança alinhada com Fernando: acesso público protegido por senha única (não OAuth por visitante)
+- [x] Backend: procedure pública auth.passwordLogin (valida senha vs secret ACCESS_PASSWORD; em acerto emite sessão do usuário dono e seta cookie) + auth.gateInfo (flag pública)
+- [x] Comparação de senha em tempo ~constante; senha guardada como secret (ACCESS_PASSWORD), nunca no código
+- [x] Frontend: AccessGate no DashboardLayout mostra campo de senha quando gate ativo; link discreto "Entrar como administrador (Mercado Livre)" para o dono
+- [x] Testes vitest (4): gateInfo, senha correta emite cookie, senha errada UNAUTHORIZED, sem senha PRECONDITION_FAILED
+- [x] Validação real ponta-a-ponta: gateInfo=on, senha errada=401, senha certa=200+cookie, auth.me reconhece dono (id 1, admin)
+- [x] Validação visual: visitante deslogado vê a tela de senha; suíte verde (504; única falha é teste live externo de oxylabs, sem relação)

@@ -33,4 +33,9 @@ export const ENV = {
   // the financial inputs for the "Lucratividade Real" feature. Empty string
   // until the user provides it via project secrets.
   baselinkerApiToken: process.env.BASELINKER_API_TOKEN ?? "",
+  // Shared access password. When set, anyone with the link can enter the system
+  // by typing this password (no Mercado Livre login required). On success the
+  // server issues a session for the owner user, so all data shown belongs to the
+  // connected store. Empty string disables the password gate.
+  accessPassword: process.env.ACCESS_PASSWORD ?? "",
 };
