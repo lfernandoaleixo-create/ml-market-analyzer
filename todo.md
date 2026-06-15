@@ -1031,3 +1031,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest (histórico gravado no save; configHistory lista em ordem) — 13/13 finance + 508 total verde + TS limpo
 - [x] Validação ponta-a-ponta na preview: salvou com data 15/06/2026 13:01 no histórico; geração do HTML do PDF validada
 - [ ] Após publicar: Fernando confere o PDF impresso e o registro de datas no histórico em produção
+
+
+## Bug: Exportar PDF dos impostos bloqueado como pop-up (Fernando, 15/06)
+- [x] Causa: exportTaxConfigPdf usava window.open() → navegador bloqueava como pop-up
+- [x] Correção: gera via iframe oculto na própria página (srcdoc + print), sem abrir janela nova — nunca é bloqueado; removido o <script> auto-print embutido
+- [x] Fallback: se iframe falhar, baixa arquivo .html para o usuário abrir/imprimir
+- [x] Validado na preview: clique aciona o diálogo de impressão in-page sem pop-up; 508 testes verdes; TS limpo

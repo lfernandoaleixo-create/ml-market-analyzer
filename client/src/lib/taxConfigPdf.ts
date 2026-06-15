@@ -165,26 +165,79 @@ export function buildTaxConfigHtml(opts: ExportOptions): string {
   </div>
 
   <div class="footer">Documento gerado automaticamente pelo Mercato para conferência contábil</div>
-
-  <script>
-    window.addEventListener("load", function () {
-      setTimeout(function () { window.print(); }, 250);
-    });
-  </script>
 </body>
 </html>`;
 }
 
 /**
- * Open the printable tax-config document in a new tab and trigger the print
- * dialog. Falls back gracefully if the popup is blocked.
+ * Render the printable tax-config document inside a hidden iframe on the SAME
+ * page and trigger the print dialog from there. This never triggers the
+ * browser's pop-up blocker (unlike window.open) because no new window/tab is
+ * created. The iframe is removed automatically once printing finishes.
+ *
+ * Returns true on success. If anything goes wrong, falls back to downloading
+ * the document as an .html file the user can open and print manually.
  */
 export function exportTaxConfigPdf(opts: ExportOptions): boolean {
   const html = buildTaxConfigHtml(opts);
-  const win = window.open("", "_blank", "noopener,noreferrer,width=900,height=1000");
-  if (!win) return false;
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  return true;
+  try {
+    const iframe = document.createElement("iframe");
+    // Keep it visually hidden but still rendered (display:none can prevent print in some browsers).
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      // Give the print dialog a moment, then remove the iframe.
+      window.setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 1000);
+    };
+
+    iframe.onload = () => {
+      const win = iframe.contentWindow;
+      if (!win) {
+        cleanup();
+        return;
+      }
+      // Clean up after the user closes/finishes the print dialog.
+      win.addEventListener("afterprint", cleanup);
+      try {
+        win.focus();
+        win.print();
+      } catch {
+        cleanup();
+      }
+    };
+
+    document.body.appendChild(iframe);
+    // srcdoc renders the HTML in-document without navigation or a new window.
+    iframe.srcdoc = html;
+    return true;
+  } catch {
+    // Last-resort fallback: download an .html file the user can open & print.
+    try {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "configuracao-impostos-mercato.html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
