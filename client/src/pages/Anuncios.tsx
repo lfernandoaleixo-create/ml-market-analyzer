@@ -450,7 +450,14 @@ export default function Anuncios() {
           </div>
         }
       >
-        <VisitsEvolutionChart series={visitsSeries} loading={isLoading} windowDays={visitWindow} />
+        <VisitsEvolutionChart
+          series={visitsSeries}
+          loading={isLoading}
+          windowDays={visitWindow}
+          pending={data?.visitsSeriesPending === true}
+          onRetry={() => refetch()}
+          refreshing={isFetching}
+        />
       </SectionCard>
 
       {/* Raio-X da Ficha Técnica */}

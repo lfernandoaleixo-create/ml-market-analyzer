@@ -350,9 +350,17 @@ export class AccountProvider {
     lastDays = 30,
   ): Promise<Map<string, number>> {
     const out = new Map<string, number>();
-    const data = await this.get(
-      `/items/${itemId}/visits/time_window?last=${lastDays}&unit=day`,
-    );
+    // Per-item failures (e.g. a 429 mid fan-out) must NEVER reject and zero the
+    // whole aggregated series — swallow into an empty map so we keep the visits
+    // we DID manage to collect from the other items. Mirrors getItemVisits().
+    let data: any;
+    try {
+      data = await this.get(
+        `/items/${itemId}/visits/time_window?last=${lastDays}&unit=day`,
+      );
+    } catch {
+      return out;
+    }
     const results: any[] = Array.isArray(data?.results) ? data.results : [];
     for (const r of results) {
       // ML returns { date: "2026-06-01T00:00:00.000-04:00", total: 12 }
@@ -370,9 +378,10 @@ export class AccountProvider {
     ids: string[],
     lastDays = 30,
     cap = 200,
-  ): Promise<VisitsDayPoint[]> {
+  ): Promise<{ series: VisitsDayPoint[]; attempted: number; resolved: number }> {
     const totals = new Map<string, number>();
     const targets = ids.slice(0, cap);
+    let resolved = 0;
     const concurrency = 4;
     for (let i = 0; i < targets.length; i += concurrency) {
       const batch = targets.slice(i, i + concurrency);
@@ -380,6 +389,10 @@ export class AccountProvider {
         batch.map((id) => this.getItemVisitsSeries(id, lastDays)),
       );
       for (const m of series) {
+        // A non-empty map means ML actually answered for that item (even all-zero
+        // days come back as dated entries). An empty map means the call failed
+        // (caught above) and that item did NOT contribute.
+        if (m.size > 0) resolved += 1;
         for (const [iso, v] of Array.from(m.entries())) totals.set(iso, (totals.get(iso) ?? 0) + v);
       }
     }
@@ -400,7 +413,7 @@ export class AccountProvider {
       const key = utcDayKey(t);
       out.push({ date: key, visits: totals.get(key) ?? 0 });
     }
-    return out;
+    return { series: out, attempted: targets.length, resolved };
   }
 
   private mapStatus(s: string | undefined): ListingStatus {
@@ -520,11 +533,22 @@ export class AccountProvider {
     // Bounded like the window map above: the daily visits chart is a nice-to-have,
     // never a blocker. If it can't finish in the budget, return an empty series.
     // Skipped entirely unless requested (Painel doesn't need it) to cut ML load.
-    const visitsSeries = includeVisitsSeries
-      ? await this.withBudget(this.getVisitsSeries(activeIds, 30), 6000, [] as VisitsDayPoint[])
-      : [];
+    const visitsAgg = includeVisitsSeries
+      ? await this.withBudget(
+          this.getVisitsSeries(activeIds, 30),
+          13000,
+          { series: [] as VisitsDayPoint[], attempted: activeIds.length, resolved: 0 },
+        )
+      : { series: [] as VisitsDayPoint[], attempted: 0, resolved: 0 };
+    const visitsSeries = visitsAgg.series;
+    // Pending = we ASKED for the series and there ARE active listings to fetch,
+    // but NOT A SINGLE one returned data (timeout / 429). That is the false
+    // "sem visitas" case the user reported — surface it as "carregando" instead.
+    const visitsSeriesPending =
+      includeVisitsSeries && visitsAgg.attempted > 0 && visitsAgg.resolved === 0;
 
     return {
+      visitsSeriesPending,
       summary: {
         total: items.length,
         active,

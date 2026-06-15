@@ -47,6 +47,13 @@ const isAuthError = (error: unknown): boolean =>
     error.data?.code === "UNAUTHORIZED" ||
     /sess[ãa]o|session|unauthor/i.test(error.message ?? ""));
 
+// A Mercado Livre rate limit (429) is an EXPECTED, already-handled state: the UI
+// shows an honest banner + "Atualizar agora" and the server retried with backoff.
+// It must NOT be logged as console.error, or the global "1 error" badge alarms
+// the user over a transient throttle. We log it as a warning instead.
+const isHandledTransient = (error: unknown): boolean =>
+  error instanceof TRPCClientError && error.data?.code === "TOO_MANY_REQUESTS";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -86,7 +93,12 @@ queryClient.getQueryCache().subscribe(event => {
     redirectToLoginIfUnauthorized(error);
     // Session/cookie drops are expected in the preview; don't surface them as
     // app errors (avoids the global "1 error" badge for a transient condition).
-    if (!isAuthError(error)) console.error("[API Query Error]", error);
+    if (isAuthError(error)) return;
+    if (isHandledTransient(error)) {
+      console.warn("[API Query] Mercado Livre rate limit (429) — tratado na UI", error);
+      return;
+    }
+    console.error("[API Query Error]", error);
   }
 });
 
@@ -94,7 +106,12 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
-    if (!isAuthError(error)) console.error("[API Mutation Error]", error);
+    if (isAuthError(error)) return;
+    if (isHandledTransient(error)) {
+      console.warn("[API Mutation] Mercado Livre rate limit (429) — tratado na UI", error);
+      return;
+    }
+    console.error("[API Mutation Error]", error);
   }
 });
 

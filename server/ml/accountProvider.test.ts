@@ -483,6 +483,64 @@ describe("AccountProvider.getListings", () => {
     expect(last.date).toBe(todayKey);
     expect(last.visits).toBe(7);
   });
+
+  it("flags visitsSeriesPending when EVERY active item's time_window fails (429) — never a fake 'sem visitas'", async () => {
+    const idsPage = { results: ["MLB1", "MLB2"], paging: { total: 2, offset: 0, limit: 50 } };
+    const itemsBody = [
+      { code: 200, body: { id: "MLB1", title: "Ativo A", price: 50, currency_id: "BRL", available_quantity: 10, sold_quantity: 5, status: "active", listing_type_id: "gold_special" } },
+      { code: 200, body: { id: "MLB2", title: "Ativo B", price: 20, currency_id: "BRL", available_quantity: 8, sold_quantity: 2, status: "active", listing_type_id: "gold_special" } },
+    ];
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      // The per-item daily visits endpoint is throttled for ALL items.
+      if (/\/items\/MLB\d\/visits\/time_window/.test(u)) {
+        return { ok: false, status: 429, json: async () => ({ message: "too many requests" }) } as any;
+      }
+      let body: any = {};
+      if (/\/users\/\d+\/items\/search/.test(u)) body = idsPage;
+      else if (/api\.mercadolibre\.com\/items\?ids=/.test(u)) body = itemsBody;
+      // The window map (KPI visits) also fails, but that path is independent.
+      return { ok: true, json: async () => body } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30, includeVisitsSeries: true });
+
+    // Series is zero-filled (axis intact) but flagged pending so the UI shows
+    // "carregando" instead of falsely claiming the account has no visits.
+    expect(res.visitsSeries.length).toBe(30);
+    expect(res.visitsSeries.every((p) => p.visits === 0)).toBe(true);
+    expect(res.visitsSeriesPending).toBe(true);
+  });
+
+  it("keeps the visits collected from healthy items when ONE item fails (no whole-series wipe, not pending)", async () => {
+    const idsPage = { results: ["MLB1", "MLB2"], paging: { total: 2, offset: 0, limit: 50 } };
+    const itemsBody = [
+      { code: 200, body: { id: "MLB1", title: "Ativo A", price: 50, currency_id: "BRL", available_quantity: 10, sold_quantity: 5, status: "active", listing_type_id: "gold_special" } },
+      { code: 200, body: { id: "MLB2", title: "Ativo B", price: 20, currency_id: "BRL", available_quantity: 8, sold_quantity: 2, status: "active", listing_type_id: "gold_special" } },
+    ];
+    const day1 = "2026-06-01";
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      // MLB2 is throttled, but MLB1 answers normally — its visits MUST survive.
+      if (/\/items\/MLB2\/visits\/time_window/.test(u)) {
+        return { ok: false, status: 429, json: async () => ({ message: "too many requests" }) } as any;
+      }
+      let body: any = {};
+      if (/\/users\/\d+\/items\/search/.test(u)) body = idsPage;
+      else if (/api\.mercadolibre\.com\/items\?ids=/.test(u)) body = itemsBody;
+      else if (/\/items\/MLB1\/visits\/time_window/.test(u))
+        body = { total_visits: 12, results: [{ date: `${day1}T00:00:00.000-04:00`, total: 12 }] };
+      return { ok: true, json: async () => body } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30, includeVisitsSeries: true });
+
+    const map = Object.fromEntries(res.visitsSeries.map((p) => [p.date, p.visits]));
+    expect(map[day1]).toBe(12); // MLB1's data preserved despite MLB2 failing
+    expect(res.visitsSeriesPending).toBe(false); // at least one item resolved
+  });
 });
 
 describe("AccountProvider.probe", () => {

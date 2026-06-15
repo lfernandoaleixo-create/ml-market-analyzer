@@ -1,8 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatNumber, formatCompact, isoToWeekdayLong } from "@/lib/format";
 import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
-import { TrendingUp, Eye } from "lucide-react";
+import { TrendingUp, Eye, Loader2, RefreshCw } from "lucide-react";
 import {
   Area,
   ComposedChart,
@@ -25,16 +26,49 @@ export function VisitsEvolutionChart({
   series,
   loading,
   windowDays = 30,
+  pending = false,
+  onRetry,
+  refreshing = false,
 }: {
   series: VisitsDayPoint[];
   loading?: boolean;
   windowDays?: number;
+  /** True when the backend could NOT fetch the series (timeout / ML 429). We must
+   *  NOT claim "sem visitas" — show a "carregando" state with a retry instead. */
+  pending?: boolean;
+  /** Optional handler to re-fetch the series (wired to the tRPC refetch). */
+  onRetry?: () => void;
+  /** True while a manual/auto refetch triggered by onRetry is in flight. */
+  refreshing?: boolean;
 }) {
   if (loading) {
     return <Skeleton className="h-64 w-full" />;
   }
 
   const total = series.reduce((s, p) => s + p.visits, 0);
+
+  // The backend asked ML for the series but nothing came back in time (timeout /
+  // rate limit). This is NOT a real zero — be honest and offer a refresh.
+  if (pending) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">Carregando as visitas dos seus anúncios…</p>
+          <p className="text-xs text-muted-foreground">
+            O Mercado Livre está demorando para responder (muitos anúncios ou limite temporário).
+            Os números aparecem assim que a coleta terminar.
+          </p>
+        </div>
+        {onRetry && (
+          <Button variant="outline" size="sm" className="gap-1.5 bg-secondary/40" onClick={onRetry} disabled={refreshing}>
+            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+            {refreshing ? "Atualizando…" : "Atualizar agora"}
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   if (series.length === 0 || total === 0) {
     return (
@@ -74,8 +108,8 @@ export function VisitsEvolutionChart({
         <SummaryMini label="Média/dia" value={formatNumber(avg)} tone="muted" />
         <SummaryMini label="Pico" value={formatNumber(peak)} tone="muted" />
       </div>
-      <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="h-80 w-full min-w-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={80}>
           <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
             <defs>
               <linearGradient id="visitsFill" x1="0" y1="0" x2="0" y2="1">

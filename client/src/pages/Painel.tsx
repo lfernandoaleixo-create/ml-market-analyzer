@@ -171,6 +171,7 @@ export default function Painel() {
   const r = rep.data;
   const loadingSales = sales.isLoading;
   const visitsSeries: VisitsDayPoint[] = listings.data?.visitsSeries ?? [];
+  const visitsSeriesPending = listings.data?.visitsSeriesPending === true;
 
   // Detect a Mercado Livre rate limit (429 -> TOO_MANY_REQUESTS) on any of the
   // core queries. When it happens we must NOT silently show R$ 0,00 — we show an
@@ -272,7 +273,14 @@ export default function Painel() {
         title="Evolução das visitas · anúncios ativos"
         description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias (o dia de hoje é parcial e atualiza em tempo real)."
       >
-        <VisitsEvolutionChart series={visitsSeries} loading={listings.isLoading} windowDays={30} />
+        <VisitsEvolutionChart
+          series={visitsSeries}
+          loading={listings.isLoading}
+          windowDays={30}
+          pending={visitsSeriesPending}
+          onRetry={() => listings.refetch()}
+          refreshing={listings.isFetching}
+        />
       </SectionCard>
 
       {/* Period selector — controls both the KPI cards and the chart below */}

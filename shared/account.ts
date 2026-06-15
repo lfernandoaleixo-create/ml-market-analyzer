@@ -186,6 +186,10 @@ export interface ListingsResult {
   /** Daily visits evolution for ACTIVE listings over the last 30 days
    *  (aggregated across items). Empty when the data could not be fetched. */
   visitsSeries: VisitsDayPoint[];
+  /** True when the series was REQUESTED but NO active item returned visit data
+   *  (timeout / rate limit). Lets the UI show "carregando" instead of falsely
+   *  claiming "sem visitas". Undefined/false means the empty/zero series is real. */
+  visitsSeriesPending?: boolean;
 }
 
 export interface PostSaleSummary {

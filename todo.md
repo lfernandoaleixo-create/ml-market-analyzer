@@ -915,3 +915,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Inserir o gráfico no Painel, entre o seletor de dias e o card "Da receita ao resultado"
 - [x] Buscar a série de visitas no Painel (mesma fonte da aba Meus Anúncios)
 - [x] TS limpo + testes + checkpoint
+
+
+## BUG gráfico de visitas mostra "Sem visitas" + erro no rodapé (15/06) — Fernando
+- [x] Backend: aumentar orçamento da série de visitas (6s) e/ou tornar coleta mais resiliente para contas grandes
+- [x] Backend: série vazia por 429/timeout é sinalizada como pending (visitsSeriesPending), não como "zero real"
+- [x] Frontend: distinguir "carregando/indisponível (429/budget)" de "zero real" — não exibir "Sem visitas registradas" enganoso
+- [x] Frontend: ResponsiveContainer com minWidth/minHeight para mitigar aviso width(0)
+- [x] Testes vitest (pending + resiliência por item) + TS limpo + 485 testes passando + checkpoint
+- [x] Rodapé: rate limit (429) tratado rebaixado de console.error para console.warn (remove o "1 error" alarmante)
