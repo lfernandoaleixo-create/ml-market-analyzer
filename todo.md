@@ -953,3 +953,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Polling adaptativo no frontend (Painel + Anúncios): 4s enquanto pending, 60s após carregar — gráfico aparece em segundos no 1º acesso
 - [x] Conexão no PUBLICADO: token válido no banco (connected, refresh ok); tela "Conecte sua conta" era efeito do mesmo timeout — agora protegida pelo retry de rede
 - [x] Testes vitest novos (retry de rede + zero-resolvido) + TS limpo + suíte verde (493) + checkpoint
+
+
+## Ajuste de layout: compactar gráficos do Painel (15/06) — Fernando
+- [x] Reduzir altura do gráfico de visitas (h-80→h-56) e do gráfico de faturamento (h-72→h-56)
+- [x] Diminuir espaços acima/abaixo: bodyClassName px-5 py-3 nos dois SectionCards + space-y-3 interno + margens do chart menores
+- [x] Reduzir alturas dos estados loading/vazio/pending (h-64→h-52) para casar
+- [x] Nova prop bodyClassName no SectionCard (sem afetar outros cards) + TS limpo + checkpoint

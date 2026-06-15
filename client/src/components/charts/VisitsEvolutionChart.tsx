@@ -42,7 +42,7 @@ export function VisitsEvolutionChart({
   refreshing?: boolean;
 }) {
   if (loading) {
-    return <Skeleton className="h-64 w-full" />;
+    return <Skeleton className="h-52 w-full" />;
   }
 
   const total = series.reduce((s, p) => s + p.visits, 0);
@@ -51,7 +51,7 @@ export function VisitsEvolutionChart({
   // rate limit). This is NOT a real zero — be honest and offer a refresh.
   if (pending) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+      <div className="flex h-52 flex-col items-center justify-center gap-3 text-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
         <div className="space-y-1">
           <p className="text-sm font-medium text-foreground">Carregando as visitas dos seus anúncios…</p>
@@ -72,7 +72,7 @@ export function VisitsEvolutionChart({
 
   if (series.length === 0 || total === 0) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
+      <div className="flex h-52 flex-col items-center justify-center gap-2 text-center">
         <TrendingUp className="h-8 w-8 text-muted-foreground/40" />
         <p className="text-sm text-muted-foreground">
           Sem visitas registradas nos anúncios ativos nos últimos {windowDays} dias.
@@ -106,17 +106,17 @@ export function VisitsEvolutionChart({
   const showMA = series.length >= 7;
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
         <SummaryMini label="Hoje (parcial)" value={formatNumber(todayVisits)} tone="primary" />
         <SummaryMini label="Ontem" value={formatNumber(yesterdayVisits)} tone="muted" />
         <SummaryMini label={`Total ${windowDays}d`} value={formatNumber(total)} tone="muted" />
         <SummaryMini label="Média/dia" value={formatNumber(avg)} tone="muted" />
         <SummaryMini label="Pico" value={formatNumber(peak)} tone="muted" />
       </div>
-      <div className="h-80 w-full min-w-0">
+      <div className="h-56 w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={80}>
-          <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
+          <ComposedChart data={data} margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
             <defs>
               <linearGradient id="visitsFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.28} />

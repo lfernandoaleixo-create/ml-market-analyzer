@@ -148,6 +148,7 @@ export function SectionCard({
   actions,
   children,
   className,
+  bodyClassName,
   collapsible = false,
   defaultOpen = true,
 }: {
@@ -156,6 +157,9 @@ export function SectionCard({
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Override the content padding (defaults to `p-5`). Used to make chart cards
+   *  more compact (e.g. `px-5 py-3`) without affecting every section. */
+  bodyClassName?: string;
   collapsible?: boolean;
   defaultOpen?: boolean;
 }) {
@@ -220,7 +224,7 @@ export function SectionCard({
             {headerInner}
           </div>
         ))}
-      {(!collapsible || open) && <div className="p-5">{children}</div>}
+      {(!collapsible || open) && <div className={cn("p-5", bodyClassName)}>{children}</div>}
     </Card>
   );
 }

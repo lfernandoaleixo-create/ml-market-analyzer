@@ -289,6 +289,7 @@ export default function Painel() {
       <SectionCard
         title="Evolução das visitas · anúncios ativos"
         description="Total diário de visualizações agregado entre os anúncios ativos nos últimos 30 dias (o dia de hoje é parcial e atualiza em tempo real)."
+        bodyClassName="px-5 py-3"
       >
         <VisitsEvolutionChart
           series={visitsSeries}
@@ -338,11 +339,12 @@ export default function Painel() {
             Ver vendas <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         }
+        bodyClassName="px-5 py-3"
       >
         {loadingSales ? (
-          <Skeleton className="h-72 w-full" />
+          <Skeleton className="h-56 w-full" />
         ) : bars.length === 0 ? (
-          <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+          <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
             Sem vendas registradas no período.
           </div>
         ) : (
@@ -367,7 +369,7 @@ export default function Painel() {
                 stay wide and readable instead of shrinking to invisible slivers. */}
             <div className="overflow-x-auto pb-1">
               <div
-                className="h-72"
+                className="h-56"
                 style={{ minWidth: `${Math.max(bars.length * perDayWidth, 320)}px`, width: "100%" }}
               >
                 <ResponsiveContainer width="100%" height="100%">
@@ -439,7 +441,7 @@ export default function Painel() {
                 Dica: arraste o gráfico para o lado para ver todos os dias.
               </p>
             )}
-            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Faturamento
               </span>
