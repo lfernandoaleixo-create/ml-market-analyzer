@@ -161,7 +161,11 @@ export default function Anuncios() {
     { days: visitWindow },
     {
       enabled: conn.data?.connected === true,
-      refetchInterval: 60 * 1000,
+      // While the cold-start background collection is still running (pending),
+      // poll quickly (4s) so the chart fills in within seconds; relax to 60s once
+      // the data has landed.
+      refetchInterval: (query) =>
+        query.state.data?.pending ? 4 * 1000 : 60 * 1000,
       refetchOnWindowFocus: true,
     },
   );

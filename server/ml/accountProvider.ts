@@ -122,11 +122,21 @@ export class AccountProvider {
     }
   }
 
+  /** Max retries for a transient NETWORK failure (timeout / socket closed).
+   *  The Mercado Livre API is reached through the sandbox/Cloud Run egress, and
+   *  the FIRST connection after an idle period frequently times out or gets its
+   *  socket closed mid-handshake, succeeding only on the 2nd/3rd try. Without a
+   *  network retry (we previously only retried 429s) that first failure returns
+   *  null, which silently zeroed the background visits collection and left the
+   *  chart stuck on "Carregando". A couple of cheap retries fixes that. */
+  static readonly MAX_NETWORK_RETRIES = 3;
+
   private async get(
     path: string,
     timeoutMs = 12000,
     _isRetry = false,
     _rateLimitAttempt = 0,
+    _networkAttempt = 0,
   ): Promise<any | null> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -148,7 +158,7 @@ export class AccountProvider {
             : Math.min(8000, 500 * 2 ** _rateLimitAttempt);
           const waitMs = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : 1000;
           await new Promise((r) => setTimeout(r, waitMs));
-          return this.get(path, timeoutMs, _isRetry, _rateLimitAttempt + 1);
+          return this.get(path, timeoutMs, _isRetry, _rateLimitAttempt + 1, _networkAttempt);
         }
         // Retries exhausted: signal the rate limit instead of masking it as an
         // empty result. This is what stops the dashboard from showing a fake
@@ -164,16 +174,25 @@ export class AccountProvider {
         const fresh = await this.onUnauthorized(this.token);
         if (fresh && fresh !== this.token) {
           this.token = fresh;
-          return this.get(path, timeoutMs, true, _rateLimitAttempt);
+          return this.get(path, timeoutMs, true, _rateLimitAttempt, _networkAttempt);
         }
         return null;
       }
       if (!res.ok) return null;
       return await res.json();
     } catch (err) {
-      // A rate-limit signal must propagate (so the UI can show an honest retry);
-      // everything else (network blip, abort) degrades to null as before.
+      // A rate-limit signal must propagate (so the UI can show an honest retry).
       if (err instanceof MLRateLimitError) throw err;
+      // Transient network failure (timeout / aborted / socket closed): the ML
+      // egress frequently drops the FIRST connection and succeeds on a retry.
+      // Retry a few times with a short backoff before giving up. This is the
+      // fix for the visits chart that stayed on "Carregando": the background
+      // collection's first call no longer silently returns null.
+      if (_networkAttempt < AccountProvider.MAX_NETWORK_RETRIES) {
+        clearTimeout(timer);
+        await new Promise((r) => setTimeout(r, 400 * (_networkAttempt + 1)));
+        return this.get(path, timeoutMs, _isRetry, _rateLimitAttempt, _networkAttempt + 1);
+      }
       return null;
     } finally {
       clearTimeout(timer);
@@ -343,32 +362,46 @@ export class AccountProvider {
     return map;
   }
 
-  /** Daily visits time-series for a single item over the last N days. Returns
-   *  a Map<isoDate, visits>. Empty on failure. */
+  /** Daily visits time-series for a single item over the last N days.
+   *  Returns { ok, days } where `ok` means ML actually ANSWERED for this item
+   *  (so a genuine zero-visits item still counts as resolved), and `days` is the
+   *  Map<isoDate, visits>. `ok:false` means the call failed (timeout/429/error)
+   *  and the item did NOT contribute — distinct from a real zero. This split is
+   *  what stops the chart from being stuck "pending": a small store whose items
+   *  legitimately had 0 visits on some days now correctly resolves instead of
+   *  looking like a total miss. */
   private async getItemVisitsSeries(
     itemId: string,
     lastDays = 30,
-  ): Promise<Map<string, number>> {
-    const out = new Map<string, number>();
+  ): Promise<{ ok: boolean; days: Map<string, number> }> {
+    const days = new Map<string, number>();
     // Per-item failures (e.g. a 429 mid fan-out) must NEVER reject and zero the
-    // whole aggregated series — swallow into an empty map so we keep the visits
-    // we DID manage to collect from the other items. Mirrors getItemVisits().
+    // whole aggregated series — swallow into ok:false so we keep the visits we
+    // DID collect from the other items. Mirrors getItemVisits().
     let data: any;
     try {
       data = await this.get(
         `/items/${itemId}/visits/time_window?last=${lastDays}&unit=day`,
       );
     } catch {
-      return out;
+      return { ok: false, days };
     }
+    // A null body (network/HTTP failure after retries) is NOT a valid answer.
+    // A valid answer has the time_window shape (item_id + results array), even
+    // when results is empty / all-zero.
+    const answered =
+      data != null &&
+      typeof data === "object" &&
+      (Array.isArray(data.results) || typeof data.total_visits === "number");
+    if (!answered) return { ok: false, days };
     const results: any[] = Array.isArray(data?.results) ? data.results : [];
     for (const r of results) {
       // ML returns { date: "2026-06-01T00:00:00.000-04:00", total: 12 }
       const iso = typeof r?.date === "string" ? r.date.slice(0, 10) : null;
       const total = typeof r?.total === "number" ? r.total : 0;
-      if (iso) out.set(iso, (out.get(iso) ?? 0) + total);
+      if (iso) days.set(iso, (days.get(iso) ?? 0) + total);
     }
-    return out;
+    return { ok: true, days };
   }
 
   /** Aggregated daily visits series (last `lastDays` days) across the provided
@@ -382,18 +415,21 @@ export class AccountProvider {
     const totals = new Map<string, number>();
     const targets = ids.slice(0, cap);
     let resolved = 0;
-    const concurrency = 4;
+    // The dated endpoint is 1 item per call, but real stores are small (tens of
+    // active listings), so a moderate concurrency finishes in a couple seconds
+    // without provoking 429. The get() network/429 retries absorb the rest.
+    const concurrency = 6;
     for (let i = 0; i < targets.length; i += concurrency) {
       const batch = targets.slice(i, i + concurrency);
       const series = await Promise.all(
         batch.map((id) => this.getItemVisitsSeries(id, lastDays)),
       );
       for (const m of series) {
-        // A non-empty map means ML actually answered for that item (even all-zero
-        // days come back as dated entries). An empty map means the call failed
-        // (caught above) and that item did NOT contribute.
-        if (m.size > 0) resolved += 1;
-        for (const [iso, v] of Array.from(m.entries())) totals.set(iso, (totals.get(iso) ?? 0) + v);
+        // `ok` means ML actually answered for that item — even a genuine all-zero
+        // item counts as resolved. Only a failed call (ok:false) is excluded, so
+        // a quiet day no longer looks like a total miss / endless "pending".
+        if (m.ok) resolved += 1;
+        for (const [iso, v] of Array.from(m.days.entries())) totals.set(iso, (totals.get(iso) ?? 0) + v);
       }
     }
     // Zero-fill every day in the window so the chart axis is continuous.

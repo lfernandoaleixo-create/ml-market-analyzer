@@ -112,11 +112,19 @@ export default function Painel() {
   // Daily visits chart: served by a dedicated NON-BLOCKING endpoint. The heavy
   // collection runs in the background on the server; here we just poll a cheap
   // cache read every 60s, so the page never freezes on "Carregando as visitas".
-  const visits = trpc.account.visitsSeries.useQuery(undefined, {
-    enabled: everConnected,
-    refetchInterval: 60 * 1000,
-    refetchOnWindowFocus: true,
-  });
+  const visits = trpc.account.visitsSeries.useQuery(
+    { days: 30 },
+    {
+      enabled: everConnected,
+      // Adaptive polling: while the background collection hasn't produced data
+      // yet (cold start = pending), poll quickly (4s) so the chart fills in within
+      // seconds of the first visit instead of waiting a whole minute. Once data
+      // is in, relax to 60s. This is what removes the lingering "Carregando".
+      refetchInterval: (query) =>
+        query.state.data?.pending ? 4 * 1000 : 60 * 1000,
+      refetchOnWindowFocus: true,
+    },
+  );
   const rep = trpc.account.reputation.useQuery(undefined, { enabled: everConnected });
 
   // Historic-base profit summary (mirror of the Lucratividade "Da receita ao

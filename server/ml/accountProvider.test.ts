@@ -548,6 +548,67 @@ describe("AccountProvider.getListings", () => {
     expect(res.visitsSeriesPending).toBe(true);
   });
 
+  it("recovers a TRANSIENT network failure on the first visits call (retry), so the chart is NOT stuck pending", async () => {
+    // Reproduces the production bug: the ML egress drops the FIRST connection
+    // (fetch throws — NOT an HTTP status), which used to return null and zero the
+    // item. With the network retry, the 2nd attempt succeeds and the series fills.
+    const idsPage = { results: ["MLB1"], paging: { total: 1, offset: 0, limit: 50 } };
+    const itemsBody = [
+      { code: 200, body: { id: "MLB1", title: "Ativo A", price: 50, currency_id: "BRL", available_quantity: 10, sold_quantity: 5, status: "active", listing_type_id: "gold_special" } },
+    ];
+    const day1 = "2026-06-01";
+    let visitCalls = 0;
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (/\/items\/MLB1\/visits\/time_window/.test(u)) {
+        visitCalls += 1;
+        // First attempt: simulate a dropped socket / timeout (fetch rejects).
+        if (visitCalls === 1) throw new TypeError("fetch failed");
+        // Retry: succeeds.
+        return { ok: true, json: async () => ({ total_visits: 8, results: [{ date: `${day1}T00:00:00.000-03:00`, total: 8 }] }) } as any;
+      }
+      let body: any = {};
+      if (/\/users\/\d+\/items\/search/.test(u)) body = idsPage;
+      else if (/api\.mercadolibre\.com\/items\?ids=/.test(u)) body = itemsBody;
+      return { ok: true, json: async () => body } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30, includeVisitsSeries: true });
+    const map = Object.fromEntries(res.visitsSeries.map((p) => [p.date, p.visits]));
+    expect(visitCalls).toBeGreaterThanOrEqual(2); // it retried
+    expect(map[day1]).toBe(8); // data recovered after the transient failure
+    expect(res.visitsSeriesPending).toBe(false);
+  });
+
+  it("counts an item that ML answered with ZERO visits as resolved (not a fake pending)", async () => {
+    // A small store can legitimately have items with 0 visits in the window. ML
+    // still ANSWERS (valid time_window shape, empty/zero results). That must count
+    // as resolved so the chart renders an honest zero instead of "Carregando".
+    const idsPage = { results: ["MLB1"], paging: { total: 1, offset: 0, limit: 50 } };
+    const itemsBody = [
+      { code: 200, body: { id: "MLB1", title: "Ativo A", price: 50, currency_id: "BRL", available_quantity: 10, sold_quantity: 0, status: "active", listing_type_id: "gold_special" } },
+    ];
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (/\/items\/MLB1\/visits\/time_window/.test(u)) {
+        // Valid answer, but no visits in the window.
+        return { ok: true, json: async () => ({ item_id: "MLB1", total_visits: 0, results: [] }) } as any;
+      }
+      let body: any = {};
+      if (/\/users\/\d+\/items\/search/.test(u)) body = idsPage;
+      else if (/api\.mercadolibre\.com\/items\?ids=/.test(u)) body = itemsBody;
+      return { ok: true, json: async () => body } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await provider.getListings({ lastDays: 30, includeVisitsSeries: true });
+    expect(res.visitsSeries.length).toBe(30);
+    expect(res.visitsSeries.every((p) => p.visits === 0)).toBe(true);
+    // The item ANSWERED (zero) — so NOT pending. This is the key distinction.
+    expect(res.visitsSeriesPending).toBe(false);
+  });
+
   it("keeps the visits collected from healthy items when ONE item fails (no whole-series wipe, not pending)", async () => {
     const idsPage = { results: ["MLB1", "MLB2"], paging: { total: 2, offset: 0, limit: 50 } };
     const itemsBody = [

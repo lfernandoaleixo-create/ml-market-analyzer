@@ -941,3 +941,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Religar o gráfico do Painel e de Anúncios à nova procedure; remover includeVisitsSeries bloqueante
 - [x] Remover o loop agressivo de refetch quando pending; refetch suave (60s) só para atualizar
 - [x] Testes vitest (5 do swrAccount: cold/non-blocking/stale/fail/dedupe) + TS limpo + 491 testes verdes + checkpoint
+
+
+## BUG gráfico de visitas ainda trava (15/06 noite) — Fernando (CRÍTICO, lançamento amanhã)
+- [x] Diagnóstico empírico: conta tem só ~18 anúncios ativos (não 200+); volume NÃO era a causa
+- [x] Confirmado na doc oficial: time_window e /items/visits NÃO aceitam multiget (1 item/chamada) — sem atalho de lote para a série diária
+- [x] CAUSA RAIZ real: a 1ª chamada à API ML do egress falha por timeout/socket; get() só tinha retry de 429, então virava null e zerava a coleta de fundo (gráfico preso em "Carregando")
+- [x] Adicionado RETRY de rede/timeout no get() (até 3 tentativas, backoff curto) — recupera a 1ª conexão que cai
+- [x] getItemVisitsSeries distingue "falha" de "respondeu com 0 visitas" (flag ok) — item com 0 visitas conta como resolvido, não vira pending falso
+- [x] Concorrência da coleta ajustada (4→6); validado real: 18/18 itens resolvidos em ~7s, 399 visitas/30 dias, hoje(BRT) como último ponto
+- [x] Polling adaptativo no frontend (Painel + Anúncios): 4s enquanto pending, 60s após carregar — gráfico aparece em segundos no 1º acesso
+- [x] Conexão no PUBLICADO: token válido no banco (connected, refresh ok); tela "Conecte sua conta" era efeito do mesmo timeout — agora protegida pelo retry de rede
+- [x] Testes vitest novos (retry de rede + zero-resolvido) + TS limpo + suíte verde (493) + checkpoint
