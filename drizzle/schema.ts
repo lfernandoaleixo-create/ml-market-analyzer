@@ -397,6 +397,36 @@ export const taxConfigs = mysqlTable(
 export type TaxConfigRow = typeof taxConfigs.$inferSelect;
 export type InsertTaxConfigRow = typeof taxConfigs.$inferInsert;
 
+/**
+ * Tax-config change history — one row per save.
+ *
+ * Every time the user saves the tax configuration we append a row here with a
+ * full snapshot of the config plus an optional note describing what changed.
+ * This lets the seller (and their accountant) see WHEN each change was made.
+ */
+export const taxConfigHistory = mysqlTable(
+  "tax_config_history",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** Whether the TTS scenario was ON in this saved version. */
+    ttsEnabled: boolean("ttsEnabled").default(false).notNull(),
+    /** Full TaxConfig snapshot (shared/finance.ts) as JSON. */
+    config: json("config").notNull(),
+    /** BaseLinker inventory id selected in this version, when set. */
+    baselinkerInventoryId: bigint("baselinkerInventoryId", { mode: "number" }),
+    /** Optional free-text note describing what changed (max ~500 chars). */
+    note: varchar("note", { length: 500 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    userIdx: index("tax_config_history_user_idx").on(t.userId),
+  }),
+);
+
+export type TaxConfigHistoryRow = typeof taxConfigHistory.$inferSelect;
+export type InsertTaxConfigHistoryRow = typeof taxConfigHistory.$inferInsert;
+
 
 /**
  * Daily profitability snapshot — one row per user per day.

@@ -2,8 +2,17 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { defaultTaxConfig, type TaxConfig } from "../../shared/finance";
-import { getTaxConfigRow, upsertTaxConfigRow, listProfitSnapshots } from "../dbMl";
-import type { ProfitSnapshotRow } from "../../drizzle/schema";
+import {
+  getTaxConfigRow,
+  upsertTaxConfigRow,
+  listProfitSnapshots,
+  insertTaxConfigHistory,
+  listTaxConfigHistory,
+} from "../dbMl";
+import type {
+  ProfitSnapshotRow,
+  TaxConfigHistoryRow,
+} from "../../drizzle/schema";
 import {
   callBaselinker,
   isBaselinkerConfigured,
@@ -123,6 +132,8 @@ export const financeRouter = router({
           ttsInternal: z.number().min(0).max(100),
         }),
         inventoryId: z.number().int().positive().nullable().optional(),
+        /** Optional note describing what changed in this save. */
+        note: z.string().trim().max(500).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -131,7 +142,38 @@ export const financeRouter = router({
         config: input.config,
         ...(input.inventoryId !== undefined ? { baselinkerInventoryId: input.inventoryId } : {}),
       });
+
+      // Append a history entry so the seller/accountant can see when each
+      // change was made. A failure here must not block the save itself.
+      try {
+        await insertTaxConfigHistory(ctx.user.id, {
+          ttsEnabled: input.config.ttsEnabled,
+          config: input.config,
+          baselinkerInventoryId:
+            input.inventoryId ?? row?.baselinkerInventoryId ?? null,
+          note: input.note && input.note.length > 0 ? input.note : null,
+        });
+      } catch (err) {
+        console.warn("[finance.saveConfig] failed to write history:", err);
+      }
+
       return { ok: true as const, ttsEnabled: row?.ttsEnabled ?? input.config.ttsEnabled };
+    }),
+
+  /**
+   * Tax-config change history: when each saved version was made, with the
+   * optional note. Newest first. Powers the "Histórico de alterações" list.
+   */
+  configHistory: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const rows = await listTaxConfigHistory(ctx.user.id, input?.limit ?? 30);
+      return rows.map((r: TaxConfigHistoryRow) => ({
+        id: r.id,
+        ttsEnabled: r.ttsEnabled,
+        note: r.note,
+        createdAt: r.createdAt,
+      }));
     }),
 
   /** Quick toggle for the TTS scenario (the headline button). */

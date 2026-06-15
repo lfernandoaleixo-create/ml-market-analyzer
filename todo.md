@@ -971,12 +971,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 
 
 ## URGENTE: ADS estoura rate limit (429) "Não foi possível carregar" (Fernando, em produção)
-- [ ] Criar limitador de taxa GLOBAL serializado (fila com espaçamento mínimo) compartilhado por TODAS as chamadas ao ML — transforma rajadas paralelas em chamadas espaçadas
-- [ ] Aplicar o limitador no AdsProvider.get() e no accountProvider.get() (gargalo único)
-- [ ] Cachear advertiserId por processo/usuário (evitar repetir a chamada de advertiser em cada aba)
-- [ ] Migrar leituras de ADS para cachedAccountResilient (stale-while-error) — em 429 transitório, servir último dado bom rotulado, nunca tela de erro
-- [ ] Testes vitest do limitador (serialização, espaçamento, respeito a Retry-After) + suíte verde + TS limpo
-- [ ] Validar a tela ADS ao vivo (sem 429) e checkpoint; orientar publicação
+- [x] Criar limitador de taxa GLOBAL serializado (fila com espaçamento mínimo) compartilhado por TODAS as chamadas ao ML — transforma rajadas paralelas em chamadas espaçadas (entregue no bloco abaixo: mlRateLimiter.ts)
+- [x] Aplicar o limitador no AdsProvider.get() e no accountProvider.get() (gargalo único)
+- [x] Cachear advertiserId por processo/usuário (evitar repetir a chamada de advertiser em cada aba)
+- [x] Migrar leituras de ADS para cachedAccountResilient (stale-while-error) — em 429 transitório, servir último dado bom rotulado, nunca tela de erro
+- [x] Testes vitest do limitador (serialização, espaçamento, respeito a Retry-After) + suíte verde + TS limpo
+- [x] Validar a tela ADS ao vivo (sem 429) e checkpoint; orientar publicação
 
 
 ## URGENTE: ADS "Não foi possível carregar (429)" — Fernando (funcionava no início e parou)
@@ -1007,3 +1007,27 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest (4): gateInfo, senha correta emite cookie, senha errada UNAUTHORIZED, sem senha PRECONDITION_FAILED
 - [x] Validação real ponta-a-ponta: gateInfo=on, senha errada=401, senha certa=200+cookie, auth.me reconhece dono (id 1, admin)
 - [x] Validação visual: visitante deslogado vê a tela de senha; suíte verde (504; única falha é teste live externo de oxylabs, sem relação)
+
+
+## Bug: login por senha "não está linkada com a página principal" (Fernando, 15/06)
+- [x] Diagnóstico: visitantes digitavam a senha mas ficavam presos na tela de acesso (não redirecionava ao Painel)
+- [x] Causa 1 (robustez do dono): auth.passwordLogin dependia de getUserByOpenId(OWNER_OPEN_ID); se a env estivesse ausente/dessincronizada no deploy, login falhava com a mensagem confusa "Conta principal não encontrada. Faça login uma vez com a conta dona"
+- [x] Correção 1: novo helper getOwnerUser() em db.ts com fallback em cascata (OWNER_OPEN_ID → primeiro admin → primeiro usuário por id); passwordLogin religada a ele
+- [x] Causa 2 (redirecionamento frágil): onSuccess do AccessGate fazia `await refresh()` antes do reload; um refetch transitório que rejeitasse engolia a navegação e prendia o usuário na tela de senha mesmo com cookie setado
+- [x] Correção 2: onSuccess agora faz window.location.replace("/") direto (o reload re-busca auth.me com o cookie presente)
+- [x] Testes vitest (2 novos): login via fallback de dono sem OWNER_OPEN_ID; erro claro quando não há usuário dono. Mock atualizado de getUserByOpenId → getOwnerUser
+- [x] Validação ponta-a-ponta no dev: senha correta → "Entrando…" → redireciona ao Painel com dados reais da loja (Luiz Fernando Aleixo). 503 testes passando; TypeScript limpo; checkpoint 542fcc19
+- [ ] Após publicar: Fernando valida em produção que visitantes entram com a senha e caem no Painel
+
+
+## Configuração de impostos: Exportar PDF + Histórico com data (Fernando, 15/06)
+- [x] Nova tabela tax_config_history (userId, config JSON, ttsEnabled, note, createdAt) + migração aplicada (0008)
+- [x] Helpers em dbMl.ts: insertTaxConfigHistory, listTaxConfigHistory
+- [x] saveConfig passa a gravar uma linha de histórico (com observação opcional) a cada salvamento; resiliente a falha no histórico
+- [x] Nova procedure finance.configHistory (lista as últimas alterações com data)
+- [x] Frontend: campo "Observação" no painel de configuração (o que mudou)
+- [x] Frontend: lista "Histórico de alterações" com data/hora (BRT) e observação
+- [x] Frontend: botão "Exportar PDF" (lib/taxConfigPdf.ts) que gera documento imprimível com a configuração atual para o contador
+- [x] Testes vitest (histórico gravado no save; configHistory lista em ordem) — 13/13 finance + 508 total verde + TS limpo
+- [x] Validação ponta-a-ponta na preview: salvou com data 15/06/2026 13:01 no histórico; geração do HTML do PDF validada
+- [ ] Após publicar: Fernando confere o PDF impresso e o registro de datas no histórico em produção

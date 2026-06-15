@@ -7,14 +7,17 @@ import {
   productSnapshots,
   profitSnapshots,
   taxConfigs,
+  taxConfigHistory,
   type InsertAlert,
   type InsertMlCredential,
   type InsertMonitoredProduct,
   type InsertProductSnapshot,
   type InsertProfitSnapshotRow,
   type InsertTaxConfigRow,
+  type InsertTaxConfigHistoryRow,
   type ProfitSnapshotRow,
   type TaxConfigRow,
+  type TaxConfigHistoryRow,
 } from "../drizzle/schema";
 import { getDb } from "./db";
 
@@ -238,6 +241,33 @@ export async function upsertTaxConfigRow(
       .values({ userId, ttsEnabled: false, config: {}, ...data } as InsertTaxConfigRow);
   }
   return getTaxConfigRow(userId);
+}
+
+/** Append one row to the tax-config change history. */
+export async function insertTaxConfigHistory(
+  userId: number,
+  data: Omit<InsertTaxConfigHistoryRow, "id" | "userId" | "createdAt">,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+  await db
+    .insert(taxConfigHistory)
+    .values({ userId, ...data } as InsertTaxConfigHistoryRow);
+}
+
+/** List the most recent tax-config changes for a user (newest first). */
+export async function listTaxConfigHistory(
+  userId: number,
+  limit = 30,
+): Promise<TaxConfigHistoryRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(taxConfigHistory)
+    .where(eq(taxConfigHistory.userId, userId))
+    .orderBy(desc(taxConfigHistory.createdAt))
+    .limit(limit);
 }
 
 // ---- Profitability snapshots --------------------------------------------

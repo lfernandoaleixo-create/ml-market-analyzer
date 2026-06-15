@@ -12,7 +12,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *  - profitability fails clearly when BaseLinker is not configured
  */
 
-const db = { getTaxConfigRow: vi.fn(), upsertTaxConfigRow: vi.fn() };
+const db = {
+  getTaxConfigRow: vi.fn(),
+  upsertTaxConfigRow: vi.fn(),
+  insertTaxConfigHistory: vi.fn(),
+  listTaxConfigHistory: vi.fn(),
+};
 const bl = {
   isBaselinkerConfigured: vi.fn(),
   callBaselinker: vi.fn(),
@@ -21,6 +26,8 @@ const bl = {
 vi.mock("../dbMl", () => ({
   getTaxConfigRow: (...a: unknown[]) => db.getTaxConfigRow(...a),
   upsertTaxConfigRow: (...a: unknown[]) => db.upsertTaxConfigRow(...a),
+  insertTaxConfigHistory: (...a: unknown[]) => db.insertTaxConfigHistory(...a),
+  listTaxConfigHistory: (...a: unknown[]) => db.listTaxConfigHistory(...a),
 }));
 
 vi.mock("../baselinker/client", async () => {
@@ -62,6 +69,8 @@ async function makeCaller() {
 beforeEach(() => {
   vi.clearAllMocks();
   db.upsertTaxConfigRow.mockResolvedValue({ ttsEnabled: false });
+  db.insertTaxConfigHistory.mockResolvedValue(undefined);
+  db.listTaxConfigHistory.mockResolvedValue([]);
 });
 
 describe("finance.status", () => {
@@ -153,6 +162,104 @@ describe("finance.saveConfig", () => {
       1,
       expect.objectContaining({ ttsEnabled: false, baselinkerInventoryId: 54206 }),
     );
+  });
+
+  it("writes a history entry (with the optional note) on every save", async () => {
+    db.upsertTaxConfigRow.mockResolvedValue({ ttsEnabled: false });
+    const caller = await makeCaller();
+    const config = {
+      ttsEnabled: false,
+      originUF: "MG",
+      pis: 0.65,
+      cofins: 3.0,
+      irpjEffective: 1.2,
+      csllEffective: 1.08,
+      icmsInternalOrigin: 18,
+      icmsInternalByUF: { SP: 18 },
+      fcpByUF: {},
+      ttsInterstate: 1.3,
+      ttsInternal: 6,
+    };
+    await caller.finance.saveConfig({
+      config,
+      inventoryId: 54206,
+      note: "Ajuste de ICMS de SP",
+    });
+    expect(db.insertTaxConfigHistory).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        ttsEnabled: false,
+        baselinkerInventoryId: 54206,
+        note: "Ajuste de ICMS de SP",
+      }),
+    );
+  });
+
+  it("stores a null note when none is provided", async () => {
+    const caller = await makeCaller();
+    const config = {
+      ttsEnabled: true,
+      originUF: "MG",
+      pis: 0.65,
+      cofins: 3.0,
+      irpjEffective: 1.2,
+      csllEffective: 1.08,
+      icmsInternalOrigin: 18,
+      icmsInternalByUF: { SP: 18 },
+      fcpByUF: {},
+      ttsInterstate: 1.3,
+      ttsInternal: 6,
+    };
+    await caller.finance.saveConfig({ config });
+    expect(db.insertTaxConfigHistory).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ note: null }),
+    );
+  });
+
+  it("still succeeds even if writing history fails", async () => {
+    db.upsertTaxConfigRow.mockResolvedValue({ ttsEnabled: false });
+    db.insertTaxConfigHistory.mockRejectedValue(new Error("db down"));
+    const caller = await makeCaller();
+    const config = {
+      ttsEnabled: false,
+      originUF: "MG",
+      pis: 0.65,
+      cofins: 3.0,
+      irpjEffective: 1.2,
+      csllEffective: 1.08,
+      icmsInternalOrigin: 18,
+      icmsInternalByUF: { SP: 18 },
+      fcpByUF: {},
+      ttsInterstate: 1.3,
+      ttsInternal: 6,
+    };
+    const res = await caller.finance.saveConfig({ config });
+    expect(res.ok).toBe(true);
+  });
+});
+
+describe("finance.configHistory", () => {
+  it("lists history rows mapped to date + note + tts flag", async () => {
+    const now = new Date("2026-06-15T12:00:00Z");
+    db.listTaxConfigHistory.mockResolvedValue([
+      { id: 2, ttsEnabled: true, note: "mudei SP", createdAt: now, config: {} },
+      { id: 1, ttsEnabled: false, note: null, createdAt: now, config: {} },
+    ]);
+    const caller = await makeCaller();
+    const res = await caller.finance.configHistory({ limit: 20 });
+    expect(res).toHaveLength(2);
+    expect(res[0]).toMatchObject({ id: 2, ttsEnabled: true, note: "mudei SP" });
+    expect(res[1]).toMatchObject({ id: 1, ttsEnabled: false, note: null });
+    expect(db.listTaxConfigHistory).toHaveBeenCalledWith(1, 20);
+  });
+
+  it("defaults to a limit of 30 when none is given", async () => {
+    db.listTaxConfigHistory.mockResolvedValue([]);
+    const caller = await makeCaller();
+    const res = await caller.finance.configHistory();
+    expect(res).toEqual([]);
+    expect(db.listTaxConfigHistory).toHaveBeenCalledWith(1, 30);
   });
 });
 

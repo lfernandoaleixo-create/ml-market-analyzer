@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -29,7 +30,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { formatBRL, formatNumber } from "@/lib/format";
+import { formatBRL, formatNumber, formatDateTime } from "@/lib/format";
+import { exportTaxConfigPdf } from "@/lib/taxConfigPdf";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { usePeriod } from "@/hooks/usePeriod";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { ProfitFlow } from "@/components/finance/ProfitFlow";
@@ -54,6 +57,8 @@ import {
   ChevronRight,
   ListFilter,
   PackageSearch,
+  FileDown,
+  History,
 } from "lucide-react";
 import type { ListingProfitRow } from "@shared/finance";
 import type { ListingRow, ListingStatus } from "@shared/account";
@@ -182,9 +187,12 @@ function ConfigPanel({
   onSaved: () => void;
 }) {
   const utils = trpc.useUtils();
+  const { user } = useAuth();
   const [draft, setDraft] = useState<TaxConfig>(config);
   const inventories = trpc.finance.inventories.useQuery(undefined, { staleTime: 5 * 60_000 });
   const [invId, setInvId] = useState<number | null>(inventoryId);
+  const [note, setNote] = useState("");
+  const history = trpc.finance.configHistory.useQuery({ limit: 20 }, { staleTime: 30_000 });
 
   const save = trpc.finance.saveConfig.useMutation({
     onSuccess: async () => {
@@ -192,12 +200,36 @@ function ConfigPanel({
         utils.finance.profitability.invalidate(),
         utils.finance.getConfig.invalidate(),
         utils.finance.status.invalidate(),
+        utils.finance.configHistory.invalidate(),
       ]);
+      setNote("");
       toast.success("Configuração salva.");
       onSaved();
     },
     onError: (e) => toast.error(e.message || "Falha ao salvar."),
   });
+
+  /** Resolve the selected catalog name (for the PDF header). */
+  function selectedInventoryName(): string | null {
+    const list = inventories.data ?? [];
+    const found = list.find((inv) => inv.inventoryId === invId);
+    return found?.name ?? null;
+  }
+
+  function handleExportPdf() {
+    const ok = exportTaxConfigPdf({
+      config: draft,
+      ufList,
+      inventoryName: selectedInventoryName(),
+      note: note.trim() || null,
+      storeName: user?.name ?? null,
+    });
+    if (!ok) {
+      toast.error(
+        "O navegador bloqueou a janela de impressão. Permita pop-ups para este site e tente novamente.",
+      );
+    }
+  }
 
   function setNum(key: keyof TaxConfig, v: string) {
     const n = Number(v.replace(",", "."));
@@ -299,7 +331,24 @@ function ConfigPanel({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 pt-1">
+      {/* Observation field — describe what changed (saved to the history). */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Observação (opcional) — o que mudou nesta alteração?
+        </Label>
+        <Textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, 500))}
+          placeholder="Ex.: Atualizei o ICMS de SP para 18% conforme orientação do contador."
+          rows={2}
+          className="resize-none text-sm"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          A data e a hora são registradas automaticamente a cada salvamento.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <Button
           onClick={() =>
             save.mutate({
@@ -317,15 +366,75 @@ function ConfigPanel({
                 ttsInternal: draft.ttsInternal,
               },
               inventoryId: invId,
+              note: note.trim() || undefined,
             })
           }
           disabled={save.isPending}
         >
           {save.isPending ? "Salvando…" : "Salvar configuração"}
         </Button>
+        <Button
+          variant="outline"
+          className="bg-background"
+          onClick={handleExportPdf}
+          disabled={save.isPending}
+        >
+          <FileDown className="h-4 w-4" />
+          Exportar PDF
+        </Button>
         <Button variant="outline" className="bg-background" onClick={() => setDraft(config)} disabled={save.isPending}>
           Desfazer
         </Button>
+      </div>
+
+      {/* Change history */}
+      <div className="space-y-2 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2">
+          <History className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Histórico de alterações</h3>
+        </div>
+        {history.isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-9 w-full rounded-lg" />
+            <Skeleton className="h-9 w-2/3 rounded-lg" />
+          </div>
+        ) : (history.data ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Nenhuma alteração registrada ainda. Ao salvar, o histórico aparece aqui com a data.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {(history.data ?? []).map((h) => (
+              <li
+                key={h.id}
+                className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-medium tabular-nums">
+                    {formatDateTime(new Date(h.createdAt).getTime())}
+                  </p>
+                  {h.note ? (
+                    <p className="text-[11px] text-muted-foreground break-words">{h.note}</p>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground/70 italic">Sem observação</p>
+                  )}
+                </div>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "shrink-0 text-[10px] border",
+                    h.ttsEnabled
+                      ? "bg-emerald-500/12 text-emerald-700 border-emerald-500/20"
+                      : "bg-amber-500/12 text-amber-700 border-amber-500/25",
+                  )}
+                >
+                  {h.ttsEnabled ? "Com TTS" : "Sem TTS"}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
