@@ -52,7 +52,22 @@ const isAuthError = (error: unknown): boolean =>
 // It must NOT be logged as console.error, or the global "1 error" badge alarms
 // the user over a transient throttle. We log it as a warning instead.
 const isHandledTransient = (error: unknown): boolean =>
-  error instanceof TRPCClientError && error.data?.code === "TOO_MANY_REQUESTS";
+  error instanceof TRPCClientError &&
+  (error.data?.code === "TOO_MANY_REQUESTS" ||
+    // Reputation/data NOT_FOUND is an EXPECTED transient (a brief ML hiccup): the
+    // UI already shows a friendly message + "Atualizar agora" and recovers on the
+    // next poll, so it must not inflate the global error badge.
+    error.data?.code === "NOT_FOUND");
+
+// A query/mutation that was CANCELLED (component unmount, route change, or the
+// adaptive polling refetching before the previous request settled) shows up as
+// an "AbortError" / "signal is aborted without reason". This is normal lifecycle
+// behaviour, NOT an application failure, so it must never reach console.error
+// (otherwise the global error badge falsely accuses the system of being broken).
+const isAbortError = (error: unknown): boolean => {
+  const msg = error instanceof Error ? error.message : String(error ?? "");
+  return /abort|aborted|cancell?ed|the operation was aborted/i.test(msg);
+};
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -95,9 +110,11 @@ queryClient.getQueryCache().subscribe(event => {
     // app errors (avoids the global "1 error" badge for a transient condition).
     if (isAuthError(error)) return;
     if (isHandledTransient(error)) {
-      console.warn("[API Query] Mercado Livre rate limit (429) — tratado na UI", error);
+      console.warn("[API Query] estado transitório do Mercado Livre (429/indisponível) — tratado na UI", error);
       return;
     }
+    // Cancelled/aborted requests are expected lifecycle noise, not failures.
+    if (isAbortError(error)) return;
     console.error("[API Query Error]", error);
   }
 });
@@ -108,9 +125,10 @@ queryClient.getMutationCache().subscribe(event => {
     redirectToLoginIfUnauthorized(error);
     if (isAuthError(error)) return;
     if (isHandledTransient(error)) {
-      console.warn("[API Mutation] Mercado Livre rate limit (429) — tratado na UI", error);
+      console.warn("[API Mutation] estado transitório do Mercado Livre (429/indisponível) — tratado na UI", error);
       return;
     }
+    if (isAbortError(error)) return;
     console.error("[API Mutation Error]", error);
   }
 });
@@ -134,7 +152,10 @@ const trpcClient = trpc.createClient({
         // Compose our timeout AbortController with any signal React Query passes
         // (so component unmount / query cancellation still aborts the request).
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), CLIENT_REQUEST_TIMEOUT_MS);
+        const timer = setTimeout(
+          () => controller.abort(new DOMException("Tempo limite da requisição excedido", "TimeoutError")),
+          CLIENT_REQUEST_TIMEOUT_MS,
+        );
         const upstream = init?.signal;
         if (upstream) {
           if (upstream.aborted) controller.abort();

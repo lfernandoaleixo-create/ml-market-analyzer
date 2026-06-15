@@ -960,3 +960,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Diminuir espaços acima/abaixo: bodyClassName px-5 py-3 nos dois SectionCards + space-y-3 interno + margens do chart menores
 - [x] Reduzir alturas dos estados loading/vazio/pending (h-64→h-52) para casar
 - [x] Nova prop bodyClassName no SectionCard (sem afetar outros cards) + TS limpo + checkpoint
+
+
+## Erros no rodapé ("5 errors") — má impressão (Fernando)
+- [x] Diagnóstico: contador alimentado por ruído, não falhas reais — "signal is aborted without reason" (queries canceladas pelo polling/desmontagem) + NOT_FOUND transitório de reputação
+- [x] main.tsx: ignorar AbortError/cancelamento no console.error global (query + mutation)
+- [x] main.tsx: tratar NOT_FOUND (reputação/dados) como transitório (warn, não error) — UI já mostra mensagem e recupera no próximo poll
+- [x] main.tsx: dar reason descritiva ao abort por timeout do cliente (TimeoutError, em vez de "without reason")
+- [x] Validado: após reload e navegação entre páginas, console com 0 errors / 0 warnings; TS limpo; suíte verde (497)
