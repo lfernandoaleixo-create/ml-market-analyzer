@@ -66,24 +66,54 @@ export function icmsSplit(
 ): IcmsSplit {
   const inState = destinationUF != null && destinationUF === cfg.originUF;
 
-  // ---- Scenario WITH TTS: single effective line, no DIFAL split. ----
+  // ---- Scenario WITH TTS ----
+  // The MG TTS benefit reduces the ICMS kept by the ORIGIN state (Minas Gerais).
+  // It does NOT remove the DIFAL owed to the DESTINATION state on interstate
+  // B2C sales, nor the destination FCP — those are levied by the buyer's state,
+  // which does not grant the Minas benefit. So we still split and charge them.
   if (scenario === "com_tts") {
-    const rate = inState ? cfg.ttsInternal : cfg.ttsInterstate;
-    const amount = round2(pct(rate, revenue));
+    // In-state (MG) sale under TTS: only the effective internal TTS rate, no DIFAL.
+    if (inState || !destinationUF) {
+      const rate = inState ? cfg.ttsInternal : cfg.ttsInterstate;
+      const amount = round2(pct(rate, revenue));
+      return {
+        lines: [
+          {
+            key: "icms",
+            label: inState ? "ICMS (TTS interno)" : "ICMS (TTS interestadual)",
+            ratePercent: rate,
+            amount,
+          },
+        ],
+        inState,
+        icmsBaseAmount: amount,
+        difalAmount: 0,
+        fcpAmount: 0,
+        totalAmount: amount,
+      };
+    }
+
+    // Interstate B2C sale under TTS: origin ICMS reduced to ttsInterstate, but
+    // DIFAL (destination internal rate − interstate exit rate) and FCP remain due.
+    const internalRate = cfg.icmsInternalByUF[destinationUF] ?? cfg.icmsInternalOrigin;
+    const exitRate = interstateExitRate(destinationUF);
+    const difalRate = Math.max(0, round2(internalRate - exitRate));
+    const fcpRateTts = cfg.fcpByUF?.[destinationUF] ?? 0;
+    const icmsBaseAmount = round2(pct(cfg.ttsInterstate, revenue));
+    const difalAmount = round2(pct(difalRate, revenue));
+    const fcpAmountTts = round2(pct(fcpRateTts, revenue));
+    const lines: TaxLine[] = [
+      { key: "icms_interestadual", label: `ICMS interestadual TTS (saída ${cfg.originUF} → ${destinationUF})`, ratePercent: cfg.ttsInterstate, amount: icmsBaseAmount },
+      { key: "difal", label: `DIFAL (destino ${destinationUF})`, ratePercent: difalRate, amount: difalAmount },
+    ];
+    if (fcpAmountTts > 0) lines.push({ key: "fcp", label: `FCP (${destinationUF})`, ratePercent: fcpRateTts, amount: fcpAmountTts });
     return {
-      lines: [
-        {
-          key: "icms",
-          label: inState ? "ICMS (TTS interno)" : "ICMS (TTS interestadual)",
-          ratePercent: rate,
-          amount,
-        },
-      ],
+      lines,
       inState,
-      icmsBaseAmount: amount,
-      difalAmount: 0,
-      fcpAmount: 0,
-      totalAmount: amount,
+      icmsBaseAmount,
+      difalAmount,
+      fcpAmount: fcpAmountTts,
+      totalAmount: round2(icmsBaseAmount + difalAmount + fcpAmountTts),
     };
   }
 
@@ -161,7 +191,9 @@ export function icmsLine(
   const totalRate = revenue > 0 ? round2((split.totalAmount / revenue) * 100) : 0;
   let label: string;
   if (scenario === "com_tts") {
-    label = split.inState ? "ICMS (TTS interno)" : "ICMS (TTS interestadual)";
+    if (split.inState) label = "ICMS (TTS interno)";
+    else if (split.difalAmount > 0) label = split.fcpAmount > 0 ? "ICMS TTS+DIFAL+FCP" : "ICMS TTS+DIFAL";
+    else label = "ICMS (TTS interestadual)";
   } else if (split.inState) {
     label = `ICMS interno (${cfg.originUF})`;
   } else if (destinationUF) {

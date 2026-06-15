@@ -328,6 +328,12 @@ function ConfigPanel({
           Venda para a Bahia (interna 20,5%). Saída = 7% → <strong>DIFAL = 13,5%</strong>. A soma sempre
           equivale à alíquota interna do destino, e na tela mostramos cada parte separada.
         </p>
+        <p className="text-[12px] leading-snug text-violet-700 font-medium">
+          Importante: o <strong>TTS de Minas reduz apenas a parte de ICMS que fica em MG</strong> (a saída
+          interestadual cai para a alíquota efetiva do benefício). O <strong>DIFAL continua sendo devido
+          integralmente ao estado de destino</strong> — o benefício é mineiro e não alcança o imposto do
+          estado do comprador. Por isso, mesmo com o TTS ligado, você verá o DIFAL separado e não zerado.
+        </p>
         <p className="text-[11px] leading-snug text-muted-foreground/80">
           Observação: produtos importados podem ter saída interestadual de 4%; se a sua operação for
           majoritariamente importada, avise que ajustamos a alíquota de saída.

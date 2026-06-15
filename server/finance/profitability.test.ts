@@ -72,7 +72,8 @@ describe("buildProfitability", () => {
     expect(res.totals.netProfit).toBeCloseTo(335.7, 1);
     // com TTS net should be higher
     expect(res.comparison.comTts.netProfit).toBeGreaterThan(res.comparison.semTts.netProfit);
-    expect(res.comparison.ttsGain).toBeCloseTo(167, 1);
+    // ganho do TTS = 239,3 - 132,3 = 107 (DIFAL de R$60 continua devido nos dois cenários)
+    expect(res.comparison.ttsGain).toBeCloseTo(107, 1);
     expect(res.scenario).toBe("sem_tts");
   });
 
@@ -236,7 +237,8 @@ describe("buildProfitability", () => {
       to: 1,
     });
     expect(res.scenario).toBe("com_tts");
-    // tax efetiva ~7.23% => net ~927.7
-    expect(res.totals.netProfit).toBeCloseTo(927.7, 1);
+    // com TTS interestadual SP: imposto = 59,3 + (13 ICMS + 60 DIFAL) = 132,3
+    // net = 1000-125-0-300-132,3 = 442,7 (1 venda) ... ver base do teste
+    expect(res.totals.netProfit).toBeCloseTo(867.7, 1);
   });
 });

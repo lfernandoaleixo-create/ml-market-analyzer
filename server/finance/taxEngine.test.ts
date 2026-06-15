@@ -63,23 +63,26 @@ describe("taxEngine — ICMS sem TTS", () => {
 describe("taxEngine — ICMS com TTS", () => {
   const cfg = defaultTaxConfig();
 
-  it("interestadual com TTS usa carga efetiva de 1,3%", () => {
+  it("interestadual com TTS: ICMS origem 1,3% + DIFAL do destino (SP 6%) = 7,3%", () => {
     const { line } = icmsLine(1000, "SP", "com_tts", cfg);
-    expect(line.ratePercent).toBe(1.3);
-    expect(line.amount).toBe(13);
+    // ICMS saída TTS 1,3% (13) + DIFAL 6% (60) = 73 sobre 1000 = 7,3%
+    expect(line.amount).toBe(73);
+    expect(line.ratePercent).toBe(7.3);
   });
 
-  it("interna MG com TTS usa carga efetiva de 6%", () => {
+  it("interna MG com TTS usa carga efetiva de 6% (sem DIFAL)", () => {
     const { line } = icmsLine(1000, "MG", "com_tts", cfg);
     expect(line.ratePercent).toBe(6);
     expect(line.amount).toBe(60);
   });
 
-  it("permite ajustar a carga TTS para 1,0% (compromisso de arrecadação)", () => {
+  it("permite ajustar a carga TTS de origem para 1,0% (DIFAL do destino permanece)", () => {
     const c = defaultTaxConfig();
     c.ttsInterstate = 1.0;
-    const { line } = icmsLine(1000, "SP", "com_tts", c);
-    expect(line.amount).toBe(10);
+    const s = icmsSplit(1000, "SP", "com_tts", c);
+    expect(s.icmsBaseAmount).toBe(10); // 1,0% de origem
+    expect(s.difalAmount).toBe(60); // DIFAL SP 6% inalterado
+    expect(s.totalAmount).toBe(70);
   });
 });
 
@@ -93,11 +96,14 @@ describe("taxEngine — taxRevenue efetiva", () => {
     expect(b.effectiveRate).toBeCloseTo(23.93, 2);
   });
 
-  it("com TTS interestadual SP ≈ 5,93% + 1,3% = 7,23%", () => {
+  it("com TTS interestadual SP ≈ 5,93% + (1,3% ICMS + 6% DIFAL) = 13,23%", () => {
     const cfg = defaultTaxConfig();
     const b = taxRevenue(1000, "SP", "com_tts", cfg);
-    expect(b.taxTotal).toBeCloseTo(72.3, 2);
-    expect(b.effectiveRate).toBeCloseTo(7.23, 2);
+    // federais 59,3 + ICMS saída 13 + DIFAL 60 = 132,3
+    expect(b.icmsTotal).toBe(73);
+    expect(b.difalTotal).toBe(60);
+    expect(b.taxTotal).toBeCloseTo(132.3, 2);
+    expect(b.effectiveRate).toBeCloseTo(13.23, 2);
   });
 });
 
@@ -144,10 +150,29 @@ describe("taxEngine — decomposição ICMS x DIFAL (sem TTS)", () => {
     expect(sum).toBeCloseTo(220, 2);
   });
 
-  it("com TTS não gera DIFAL (linha única efetiva)", () => {
+  it("com TTS interestadual GERA DIFAL do destino (benefício é só da origem MG)", () => {
     const s = icmsSplit(1000, "SP", "com_tts", cfg);
+    expect(s.icmsBaseAmount).toBe(13); // ICMS origem TTS 1,3%
+    expect(s.difalAmount).toBe(60); // DIFAL SP 6% continua devido
+    expect(s.totalAmount).toBe(73);
+    const sum = s.lines.reduce((acc, l) => acc + l.amount, 0);
+    expect(sum).toBeCloseTo(73, 2);
+  });
+
+  it("com TTS dentro de MG: sem DIFAL (só carga interna TTS)", () => {
+    const s = icmsSplit(1000, "MG", "com_tts", cfg);
     expect(s.difalAmount).toBe(0);
-    expect(s.totalAmount).toBe(13); // 1,3% de 1000
+    expect(s.totalAmount).toBe(60); // 6% de 1000
+  });
+
+  it("com TTS interestadual também cobra FCP do destino", () => {
+    const c = defaultTaxConfig();
+    c.fcpByUF = { SP: 2 };
+    const s = icmsSplit(1000, "SP", "com_tts", c);
+    expect(s.icmsBaseAmount).toBe(13);
+    expect(s.difalAmount).toBe(60);
+    expect(s.fcpAmount).toBe(20);
+    expect(s.totalAmount).toBe(93);
   });
 
   it("taxRevenue expoe icmsInterstateTotal/difalTotal e bate com icmsTotal", () => {
@@ -179,8 +204,9 @@ describe("taxEngine — computeProfit", () => {
     const sem = computeProfit(input, "sem_tts", cfg);
     const com = computeProfit(input, "com_tts", cfg);
     expect(com.netProfit).toBeGreaterThan(sem.netProfit);
-    // diferença = (239.3 - 72.3) = 167
-    expect(com.netProfit - sem.netProfit).toBeCloseTo(167, 1);
+    // sem_tts imposto = 59,3 + 180 = 239,3 ; com_tts = 59,3 + (13 + 60) = 132,3
+    // ganho do TTS = 239,3 - 132,3 = 107 (DIFAL continua devido nos dois)
+    expect(com.netProfit - sem.netProfit).toBeCloseTo(107, 1);
   });
 
   it("margem é null quando receita é zero", () => {

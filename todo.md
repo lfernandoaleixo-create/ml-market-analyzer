@@ -1050,3 +1050,13 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest (decomposição soma igual ao total; 7%/12%; DIFAL=interna-interestadual) — 514 testes verdes + TS limpo
 - [x] Validado na preview: bloco DIFAL no painel + HTML do PDF (7/7 checagens true)
 - [ ] Após publicar: Fernando confere o card ICMS x DIFAL com vendas reais e o PDF com o contador
+
+
+## Bug: DIFAL zerado no modo TTS (Fernando, 15/06)
+- [x] Engine modo com_tts (venda interestadual): cobra DIFAL normalmente (interna destino − saída 7%/12%) + FCP destino; ICMS de origem = ttsInterstate
+- [x] Venda dentro de MG com TTS: continua só ttsInternal, sem DIFAL
+- [x] taxRevenue preenche icmsInterstateTotal/difalTotal/fcpTotal também no TTS
+- [x] Bloco explicativo (tela) e PDF atualizados (TTS reduz origem MG, mas DIFAL do destino continua devido)
+- [x] Testes vitest: TTS interestadual DIFAL>0; TTS interno sem DIFAL; FCP no TTS; soma confere — 516 testes verdes + TS limpo
+- [x] Validado na preview com TTS ligado e dados reais: DIFAL R$ 68,69 (38,2%), ICMS efetivo R$ 30,54, federais R$ 80,42
+- [ ] Após publicar: Fernando confere os valores de DIFAL com o contador

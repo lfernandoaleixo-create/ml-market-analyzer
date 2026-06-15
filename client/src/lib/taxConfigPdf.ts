@@ -190,7 +190,8 @@ export function buildTaxConfigHtml(opts: ExportOptions): string {
       <li><strong>ICMS interestadual (saída):</strong> 12% para Sul/Sudeste (exceto ES) e 7% para os demais estados — fica no estado de origem (${config.originUF}).</li>
       <li><strong>DIFAL (diferencial de alíquota):</strong> diferença entre a alíquota interna do estado de destino e a alíquota interestadual de saída — é pago ao estado de destino.</li>
     </ul>
-    <p style="margin:0">Exemplo: destino SP (interna 18%) → saída 12% + <strong>DIFAL 6%</strong>. Destino BA (interna 20,5%) → saída 7% + <strong>DIFAL 13,5%</strong>.</p>
+    <p style="margin:0 0 6px">Exemplo: destino SP (interna 18%) → saída 12% + <strong>DIFAL 6%</strong>. Destino BA (interna 20,5%) → saída 7% + <strong>DIFAL 13,5%</strong>.</p>
+    <p style="margin:0"><strong>Observação sobre o TTS:</strong> o benefício de Minas Gerais reduz apenas a parcela de ICMS que fica no estado de origem. O <strong>DIFAL devido ao estado de destino continua integral mesmo com o TTS ativo</strong>, pois é imposto do estado do comprador.</p>
   </div>
 
   ${periodBlock}
