@@ -488,6 +488,34 @@ export default function Lucratividade() {
         title={period.title}
       />
 
+      {/* Config panel (collapsible). Rendered OUTSIDE the profit data branch so
+          the "Configurar" button always opens it — even while the profit query
+          is loading, empty, or errored (BaseLinker slow/limited). */}
+      {showConfig && (
+        <SectionCard title="Configuração de impostos" description="Ajuste as alíquotas. Tudo editável.">
+          {cfg.isError ? (
+            <ErrorState
+              message={cfg.error?.message ?? "Não foi possível carregar a configuração."}
+              onRetry={() => cfg.refetch()}
+              retrying={cfg.isFetching}
+            />
+          ) : cfg.isLoading || !cfg.data ? (
+            <div className="space-y-3 py-2">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-2/3 rounded-xl" />
+            </div>
+          ) : (
+            <ConfigPanel
+              config={cfg.data.config}
+              ufList={cfg.data.ufList}
+              inventoryId={cfg.data.inventoryId}
+              onSaved={() => setShowConfig(false)}
+            />
+          )}
+        </SectionCard>
+      )}
+
       {/* TTS hero toggle */}
       <div
         className={cn(
@@ -807,17 +835,6 @@ export default function Lucratividade() {
             onOpenChange={(open) => !open && setSelectedListing(null)}
           />
 
-          {/* Config panel (collapsible) */}
-          {showConfig && cfg.data && (
-            <SectionCard title="Configuração de impostos" description="Ajuste as alíquotas. Tudo editável.">
-              <ConfigPanel
-                config={cfg.data.config}
-                ufList={cfg.data.ufList}
-                inventoryId={cfg.data.inventoryId}
-                onSaved={() => setShowConfig(false)}
-              />
-            </SectionCard>
-          )}
         </>
       )}
     </PageShell>

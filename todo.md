@@ -990,3 +990,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Reforço para produção: TTL de cache do ADS aumentado de 5min → 15min (as 6 abas batem quase tudo em cache, reduzindo o nº de chamadas ao ML — maior alavanca contra o 429) e aba Auditoria também migrada para cachedAccountResilient
 - [x] Suíte verde após reforços (cache/limitador) + TypeScript limpo + checkpoint
 - [ ] PENDENTE (fora do controle de código): se o 429 ainda persistir no site PUBLICADO mesmo com cache 15min, é limite de IP/cota do ML — validar no ambiente publicado (egress diferente do sandbox); se persistir, avaliar contato com o ML
+
+
+## Bug: botão "Configurar" da Lucratividade não funcionava (15/06)
+- [x] Causa: painel "Configuração de impostos" estava DENTRO do ramo else do ternário de profit (só renderizava com dados de lucro OK) + condição extra `&& cfg.data`
+- [x] Mover o painel para FORA do ternário (logo após o seletor de período) → abre sempre que "Configurar" é clicado, independente do estado da query de lucro
+- [x] Tratar estados de loading/erro da própria config (skeleton + ErrorState com retry) em vez de não renderizar nada
+- [x] TypeScript limpo + validação visual na preview + checkpoint
