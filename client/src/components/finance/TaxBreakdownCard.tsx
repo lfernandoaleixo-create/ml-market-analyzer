@@ -70,6 +70,21 @@ export function TaxBreakdownCard({
 
   return (
     <div className="space-y-3">
+      {/* Total em destaque no topo */}
+      <div className="flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/[0.06] px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-700">
+            <Receipt className="h-5 w-5" strokeWidth={2.2} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium leading-none">Total de impostos do período</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">estimativa do período selecionado</p>
+          </div>
+        </div>
+        <span className="font-display tabular-nums text-2xl text-emerald-700">{formatBRL(total)}</span>
+      </div>
+
+      {/* Impostos pagos discriminados */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {parts.map((p) => (
           <div
@@ -101,22 +116,6 @@ export function TaxBreakdownCard({
         ))}
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border border-dashed px-3 py-2" style={{ borderColor: "var(--border)" }}>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Receipt className="h-4 w-4" />
-          <span>Total de impostos do período (estimativa)</span>
-        </div>
-        <span className="font-display tabular-nums text-base">{formatBRL(total)}</span>
-      </div>
-
-      {detail.difal > 0 && (
-        <p className="text-[11px] leading-snug text-muted-foreground">
-          <strong className="text-violet-700">DIFAL</strong> é a diferença entre a alíquota interna do
-          estado de destino e a alíquota interestadual de saída (12% para Sul/Sudeste exceto ES; 7% para
-          os demais). É devido nas vendas interestaduais ao consumidor final e aqui aparece separado do
-          ICMS para você e seu contador conferirem com clareza.
-        </p>
-      )}
     </div>
   );
 }

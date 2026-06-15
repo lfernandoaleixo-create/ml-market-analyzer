@@ -774,7 +774,7 @@ export default function Lucratividade() {
           {/* Tax breakdown of the period: ICMS vs DIFAL vs FCP (Fernando's request) */}
           <SectionCard
             title="Impostos do período: ICMS x DIFAL"
-            description="Quanto do imposto foi ICMS, quanto foi DIFAL (diferencial pago ao estado de destino) e quanto foi FCP."
+            description="Total de impostos e a separação entre ICMS, DIFAL e FCP."
           >
             <TaxBreakdownCard detail={data.taxDetail} withTts={ttsOn} />
           </SectionCard>
