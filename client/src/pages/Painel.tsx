@@ -490,14 +490,15 @@ export default function Painel() {
               </Button>
             </div>
           }
+          bodyClassName={topOpen ? "p-5" : "px-5 py-2.5"}
         >
           {!topOpen ? (
             <button
               type="button"
               onClick={() => setTopOpen(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary/40 py-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-secondary/40 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
             >
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3.5 w-3.5" />
               Ver Top 10 produtos do período
             </button>
           ) : loadingSales ? (
@@ -867,14 +868,15 @@ function DaySales({
           </Button>
         </div>
       }
+      bodyClassName={open ? "p-5" : "px-5 py-2.5"}
     >
       {!open ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary/40 py-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-secondary/40 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
         >
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="h-3.5 w-3.5" />
           Ver produtos vendidos por dia
         </button>
       ) : (
