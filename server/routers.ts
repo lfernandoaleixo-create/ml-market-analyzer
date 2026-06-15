@@ -6,7 +6,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
 import { ENV } from "./_core/env";
-import { getUserByOpenId } from "./db";
+import { getOwnerUser } from "./db";
 import { marketRouter } from "./routers/market";
 import { monitorRouter } from "./routers/monitor";
 import { accountRouter } from "./routers/account";
@@ -59,7 +59,10 @@ export const appRouter = router({
         }
 
         // Resolve the owner user (the account that has the store connected).
-        const owner = await getUserByOpenId(ENV.ownerOpenId);
+        // getOwnerUser falls back to the first admin / first user when the
+        // OWNER_OPEN_ID env var is missing or out of sync, so shared-password
+        // login keeps working in every deployment.
+        const owner = await getOwnerUser();
         if (!owner) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",

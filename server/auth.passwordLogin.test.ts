@@ -32,20 +32,24 @@ describe("auth.passwordLogin", () => {
     vi.restoreAllMocks();
   });
 
-  async function buildRouter() {
+  async function buildRouter(ownerOverride?: unknown) {
     // Stub the DB lookup so we don't need a live database for the unit test.
+    const owner =
+      ownerOverride === undefined
+        ? {
+            id: 1,
+            openId: "resolved-owner",
+            email: "owner@example.com",
+            name: "Owner",
+            loginMethod: "manus",
+            role: "admin",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastSignedIn: new Date(),
+          }
+        : ownerOverride;
     vi.doMock("./db", () => ({
-      getUserByOpenId: vi.fn(async (openId: string) => ({
-        id: 1,
-        openId,
-        email: "owner@example.com",
-        name: "Owner",
-        loginMethod: "manus",
-        role: "admin",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastSignedIn: new Date(),
-      })),
+      getOwnerUser: vi.fn(async () => owner),
     }));
     const { appRouter } = await import("./routers");
     return appRouter;
@@ -94,6 +98,42 @@ describe("auth.passwordLogin", () => {
       appRouter.createCaller(ctx).auth.passwordLogin({ password: "errada" })
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(setCookies).toHaveLength(0);
+  });
+
+  it("logs in via owner fallback even when OWNER_OPEN_ID is missing", async () => {
+    process.env.ACCESS_PASSWORD = "segredo123";
+    delete process.env.OWNER_OPEN_ID;
+    process.env.JWT_SECRET = "test-secret";
+    process.env.VITE_APP_ID = "app-id";
+    // getOwnerUser resolves the owner (here: the first admin) regardless of env.
+    const appRouter = await buildRouter();
+    const { ctx, setCookies } = createContext();
+
+    const result = await appRouter
+      .createCaller(ctx)
+      .auth.passwordLogin({ password: "segredo123" });
+
+    expect(result).toEqual({ success: true });
+    expect(setCookies).toHaveLength(1);
+    expect(setCookies[0]?.value).toBeTruthy();
+  });
+
+  it("returns a clear error when no owner user exists", async () => {
+    process.env.ACCESS_PASSWORD = "segredo123";
+    process.env.JWT_SECRET = "test-secret";
+    process.env.VITE_APP_ID = "app-id";
+    const appRouter = await buildRouter(undefined); // default owner present
+    // Re-mock with no owner to exercise the not-found branch.
+    vi.resetModules();
+    vi.doMock("./db", () => ({ getOwnerUser: vi.fn(async () => undefined) }));
+    const { appRouter: routerNoOwner } = await import("./routers");
+    const { ctx, setCookies } = createContext();
+
+    await expect(
+      routerNoOwner.createCaller(ctx).auth.passwordLogin({ password: "segredo123" })
+    ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    expect(setCookies).toHaveLength(0);
+    void appRouter;
   });
 
   it("fails with PRECONDITION_FAILED when no password is configured", async () => {

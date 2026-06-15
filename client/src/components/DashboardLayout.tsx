@@ -113,16 +113,18 @@ function Wordmark() {
 }
 
 function AccessGate() {
-  const { refresh } = useAuth();
   const { data: gate, isLoading } = trpc.auth.gateInfo.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
   });
   const [password, setPassword] = useState("");
   const login = trpc.auth.passwordLogin.useMutation({
-    onSuccess: async () => {
-      await refresh();
-      window.location.reload();
+    onSuccess: () => {
+      // The session cookie is now set. A full reload re-fetches auth.me with
+      // the cookie present and lands on the dashboard. We intentionally do NOT
+      // await a refetch first: if that refetch transiently failed it could
+      // swallow the navigation and trap the user on the password screen.
+      window.location.replace("/");
     },
     onError: (err) => {
       toast.error(err.message || "Não foi possível entrar.");
