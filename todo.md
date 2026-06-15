@@ -924,3 +924,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend: ResponsiveContainer com minWidth/minHeight para mitigar aviso width(0)
 - [x] Testes vitest (pending + resiliência por item) + TS limpo + 485 testes passando + checkpoint
 - [x] Rodapé: rate limit (429) tratado rebaixado de console.error para console.warn (remove o "1 error" alarmante)
+
+
+## BUG gráfico de visitas mostra dia futuro (segunda no domingo) (15/06) — Fernando
+- [x] Causa: eixo da série de visitas ancorado em UTC; à noite no BRT virava o dia seguinte
+- [x] Ancorar eixo da série no fuso de Brasília (BRT, UTC-3) usando brtDateKey + âncora 03:00:00Z
+- [x] Datas do ML já vêm em offset BRT (-03:00); slice(0,10) mantém o dia BRT correto + frontend "hoje" em BRT
+- [x] Último ponto é sempre HOJE (BRT), parcial, nunca um dia futuro (teste de noite de domingo)
+- [x] Testes vitest (último ponto = hoje BRT + noite de domingo) + 486 testes passando + checkpoint

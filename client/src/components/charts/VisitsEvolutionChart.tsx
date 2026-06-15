@@ -81,7 +81,13 @@ export function VisitsEvolutionChart({
     );
   }
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  // "Hoje" must be the BRAZIL (UTC-3) calendar day, matching how the backend
+  // anchors the series axis. Using the browser's UTC day would break at night
+  // in Brazil (after 21:00 BRT it is already the next day in UTC), making the
+  // "Hoje (parcial)" card read 0 and hiding the highlighted dot.
+  const todayKey = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   // 7-day trailing moving average to smooth the daily noise. Null until there
   // are enough points so the line doesn't start with a misleading ramp.
   const data = series.map((p, i) => {

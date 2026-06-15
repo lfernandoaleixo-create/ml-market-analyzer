@@ -398,19 +398,21 @@ export class AccountProvider {
     }
     // Zero-fill every day in the window so the chart axis is continuous.
     //
-    // IMPORTANT: ML's time_window returns dates as `YYYY-MM-DDT00:00:00Z` and
-    // the window ends on the CURRENT day (today is included, still partial).
-    // We key each day by its plain calendar date (UTC slice) so the series
-    // aligns exactly with what ML reports — otherwise a timezone shift would
-    // move "today"/"yesterday" by one day. The axis is anchored to today (UTC
-    // calendar day) going back `lastDays-1` days.
+    // IMPORTANT — TIMEZONE: ML's time_window returns dates already in Brazil's
+    // offset (e.g. `2026-06-14T00:00:00.000-03:00`), so `slice(0,10)` above keys
+    // each item's visits by its BRT calendar day. The AXIS must be anchored the
+    // SAME way, otherwise it drifts: at night in Brazil (UTC-3) `Date.now()` in
+    // UTC has already rolled over to the next day, which used to add a spurious
+    // FUTURE point (e.g. Monday while it's still Sunday evening in Brazil). We
+    // anchor "today" to the current BRT calendar day so the last point is always
+    // today (still partial), never a day that hasn't started yet.
     const out: VisitsDayPoint[] = [];
     const DAY = 24 * 60 * 60 * 1000;
-    const utcDayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-    const endAnchor = Date.parse(`${utcDayKey(Date.now())}T00:00:00.000Z`);
+    // BRT midnight for a given day key is 03:00:00Z (UTC-3).
+    const endAnchor = Date.parse(`${brtDateKey(Date.now())}T03:00:00.000Z`);
     const startAnchor = endAnchor - (lastDays - 1) * DAY;
     for (let t = startAnchor; t <= endAnchor; t += DAY) {
-      const key = utcDayKey(t);
+      const key = brtDateKey(t);
       out.push({ date: key, visits: totals.get(key) ?? 0 });
     }
     return { series: out, attempted: targets.length, resolved };

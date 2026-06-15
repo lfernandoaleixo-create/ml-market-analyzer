@@ -446,7 +446,7 @@ describe("AccountProvider.getListings", () => {
     expect(map[day2]).toBe(20);
   });
 
-  it("anchors the series to TODAY (UTC) as the last point, in real time", async () => {
+  it("anchors the series to TODAY (Brazil time) as the last point, in real time", async () => {
     const idsPage = { results: ["MLB1"], paging: { total: 1, offset: 0, limit: 50 } };
     const itemsBody = [
       {
@@ -463,7 +463,8 @@ describe("AccountProvider.getListings", () => {
         },
       },
     ];
-    const todayKey = new Date().toISOString().slice(0, 10);
+    // The axis is anchored to the current BRAZIL (UTC-3) calendar day.
+    const todayKey = brtDateKey(Date.now());
     global.fetch = vi.fn(async (url: any) => {
       const u = String(url);
       let body: any = {};
@@ -472,7 +473,8 @@ describe("AccountProvider.getListings", () => {
       else if (/\/items\/MLB1\/visits\/time_window/.test(u))
         body = {
           total_visits: 7,
-          results: [{ date: `${todayKey}T00:00:00.000Z`, total: 7 }],
+          // ML returns dates in Brazil's offset; the series keys by that day.
+          results: [{ date: `${todayKey}T00:00:00.000-03:00`, total: 7 }],
         };
       return { ok: true, json: async () => body } as any;
     }) as unknown as typeof fetch;
@@ -482,6 +484,39 @@ describe("AccountProvider.getListings", () => {
     const last = res.visitsSeries[res.visitsSeries.length - 1];
     expect(last.date).toBe(todayKey);
     expect(last.visits).toBe(7);
+  });
+
+  it("on a Sunday EVENING in Brazil, the last point is still Sunday (not a future Monday)", async () => {
+    // Freeze time at Sunday 2026-06-14 21:00 BRT, which is Monday 2026-06-15
+    // 00:00 UTC. The buggy UTC anchor produced a spurious Monday point; the BRT
+    // anchor must keep the last point on Sunday (today, still partial).
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T00:00:00.000Z")); // = 2026-06-14 21:00 BRT
+    try {
+      const idsPageS = { results: ["MLB1"], paging: { total: 1, offset: 0, limit: 50 } };
+      const itemsBodyS = [
+        { code: 200, body: { id: "MLB1", title: "Active", price: 100, currency_id: "BRL", available_quantity: 5, sold_quantity: 1, status: "active", listing_type_id: "gold_pro" } },
+      ];
+      global.fetch = vi.fn(async (url: any) => {
+        const u = String(url);
+        let body: any = {};
+        if (/\/users\/\d+\/items\/search/.test(u)) body = idsPageS;
+        else if (/api\.mercadolibre\.com\/items\?ids=/.test(u)) body = itemsBodyS;
+        else if (/\/items\/MLB1\/visits\/time_window/.test(u))
+          body = { total_visits: 5, results: [{ date: "2026-06-14T00:00:00.000-03:00", total: 5 }] };
+        return { ok: true, json: async () => body } as any;
+      }) as unknown as typeof fetch;
+
+      const provider = new AccountProvider("token", USER_ID);
+      const res = await provider.getListings({ lastDays: 30, includeVisitsSeries: true });
+      const last = res.visitsSeries[res.visitsSeries.length - 1];
+      expect(last.date).toBe("2026-06-14"); // Sunday (BRT), NOT Monday 06-15
+      expect(last.visits).toBe(5);
+      // And there is NO future day beyond today in the series.
+      expect(res.visitsSeries.some((p) => p.date > "2026-06-14")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("flags visitsSeriesPending when EVERY active item's time_window fails (429) — never a fake 'sem visitas'", async () => {
