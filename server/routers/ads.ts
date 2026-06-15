@@ -4,7 +4,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthMl";
 import { AdsProvider, buildAdsInsights } from "../ml/adsProvider";
 import { MLRateLimitError } from "../ml/accountProvider";
-import { cachedAccount } from "../ml/accountCache";
+import { cachedAccountResilient } from "../ml/accountCache";
 import {
   buildAuditReport,
   buildCategoryReport,
@@ -82,8 +82,8 @@ export const adsRouter = router({
   /** Full dashboard payload (summary + top campaigns + top ads + insight count). */
   dashboard: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 30;
-    return runAds(() =>
-      cachedAccount(
+    return runAds(async () => {
+      const { value } = await cachedAccountResilient(
         ctx.user.id,
         `ads:dashboard:${days}`,
         async () => {
@@ -91,15 +91,16 @@ export const adsRouter = router({
           return ads.getDashboard(Number(days));
         },
         ADS_TTL_MS,
-      ),
-    );
+      );
+      return value;
+    });
   }),
 
   /** All campaigns with metrics for the window. */
   campaigns: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 30;
-    return runAds(() =>
-      cachedAccount(
+    return runAds(async () => {
+      const { value } = await cachedAccountResilient(
         ctx.user.id,
         `ads:campaigns:${days}`,
         async () => {
@@ -107,8 +108,9 @@ export const adsRouter = router({
           return ads.getCampaigns(Number(days));
         },
         ADS_TTL_MS,
-      ),
-    );
+      );
+      return value;
+    });
   }),
 
   /** Ads (item-level) with metrics, optionally filtered to a campaign. */
@@ -122,8 +124,8 @@ export const adsRouter = router({
     .query(async ({ ctx, input }) => {
       const days = input.days ?? 30;
       const key = `ads:ads:${days}:${input.campaignId ?? "all"}`;
-      return runAds(() =>
-        cachedAccount(
+      return runAds(async () => {
+        const { value } = await cachedAccountResilient(
           ctx.user.id,
           key,
           async () => {
@@ -131,8 +133,9 @@ export const adsRouter = router({
             return ads.getAds(Number(days), input.campaignId);
           },
           ADS_TTL_MS,
-        ),
-      );
+        );
+        return value;
+      });
     }),
 
   /**
@@ -144,7 +147,7 @@ export const adsRouter = router({
   categories: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 30;
     return runAds(async () => {
-      const report = await cachedAccount(
+      const { value: report } = await cachedAccountResilient(
         ctx.user.id,
         `ads:categories:${days}`,
         async () => {
@@ -209,8 +212,8 @@ export const adsRouter = router({
   /** Read-only intelligence: actionable insights computed from real metrics. */
   insights: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 30;
-    return runAds(() =>
-      cachedAccount(
+    return runAds(async () => {
+      const { value } = await cachedAccountResilient(
         ctx.user.id,
         `ads:insights:${days}`,
         async () => {
@@ -223,7 +226,8 @@ export const adsRouter = router({
           return buildAdsInsights(summary, campaigns, adRows);
         },
         ADS_TTL_MS,
-      ),
-    );
+      );
+      return value;
+    });
   }),
 });

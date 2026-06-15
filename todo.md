@@ -968,3 +968,23 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] main.tsx: tratar NOT_FOUND (reputação/dados) como transitório (warn, não error) — UI já mostra mensagem e recupera no próximo poll
 - [x] main.tsx: dar reason descritiva ao abort por timeout do cliente (TimeoutError, em vez de "without reason")
 - [x] Validado: após reload e navegação entre páginas, console com 0 errors / 0 warnings; TS limpo; suíte verde (497)
+
+
+## URGENTE: ADS estoura rate limit (429) "Não foi possível carregar" (Fernando, em produção)
+- [ ] Criar limitador de taxa GLOBAL serializado (fila com espaçamento mínimo) compartilhado por TODAS as chamadas ao ML — transforma rajadas paralelas em chamadas espaçadas
+- [ ] Aplicar o limitador no AdsProvider.get() e no accountProvider.get() (gargalo único)
+- [ ] Cachear advertiserId por processo/usuário (evitar repetir a chamada de advertiser em cada aba)
+- [ ] Migrar leituras de ADS para cachedAccountResilient (stale-while-error) — em 429 transitório, servir último dado bom rotulado, nunca tela de erro
+- [ ] Testes vitest do limitador (serialização, espaçamento, respeito a Retry-After) + suíte verde + TS limpo
+- [ ] Validar a tela ADS ao vivo (sem 429) e checkpoint; orientar publicação
+
+
+## URGENTE: ADS "Não foi possível carregar (429)" — Fernando (funcionava no início e parou)
+- [x] Diagnóstico decisivo: endpoint PÚBLICO /sites/MLB (sem token) também retorna 429 a partir do nosso ambiente → o IP de saída do sandbox está limitado/bloqueado pelo ML (não é a conta, token ou volume da loja)
+- [x] Confirmado com o Fernando: funcionava perfeitamente quando criamos → reforça limite de IP acumulado, não regressão de código
+- [x] Defesa anti-burst: criado limitador GLOBAL serializado (server/ml/mlRateLimiter.ts) — todas as chamadas ML (AdsProvider + AccountProvider) passam por 1 fila, concorrência 1, espaçamento mínimo 350ms, cooldown global no 429/Retry-After
+- [x] Reuso do advertiserId por token (cache 30min) → elimina chamadas repetidas de /advertising/advertisers em cada aba do ADS
+- [x] Resiliência: leituras de ADS (dashboard, campaigns, ads, categories, insights) migradas para cachedAccountResilient → em 429 transitório a tela mostra o ÚLTIMO dado bom (stale) em vez do erro vermelho
+- [x] Limitador transparente sob teste (bypass + spacing 0 + cooldown off) para não acoplar com fake timers/isolamento; comportamento real coberto por mlRateLimiter.test.ts (4 testes)
+- [x] Suíte completa verde (501 testes) + TypeScript limpo + checkpoint
+- [ ] PENDENTE (fora do controle de código): se o 429 persistir no site PUBLICADO, é limite de IP/cota do ML — avaliar throttle ainda maior/cache mais longo ou contato com o ML; validar no ambiente publicado (egress diferente do sandbox)

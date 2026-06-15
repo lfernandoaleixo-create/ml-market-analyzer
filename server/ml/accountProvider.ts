@@ -21,6 +21,7 @@ import {
   type RawCategoryAttribute,
   type RawItemAttribute,
 } from "@shared/technicalSpecs";
+import { mlLimiter } from "./mlRateLimiter";
 
 /**
  * AccountProvider — reads REAL data from the connected seller account using the
@@ -141,10 +142,15 @@ export class AccountProvider {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(`${API}${path}`, {
-        headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json" },
-        signal: ctrl.signal,
-      });
+      // Funnel every ML call through the shared global limiter: parallel pages
+      // (Vendas/Anúncios/Pós-venda/Reputação + ADS) are serialized and spaced
+      // instead of bursting at ML, which is what triggered the 429s.
+      const res = await mlLimiter.schedule(() =>
+        fetch(`${API}${path}`, {
+          headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json" },
+          signal: ctrl.signal,
+        }),
+      );
 
       // Rate limited (429): ML throttles bursts. Respect Retry-After when present,
       // otherwise use a capped exponential backoff, and retry a few times. We do
@@ -157,6 +163,8 @@ export class AccountProvider {
             ? Number(retryAfterHeader) * 1000
             : Math.min(8000, 500 * 2 ** _rateLimitAttempt);
           const waitMs = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : 1000;
+          // Back off the WHOLE queue, not just this call.
+          mlLimiter.applyCooldown(waitMs);
           await new Promise((r) => setTimeout(r, waitMs));
           return this.get(path, timeoutMs, _isRetry, _rateLimitAttempt + 1, _networkAttempt);
         }

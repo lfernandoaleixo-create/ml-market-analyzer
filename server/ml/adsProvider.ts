@@ -7,6 +7,7 @@ import type {
   AdsInsight,
 } from "@shared/ads";
 import { MLRateLimitError } from "./accountProvider";
+import { mlLimiter } from "./mlRateLimiter";
 
 /**
  * AdsProvider — reads REAL Mercado Ads (Product Ads) data for the connected
@@ -135,6 +136,16 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Process-level cache of the resolved advertiser id, keyed by access token.
+ * Each tRPC procedure builds a fresh AdsProvider, so without this every ADS tab
+ * would re-call /advertising/advertisers — extra ML calls that only add to the
+ * burst. The advertiser id is stable for the account, so caching it per token
+ * (TTL 30 min) removes those redundant calls entirely.
+ */
+const ADVERTISER_CACHE = new Map<string, { id: number | null; at: number }>();
+const ADVERTISER_TTL_MS = 30 * 60 * 1000;
+
 export class AdsProvider {
   static readonly MAX_RATE_LIMIT_RETRIES = 4;
 
@@ -155,14 +166,18 @@ export class AdsProvider {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(`${API}${path}`, {
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-          Accept: "application/json",
-          "Api-Version": "1",
-        },
-        signal: ctrl.signal,
-      });
+      // All ML calls go through the shared global limiter so parallel tabs/pages
+      // are serialized and spaced instead of bursting (the cause of the 429s).
+      const res = await mlLimiter.schedule(() =>
+        fetch(`${API}${path}`, {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            Accept: "application/json",
+            "Api-Version": "1",
+          },
+          signal: ctrl.signal,
+        }),
+      );
       if (res.status === 429) {
         clearTimeout(timer);
         const retryAfterHeader = res.headers.get("retry-after");
@@ -171,6 +186,8 @@ export class AdsProvider {
             ? Number(retryAfterHeader) * 1000
             : Math.min(8000, 500 * 2 ** _rateLimitAttempt);
           const waitMs = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : 1000;
+          // Back off the WHOLE queue, not just this call.
+          mlLimiter.applyCooldown(waitMs);
           await new Promise((r) => setTimeout(r, waitMs));
           return this.get(path, timeoutMs, _isRetry, _rateLimitAttempt + 1);
         }
@@ -201,10 +218,17 @@ export class AdsProvider {
    *  the account has no Product Ads access. */
   async getAdvertiserId(): Promise<number | null> {
     if (this.advertiserId != null) return this.advertiserId;
+    // Reuse a recently resolved advertiser id for this token across ADS tabs.
+    const cached = ADVERTISER_CACHE.get(this.token);
+    if (cached && Date.now() - cached.at < ADVERTISER_TTL_MS) {
+      this.advertiserId = cached.id;
+      return cached.id;
+    }
     const data = await this.get(`/advertising/advertisers?product_id=PADS`);
     const advertisers: any[] = Array.isArray(data?.advertisers) ? data.advertisers : [];
     const mlb = advertisers.find((a) => a.site_id === this.site) ?? advertisers[0];
     this.advertiserId = mlb ? num(mlb.advertiser_id) : null;
+    ADVERTISER_CACHE.set(this.token, { id: this.advertiserId, at: Date.now() });
     return this.advertiserId;
   }
 
