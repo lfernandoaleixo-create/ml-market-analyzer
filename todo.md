@@ -932,3 +932,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Datas do ML já vêm em offset BRT (-03:00); slice(0,10) mantém o dia BRT correto + frontend "hoje" em BRT
 - [x] Último ponto é sempre HOJE (BRT), parcial, nunca um dia futuro (teste de noite de domingo)
 - [x] Testes vitest (último ponto = hoje BRT + noite de domingo) + 486 testes passando + checkpoint
+
+
+## BUG gráfico de visitas trava ~5 min carregando (15/06) — Fernando (CRÍTICO, lançamento amanhã)
+- [x] Causa: fan-out de 200+ chamadas time_window por anúncio na query listings, bloqueante + loop de refetch quando pending
+- [x] Criar procedure dedicada account.visitsSeries com cache stale-while-revalidate (swrAccount, TTL 10min)
+- [x] Coleta da série em SEGUNDO PLANO (getVisitsSeriesOnly, não bloqueia a resposta); página serve último snapshot bom na hora; cold start retorna "loading"
+- [x] Religar o gráfico do Painel e de Anúncios à nova procedure; remover includeVisitsSeries bloqueante
+- [x] Remover o loop agressivo de refetch quando pending; refetch suave (60s) só para atualizar
+- [x] Testes vitest (5 do swrAccount: cold/non-blocking/stale/fail/dedupe) + TS limpo + 491 testes verdes + checkpoint

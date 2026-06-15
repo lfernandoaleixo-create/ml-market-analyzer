@@ -3,6 +3,7 @@ import {
   cachedAccount,
   cachedAccountResilient,
   invalidateAccount,
+  swrAccount,
   __clearAccountCache,
 } from "./accountCache";
 
@@ -148,5 +149,105 @@ describe("cachedAccountResilient (stale-while-error)", () => {
     const fresh = await cachedAccountResilient(104, "k", loader, ttl);
     expect(fresh.stale).toBe(false);
     expect(fresh.value).toEqual({ n: 2 });
+  });
+});
+
+describe("swrAccount (non-blocking stale-while-revalidate)", () => {
+  it("cold start returns loading immediately and kicks off a background load", async () => {
+    let resolved = 0;
+    const loader = vi.fn(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+      resolved += 1;
+      return { n: resolved };
+    });
+
+    // First (cold) read must return synchronously with no value.
+    const first = swrAccount<{ n: number }>(200, "k", loader);
+    expect(first.status).toBe("loading");
+    expect(first.value).toBeUndefined();
+    expect(first.asOf).toBe(0);
+    // The loader was kicked off in the background.
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    // Wait for the background collection to land.
+    await new Promise((r) => setTimeout(r, 40));
+
+    // Next read now serves the collected value as fresh.
+    const second = swrAccount<{ n: number }>(200, "k", loader);
+    expect(second.status).toBe("fresh");
+    expect(second.value).toEqual({ n: 1 });
+    // No extra load while fresh.
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("never blocks: returns even if the loader takes far longer than the call", async () => {
+    const loader = vi.fn(
+      () => new Promise<{ n: number }>((r) => setTimeout(() => r({ n: 9 }), 500)),
+    );
+    const start = Date.now();
+    const r = swrAccount<{ n: number }>(201, "k", loader);
+    // Returned essentially instantly, well under the loader's 500ms.
+    expect(Date.now() - start).toBeLessThan(50);
+    expect(r.status).toBe("loading");
+  });
+
+  it("serves the OLD value (stale) while a refresh runs after the TTL", async () => {
+    const loader = vi
+      .fn()
+      .mockResolvedValueOnce({ n: 1 })
+      .mockResolvedValueOnce({ n: 2 });
+    const ttl = 20;
+
+    // Cold start → loading; wait for first value.
+    swrAccount<{ n: number }>(202, "k", loader, ttl);
+    await new Promise((r) => setTimeout(r, 10));
+    const fresh = swrAccount<{ n: number }>(202, "k", loader, ttl);
+    expect(fresh.status).toBe("fresh");
+    expect(fresh.value).toEqual({ n: 1 });
+
+    // Let the TTL expire → next read serves the OLD value as stale and triggers refresh.
+    await new Promise((r) => setTimeout(r, ttl + 5));
+    const stale = swrAccount<{ n: number }>(202, "k", loader, ttl);
+    expect(stale.status).toBe("stale");
+    expect(stale.value).toEqual({ n: 1 });
+
+    // After the background refresh lands, the new value is served fresh.
+    await new Promise((r) => setTimeout(r, 10));
+    const refreshed = swrAccount<{ n: number }>(202, "k", loader, ttl);
+    expect(refreshed.status).toBe("fresh");
+    expect(refreshed.value).toEqual({ n: 2 });
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps serving the last value when a background refresh FAILS", async () => {
+    const loader = vi
+      .fn()
+      .mockResolvedValueOnce({ n: 1 })
+      .mockRejectedValueOnce(new Error("ML rate limited"));
+    const ttl = 20;
+
+    swrAccount<{ n: number }>(203, "k", loader, ttl);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(swrAccount<{ n: number }>(203, "k", loader, ttl).value).toEqual({ n: 1 });
+
+    // Expire TTL → stale read triggers a refresh that will reject.
+    await new Promise((r) => setTimeout(r, ttl + 5));
+    const stale = swrAccount<{ n: number }>(203, "k", loader, ttl);
+    expect(stale.status).toBe("stale");
+    expect(stale.value).toEqual({ n: 1 });
+
+    // Let the failing refresh settle — we must STILL hold the last good value.
+    await new Promise((r) => setTimeout(r, 10));
+    const afterFail = swrAccount<{ n: number }>(203, "k", loader, ttl);
+    expect(afterFail.value).toEqual({ n: 1 });
+  });
+
+  it("de-duplicates: a burst of reads triggers only ONE background load", async () => {
+    const loader = vi.fn(
+      () => new Promise<{ n: number }>((r) => setTimeout(() => r({ n: 1 }), 20)),
+    );
+    // Five reads mount at once on a cold cache.
+    for (let i = 0; i < 5; i++) swrAccount(204, "k", loader);
+    expect(loader).toHaveBeenCalledTimes(1);
   });
 });

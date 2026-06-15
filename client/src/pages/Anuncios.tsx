@@ -147,12 +147,21 @@ export default function Anuncios() {
 
   const conn = trpc.account.connection.useQuery();
   const { data, isLoading, error, isFetching, dataUpdatedAt, refetch } = trpc.account.listings.useQuery(
-    { lastDays: visitWindow, includeVisitsSeries: true },
+    { lastDays: visitWindow },
     {
       enabled: conn.data?.connected === true,
-      // Keep the day's evolution fresh: re-pull visits periodically and when
-      // the user returns to the tab, so "today" updates close to real time.
       refetchInterval: 5 * 60 * 1000,
+      refetchOnWindowFocus: true,
+    },
+  );
+  // Daily visits chart via the dedicated NON-BLOCKING endpoint (background
+  // collection + cheap cached read). Polled every 60s so it never freezes the
+  // page on "Carregando as visitas".
+  const visits = trpc.account.visitsSeries.useQuery(
+    { days: visitWindow },
+    {
+      enabled: conn.data?.connected === true,
+      refetchInterval: 60 * 1000,
       refetchOnWindowFocus: true,
     },
   );
@@ -162,7 +171,7 @@ export default function Anuncios() {
   const insights = useMemo(() => computeInsights(items), [items]);
 
   const visitDist = useMemo(() => bucketCounts(items, VISIT_BUCKETS, (r) => r.visits), [items]);
-  const visitsSeries = useMemo<VisitsDayPoint[]>(() => data?.visitsSeries ?? [], [data]);
+  const visitsSeries = useMemo<VisitsDayPoint[]>(() => visits.data?.series ?? [], [visits.data]);
 
   // Visits trend: compare the first vs. the second half of the window, ignoring
   // today (partial). Positive => visits are growing. Null when not enough data.
@@ -452,11 +461,11 @@ export default function Anuncios() {
       >
         <VisitsEvolutionChart
           series={visitsSeries}
-          loading={isLoading}
+          loading={visits.isLoading}
           windowDays={visitWindow}
-          pending={data?.visitsSeriesPending === true}
-          onRetry={() => refetch()}
-          refreshing={isFetching}
+          pending={visits.data?.pending === true}
+          onRetry={() => visits.refetch()}
+          refreshing={visits.isFetching}
         />
       </SectionCard>
 

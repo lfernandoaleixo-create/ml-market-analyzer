@@ -5,7 +5,7 @@ import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthM
 import { AccountProvider } from "../ml/accountProvider";
 import { getCredentials, upsertCredentials } from "../dbMl";
 import { resolveMlUserId } from "../ml/resolveMlUserId";
-import { cachedAccount, cachedAccountResilient } from "../ml/accountCache";
+import { cachedAccount, cachedAccountResilient, swrAccount } from "../ml/accountCache";
 import { MLRateLimitError } from "../ml/accountProvider";
 
 /**
@@ -244,6 +244,40 @@ export const accountRouter = router({
         throw err;
       });
       return { ...value, stale, asOf };
+    }),
+
+  /**
+   * Daily visits series for the evolution chart — served via a NON-BLOCKING
+   * stale-while-revalidate cache. The collection (hundreds of ML calls) runs in
+   * the background; this endpoint returns in milliseconds with either the cached
+   * series (fresh/stale) or a "loading" signal on a cold start. The client polls
+   * it every minute and the chart fills in as soon as the background job lands.
+   * This is what removes the ~5-min "Carregando as visitas" freeze.
+   */
+  visitsSeries: protectedProcedure
+    .input(z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const days = input?.days ?? 30;
+    // Window anchored to BRT inside the provider.
+    const result = swrAccount(
+      ctx.user.id,
+      `visitsSeries:${days}`,
+      async () => {
+        const account = await resolveAccount(ctx.user.id);
+        return account.getVisitsSeriesOnly(days);
+      },
+      // Keep a collected series "fresh" for 10 min before a background refresh.
+      10 * 60 * 1000,
+    );
+    const agg = result.value;
+    return {
+      series: agg?.series ?? [],
+      // Cold start with no data yet → tell the UI to show "carregando" (honest),
+      // never a false "sem visitas".
+      pending: result.status === "loading",
+      status: result.status,
+      asOf: result.asOf,
+    };
     }),
 
   /** Post-sale summary (claims, cancellations). */

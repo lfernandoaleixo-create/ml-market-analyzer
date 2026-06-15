@@ -418,6 +418,22 @@ export class AccountProvider {
     return { series: out, attempted: targets.length, resolved };
   }
 
+  /**
+   * Lean collector for the daily visits CHART only — used by the dedicated
+   * `account.visitsSeries` procedure that serves it via a stale-while-revalidate
+   * cache. It fetches just the ACTIVE item ids and their dated visits, skipping
+   * the expensive item-details / orders work that `getListings` does. This keeps
+   * the chart fully decoupled from the rest of the dashboard so it can be
+   * refreshed in the background without blocking the page.
+   */
+  async getVisitsSeriesOnly(
+    lastDays = 30,
+    cap = 200,
+  ): Promise<{ series: VisitsDayPoint[]; attempted: number; resolved: number }> {
+    const { ids } = await this.getActiveItemIds(cap);
+    return this.getVisitsSeries(ids, lastDays, cap);
+  }
+
   private mapStatus(s: string | undefined): ListingStatus {
     switch (s) {
       case "active":

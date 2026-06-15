@@ -102,14 +102,21 @@ export default function Painel() {
     { enabled: everConnected },
   );
   const listings = trpc.account.listings.useQuery(
-    { lastDays: 30, includeVisitsSeries: true },
+    { lastDays: 30 },
     {
       enabled: everConnected,
-      // Keep "hoje (parcial)" fresh, mirroring the Anúncios tab behavior.
       refetchInterval: 5 * 60 * 1000,
       refetchOnWindowFocus: true,
     },
   );
+  // Daily visits chart: served by a dedicated NON-BLOCKING endpoint. The heavy
+  // collection runs in the background on the server; here we just poll a cheap
+  // cache read every 60s, so the page never freezes on "Carregando as visitas".
+  const visits = trpc.account.visitsSeries.useQuery(undefined, {
+    enabled: everConnected,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
   const rep = trpc.account.reputation.useQuery(undefined, { enabled: everConnected });
 
   // Historic-base profit summary (mirror of the Lucratividade "Da receita ao
@@ -170,8 +177,10 @@ export default function Painel() {
   const s = listings.data?.summary;
   const r = rep.data;
   const loadingSales = sales.isLoading;
-  const visitsSeries: VisitsDayPoint[] = listings.data?.visitsSeries ?? [];
-  const visitsSeriesPending = listings.data?.visitsSeriesPending === true;
+  const visitsSeries: VisitsDayPoint[] = visits.data?.series ?? [];
+  // "pending" only on a true cold start (no data collected yet). While we serve a
+  // previous (stale) snapshot the chart shows numbers and refreshes silently.
+  const visitsSeriesPending = visits.data?.pending === true;
 
   // Detect a Mercado Livre rate limit (429 -> TOO_MANY_REQUESTS) on any of the
   // core queries. When it happens we must NOT silently show R$ 0,00 — we show an
@@ -275,11 +284,11 @@ export default function Painel() {
       >
         <VisitsEvolutionChart
           series={visitsSeries}
-          loading={listings.isLoading}
+          loading={visits.isLoading}
           windowDays={30}
           pending={visitsSeriesPending}
-          onRetry={() => listings.refetch()}
-          refreshing={listings.isFetching}
+          onRetry={() => visits.refetch()}
+          refreshing={visits.isFetching}
         />
       </SectionCard>
 

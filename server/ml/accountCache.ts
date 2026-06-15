@@ -202,6 +202,94 @@ export async function cachedAccountResilient<T>(
   }
 }
 
+/**
+ * Result of a non-blocking SWR read.
+ *  - `value`  : the data to render right now (may be undefined on a cold start).
+ *  - `status` : "fresh" (within TTL), "stale" (serving old data while a refresh
+ *               runs in the background), or "loading" (cold start, no data yet —
+ *               a refresh has just been kicked off).
+ *  - `asOf`   : epoch ms the served value was captured (0 when loading).
+ */
+export type SwrResult<T> = {
+  value: T | undefined;
+  status: "fresh" | "stale" | "loading";
+  asOf: number;
+};
+
+/**
+ * Stale-while-revalidate read that NEVER blocks on a slow loader.
+ *
+ * This is purpose-built for the daily visits chart, whose loader fans out into
+ * hundreds of Mercado Livre calls and can take many seconds (or hit a 429). We
+ * must never make the page wait for it. Behaviour:
+ *
+ *  - Fresh value within `ttlMs`            → return it (status "fresh"), no work.
+ *  - Stale value (older than `ttlMs`)      → return the OLD value immediately
+ *                                            (status "stale") and kick off a
+ *                                            background refresh (deduped).
+ *  - No value yet (cold start)             → return undefined (status "loading")
+ *                                            and kick off a background refresh.
+ *
+ * The loader runs detached; its result updates the cache for the NEXT poll. The
+ * client simply polls this cheap endpoint every minute and the numbers fill in
+ * as soon as the background collection finishes — the request itself returns in
+ * milliseconds, every time.
+ */
+export function swrAccount<T>(
+  userId: number,
+  key: string,
+  loader: () => Promise<T>,
+  ttlMs: number = DEFAULT_TTL_MS,
+): SwrResult<T> {
+  const b = bucket(userId);
+  const existing = b.get(key);
+  const now = Date.now();
+
+  const hasValue = existing?.value !== undefined;
+  const fresh = hasValue && now - (existing as Entry).at < ttlMs;
+
+  // Fresh → serve as-is, no background work.
+  if (fresh) {
+    return { value: (existing as Entry).value as T, status: "fresh", asOf: (existing as Entry).at };
+  }
+
+  // Not fresh: ensure a single background refresh is running (dedupe via inflight).
+  if (!existing?.inflight) {
+    const inflight = (async () => {
+      const value = await loader();
+      b.set(key, { at: Date.now(), value, lastGood: value, lastGoodAt: Date.now() });
+      return value;
+    })();
+    // Preserve any existing value so we keep serving it while the refresh runs.
+    b.set(key, {
+      at: existing?.at ?? 0,
+      value: existing?.value,
+      inflight,
+      lastGood: existing?.value ?? existing?.lastGood,
+      lastGoodAt: existing?.value !== undefined ? existing?.at : existing?.lastGoodAt,
+    });
+    // Detach: a background failure must not crash the process or be unhandled.
+    inflight.catch(() => {
+      const cur = b.get(key);
+      // Drop only the inflight marker; KEEP any value we were serving.
+      if (cur && cur.inflight === inflight) {
+        b.set(key, {
+          at: cur.at,
+          value: cur.value,
+          lastGood: cur.lastGood,
+          lastGoodAt: cur.lastGoodAt,
+        });
+      }
+    });
+  }
+
+  // Serve the old value if we have one (stale), otherwise signal a cold load.
+  if (hasValue) {
+    return { value: (existing as Entry).value as T, status: "stale", asOf: (existing as Entry).at };
+  }
+  return { value: undefined, status: "loading", asOf: 0 };
+}
+
 /** Invalidate one key (or the whole user bucket when key is omitted). */
 export function invalidateAccount(userId: number, key?: string): void {
   if (key === undefined) {
