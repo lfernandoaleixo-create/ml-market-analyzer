@@ -237,6 +237,11 @@ export const accountRouter = router({
           const account = await resolveAccount(ctx.user.id);
           return account.getListings({ lastDays, includeVisitsSeries });
         },
+        // Short TTL (12s): the heavy visits work now runs in a BACKGROUND
+        // collector (server/ml/visitsStore.ts), so getListings itself is cheap
+        // and a short TTL lets the client poll and watch the visits total fill
+        // in progressively — instead of being frozen on a 5-min cached snapshot.
+        12 * 1000,
       ).catch((err) => {
         if (err instanceof MLRateLimitError) {
           throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });

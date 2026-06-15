@@ -22,6 +22,7 @@ import {
   type RawItemAttribute,
 } from "@shared/technicalSpecs";
 import { mlLimiter } from "./mlRateLimiter";
+import { readVisits, ensureCollecting } from "./visitsStore";
 
 /**
  * AccountProvider — reads REAL data from the connected seller account using the
@@ -506,23 +507,28 @@ export class AccountProvider {
     const details = await this.getItemsDetails(ids);
     const detailIds = details.map((d) => d.id);
 
-    // Visits strategy:
-    //  The Visits card must reflect REAL visits over the selected period
-    //  (30/60/90d). The ML dated endpoint (time_window) only accepts ONE item
-    //  per request, so we fan out in parallel with bounded concurrency, capped
-    //  to stay within the request timeout. If the dated endpoint returns no
-    //  data for an item, we leave it null (excluded from totals) rather than
-    //  faking a zero. The cheap lifetime batch endpoint is kept only as a last
-    //  resort and is never mixed into period totals.
-    // Period-accurate visits, but bounded: if the per-item fan-out can't finish
-    // within the budget we serve an empty map (visits show 0) so the rest of the
-    // page — totals, status, stock, ranking — still loads fast. Better an honest
-    // "visits pending" than a frozen, all-zero dashboard.
-    const windowMap = await this.withBudget(
-      this.getVisitsWindow(detailIds, lastDays),
-      13000,
-      new Map<string, number | null>(),
+    // Visits strategy (PROGRESSIVE, non-blocking):
+    //  The ML dated endpoint (time_window) only allows ONE item per request and
+    //  ML throttles bursts (429). Computing the visits total for ~130 listings
+    //  inside this request used to run a 13s fan-out and THROW AWAY the partial
+    //  result every time — under throttling it resolved zero items, so the card
+    //  was stuck forever on "carregando".
+    //
+    //  Now we use an ACCUMULATING per-item store (server/ml/visitsStore.ts):
+    //   - read whatever has been collected so far (instant, never blocks), and
+    //   - kick a background collector for the items still missing/stale.
+    //  Each poll therefore shows MORE visits than the last until complete, and
+    //  the collection can never be permanently stuck because progress is
+    //  persisted item-by-item across requests.
+    const snapshot = readVisits(this.userId, lastDays, detailIds);
+    ensureCollecting(
+      this.userId,
+      lastDays,
+      detailIds,
+      (id) => this.getItemVisits(id, lastDays),
+      { concurrency: 4 },
     );
+    const windowMap: Map<string, number | null> = new Map(snapshot.map);
 
     const items: ListingRow[] = details.map((d) => {
       const wv = windowMap.get(d.id);
@@ -584,6 +590,11 @@ export class AccountProvider {
     // Pending when ML returned visit data for NO item at all (the all-zero case the
     // user saw). Partial resolution still renders, but a full miss must show "carregando".
     const visitsPending = visitsAttempted > 0 && visitsResolved === 0;
+    // Still collecting in the background: either a run is active, or not every
+    // item has a fresh value yet. The client uses this to keep polling so the
+    // total fills in progressively WITHOUT the user clicking refresh.
+    const visitsCollecting =
+      visitsAttempted > 0 && (snapshot.collecting || visitsResolved < visitsAttempted);
     const avgVisitsPerActive = active > 0 ? Math.round(visitsActive / active) : 0;
     const totalStockValue = items.reduce((s, i) => s + i.stockValue, 0);
     const totalSold = items.reduce((s, i) => s + i.soldQuantity, 0);
@@ -620,6 +631,7 @@ export class AccountProvider {
         outOfStock,
         totalVisits,
         visitsPending,
+        visitsCollecting,
         visitsAttempted,
         visitsResolved,
         visitsActive,

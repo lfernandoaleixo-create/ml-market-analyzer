@@ -149,6 +149,10 @@ export interface ListingsSummary {
    *  (rate limit / congestion). In this case visit-derived numbers are NOT real
    *  zeros and the UI must show a "carregando" state with a refresh option. */
   visitsPending: boolean;
+  /** True while the background visits collector is still running OR not every
+   *  item has a fresh value yet. The client polls while this is true so the
+   *  total fills in progressively without the user clicking refresh. */
+  visitsCollecting: boolean;
   /** How many items we tried to fetch visits for, and how many actually resolved
    *  with real data. visitsResolved < visitsAttempted => partial/pending. */
   visitsAttempted: number;

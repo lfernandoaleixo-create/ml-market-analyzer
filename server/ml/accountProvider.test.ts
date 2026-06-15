@@ -1,5 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AccountProvider, brtDateKey } from "./accountProvider";
+import { __clearVisitsStore } from "./visitsStore";
+
+/** Wait for the detached background visits collector to settle. */
+async function settle(ms = 30) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * In the progressive-collection model, getListings reads the per-item visits
+ * SNAPSHOT (initially empty) and kicks a background collector. The visit total
+ * therefore appears on the SECOND read, after the collector has resolved the
+ * items. This helper performs that two-step: first call primes the collector,
+ * then we settle and read again to get the populated snapshot.
+ */
+async function getListingsCollected(
+  provider: AccountProvider,
+  opts: { lastDays?: 7 | 30 | 90; includeVisitsSeries?: boolean } = {},
+) {
+  await provider.getListings(opts);
+  await settle();
+  return provider.getListings(opts);
+}
 
 /**
  * Tests for AccountProvider — the owner-token data layer.
@@ -167,7 +189,10 @@ describe("AccountProvider.getSalesDashboard", () => {
 });
 
 describe("AccountProvider.getListings", () => {
-  beforeEach(() => vi.restoreAllMocks());
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    __clearVisitsStore();
+  });
   afterEach(() => vi.restoreAllMocks());
 
   it("computes summary (active, stagnant, out of stock) and conversion", async () => {
@@ -210,7 +235,7 @@ describe("AccountProvider.getListings", () => {
     ]) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
-    const res = await provider.getListings({ lastDays: 30 });
+    const res = await getListingsCollected(provider, { lastDays: 30 });
 
     expect(res.summary.total).toBe(2);
     expect(res.summary.active).toBe(2);
@@ -257,7 +282,7 @@ describe("AccountProvider.getListings", () => {
     }) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
-    const res = await provider.getListings({ lastDays: 90 });
+    const res = await getListingsCollected(provider, { lastDays: 90 });
     expect(res.summary.windowDays).toBe(90);
     const mlb9 = res.items.find((i) => i.itemId === "MLB9")!;
     expect(mlb9.visits).toBe(12);
@@ -326,7 +351,7 @@ describe("AccountProvider.getListings", () => {
     ]) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
-    const res = await provider.getListings({ lastDays: 30 });
+    const res = await getListingsCollected(provider, { lastDays: 30 });
     const mlb7 = res.items.find((i) => i.itemId === "MLB7")!;
     expect(mlb7.visits).toBe(0);
     expect(mlb7.visitsAvailable).toBe(true); // real 0, available
@@ -372,7 +397,7 @@ describe("AccountProvider.getListings", () => {
     ]) as unknown as typeof fetch;
 
     const provider = new AccountProvider("token", USER_ID);
-    const res = await provider.getListings({ lastDays: 30 });
+    const res = await getListingsCollected(provider, { lastDays: 30 });
     expect(res.summary.visitsPending).toBe(false); // partial still renders
     expect(res.summary.visitsResolved).toBe(1);
     expect(res.summary.visitsAttempted).toBe(2);

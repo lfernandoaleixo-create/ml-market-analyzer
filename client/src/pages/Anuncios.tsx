@@ -150,7 +150,12 @@ export default function Anuncios() {
     { lastDays: visitWindow },
     {
       enabled: conn.data?.connected === true,
-      refetchInterval: 5 * 60 * 1000,
+      // The per-item visits total is collected in the BACKGROUND and fills in
+      // progressively. While it is still collecting, poll every 6s so the card
+      // climbs to the real number on its own (no manual refresh needed). Once
+      // every item has resolved, relax to the normal 5-min refresh.
+      refetchInterval: (query) =>
+        query.state.data?.summary?.visitsCollecting ? 6 * 1000 : 5 * 60 * 1000,
       refetchOnWindowFocus: true,
     },
   );
@@ -176,6 +181,15 @@ export default function Anuncios() {
 
   const visitDist = useMemo(() => bucketCounts(items, VISIT_BUCKETS, (r) => r.visits), [items]);
   const visitsSeries = useMemo<VisitsDayPoint[]>(() => visits.data?.series ?? [], [visits.data]);
+
+  // PRIMARY source for the hero "Visitas (Nd)" card: the aggregated active-items
+  // series from the dedicated NON-BLOCKING endpoint. It lands in seconds, so the
+  // card never freezes on "—" waiting for the slow per-item collector.
+  const seriesTotalVisits = useMemo<number | null>(() => {
+    if (!visitsSeries.length) return null;
+    return visitsSeries.reduce((sum, p) => sum + (p.visits ?? 0), 0);
+  }, [visitsSeries]);
+  const seriesPending = visits.data?.pending === true;
 
   // Visits trend: compare the first vs. the second half of the window, ignoring
   // today (partial). Positive => visits are growing. Null when not enough data.
@@ -265,12 +279,27 @@ export default function Anuncios() {
   const s = data?.summary;
   const availableTypes = Array.from(new Set(items.map((i) => i.listingType).filter(Boolean)));
 
-  // Visit data can be "pending": ML did not return visits for ANY item within the
-  // time budget (rate limit / congestion). In that case visit numbers are NOT real
-  // zeros, so we show "Carregando…" instead of "0" and offer a refresh.
+  // Visit data can be "pending": NOT A SINGLE item has resolved yet (cold start /
+  // throttle). Only then do we hide the number behind a dash — it is NOT a real
+  // zero. As soon as the background collector resolves the first item we show the
+  // (growing) partial total instead, so the card is never frozen on "—".
   const visitsPending = !isLoading && s?.visitsPending === true;
+  // Still collecting in the background (some items resolved, more on the way).
+  // We keep the page polling and show a discreet progress hint, but DISPLAY the
+  // partial number so the user sees it climbing toward the real total.
+  const visitsCollecting = !isLoading && s?.visitsCollecting === true;
+  // The hero "Visitas (Nd)" card is driven by the fast aggregated SERIES. It is
+  // only truly "pending" (show a dash) when the series itself has not landed yet
+  // AND there is no per-item fallback total. Once the series arrives we always
+  // have a real number, so the card never stays frozen on "—".
+  const heroVisitsValue = seriesTotalVisits ?? (visitsPending ? null : (s?.totalVisits ?? 0));
+  const heroVisitsPending = heroVisitsValue == null && (seriesPending || visitsPending);
+  const visitsResolved = s?.visitsResolved ?? 0;
+  const visitsAttempted = s?.visitsAttempted ?? 0;
+  const collectProgress =
+    visitsAttempted > 0 ? `${formatNumber(visitsResolved)} de ${formatNumber(visitsAttempted)} anúncios` : "";
   const LOADING = "—";
-  /** Show the real number, or a loading dash when visits are pending. */
+  /** Show the real (or growing partial) number; a dash only on a cold start. */
   const visitVal = (n: number | undefined) =>
     isLoading ? "" : visitsPending ? LOADING : formatNumber(n ?? 0);
 
@@ -315,12 +344,20 @@ export default function Anuncios() {
         </div>
       )}
 
-      {visitsPending && (
+      {heroVisitsPending && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-2.5 text-sm text-blue-700">
           <div className="flex items-center gap-2">
-            <RefreshCw className={cn("h-4 w-4 shrink-0", isFetching && "animate-spin")} />
+            <RefreshCw className="h-4 w-4 shrink-0 animate-spin" />
             <span>
-              As <strong>visitas</strong> ainda estão sendo carregadas do Mercado Livre (o ML limita a consulta de visitas a um anúncio por vez). Os demais dados já estão atualizados. <strong>Isto não é zero de visitas</strong> — é carregamento.
+              {visitsPending ? (
+                <>
+                  As <strong>visitas</strong> estão sendo carregadas do Mercado Livre (o ML só permite consultar um anúncio por vez). Os demais dados já estão atualizados e o total de visitas vai aparecer em instantes. <strong>Isto não é zero de visitas</strong> — é carregamento.
+                </>
+              ) : (
+                <>
+                  Carregando as <strong>visitas</strong> do Mercado Livre — {collectProgress} já processados. O total acima vai subindo sozinho até concluir; não precisa atualizar.
+                </>
+              )}
             </span>
           </div>
           <Button
@@ -331,7 +368,7 @@ export default function Anuncios() {
             disabled={isFetching}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
-            {isFetching ? "Atualizando…" : "Atualizar visitas"}
+            {isFetching ? "Atualizando…" : "Atualizar agora"}
           </Button>
         </div>
       )}
@@ -347,12 +384,18 @@ export default function Anuncios() {
         />
         <KpiCard
           label={`Visitas (${visitWindow}d)`}
-          value={visitVal(s?.totalVisits)}
+          value={isLoading ? "" : heroVisitsPending ? LOADING : formatNumber(heroVisitsValue ?? 0)}
           loading={isLoading}
           icon={Eye}
           accent="blue"
-          sublabel={visitsPending ? "carregando do Mercado Livre…" : undefined}
-          trend={visitsPending ? undefined : { pct: visitsTrendPct, label: "vs. período anterior" }}
+          sublabel={
+            heroVisitsPending
+              ? "carregando do Mercado Livre…"
+              : seriesPending
+                ? "atualizando…"
+                : undefined
+          }
+          trend={heroVisitsPending ? undefined : { pct: visitsTrendPct, label: "vs. período anterior" }}
         />
         <KpiCard
           label="Pausados"

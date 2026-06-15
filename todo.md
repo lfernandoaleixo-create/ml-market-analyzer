@@ -1060,3 +1060,13 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest: TTS interestadual DIFAL>0; TTS interno sem DIFAL; FCP no TTS; soma confere — 516 testes verdes + TS limpo
 - [x] Validado na preview com TTS ligado e dados reais: DIFAL R$ 68,69 (38,2%), ICMS efetivo R$ 30,54, federais R$ 80,42
 - [ ] Após publicar: Fernando confere os valores de DIFAL com o contador
+
+## Bug: card VISITAS travado em "carregando" (Fernando, 15/06)
+- [x] Coletor de visitas progressivo no provider: cache acumulado por item (visitsStore — merge entre execuções, nunca descarta o que já coletou) + refresh em background
+- [x] getListings não-bloqueante: lê o mapa de visitas já coletado (readVisits/ensureCollecting) em vez do fan-out de 13s; dispara coleta em background
+- [x] Card herói usa o total da série (seriesTotalVisits = soma de visitsSeries, endpoint rápido agregado) como fonte primária; coletor por item é fallback — card mostra 403 imediatamente
+- [x] Expor cobertura (visitsResolved/visitsAttempted/visitsCollecting) no ListingsSummary para o front saber se ainda está parcial
+- [x] Frontend: polling automático a cada 6s enquanto coletando, exibição parcial progressiva; banner só quando heroVisitsPending (nenhum número disponível)
+- [x] Testes vitest (merge acumulado; pending só no zero absoluto; parcial renderiza) — 522 testes verdes + TS limpo
+- [x] Validação na preview com a conta real: card "Visitas (30d)" = 403 imediato, sem banner; gráfico/Visualizações por status consistentes (Total 30d 403)
+- [ ] Após publicar: Fernando valida em produção que o card de visitas mostra o número rápido no primeiro acesso
