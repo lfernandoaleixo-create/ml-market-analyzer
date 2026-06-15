@@ -55,8 +55,14 @@ const periodInput = z
   })
   .optional();
 
-/** Ads data changes slowly intraday; cache a bit longer than account data. */
-const ADS_TTL_MS = 5 * 60 * 1000;
+/**
+ * Ads data changes slowly intraday. We cache for 15 min so the 6-tab fan-out
+ * mostly hits the cache, which keeps the per-instance ML call count low — the
+ * single biggest lever against the recurring 429 from ML's short-window IP/token
+ * limit. cachedAccountResilient also serves the last good value on a transient
+ * 429, so the tab shows data (slightly stale) instead of the red error screen.
+ */
+const ADS_TTL_MS = 15 * 60 * 1000;
 
 export const adsRouter = router({
   /** Quick connection/access probe for Ads (does the account have Product Ads?). */
@@ -181,31 +187,39 @@ export const adsRouter = router({
   audit: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 30;
     return runAds(async () => {
-      const ads = await resolveAds(ctx.user.id);
-      const advertiserId = await ads.getAdvertiserId();
-      if (!advertiserId) {
-        return {
-          connection: "no_ads_access" as const,
-          trackingSince: null,
-          daysTracked: 0,
-          snapshotDays: 0,
-          changes: [],
-          managedCampaigns: [],
-          summary: { totalChanges: 0, coherent: 0, questionable: 0, mambaCampaigns: 0 },
-          computedAt: Date.now(),
-        };
-      }
-      const campaigns = await ads.getCampaigns(Number(days));
-      // Capture today's snapshot (idempotent) and diff vs the prior day.
-      try {
-        // Snapshot tracks ACTIVE ads only (not paused/closed).
-        const adRows = await ads.getAds(Number(days), undefined, 400, { activeOnly: true });
-        await captureDailySnapshot(ctx.user.id, campaigns, adRows);
-      } catch (e) {
-        console.warn("[ads] snapshot (audit) failed:", (e as Error)?.message ?? e);
-      }
-      const report = await buildAuditReport(ctx.user.id, campaigns);
-      return { connection: "connected" as const, ...report };
+      const { value } = await cachedAccountResilient(
+        ctx.user.id,
+        `ads:audit:${days}`,
+        async () => {
+          const ads = await resolveAds(ctx.user.id);
+          const advertiserId = await ads.getAdvertiserId();
+          if (!advertiserId) {
+            return {
+              connection: "no_ads_access" as const,
+              trackingSince: null,
+              daysTracked: 0,
+              snapshotDays: 0,
+              changes: [],
+              managedCampaigns: [],
+              summary: { totalChanges: 0, coherent: 0, questionable: 0, mambaCampaigns: 0 },
+              computedAt: Date.now(),
+            };
+          }
+          const campaigns = await ads.getCampaigns(Number(days));
+          // Capture today's snapshot (idempotent) and diff vs the prior day.
+          try {
+            // Snapshot tracks ACTIVE ads only (not paused/closed).
+            const adRows = await ads.getAds(Number(days), undefined, 400, { activeOnly: true });
+            await captureDailySnapshot(ctx.user.id, campaigns, adRows);
+          } catch (e) {
+            console.warn("[ads] snapshot (audit) failed:", (e as Error)?.message ?? e);
+          }
+          const report = await buildAuditReport(ctx.user.id, campaigns);
+          return { connection: "connected" as const, ...report };
+        },
+        ADS_TTL_MS,
+      );
+      return value;
     });
   }),
 

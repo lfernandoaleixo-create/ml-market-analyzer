@@ -987,4 +987,6 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Resiliência: leituras de ADS (dashboard, campaigns, ads, categories, insights) migradas para cachedAccountResilient → em 429 transitório a tela mostra o ÚLTIMO dado bom (stale) em vez do erro vermelho
 - [x] Limitador transparente sob teste (bypass + spacing 0 + cooldown off) para não acoplar com fake timers/isolamento; comportamento real coberto por mlRateLimiter.test.ts (4 testes)
 - [x] Suíte completa verde (501 testes) + TypeScript limpo + checkpoint
-- [ ] PENDENTE (fora do controle de código): se o 429 persistir no site PUBLICADO, é limite de IP/cota do ML — avaliar throttle ainda maior/cache mais longo ou contato com o ML; validar no ambiente publicado (egress diferente do sandbox)
+- [x] Reforço para produção: TTL de cache do ADS aumentado de 5min → 15min (as 6 abas batem quase tudo em cache, reduzindo o nº de chamadas ao ML — maior alavanca contra o 429) e aba Auditoria também migrada para cachedAccountResilient
+- [x] Suíte verde após reforços (cache/limitador) + TypeScript limpo + checkpoint
+- [ ] PENDENTE (fora do controle de código): se o 429 ainda persistir no site PUBLICADO mesmo com cache 15min, é limite de IP/cota do ML — validar no ambiente publicado (egress diferente do sandbox); se persistir, avaliar contato com o ML
