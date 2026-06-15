@@ -1,4 +1,5 @@
-import type { TaxConfig, UF } from "@shared/finance";
+import type { TaxConfig, TaxDetailTotals, UF } from "@shared/finance";
+import { interstateExitRate } from "@shared/finance";
 
 /**
  * Build a clean, printable HTML document for the tax configuration and open it
@@ -18,7 +19,15 @@ type ExportOptions = {
   note?: string | null;
   /** Store/owner display name for the header. */
   storeName?: string | null;
+  /** Optional period tax detail (ICMS vs DIFAL vs FCP) to print a summary. */
+  taxDetail?: TaxDetailTotals | null;
+  /** Optional label of the analysed period (e.g. "Últimos 30 dias"). */
+  periodLabel?: string | null;
 };
+
+function fmtBRL(n: number): string {
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 
 function fmtPct(n: number): string {
   return `${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%`;
@@ -58,15 +67,38 @@ export function buildTaxConfigHtml(opts: ExportOptions): string {
     ["ICMS interno de MG (sem TTS)", config.icmsInternalOrigin],
   ] as const;
 
+  // Per-UF rows now SEPARATE the interstate ICMS exit share and the DIFAL, so
+  // the accountant sees exactly how the destination internal rate is composed.
   const ufRows = ufList
     .map((uf) => {
-      const icms = config.icmsInternalByUF[uf] ?? 0;
+      const internal = config.icmsInternalByUF[uf] ?? 0;
+      const isOrigin = uf === config.originUF;
+      const exit = isOrigin ? 0 : interstateExitRate(uf);
+      const difal = isOrigin ? 0 : Math.max(0, Math.round((internal - exit) * 100) / 100);
       const fcp = config.fcpByUF?.[uf];
-      const fcpCell =
-        fcp != null && fcp > 0 ? fmtPct(fcp) : "<span class=\"muted\">—</span>";
-      return `<tr><td>${uf}</td><td class="num">${fmtPct(icms)}</td><td class="num">${fcpCell}</td></tr>`;
+      const fcpCell = fcp != null && fcp > 0 ? fmtPct(fcp) : "<span class=\"muted\">—</span>";
+      const exitCell = isOrigin ? "<span class=\"muted\">interno</span>" : fmtPct(exit);
+      const difalCell = isOrigin ? "<span class=\"muted\">—</span>" : fmtPct(difal);
+      return `<tr><td>${uf}${isOrigin ? " <span class=\"muted\">(origem)</span>" : ""}</td><td class="num">${fmtPct(internal)}</td><td class="num">${exitCell}</td><td class="num">${difalCell}</td><td class="num">${fcpCell}</td></tr>`;
     })
     .join("");
+
+  // Optional period summary block (federal / ICMS / DIFAL / FCP) in BRL.
+  const periodBlock =
+    opts.taxDetail && opts.taxDetail.total > 0
+      ? `
+  <h2>Impostos do período${opts.periodLabel ? ` — ${escapeHtml(opts.periodLabel)}` : ""} (estimativa)</h2>
+  <table class="summary">
+    <thead><tr><th>Componente</th><th class="num">Valor</th></tr></thead>
+    <tbody>
+      <tr><td>Impostos federais (PIS, COFINS, IRPJ, CSLL)</td><td class="num">${fmtBRL(opts.taxDetail.federal)}</td></tr>
+      <tr><td>ICMS ${config.ttsEnabled ? "(efetivo com TTS)" : "(parcela da origem)"}</td><td class="num">${fmtBRL(opts.taxDetail.icms)}</td></tr>
+      <tr><td><strong>DIFAL (diferencial pago ao destino)</strong></td><td class="num"><strong>${fmtBRL(opts.taxDetail.difal)}</strong></td></tr>
+      ${opts.taxDetail.fcp > 0 ? `<tr><td>FCP (Fundo de Combate à Pobreza)</td><td class="num">${fmtBRL(opts.taxDetail.fcp)}</td></tr>` : ""}
+      <tr><td><strong>Total de impostos</strong></td><td class="num"><strong>${fmtBRL(opts.taxDetail.total)}</strong></td></tr>
+    </tbody>
+  </table>`
+      : "";
 
   const noteBlock =
     note && note.trim().length > 0
@@ -101,9 +133,11 @@ export function buildTaxConfigHtml(opts: ExportOptions): string {
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .summary td:first-child { color: #52525b; }
   .summary tr:last-child td { font-weight: 700; border-top: 2px solid #d4d4d8; }
-  .ufgrid { columns: 3; column-gap: 24px; }
+  .ufgrid { columns: 2; column-gap: 24px; }
   .ufgrid table { break-inside: avoid; }
   .note { margin-top: 14px; padding: 10px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; font-size: 12px; }
+  .difal { margin-top: 4px; padding: 10px 12px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; font-size: 12px; color: #4c1d95; }
+  .difal strong { color: #5b21b6; }
   .disclaimer { margin-top: 22px; padding: 12px 14px; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; font-size: 11px; color: #52525b; }
   .footer { margin-top: 18px; font-size: 10px; color: #a1a1aa; text-align: center; }
   @media print { body { padding: 0; } @page { margin: 16mm; } }
@@ -148,10 +182,23 @@ export function buildTaxConfigHtml(opts: ExportOptions): string {
     </tbody>
   </table>
 
-  <h2>ICMS interno por estado de destino (cenário sem TTS)</h2>
+  <h2>DIFAL — como é calculado</h2>
+  <div class="difal">
+    <p style="margin:0 0 6px">Nas vendas <strong>interestaduais ao consumidor final</strong>, o ICMS
+    divide-se em duas parcelas:</p>
+    <ul style="margin:0 0 6px; padding-left:18px">
+      <li><strong>ICMS interestadual (saída):</strong> 12% para Sul/Sudeste (exceto ES) e 7% para os demais estados — fica no estado de origem (${config.originUF}).</li>
+      <li><strong>DIFAL (diferencial de alíquota):</strong> diferença entre a alíquota interna do estado de destino e a alíquota interestadual de saída — é pago ao estado de destino.</li>
+    </ul>
+    <p style="margin:0">Exemplo: destino SP (interna 18%) → saída 12% + <strong>DIFAL 6%</strong>. Destino BA (interna 20,5%) → saída 7% + <strong>DIFAL 13,5%</strong>.</p>
+  </div>
+
+  ${periodBlock}
+
+  <h2>ICMS por estado de destino — separando ICMS interestadual e DIFAL (sem TTS)</h2>
   <div class="ufgrid">
     <table>
-      <thead><tr><th>UF</th><th class="num">ICMS</th><th class="num">FCP</th></tr></thead>
+      <thead><tr><th>UF</th><th class="num">Interna</th><th class="num">Saída</th><th class="num">DIFAL</th><th class="num">FCP</th></tr></thead>
       <tbody>${ufRows}</tbody>
     </table>
   </div>

@@ -7,6 +7,7 @@ import {
   emptyProfit,
   federalLines,
   icmsLine,
+  icmsSplit,
 } from "./taxEngine";
 
 describe("taxEngine — federal (Lucro Presumido)", () => {
@@ -97,6 +98,64 @@ describe("taxEngine — taxRevenue efetiva", () => {
     const b = taxRevenue(1000, "SP", "com_tts", cfg);
     expect(b.taxTotal).toBeCloseTo(72.3, 2);
     expect(b.effectiveRate).toBeCloseTo(7.23, 2);
+  });
+});
+
+describe("taxEngine — decomposição ICMS x DIFAL (sem TTS)", () => {
+  const cfg = defaultTaxConfig();
+
+  it("interestadual SP: ICMS saída 12% + DIFAL 6% = 18% (soma == total)", () => {
+    const s = icmsSplit(1000, "SP", "sem_tts", cfg);
+    // SP interno 18, saída S/SE = 12 → DIFAL = 6
+    expect(s.icmsBaseAmount).toBe(120); // 12% de 1000
+    expect(s.difalAmount).toBe(60); // 6% de 1000
+    expect(s.fcpAmount).toBe(0);
+    expect(s.totalAmount).toBe(180);
+    // a soma das linhas deve bater com o total
+    const sum = s.lines.reduce((acc, l) => acc + l.amount, 0);
+    expect(sum).toBeCloseTo(s.totalAmount, 2);
+  });
+
+  it("interestadual BA: saída 7% + DIFAL 13,5% = 20,5% (soma == total)", () => {
+    const s = icmsSplit(1000, "BA", "sem_tts", cfg);
+    // BA interno 20,5, saída N/NE/CO = 7 → DIFAL = 13,5
+    expect(s.icmsBaseAmount).toBe(70);
+    expect(s.difalAmount).toBe(135);
+    expect(s.totalAmount).toBe(205);
+  });
+
+  it("venda interna (MG): sem DIFAL, ICMS interno cheio", () => {
+    const s = icmsSplit(1000, "MG", "sem_tts", cfg);
+    expect(s.difalAmount).toBe(0);
+    expect(s.icmsBaseAmount).toBe(180); // 18% de 1000
+    expect(s.totalAmount).toBe(180);
+  });
+
+  it("FCP entra separado e a soma continua igual ao total", () => {
+    const c = defaultTaxConfig();
+    c.fcpByUF = { RJ: 2 };
+    const s = icmsSplit(1000, "RJ", "sem_tts", c);
+    // RJ interno 20, saída 12 → DIFAL 8; FCP 2
+    expect(s.icmsBaseAmount).toBe(120);
+    expect(s.difalAmount).toBe(80);
+    expect(s.fcpAmount).toBe(20);
+    expect(s.totalAmount).toBe(220);
+    const sum = s.lines.reduce((acc, l) => acc + l.amount, 0);
+    expect(sum).toBeCloseTo(220, 2);
+  });
+
+  it("com TTS não gera DIFAL (linha única efetiva)", () => {
+    const s = icmsSplit(1000, "SP", "com_tts", cfg);
+    expect(s.difalAmount).toBe(0);
+    expect(s.totalAmount).toBe(13); // 1,3% de 1000
+  });
+
+  it("taxRevenue expoe icmsInterstateTotal/difalTotal e bate com icmsTotal", () => {
+    const b = taxRevenue(1000, "SP", "sem_tts", cfg);
+    expect(b.icmsInterstateTotal).toBe(120);
+    expect(b.difalTotal).toBe(60);
+    expect(b.fcpTotal).toBe(0);
+    expect(b.icmsInterstateTotal + b.difalTotal + b.fcpTotal).toBeCloseTo(b.icmsTotal, 2);
   });
 });
 

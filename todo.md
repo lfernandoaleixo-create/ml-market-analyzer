@@ -1038,3 +1038,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Correção: gera via iframe oculto na própria página (srcdoc + print), sem abrir janela nova — nunca é bloqueado; removido o <script> auto-print embutido
 - [x] Fallback: se iframe falhar, baixa arquivo .html para o usuário abrir/imprimir
 - [x] Validado na preview: clique aciona o diálogo de impressão in-page sem pop-up; 508 testes verdes; TS limpo
+
+
+## Clareza do DIFAL na Lucratividade (Fernando, 15/06)
+- [x] Engine: decompõe ICMS interestadual sem TTS em 2 linhas (ICMS interestadual origem 7%/12% + DIFAL destino), mantendo o total igual (icmsSplit)
+- [x] Engine: novos campos no TaxBreakdown (icmsTotal, difalTotal, fcpTotal) e helper interstateExitRate (12% S/SE exceto ES, 7% demais)
+- [x] Tela: novo card "Impostos do período: ICMS x DIFAL" (TaxBreakdownCard) com DIFAL destacado; taxDetail no ProfitabilityResult
+- [x] Card de configuração: bloco explicativo "O que é o DIFAL" com exemplos (SP → 6%, BA → 13,5%)
+- [x] PDF do contador: seção "DIFAL — como é calculado" + tabela por estado (Interna/Saída/DIFAL/FCP) + resumo do período em R$
+- [x] "Quanto foi imposto x quanto foi DIFAL" claro no card do período e no resumo do PDF
+- [x] Testes vitest (decomposição soma igual ao total; 7%/12%; DIFAL=interna-interestadual) — 514 testes verdes + TS limpo
+- [x] Validado na preview: bloco DIFAL no painel + HTML do PDF (7/7 checagens true)
+- [ ] Após publicar: Fernando confere o card ICMS x DIFAL com vendas reais e o PDF com o contador

@@ -22,7 +22,7 @@ import {
   type UF,
 } from "../../shared/finance";
 import { type BlOrder, type BlProductCost } from "../baselinker/provider";
-import { computeProfit, addProfit, emptyProfit } from "./taxEngine";
+import { computeProfit, addProfit, emptyProfit, taxRevenue } from "./taxEngine";
 
 export interface CostLookup {
   byId: Map<string, BlProductCost>;
@@ -84,6 +84,8 @@ export function buildProfitability(params: {
 
   let totalsSem = emptyProfit();
   let totalsCom = emptyProfit();
+  // Period tax detail under the SELECTED scenario (ICMS vs DIFAL vs FCP).
+  const taxAcc = { federal: 0, icms: 0, difal: 0, fcp: 0 };
   const listings = new Map<string, ListingAccumulator>();
   const ufAgg = new Map<string, { orders: number; revenue: number }>();
   const missingCostProducts = new Set<string>();
@@ -125,6 +127,14 @@ export function buildProfitability(params: {
       const pCom = computeProfit({ ...baseInput, ads: 0 }, "com_tts", config);
       totalsSem = addProfit(totalsSem, pSem);
       totalsCom = addProfit(totalsCom, pCom);
+
+      // Accumulate the tax detail (federal / ICMS / DIFAL / FCP) for the
+      // selected scenario so the UI and PDF can break it down clearly.
+      const txb = taxRevenue(lineRevenue, uf as UF | null, scenario, config);
+      taxAcc.federal += txb.federalTotal;
+      taxAcc.icms += txb.icmsInterstateTotal;
+      taxAcc.difal += txb.difalTotal;
+      taxAcc.fcp += txb.fcpTotal;
 
       // Per-listing accumulation (scenario-selected; Ads added once, post-loop).
       const itemId = line.itemId;
@@ -218,6 +228,15 @@ export function buildProfitability(params: {
 
   const totals = scenario === "com_tts" ? totalsCom : totalsSem;
 
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  const taxDetail = {
+    federal: round2(taxAcc.federal),
+    icms: round2(taxAcc.icms),
+    difal: round2(taxAcc.difal),
+    fcp: round2(taxAcc.fcp),
+    total: round2(taxAcc.federal + taxAcc.icms + taxAcc.difal + taxAcc.fcp),
+  };
+
   const byUF = Array.from(ufAgg.entries())
     .map(([uf, v]) => ({ uf: uf as UF | "??", orders: v.orders, revenue: Math.round(v.revenue * 100) / 100 }))
     .sort((a, b) => b.revenue - a.revenue);
@@ -230,6 +249,7 @@ export function buildProfitability(params: {
     orderCount: orders.length,
     totals,
     comparison,
+    taxDetail,
     listings: listingRows,
     byUF,
     config,

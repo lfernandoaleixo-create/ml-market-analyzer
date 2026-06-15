@@ -10,6 +10,7 @@
  */
 
 import {
+  interstateExitRate,
   type ProfitBreakdown,
   type TaxBreakdown,
   type TaxConfig,
@@ -38,53 +39,139 @@ export function federalLines(revenue: number, cfg: TaxConfig): TaxLine[] {
  *   internal rate). FCP added when configured for the destination UF.
  * - WITH TTS: credit-presumed effective burden (interstate flat, in-state flat).
  */
+/**
+ * Detailed split of the ICMS burden for one sale. Returns one or more lines so
+ * the UI/PDF can show exactly how much is plain ICMS, how much is DIFAL and how
+ * much is FCP. The SUM of all line amounts equals the total ICMS burden (the
+ * previous single-line value), so totals never change — only transparency.
+ */
+export interface IcmsSplit {
+  lines: TaxLine[];
+  inState: boolean;
+  /** ICMS kept by the origin state (interstate share, or full in-state ICMS). */
+  icmsBaseAmount: number;
+  /** DIFAL paid to the destination state (interstate B2C without TTS only). */
+  difalAmount: number;
+  /** FCP amount (destination), when configured. */
+  fcpAmount: number;
+  /** Total ICMS burden = icmsBaseAmount + difalAmount + fcpAmount. */
+  totalAmount: number;
+}
+
+export function icmsSplit(
+  revenue: number,
+  destinationUF: UF | null,
+  scenario: TaxScenario,
+  cfg: TaxConfig,
+): IcmsSplit {
+  const inState = destinationUF != null && destinationUF === cfg.originUF;
+
+  // ---- Scenario WITH TTS: single effective line, no DIFAL split. ----
+  if (scenario === "com_tts") {
+    const rate = inState ? cfg.ttsInternal : cfg.ttsInterstate;
+    const amount = round2(pct(rate, revenue));
+    return {
+      lines: [
+        {
+          key: "icms",
+          label: inState ? "ICMS (TTS interno)" : "ICMS (TTS interestadual)",
+          ratePercent: rate,
+          amount,
+        },
+      ],
+      inState,
+      icmsBaseAmount: amount,
+      difalAmount: 0,
+      fcpAmount: 0,
+      totalAmount: amount,
+    };
+  }
+
+  // ---- Scenario WITHOUT TTS (normal regime). ----
+  const fcpRate = destinationUF ? (cfg.fcpByUF?.[destinationUF] ?? 0) : 0;
+  const fcpAmount = round2(pct(fcpRate, revenue));
+
+  // In-state sale: full internal ICMS of the origin state, no DIFAL.
+  if (inState) {
+    const rate = cfg.icmsInternalOrigin;
+    const icmsBaseAmount = round2(pct(rate, revenue));
+    const lines: TaxLine[] = [
+      { key: "icms", label: `ICMS interno (${cfg.originUF})`, ratePercent: rate, amount: icmsBaseAmount },
+    ];
+    if (fcpAmount > 0) lines.push({ key: "fcp", label: "FCP", ratePercent: fcpRate, amount: fcpAmount });
+    return {
+      lines,
+      inState,
+      icmsBaseAmount,
+      difalAmount: 0,
+      fcpAmount,
+      totalAmount: round2(icmsBaseAmount + fcpAmount),
+    };
+  }
+
+  // Unknown destination: conservative estimate using origin internal rate.
+  if (!destinationUF) {
+    const rate = cfg.icmsInternalOrigin;
+    const icmsBaseAmount = round2(pct(rate, revenue));
+    return {
+      lines: [
+        { key: "icms", label: "ICMS (estimado — destino desconhecido)", ratePercent: rate, amount: icmsBaseAmount },
+      ],
+      inState,
+      icmsBaseAmount,
+      difalAmount: 0,
+      fcpAmount: 0,
+      totalAmount: icmsBaseAmount,
+    };
+  }
+
+  // Interstate B2C sale: split into interstate ICMS (origin) + DIFAL (destination).
+  const internalRate = cfg.icmsInternalByUF[destinationUF] ?? cfg.icmsInternalOrigin;
+  const exitRate = interstateExitRate(destinationUF);
+  // DIFAL completes the destination's internal rate; never negative.
+  const difalRate = Math.max(0, round2(internalRate - exitRate));
+  const icmsBaseAmount = round2(pct(exitRate, revenue));
+  const difalAmount = round2(pct(difalRate, revenue));
+  const lines: TaxLine[] = [
+    { key: "icms_interestadual", label: `ICMS interestadual (saída ${cfg.originUF} → ${destinationUF})`, ratePercent: exitRate, amount: icmsBaseAmount },
+    { key: "difal", label: `DIFAL (destino ${destinationUF})`, ratePercent: difalRate, amount: difalAmount },
+  ];
+  if (fcpAmount > 0) lines.push({ key: "fcp", label: `FCP (${destinationUF})`, ratePercent: fcpRate, amount: fcpAmount });
+  return {
+    lines,
+    inState,
+    icmsBaseAmount,
+    difalAmount,
+    fcpAmount,
+    totalAmount: round2(icmsBaseAmount + difalAmount + fcpAmount),
+  };
+}
+
+/**
+ * Backward-compatible single ICMS line (sum of the split). Kept so existing
+ * callers/tests that expect one consolidated line keep working.
+ */
 export function icmsLine(
   revenue: number,
   destinationUF: UF | null,
   scenario: TaxScenario,
   cfg: TaxConfig,
 ): { line: TaxLine; inState: boolean } {
-  const inState = destinationUF != null && destinationUF === cfg.originUF;
-
-  if (scenario === "com_tts") {
-    const rate = inState ? cfg.ttsInternal : cfg.ttsInterstate;
-    return {
-      line: {
-        key: "icms",
-        label: inState ? "ICMS (TTS interno)" : "ICMS (TTS interestadual)",
-        ratePercent: rate,
-        amount: round2(pct(rate, revenue)),
-      },
-      inState,
-    };
-  }
-
-  // WITHOUT TTS (normal regime).
-  let rate: number;
+  const split = icmsSplit(revenue, destinationUF, scenario, cfg);
+  const totalRate = revenue > 0 ? round2((split.totalAmount / revenue) * 100) : 0;
   let label: string;
-  if (inState) {
-    rate = cfg.icmsInternalOrigin;
-    label = "ICMS (interno MG)";
+  if (scenario === "com_tts") {
+    label = split.inState ? "ICMS (TTS interno)" : "ICMS (TTS interestadual)";
+  } else if (split.inState) {
+    label = `ICMS interno (${cfg.originUF})`;
   } else if (destinationUF) {
-    // Effective burden ≈ destination internal rate (interstate + DIFAL).
-    rate = cfg.icmsInternalByUF[destinationUF] ?? cfg.icmsInternalOrigin;
-    label = "ICMS+DIFAL (destino)";
+    label = split.fcpAmount > 0 ? "ICMS+DIFAL+FCP (destino)" : "ICMS+DIFAL (destino)";
   } else {
-    // Unknown destination: fall back to origin internal rate as a conservative
-    // estimate (signaled by the caller as an estimate).
-    rate = cfg.icmsInternalOrigin;
     label = "ICMS (estimado)";
   }
-  const fcp = destinationUF ? (cfg.fcpByUF?.[destinationUF] ?? 0) : 0;
-  const totalRate = rate + fcp;
   return {
-    line: {
-      key: "icms",
-      label: fcp > 0 ? `${label} + FCP` : label,
-      ratePercent: totalRate,
-      amount: round2(pct(totalRate, revenue)),
-    },
-    inState,
+    line: { key: "icms", label, ratePercent: totalRate, amount: split.totalAmount },
+    inState: split.inState,
   };
 }
 
@@ -96,19 +183,22 @@ export function taxRevenue(
   cfg: TaxConfig,
 ): TaxBreakdown {
   const fed = federalLines(revenue, cfg);
-  const { line: icms, inState } = icmsLine(revenue, destinationUF, scenario, cfg);
-  const lines = [...fed, icms];
+  const split = icmsSplit(revenue, destinationUF, scenario, cfg);
+  const lines = [...fed, ...split.lines];
   const federalTotal = round2(fed.reduce((s, l) => s + l.amount, 0));
-  const icmsTotal = round2(icms.amount);
+  const icmsTotal = round2(split.totalAmount);
   const taxTotal = round2(federalTotal + icmsTotal);
   const effectiveRate = revenue > 0 ? round2((taxTotal / revenue) * 100) : 0;
   return {
     scenario,
     destinationUF,
-    inState,
+    inState: split.inState,
     revenue: round2(revenue),
     federalTotal,
     icmsTotal,
+    icmsInterstateTotal: round2(split.icmsBaseAmount),
+    difalTotal: round2(split.difalAmount),
+    fcpTotal: round2(split.fcpAmount),
     taxTotal,
     effectiveRate,
     lines,

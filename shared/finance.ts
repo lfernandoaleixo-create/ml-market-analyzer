@@ -83,6 +83,20 @@ export interface TaxBreakdown {
   federalTotal: number;
   /** ICMS (+ DIFAL +FCP) total under the chosen scenario. */
   icmsTotal: number;
+  /**
+   * Of the icmsTotal, how much is the interstate ICMS share kept by the ORIGIN
+   * state (7%/12% on interstate B2C sales without TTS). Zero for in-state
+   * sales and for the TTS scenario.
+   */
+  icmsInterstateTotal: number;
+  /**
+   * Of the icmsTotal, how much is the DIFAL — the difference paid to the
+   * DESTINATION state (destination internal rate minus interstate exit rate).
+   * Zero for in-state sales and for the TTS scenario.
+   */
+  difalTotal: number;
+  /** Of the icmsTotal, how much is FCP (Fundo de Combate à Pobreza). */
+  fcpTotal: number;
   /** Sum of federalTotal + icmsTotal. */
   taxTotal: number;
   /** Effective total tax rate over revenue (percent). */
@@ -121,6 +135,24 @@ export interface ListingProfitRow {
   missingCost: boolean;
 }
 
+/**
+ * Period-level breakdown of the tax burden under the SELECTED scenario, so the
+ * UI and the accountant PDF can show clearly how much of the tax was plain
+ * ICMS, how much was DIFAL and how much was FCP.
+ */
+export interface TaxDetailTotals {
+  /** Federal taxes (PIS+COFINS+IRPJ+CSLL). */
+  federal: number;
+  /** ICMS kept by origin: interstate share (B2C) + in-state internal ICMS. */
+  icms: number;
+  /** DIFAL paid to destination states (interstate B2C, sem TTS). */
+  difal: number;
+  /** FCP (Fundo de Combate à Pobreza), destination. */
+  fcp: number;
+  /** Total taxes = federal + icms + difal + fcp. */
+  total: number;
+}
+
 /** A comparison of the two scenarios side by side (totals). */
 export interface ScenarioComparison {
   semTts: ProfitBreakdown;
@@ -143,6 +175,8 @@ export interface ProfitabilityResult {
   totals: ProfitBreakdown;
   /** Side-by-side comparison of both scenarios (totals). */
   comparison: ScenarioComparison;
+  /** Tax breakdown of the period under the selected scenario (ICMS vs DIFAL vs FCP). */
+  taxDetail: TaxDetailTotals;
   /** Profit per listing (selected scenario), ranked by netProfit desc. */
   listings: ListingProfitRow[];
   /** Sales distribution by destination UF (count). */
@@ -179,6 +213,20 @@ export const DEFAULT_ICMS_INTERNAL: Record<UF, number> = {
  * WITHOUT-TTS ICMS burden is the destination's internal rate.
  */
 export const INTERSTATE_12_DESTINATIONS: UF[] = ["SP", "RJ", "PR", "SC", "RS"];
+
+/**
+ * Interstate ICMS exit rate from the origin state toward a destination UF, for
+ * B2C interstate sales (percent). South/Southeast (except ES) = 12%; the rest
+ * (North/Northeast/Center-West and ES) = 7%.
+ *
+ * NOTE: imported goods ("conteúdo de importação" > 40%) carry a 4% interstate
+ * rate. This helper covers the common 7%/12% national-origin case; if the
+ * seller deals mostly with imported goods, the rate can be tuned in config
+ * later. The DIFAL is always (destination internal rate − this exit rate).
+ */
+export function interstateExitRate(destinationUF: UF): number {
+  return INTERSTATE_12_DESTINATIONS.includes(destinationUF) ? 12 : 7;
+}
 
 /** Build the default, fully-editable tax config. */
 export function defaultTaxConfig(): TaxConfig {

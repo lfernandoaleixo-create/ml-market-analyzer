@@ -36,8 +36,9 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { usePeriod } from "@/hooks/usePeriod";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { ProfitFlow } from "@/components/finance/ProfitFlow";
+import { TaxBreakdownCard } from "@/components/finance/TaxBreakdownCard";
 import { toast } from "sonner";
-import type { ProfitBreakdown, TaxConfig, UF } from "@shared/finance";
+import type { ProfitBreakdown, TaxConfig, TaxDetailTotals, UF } from "@shared/finance";
 import {
   Wallet,
   Coins,
@@ -179,11 +180,15 @@ function ConfigPanel({
   config,
   ufList,
   inventoryId,
+  taxDetail,
+  periodLabel,
   onSaved,
 }: {
   config: TaxConfig;
   ufList: UF[];
   inventoryId: number | null;
+  taxDetail?: TaxDetailTotals | null;
+  periodLabel?: string | null;
   onSaved: () => void;
 }) {
   const utils = trpc.useUtils();
@@ -223,6 +228,8 @@ function ConfigPanel({
       inventoryName: selectedInventoryName(),
       note: note.trim() || null,
       storeName: user?.name ?? null,
+      taxDetail: taxDetail ?? null,
+      periodLabel: periodLabel ?? null,
     });
     if (!ok) {
       toast.error(
@@ -307,6 +314,26 @@ function ConfigPanel({
         </div>
       </div>
 
+      {/* DIFAL explainer (Fernando's request) */}
+      <div className="rounded-lg border border-violet-500/30 bg-violet-500/[0.05] p-3 space-y-1.5">
+        <h3 className="text-sm font-semibold text-violet-700">O que é o DIFAL</h3>
+        <p className="text-[12px] leading-snug text-muted-foreground">
+          Nas vendas <strong>interestaduais ao consumidor final</strong>, o ICMS se divide em duas partes:
+          a <strong>alíquota interestadual de saída</strong> (12% para Sul/Sudeste, exceto ES; 7% para os
+          demais estados), que fica no estado de origem, e o <strong>DIFAL</strong> (diferencial de alíquota),
+          que é a diferença até a alíquota interna do estado de destino e é pago a esse estado.
+        </p>
+        <p className="text-[12px] leading-snug text-muted-foreground">
+          Exemplo: venda para SP (alíquota interna 18%). Saída interestadual = 12% → <strong>DIFAL = 6%</strong>.
+          Venda para a Bahia (interna 20,5%). Saída = 7% → <strong>DIFAL = 13,5%</strong>. A soma sempre
+          equivale à alíquota interna do destino, e na tela mostramos cada parte separada.
+        </p>
+        <p className="text-[11px] leading-snug text-muted-foreground/80">
+          Observação: produtos importados podem ter saída interestadual de 4%; se a sua operação for
+          majoritariamente importada, avise que ajustamos a alíquota de saída.
+        </p>
+      </div>
+
       {/* Per-UF internal ICMS (without TTS) */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold">
@@ -314,7 +341,8 @@ function ConfigPanel({
         </h3>
         <p className="text-[11px] text-muted-foreground -mt-1">
           Em venda interestadual ao consumidor final, a carga efetiva de ICMS equivale à alíquota
-          interna do estado de destino (parcela interestadual + DIFAL).
+          interna do estado de destino. O sistema separa automaticamente quanto é ICMS interestadual e
+          quanto é DIFAL.
         </p>
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-9 gap-2">
           {ufList.map((uf) => (
@@ -619,6 +647,8 @@ export default function Lucratividade() {
               config={cfg.data.config}
               ufList={cfg.data.ufList}
               inventoryId={cfg.data.inventoryId}
+              taxDetail={profit.data?.taxDetail ?? null}
+              periodLabel={period.title}
               onSaved={() => setShowConfig(false)}
             />
           )}
@@ -733,6 +763,14 @@ export default function Lucratividade() {
             description={`${formatNumber(data.orderCount)} vendas efetivadas · cada gasto mostra quanto representa da receita · cenário ${ttsOn ? "com TTS" : "sem TTS"}.`}
           >
             <ProfitFlow p={data.totals} />
+          </SectionCard>
+
+          {/* Tax breakdown of the period: ICMS vs DIFAL vs FCP (Fernando's request) */}
+          <SectionCard
+            title="Impostos do período: ICMS x DIFAL"
+            description="Quanto do imposto foi ICMS, quanto foi DIFAL (diferencial pago ao estado de destino) e quanto foi FCP."
+          >
+            <TaxBreakdownCard detail={data.taxDetail} withTts={ttsOn} />
           </SectionCard>
 
           {/* Cascade + scenario comparison */}
