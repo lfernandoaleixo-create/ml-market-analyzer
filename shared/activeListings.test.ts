@@ -5,6 +5,7 @@ import {
   computeTargetPrices,
   normalizeListingType,
   normalizeLogisticType,
+  ACTIVE_LISTING_COLUMNS,
   type ListingCalcInput,
   type ListingCalcParams,
 } from "./activeListings";
@@ -97,5 +98,53 @@ describe("computeTargetPrices (múltiplas margens)", () => {
     const prices = computeTargetPrices({ ...baseListing, cost: null }, params, [20, 30]);
     expect(prices["20"]).toBeNull();
     expect(prices["30"]).toBeNull();
+  });
+});
+
+describe("ACTIVE_LISTING_COLUMNS — colunas visíveis por padrão (lista do Fernando)", () => {
+  it("inicia mostrando exatamente as colunas combinadas", () => {
+    const defaultOn = ACTIVE_LISTING_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key);
+    // Foto, Anúncio (locked), Tipo, Preço atual, Custo, Lucro real, Margem real,
+    // Comissão, Frete, Vendidos, Visitas, Frete grátis, Catálogo, Link.
+    expect(new Set(defaultOn)).toEqual(
+      new Set([
+        "thumbnail",
+        "title",
+        "mlListingType",
+        "price",
+        "cost",
+        "realProfit",
+        "realMarginPct",
+        "commissionPercent",
+        "shippingCost",
+        "soldQuantity",
+        "visits",
+        "freeShipping",
+        "catalogListing",
+        "permalink",
+      ]),
+    );
+  });
+
+  it("mantém as demais colunas disponíveis, porém ocultas por padrão", () => {
+    const offByDefault = ACTIVE_LISTING_COLUMNS.filter((c) => !c.defaultVisible).map((c) => c.key);
+    for (const k of [
+      "sku",
+      "itemId",
+      "availableQuantity",
+      "conversion",
+      "health",
+      "mlLogisticType",
+      "stockValue",
+      "createdMs",
+      "updatedMs",
+    ]) {
+      expect(offByDefault).toContain(k);
+    }
+  });
+
+  it("o título permanece travado (não pode ser ocultado)", () => {
+    const title = ACTIVE_LISTING_COLUMNS.find((c) => c.key === "title");
+    expect(title?.locked).toBe(true);
   });
 });
