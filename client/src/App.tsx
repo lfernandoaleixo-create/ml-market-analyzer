@@ -34,6 +34,8 @@ function Router() {
         <Route path="/ads" component={Ads} />
         <Route path="/lucratividade" component={Lucratividade} />
         <Route path="/calculadora" component={Calculadora} />
+        <Route path="/calculadora/precificacao" component={Calculadora} />
+        <Route path="/calculadora/ponto-equilibrio" component={Calculadora} />
         <Route path="/pos-venda" component={PosVenda} />
         <Route path="/reputacao" component={Reputacao} />
         <Route path="/radar" component={RadarConcorrentes} />

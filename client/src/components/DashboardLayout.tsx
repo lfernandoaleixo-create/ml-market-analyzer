@@ -326,7 +326,9 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                     </p>
                   )}
                   {group.items.map((item) => {
-                    const isActive = location === item.path;
+                    const isActive =
+                      location === item.path ||
+                      (item.path === "/calculadora" && location.startsWith("/calculadora"));
                     const showBadge = item.path === "/alertas" && unread > 0;
                     return (
                       <SidebarMenuItem key={item.path}>

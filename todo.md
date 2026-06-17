@@ -1070,3 +1070,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest (merge acumulado; pending só no zero absoluto; parcial renderiza) — 522 testes verdes + TS limpo
 - [x] Validação na preview com a conta real: card "Visitas (30d)" = 403 imediato, sem banner; gráfico/Visualizações por status consistentes (Total 30d 403)
 - [ ] Após publicar: Fernando valida em produção que o card de visitas mostra o número rápido no primeiro acesso
+
+## Calculadora de Precificação — Hub com 2 modelos (modelo Mamba Nexus)
+
+- [x] Mapear ferramentas da Mamba: Calculadora de Precificação e Ponto de Equilíbrio (campos, fórmulas, saídas)
+- [x] Hub: tela inicial da aba /calculadora com 2 cards selecionáveis (Precificação | Ponto de Equilíbrio)
+- [x] Roteamento interno: /calculadora (hub), /calculadora/precificacao, /calculadora/ponto-equilibrio + botão Voltar + alternador de modelos
+- [x] Lógica pura de cálculo em arquivo compartilhado (shared/pricing.ts e shared/breakeven.ts) — markup divisor (precificação) e break-even (ponto de equilíbrio)
+- [x] Modelo 1 — Calculadora de Precificação (campos, marketplace ML/Shopee/Outro, saídas, promoção, detalhamento) — validado: custo 30 + frete 7,75 + margem 20% + comissão 12% = R$ 55,51
+- [x] Modelo 2 — Ponto de Equilíbrio (3 seções de entrada; saídas: PE R$/un, margens, donut, cenários) — validado: fat. 10k, CMV 5k, fixos 2k → PE R$ 4.000 (40 un.), lucro R$ 3.000
+- [x] Testes vitest da lógica pura (22 testes) + suíte completa verde (548 testes) + TS limpo
+- [x] Validar na preview (conta real LOJADOSRWU): ambas calculadoras reativas e com cálculos exatos
+- [ ] Após publicar: Fernando confere as duas calculadoras em produção
