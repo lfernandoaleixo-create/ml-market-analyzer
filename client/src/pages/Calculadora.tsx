@@ -2,12 +2,14 @@ import { PageShell, PageHeader } from "@/components/account/AccountUI";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { Calculator, Scale, ArrowLeft, ArrowRight } from "lucide-react";
+import { Calculator, Scale, Tag, ListChecks, ArrowLeft, ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import PrecificacaoCalc from "@/components/calculadora/PrecificacaoCalc";
 import PontoEquilibrioCalc from "@/components/calculadora/PontoEquilibrioCalc";
+import ReferenciaPreco from "@/components/calculadora/ReferenciaPreco";
+import AnunciosAtivos from "@/components/calculadora/AnunciosAtivos";
 
-type ModelKey = "precificacao" | "ponto-equilibrio";
+type ModelKey = "precificacao" | "ponto-equilibrio" | "referencia-preco" | "anuncios-ativos";
 
 type Model = {
   key: ModelKey;
@@ -51,7 +53,53 @@ const MODELS: Model[] = [
     icon: Scale,
     accent: "bg-emerald-500/12 text-emerald-600",
   },
+  {
+    key: "referencia-preco",
+    path: "/calculadora/referencia-preco",
+    title: "Referência de preço",
+    tagline: "Preço de referência de mercado",
+    description:
+      "Defina um preço de referência com base no mercado. Em preparação — as regras serão definidas em seguida.",
+    bullets: [
+      "Referência de preço de mercado",
+      "Apoio à decisão de precificação",
+      "Em preparação",
+    ],
+    icon: Tag,
+    accent: "bg-amber-500/12 text-amber-600",
+  },
+  {
+    key: "anuncios-ativos",
+    path: "/calculadora/anuncios-ativos",
+    title: "Anúncios ativos",
+    tagline: "Seus anúncios ativos do ML",
+    description:
+      "Trabalhe com os seus anúncios ativos do Mercado Livre. Em preparação — as regras serão definidas em seguida.",
+    bullets: [
+      "Lista de anúncios ativos",
+      "Integração com seus dados do ML",
+      "Em preparação",
+    ],
+    icon: ListChecks,
+    accent: "bg-sky-500/12 text-sky-600",
+  },
 ];
+
+/** Renderiza o componente do modelo ativo. */
+function ModelView({ modelKey }: { modelKey: ModelKey }) {
+  switch (modelKey) {
+    case "precificacao":
+      return <PrecificacaoCalc />;
+    case "ponto-equilibrio":
+      return <PontoEquilibrioCalc />;
+    case "referencia-preco":
+      return <ReferenciaPreco />;
+    case "anuncios-ativos":
+      return <AnunciosAtivos />;
+    default:
+      return null;
+  }
+}
 
 /** Card clicável de seleção de modelo. */
 function ModelCard({ model, onSelect }: { model: Model; onSelect: () => void }) {
@@ -130,7 +178,7 @@ export default function Calculadora() {
           ))}
         </div>
 
-        {active.key === "precificacao" ? <PrecificacaoCalc /> : <PontoEquilibrioCalc />}
+        <ModelView modelKey={active.key} />
       </PageShell>
     );
   }
