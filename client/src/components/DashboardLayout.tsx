@@ -40,6 +40,7 @@ import {
   Radar,
   Megaphone,
   Wallet,
+  Calculator,
   ShoppingBag,
   Package,
   Undo2,
@@ -62,6 +63,7 @@ const menuGroups: MenuGroup[] = [
       { icon: Package, label: "Meus anúncios", path: "/anuncios" },
       { icon: Megaphone, label: "ADS", path: "/ads" },
       { icon: Wallet, label: "Lucratividade", path: "/lucratividade" },
+      { icon: Calculator, label: "Calculadora de precificação", path: "/calculadora" },
     ],
   },
   {
