@@ -1106,7 +1106,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend: exibir lucro real atual (R$ e %) com base no preço de hoje
 - [x] Frontend: seletor de imposto (%) e KPIs (ativos, com custo, lucro real total, valor em estoque)
 - [x] Atualizar título/subtítulo da aba e card do hub (remover "Em preparação")
-- [ ] Sincronização diária às 7h BRT (Heartbeat /api/scheduled/refreshActiveListings) — registrar após deploy
+- [x] Handler Heartbeat /api/scheduled/refreshActiveListings implementado e montado (aquece listings/visitas/custos por usuário, best-effort, idempotente) + 6 testes vitest
+- [ ] Sincronização diária às 7h BRT — registrar o cron `0 0 10 * * *` UTC APÓS o deploy (sandbox de dev é inalcançável pela plataforma)
 - [x] Testes vitest (filtro active; cálculo de lucro real; preço-alvo por margem) + suíte verde (568) + TS limpo
 - [x] Validar na preview com a conta real (LOJADOSRWU) + checkpoint + orientar publicação
 - [ ] Após publicar: registrar o cron das 7h e Fernando confere em produção

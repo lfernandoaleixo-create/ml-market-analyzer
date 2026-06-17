@@ -33,7 +33,7 @@ async function runAccount<T>(loader: () => Promise<T>): Promise<T> {
  */
 
 /** Resolve a ready AccountProvider (token + ML user id) or throw a friendly error. */
-async function resolveAccount(manusUserId: number): Promise<AccountProvider> {
+export async function resolveAccount(manusUserId: number): Promise<AccountProvider> {
   const token = await ensureUserAccessToken(manusUserId);
   if (!token) {
     throw new TRPCError({

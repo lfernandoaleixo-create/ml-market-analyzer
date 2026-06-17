@@ -13,6 +13,7 @@ import { monitorScheduledHandler } from "../scheduled/monitor";
 import { radarSweepScheduledHandler } from "../scheduled/radarSweep";
 import { adsSnapshotScheduledHandler } from "../scheduled/adsSnapshot";
 import { profitSnapshotScheduledHandler } from "../scheduled/profitSnapshot";
+import { refreshActiveListingsScheduledHandler } from "../scheduled/refreshActiveListings";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -47,6 +48,7 @@ async function startServer() {
   app.post("/api/scheduled/radarSweep", radarSweepScheduledHandler);
   app.post("/api/scheduled/adsSnapshot", adsSnapshotScheduledHandler);
   app.post("/api/scheduled/profitSnapshot", profitSnapshotScheduledHandler);
+  app.post("/api/scheduled/refreshActiveListings", refreshActiveListingsScheduledHandler);
   // tRPC API
   app.use(
     "/api/trpc",
