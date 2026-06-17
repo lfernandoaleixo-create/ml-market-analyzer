@@ -1094,3 +1094,19 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest das novas regras (24 testes pricing) + suíte completa verde (558 testes) + TS limpo
 - [x] Validar fielmente contra a Mamba na preview: peso Até 300g → frete R$ 7,75 → preço R$ 55,51; 1kg-2kg → R$ 8,15 → R$ 56,10; FGR → R$ 14,45 → R$ 65,37 (todos idênticos à Mamba)
 - [ ] Após publicar: Fernando confere a auto-alimentação em produção
+
+## Calculadora — Anúncios ativos (somente status ativo)
+
+- [x] Backend: incluir SKU/seller_custom_field nos detalhes do anúncio para casar com custo Baselinker (resolve SKU via user_product_id em anúncios com variação)
+- [x] Backend: endpoint que retorna SOMENTE anúncios com status `active`, com custo (Baselinker), comissão/taxa/frete reais e lucro real atual por anúncio
+- [x] Backend: cálculo de preço-alvo por margem (reutilizar shared/pricing.ts) para 3 percentuais escolhidos
+- [x] Frontend: tabela com TODAS as colunas possíveis (foto, título, MLB, SKU, status, tipo, preço, custo, estoque, vendidos, visitas, conversão, saúde, frete grátis, logística, catálogo, criado/atualizado, valor em estoque, lucro real R$/%, link)
+- [x] Frontend: seletor de colunas (ligar/desligar visibilidade)
+- [x] Frontend: 3 colunas de simulação de margem, cada uma com seletor de % (ex.: 20/30/40) → mostra preço-alvo para aquela margem
+- [x] Frontend: exibir lucro real atual (R$ e %) com base no preço de hoje
+- [x] Frontend: seletor de imposto (%) e KPIs (ativos, com custo, lucro real total, valor em estoque)
+- [x] Atualizar título/subtítulo da aba e card do hub (remover "Em preparação")
+- [ ] Sincronização diária às 7h BRT (Heartbeat /api/scheduled/refreshActiveListings) — registrar após deploy
+- [x] Testes vitest (filtro active; cálculo de lucro real; preço-alvo por margem) + suíte verde (568) + TS limpo
+- [x] Validar na preview com a conta real (LOJADOSRWU) + checkpoint + orientar publicação
+- [ ] Após publicar: registrar o cron das 7h e Fernando confere em produção

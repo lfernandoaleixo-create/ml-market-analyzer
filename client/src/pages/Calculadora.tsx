@@ -74,11 +74,11 @@ const MODELS: Model[] = [
     title: "Anúncios ativos",
     tagline: "Seus anúncios ativos do ML",
     description:
-      "Trabalhe com os seus anúncios ativos do Mercado Livre. Em preparação — as regras serão definidas em seguida.",
+      "Somente anúncios com status ativo, enriquecidos com o custo vindo do Baselinker. Veja o lucro e a margem real de cada anúncio e simule o preço para atingir margens-alvo.",
     bullets: [
-      "Lista de anúncios ativos",
-      "Integração com seus dados do ML",
-      "Em preparação",
+      "Custo automático via Baselinker (por SKU)",
+      "Lucro e margem real por anúncio",
+      "3 colunas de simulação de margem + seletor de colunas",
     ],
     icon: ListChecks,
     accent: "bg-sky-500/12 text-sky-600",

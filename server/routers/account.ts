@@ -7,6 +7,7 @@ import { getCredentials, upsertCredentials } from "../dbMl";
 import { resolveMlUserId } from "../ml/resolveMlUserId";
 import { cachedAccount, cachedAccountResilient, swrAccount } from "../ml/accountCache";
 import { MLRateLimitError } from "../ml/accountProvider";
+import { buildActiveListings } from "../ml/activeListings";
 
 /**
  * Run an account data loader and translate a Mercado Livre rate-limit signal
@@ -210,6 +211,51 @@ export const accountRouter = router({
         return account.getProductsByDay(input.date);
       }),
     ),
+
+  /**
+   * Anúncios ATIVOS (aba da Calculadora) — somente status `active`, enriquecidos
+   * com custo (BaseLinker, por SKU), comissão/frete reais, lucro real atual e
+   * preços-alvo para 3 margens escolhidas. Cache curto + resiliente.
+   */
+  activeListings: protectedProcedure
+    .input(
+      z
+        .object({
+          /** As 3 margens (%) para os preços-alvo. */
+          margins: z.array(z.number().min(0).max(95)).min(1).max(3).optional(),
+          /** Imposto agregado (%) sobre o preço. Quando ausente, usa o default. */
+          taxPercent: z.number().min(0).max(50).optional(),
+          /** TACoS/ADS (%) opcional. */
+          tacosPercent: z.number().min(0).max(50).optional(),
+          /** Afiliados (%) opcional. */
+          affiliatePercent: z.number().min(0).max(50).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const margins = input?.margins ?? [20, 30, 40];
+      const taxKey = input?.taxPercent ?? "def";
+      const { value, stale, asOf } = await cachedAccountResilient(
+        ctx.user.id,
+        `activeListings:${margins.join("-")}:t${taxKey}:a${input?.tacosPercent ?? 0}:af${input?.affiliatePercent ?? 0}`,
+        async () => {
+          const account = await resolveAccount(ctx.user.id);
+          return buildActiveListings(ctx.user.id, account, {
+            margins,
+            taxPercent: input?.taxPercent,
+            tacosPercent: input?.tacosPercent,
+            affiliatePercent: input?.affiliatePercent,
+          });
+        },
+        60 * 1000,
+      ).catch((err) => {
+        if (err instanceof MLRateLimitError) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });
+        }
+        throw err;
+      });
+      return { ...value, stale, asOf };
+    }),
 
   /** Listings performance (visits, sales, conversion, stock, status). */
   listings: protectedProcedure

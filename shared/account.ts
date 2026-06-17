@@ -133,6 +133,9 @@ export interface ListingRow {
   catalogListing?: boolean;
   /** Total stock value for this listing (price * availableQuantity). */
   stockValue: number;
+  /** Seller SKU (from seller_custom_field / seller_sku / SELLER_SKU attribute),
+   *  used to match the product cost in BaseLinker. Empty string when absent. */
+  sku?: string;
 }
 
 export interface ListingsSummary {

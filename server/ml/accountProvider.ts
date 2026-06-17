@@ -288,6 +288,84 @@ export class AccountProvider {
     return { ids: ids.slice(0, maxItems), capped };
   }
 
+  /** Cache of user-product id -> SKU (lives for the provider instance lifetime). */
+  private userProductSkuCache = new Map<string, string>();
+
+  /**
+   * Extract the seller SKU directly available in an item's payload.
+   * Returns "" when the SKU is not present at the item/variation level (which
+   * happens for variation listings whose SKU lives in the user-product).
+   */
+  private extractInlineSku(d: any): string {
+    const fromAttr = (arr: any[]): string | undefined =>
+      Array.isArray(arr) ? arr.find((a: any) => a?.id === "SELLER_SKU")?.value_name : undefined;
+    const root = d.seller_custom_field || d.seller_sku || fromAttr(d.attributes);
+    if (root) return String(root).trim();
+    if (Array.isArray(d.variations)) {
+      for (const v of d.variations) {
+        const vs = v.seller_custom_field || v.seller_sku || fromAttr(v.attributes);
+        if (vs) return String(vs).trim();
+      }
+    }
+    return "";
+  }
+
+  /** Collect every user_product_id referenced by an item (root + variations). */
+  private collectUserProductIds(d: any): string[] {
+    const ids: string[] = [];
+    if (d.user_product_id) ids.push(String(d.user_product_id));
+    if (Array.isArray(d.variations)) {
+      for (const v of d.variations) {
+        if (v.user_product_id) ids.push(String(v.user_product_id));
+      }
+    }
+    return ids;
+  }
+
+  /** Fetch the SELLER_SKU of a user-product (cached). */
+  private async getUserProductSku(upid: string): Promise<string> {
+    const cached = this.userProductSkuCache.get(upid);
+    if (cached !== undefined) return cached;
+    const up = await this.get(`/user-products/${upid}`).catch(() => null);
+    let sku = "";
+    if (up && Array.isArray(up.attributes)) {
+      const attr = up.attributes.find((a: any) => a?.id === "SELLER_SKU");
+      const val = attr?.values?.[0]?.name ?? attr?.value_name;
+      if (val) sku = String(val).trim();
+    }
+    this.userProductSkuCache.set(upid, sku);
+    return sku;
+  }
+
+  /**
+   * For items whose SKU is NOT inline (typically variation listings), resolve it
+   * from the seller's user-product catalog (/user-products/{id}). Mutates each
+   * detail object, attaching a `_resolvedSku` used later when mapping the row.
+   * Runs with gentle concurrency and a cache to avoid hammering ML.
+   */
+  private async resolveMissingSkus(details: any[]): Promise<void> {
+    const pending: { d: any; upid: string }[] = [];
+    for (const d of details) {
+      const inline = this.extractInlineSku(d);
+      if (inline) {
+        d._resolvedSku = inline;
+        continue;
+      }
+      const upid = this.collectUserProductIds(d)[0];
+      if (upid) pending.push({ d, upid });
+      else d._resolvedSku = "";
+    }
+    const concurrency = 4;
+    for (let i = 0; i < pending.length; i += concurrency) {
+      const slice = pending.slice(i, i + concurrency);
+      await Promise.all(
+        slice.map(async ({ d, upid }) => {
+          d._resolvedSku = await this.getUserProductSku(upid);
+        }),
+      );
+    }
+  }
+
   /** Multiget item details in batches of 20 (ML multiget cap), in parallel. */
   private async getItemsDetails(ids: string[]): Promise<any[]> {
     const batches: string[][] = [];
@@ -295,7 +373,8 @@ export class AccountProvider {
     const attributes =
       "id,title,price,currency_id,available_quantity,sold_quantity,status," +
       "listing_type_id,health,category_id,permalink,thumbnail,pictures," +
-      "date_created,last_updated,shipping,catalog_listing,catalog_product_id";
+      "date_created,last_updated,shipping,catalog_listing,catalog_product_id," +
+      "seller_custom_field,seller_sku,attributes,user_product_id,variations";
     const out: any[] = [];
     // Essential call (NOT behind withBudget) — keep concurrency gentle (3) to
     // avoid provoking ML's 429 throttle on accounts with many listings, since a
@@ -505,6 +584,7 @@ export class AccountProvider {
     const includeVisitsSeries = opts.includeVisitsSeries ?? false;
     const { ids, capped } = await this.getAllItemIds(maxItems);
     const details = await this.getItemsDetails(ids);
+    await this.resolveMissingSkus(details);
     const detailIds = details.map((d) => d.id);
 
     // Visits strategy (PROGRESSIVE, non-blocking):
@@ -546,6 +626,14 @@ export class AccountProvider {
       const logisticType = d.shipping?.logistic_type ?? null;
       const catalogListing =
         d.catalog_listing === true || (typeof d.catalog_product_id === "string" && d.catalog_product_id.length > 0);
+      // SKU resolution: inline (root/variation) first, then the value resolved
+      // from the user-product catalog for variation listings (see resolveMissingSkus).
+      const skuAttr = Array.isArray(d.attributes)
+        ? d.attributes.find((a: any) => a?.id === "SELLER_SKU")?.value_name
+        : undefined;
+      const sku = String(
+        d._resolvedSku || d.seller_custom_field || d.seller_sku || skuAttr || "",
+      ).trim();
       return {
         itemId: d.id,
         title: d.title ?? "",
@@ -568,6 +656,7 @@ export class AccountProvider {
         logisticType,
         catalogListing,
         stockValue: price * availableQuantity,
+        sku,
       };
     });
 

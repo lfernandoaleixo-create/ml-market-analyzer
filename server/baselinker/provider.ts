@@ -136,10 +136,17 @@ async function getProductIds(inventoryId: number, opts: BlClientOptions): Promis
 export async function getProductCosts(
   inventoryId: number,
   opts: BlClientOptions = {},
-): Promise<{ byId: Map<string, BlProductCost>; bySku: Map<string, BlProductCost> }> {
+): Promise<{
+  byId: Map<string, BlProductCost>;
+  bySku: Map<string, BlProductCost>;
+  bySkuNorm: Map<string, BlProductCost>;
+  byName: Map<string, BlProductCost>;
+}> {
   const ids = await getProductIds(inventoryId, opts);
   const byId = new Map<string, BlProductCost>();
   const bySku = new Map<string, BlProductCost>();
+  const bySkuNorm = new Map<string, BlProductCost>();
+  const byName = new Map<string, BlProductCost>();
 
   // getInventoryProductsData accepts up to 1000 ids per call.
   for (let i = 0; i < ids.length; i += 1000) {
@@ -160,10 +167,31 @@ export async function getProductCosts(
         taxRate: num(p.tax_rate),
       };
       byId.set(cost.productId, cost);
-      if (cost.sku) bySku.set(cost.sku.toLowerCase(), cost);
+      if (cost.sku) {
+        bySku.set(cost.sku.toLowerCase(), cost);
+        const norm = normalizeSkuKey(cost.sku);
+        if (norm) bySkuNorm.set(norm, cost);
+      }
+      const nameKey = normalizeNameKey(cost.name);
+      if (nameKey) byName.set(nameKey, cost);
     }
   }
-  return { byId, bySku };
+  return { byId, bySku, bySkuNorm, byName };
+}
+
+/** SKU sem espaços, hífens e em minúsculas (casa "ESPETOB-G - 4x25-1K" ≈ "ESPETOB-G-4x25-1K"). */
+export function normalizeSkuKey(sku: string): string {
+  return str(sku).toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+/** Nome normalizado (minúsculas, sem acentos e espaços colapsados) para fallback. */
+export function normalizeNameKey(name: string): string {
+  return str(name)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export interface BlOrderLine {
