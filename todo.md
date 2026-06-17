@@ -1082,3 +1082,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest da lógica pura (22 testes) + suíte completa verde (548 testes) + TS limpo
 - [x] Validar na preview (conta real LOJADOSRWU): ambas calculadoras reativas e com cálculos exatos
 - [ ] Após publicar: Fernando confere as duas calculadoras em produção
+
+## Calculadora de Precificação — Revisão fiel à Mamba + auto-alimentação ML
+
+- [x] Reanalisar a calculadora da Mamba campo por campo (engenharia reversa do bundle JS) e listar o que faltou no Mercato
+- [x] Mapear regras reais do Mercado Livre: taxa fixa (=0 no ML) e frete por tipo de anúncio/modelo logístico/peso/faixa de preço (tabelas oficiais qL/OLt/PLt/jLt/WL extraídas)
+- [x] Integrar as tabelas reais como dados embarcados (shared/ml-shipping-tables.ts) — solver iterativo replica a Mamba
+- [x] Auto-alimentar TAXA FIXA conforme opções (ML = R$ 0; Shopee R$ 6,25; Outro editável)
+- [x] Auto-alimentar FRETE conforme opções selecionadas (modelo logístico, FGR, peso, faixa de preço), com switch Manual para edição
+- [x] Adicionar todos os campos da Mamba que faltaram: modelo logístico, peso embalado (28 faixas), FGR, Campanhas Destaque (+6%), reputação (Cat. Especiais)
+- [x] Testes vitest das novas regras (24 testes pricing) + suíte completa verde (558 testes) + TS limpo
+- [x] Validar fielmente contra a Mamba na preview: peso Até 300g → frete R$ 7,75 → preço R$ 55,51; 1kg-2kg → R$ 8,15 → R$ 56,10; FGR → R$ 14,45 → R$ 65,37 (todos idênticos à Mamba)
+- [ ] Após publicar: Fernando confere a auto-alimentação em produção

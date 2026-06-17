@@ -24,13 +24,23 @@ import {
 import {
   calculatePricing,
   defaultCommission,
+  defaultFixedFee,
+  ML_WEIGHT_LABELS,
   type Marketplace,
   type MlListingType,
+  type MlLogisticType,
+  type MlReputation,
   type PricingInput,
   type PricingMode,
   type OtherCostKind,
 } from "@shared/pricing";
-import { ChevronDown, Tag } from "lucide-react";
+import { ChevronDown, Tag, Lock } from "lucide-react";
+
+const LOGISTIC_LABEL: Record<MlLogisticType, string> = {
+  padrao: "Padrão",
+  full_super: "Full Super",
+  cat_especial: "Cat. Especiais",
+};
 
 /** Paleta para o donut de distribuição da receita. */
 const SHARE_COLORS = [
@@ -120,16 +130,28 @@ export default function PrecificacaoCalc() {
   const [commissionTouched, setCommissionTouched] = useState(false);
   const [fixedFee, setFixedFee] = useState(0);
   const [shippingCost, setShippingCost] = useState(0);
+  // Auto-alimentação (Mercado Livre)
+  const [logisticType, setLogisticType] = useState<MlLogisticType>("padrao");
+  const [freeShippingFast, setFreeShippingFast] = useState(false);
+  const [highlightCampaign, setHighlightCampaign] = useState(false);
+  const [weightIndex, setWeightIndex] = useState(0);
+  const [reputation, setReputation] = useState<MlReputation>("verde");
+  const [manualShipping, setManualShipping] = useState(false);
   const [sellingPrice, setSellingPrice] = useState(0);
   const [promoPercent, setPromoPercent] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
   const [hideZeros, setHideZeros] = useState(true);
 
-  // Atualiza a comissão padrão quando troca canal/tipo (se o usuário não editou).
+  // autoFees: no ML e na Shopee, taxa fixa e frete são derivados automaticamente.
+  const autoFees = marketplace !== "outro";
+
+  // Atualiza a comissão/taxa fixa padrão quando troca canal/tipo (se o usuário não editou).
   function applyMarketplace(mk: Marketplace, lt: MlListingType) {
     setMarketplace(mk);
     setListingType(lt);
     if (!commissionTouched) setCommissionPercent(defaultCommission(mk, lt));
+    setFixedFee(defaultFixedFee(mk));
+    if (mk === "outro") setManualShipping(false);
   }
 
   const input: PricingInput = useMemo(
@@ -149,13 +171,22 @@ export default function PrecificacaoCalc() {
       commissionPercent,
       fixedFee,
       shippingCost,
+      autoFees,
+      mlLogisticType: logisticType,
+      freeShippingFast,
+      highlightCampaign,
+      weightIndex,
+      reputation,
+      manualShipping,
       sellingPrice,
       promoPercent,
     }),
     [
       name, sku, mode, marketplace, listingType, desiredMargin, productCost,
       taxPercent, tacosPercent, affiliatePercent, otherCostKind, otherCostValue,
-      commissionPercent, fixedFee, shippingCost, sellingPrice, promoPercent,
+      commissionPercent, fixedFee, shippingCost, autoFees, logisticType,
+      freeShippingFast, highlightCampaign, weightIndex, reputation, manualShipping,
+      sellingPrice, promoPercent,
     ],
   );
 
@@ -355,6 +386,68 @@ export default function PrecificacaoCalc() {
               )}
             </div>
 
+            {/* Opções logísticas do Mercado Livre (alimentam frete automaticamente) */}
+            {marketplace === "mercado_livre" && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground">Modelo logístico</Label>
+                    <Select value={logisticType} onValueChange={(v) => setLogisticType(v as MlLogisticType)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="padrao">{LOGISTIC_LABEL.padrao}</SelectItem>
+                        <SelectItem value="full_super">{LOGISTIC_LABEL.full_super}</SelectItem>
+                        <SelectItem value="cat_especial">{LOGISTIC_LABEL.cat_especial}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground">Peso do produto embalado</Label>
+                    <Select value={String(weightIndex)} onValueChange={(v) => setWeightIndex(Number(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64">
+                        {ML_WEIGHT_LABELS.map((lbl, i) => (
+                          <SelectItem key={i} value={String(i)}>
+                            {lbl}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {logisticType === "cat_especial" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground">Reputação do vendedor</Label>
+                    <Select value={reputation} onValueChange={(v) => setReputation(v as MlReputation)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="verde">Verde (boa)</SelectItem>
+                        <SelectItem value="amarela">Amarela (regular)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                    <span>Frete Grátis Rápido (FGR)</span>
+                    <Switch checked={freeShippingFast} onCheckedChange={setFreeShippingFast} />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                    <span>Campanhas Destaque (+6%)</span>
+                    <Switch checked={highlightCampaign} onCheckedChange={setHighlightCampaign} />
+                  </label>
+                </div>
+              </>
+            )}
+
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">Comissão</Label>
@@ -375,13 +468,73 @@ export default function PrecificacaoCalc() {
                     %
                   </span>
                 </div>
+                {highlightCampaign && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Efetiva: <strong className="tabular-nums">{result.commissionUsed.toFixed(1)}%</strong> (com campanha)
+                  </p>
+                )}
               </div>
-              <NumField id="p-fixed" label="Taxa fixa" prefix="R$" value={fixedFee} onChange={setFixedFee} />
-              <NumField id="p-ship" label="Frete" prefix="R$" value={shippingCost} onChange={setShippingCost} />
+
+              {/* Taxa fixa: auto no ML (=0) / editável nos demais */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Taxa fixa</Label>
+                {autoFees && marketplace === "mercado_livre" ? (
+                  <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                    <Lock className="h-3.5 w-3.5" />
+                    {formatBRL(result.fixedFeeUsed)}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={fixedFee || ""}
+                      placeholder="0,00"
+                      onChange={(e) => setFixedFee(parseFloat(e.target.value) || 0)}
+                      className="pl-9 tabular-nums"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Frete: auto por tabela no ML (com opção manual) / editável nos demais */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium text-muted-foreground">Frete</Label>
+                  {marketplace === "mercado_livre" && (
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                      Manual
+                      <Switch checked={manualShipping} onCheckedChange={setManualShipping} />
+                    </span>
+                  )}
+                </div>
+                {marketplace === "mercado_livre" && !manualShipping ? (
+                  <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm tabular-nums text-muted-foreground">
+                    <Lock className="h-3.5 w-3.5" />
+                    {formatBRL(result.shippingUsed)}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={shippingCost || ""}
+                      placeholder="0,00"
+                      onChange={(e) => setShippingCost(parseFloat(e.target.value) || 0)}
+                      className="pl-9 tabular-nums"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Os valores de comissão, taxa fixa e frete são editáveis. No Mercado Livre eles variam
-              por categoria e faixa de preço — ajuste conforme o seu anúncio.
+              {marketplace === "mercado_livre"
+                ? "No Mercado Livre, a taxa fixa e o frete são preenchidos automaticamente conforme o tipo de anúncio, modelo logístico, FGR, peso e a faixa de preço (tabelas oficiais). Ative “Manual” para informar o frete à mão."
+                : "Os valores de comissão, taxa fixa e frete são editáveis conforme as regras do seu canal."}
             </p>
           </div>
         </SectionCard>

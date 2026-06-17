@@ -1,19 +1,38 @@
 /**
- * Lógica pura da Calculadora de Precificação.
+ * Lógica pura da Calculadora de Precificação (réplica fiel da Mamba Nexus).
  *
- * Modelo baseado na ferramenta "Calculadora de Precificação" da Mamba Nexus
- * (ver references/mamba-pricing-calculator.md), usando o método de MARKUP
- * DIVISOR:
+ * Método de MARKUP DIVISOR:
  *
- *   Preço = CustosFixos / (1 − CustosVariáveis%)
+ *   Preço = (CustosFixos R$) / (1 − CustosVariáveis%)
  *
- * onde os "custos fixos" são valores em REAIS por unidade (custo do produto,
+ * Onde os "custos fixos" são valores em REAIS por unidade (custo do produto,
  * frete, taxa fixa, outros em R$) e os "custos variáveis" são percentuais
- * aplicados sobre o PREÇO de venda (margem desejada, comissão do marketplace,
- * impostos, TACoS/ADS, afiliados, outros em %).
+ * aplicados sobre o PREÇO de venda (margem desejada, comissão, impostos,
+ * TACoS/ADS, afiliados, outros em %).
+ *
+ * Para o Mercado Livre, o FRETE e (quando aplicável) a TAXA FIXA são
+ * AUTO-ALIMENTADOS a partir das tabelas reais do ML, conforme:
+ *  - tipo de anúncio (Clássico/Premium),
+ *  - modelo logístico (Padrão/Full Super/Cat. Especiais),
+ *  - Frete Grátis Rápido (FGR),
+ *  - faixa de peso do produto embalado,
+ *  - faixa de PREÇO do produto.
+ *
+ * Como o frete depende do próprio preço (que ainda não se conhece), usa-se um
+ * solver ITERATIVO (até 10 passos, tolerância R$ 0,01), exatamente como a Mamba.
  *
  * Tudo aqui é puro (sem I/O) para ser facilmente testável com Vitest.
  */
+
+import {
+  ML_SHIPPING_PADRAO,
+  ML_SHIPPING_ESPECIAL_AMARELA,
+  ML_SHIPPING_ESPECIAL_VERDE,
+  ML_SHIPPING_FULL,
+  ML_SHIPPING_FLAT,
+  type ShippingRowTiered,
+  type ShippingRowFlat,
+} from "./ml-shipping-tables";
 
 /** Canais de venda suportados. */
 export type Marketplace = "mercado_livre" | "shopee" | "outro";
@@ -21,23 +40,153 @@ export type Marketplace = "mercado_livre" | "shopee" | "outro";
 /** Tipo de anúncio do Mercado Livre. */
 export type MlListingType = "classico" | "premium";
 
+/** Modelo logístico do Mercado Livre. */
+export type MlLogisticType = "padrao" | "full_super" | "cat_especial";
+
+/** Reputação do vendedor (afeta tabela de Cat. Especiais). */
+export type MlReputation = "verde" | "amarela";
+
 /** Modo de cálculo da calculadora. */
 export type PricingMode = "custo_para_preco" | "preco_para_margem";
 
 /** Como o campo "Outros custos" é interpretado. */
 export type OtherCostKind = "reais" | "percent";
 
-/** Comissões padrão do Mercado Livre por tipo de anúncio (percentuais). */
+/** Comissão padrão (campo editável) do Mercado Livre por tipo de anúncio (%). */
 export const ML_DEFAULT_COMMISSION: Record<MlListingType, number> = {
   classico: 12,
   premium: 17,
 };
 
-/** Comissão padrão aproximada da Shopee (programa de frete grátis), em %. */
+/** Comissão padrão aproximada da Shopee, em %. */
 export const SHOPEE_DEFAULT_COMMISSION = 20;
+/** Taxa fixa padrão da Shopee, em R$ (cAe.shopee.defaultTaxaFixa). */
+export const SHOPEE_DEFAULT_FIXED_FEE = 6.25;
+/** Comissão e taxa fixa padrão de "Outro marketplace". */
+export const OUTRO_DEFAULT_COMMISSION = 14;
+export const OUTRO_DEFAULT_FIXED_FEE = 4;
 
-/** Frete padrão exibido pela referência quando não há cubagem (R$). */
+/** Frete padrão exibido como fallback (R$). */
 export const DEFAULT_SHIPPING = 7.75;
+
+/** Acréscimo de comissão das Campanhas Destaque (ky), em pontos percentuais. */
+const CAMPAIGN_COMMISSION_EXTRA = 6;
+/** Nº máximo de iterações do solver. */
+const MAX_ITER = 10;
+/** Tolerância de convergência (R$). */
+const TOLERANCE = 0.01;
+
+/**
+ * Mapa índice de peso → kg (RR da Mamba). 28 faixas (0..27).
+ */
+export const ML_WEIGHT_KG: number[] = [
+  0.3, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 15, 17, 20, 25, 30, 40, 50, 60,
+  70, 80, 90, 100, 125, 150, 200,
+];
+
+/** Rótulos das faixas de peso (combobox da Mamba). */
+export const ML_WEIGHT_LABELS: string[] = [
+  "Até 300g",
+  "300g a 500g",
+  "500g a 1kg",
+  "1kg a 2kg",
+  "2kg a 3kg",
+  "3kg a 4kg",
+  "4kg a 5kg",
+  "5kg a 6kg",
+  "6kg a 7kg",
+  "7kg a 8kg",
+  "8kg a 9kg",
+  "9kg a 11kg",
+  "11kg a 13kg",
+  "13kg a 15kg",
+  "15kg a 17kg",
+  "17kg a 20kg",
+  "20kg a 25kg",
+  "25kg a 30kg",
+  "30kg a 40kg",
+  "40kg a 50kg",
+  "50kg a 60kg",
+  "60kg a 70kg",
+  "70kg a 80kg",
+  "80kg a 90kg",
+  "90kg a 100kg",
+  "100kg a 125kg",
+  "125kg a 150kg",
+  "Mais de 150kg",
+];
+
+/* ----------------------------- Faixas de preço ---------------------------- */
+
+/** Faixa de preço para tabelas Padrão/Especiais (ELt/DLt) — 8 faixas. */
+function priceTier8(price: number): string {
+  if (price <= 18.99) return "0-18.99";
+  if (price <= 48.99) return "19-48.99";
+  if (price <= 78.99) return "49-78.99";
+  if (price <= 99.99) return "79-99.99";
+  if (price <= 119.99) return "100-119.99";
+  if (price <= 149.99) return "120-149.99";
+  if (price <= 199.99) return "150-199.99";
+  return "200+";
+}
+
+/** Faixa de preço para tabela Full Super (TLt) — 7 faixas. */
+function priceTier7(price: number): string {
+  if (price <= 18.99) return "0-18.99";
+  if (price <= 28.99) return "19-28.99";
+  if (price <= 48.99) return "29-48.99";
+  if (price <= 78.99) return "49-78.99";
+  if (price <= 98.99) return "79-98.99";
+  if (price <= 198.99) return "99-198.99";
+  return "199+";
+}
+
+function findTiered(rows: ShippingRowTiered[], kg: number): ShippingRowTiered {
+  return rows.find((r) => kg <= r.maxWeight) ?? rows[rows.length - 1];
+}
+function findFlat(rows: ShippingRowFlat[], kg: number): ShippingRowFlat {
+  return rows.find((r) => kg <= r.maxWeight) ?? rows[rows.length - 1];
+}
+
+/**
+ * Frete do ML (fue da Mamba). Retorna o custo de frete (R$) para o vendedor,
+ * conforme o modelo logístico e a faixa de preço/peso.
+ */
+export function mlShipping(
+  weightIndex: number,
+  price: number,
+  logistic: MlLogisticType,
+  reputation: MlReputation = "verde",
+): number {
+  const kg = ML_WEIGHT_KG[Math.max(0, Math.min(weightIndex, ML_WEIGHT_KG.length - 1))];
+
+  if (logistic === "full_super") {
+    const row = findTiered(ML_SHIPPING_FULL, kg);
+    let cost = row.costs[priceTier7(price)];
+    if (price < 29) cost = Math.min(cost, price * 0.25);
+    return cost;
+  }
+  if (logistic === "cat_especial") {
+    const rows = reputation === "amarela" ? ML_SHIPPING_ESPECIAL_AMARELA : ML_SHIPPING_ESPECIAL_VERDE;
+    const row = findTiered(rows, kg);
+    return row.costs[priceTier8(price)];
+  }
+  // Padrão (Clássico) → qL
+  const row = findTiered(ML_SHIPPING_PADRAO, kg);
+  let cost = row.costs[priceTier8(price)];
+  if (price < 19) cost = Math.min(cost, price * 0.5);
+  return cost;
+}
+
+/** Frete custo-fixo por peso (due/WL): usado p/ FGR quando preço < R$ 79. */
+export function mlFlatShipping(weightIndex: number, price: number): number {
+  const kg = ML_WEIGHT_KG[Math.max(0, Math.min(weightIndex, ML_WEIGHT_KG.length - 1))];
+  let cost = findFlat(ML_SHIPPING_FLAT, kg).cost;
+  if (price < 19) cost = Math.min(cost, price * 0.5);
+  return cost;
+}
+
+/* --------------------------------- Tipos ---------------------------------- */
 
 /** Entrada da Calculadora de Precificação. */
 export interface PricingInput {
@@ -72,14 +221,30 @@ export interface PricingInput {
 
   /** Comissão do marketplace (%). Editável. */
   commissionPercent: number;
-  /** Taxa fixa do marketplace (R$). */
+  /** Taxa fixa do marketplace (R$). Auto quando autoFees. */
   fixedFee: number;
-  /** Custo de frete (R$) pago pelo vendedor. */
+  /** Custo de frete (R$) pago pelo vendedor. Auto quando !manualShipping. */
   shippingCost: number;
+
+  /* ----- Campos de auto-alimentação (Mercado Livre / Shopee) ----- */
+
+  /** Quando true, frete e taxa fixa são calculados automaticamente. */
+  autoFees?: boolean;
+  /** Modelo logístico do ML. */
+  mlLogisticType?: MlLogisticType;
+  /** Frete Grátis Rápido (FGR) ligado. */
+  freeShippingFast?: boolean;
+  /** Campanhas Destaque (soma 6 p.p. na comissão). */
+  highlightCampaign?: boolean;
+  /** Índice da faixa de peso (0..27). */
+  weightIndex?: number;
+  /** Reputação (afeta Cat. Especiais). */
+  reputation?: MlReputation;
+  /** Frete manual: quando true, usa `shippingCost` e não recalcula. */
+  manualShipping?: boolean;
 
   /**
    * Preço de venda informado (R$) — usado APENAS no modo preço→margem.
-   * No modo custo→preço é ignorado.
    */
   sellingPrice?: number;
 
@@ -91,134 +256,187 @@ export interface PricingInput {
 export interface BreakdownItem {
   key: string;
   label: string;
-  /** Para itens variáveis: percentual sobre o preço. */
   percent?: number;
-  /** Valor em reais (calculado a partir do preço para itens variáveis). */
   amount: number;
 }
 
 /** Resultado da Calculadora de Precificação. */
 export interface PricingResult {
-  /** Preço de venda sugerido (R$). No modo preço→margem, ecoa o preço informado. */
   price: number;
-  /** Preço após promoção (R$), se houver desconto. Igual a `price` quando não há. */
   promoPrice: number;
-  /** Margem de contribuição em reais (lucro por venda antes de custos fixos do negócio). */
   contributionMargin: number;
-  /** Margem de contribuição em % sobre o preço. */
   contributionMarginPct: number;
-  /** Custo total (break-even) em R$: a partir deste valor a venda não dá prejuízo. */
   breakEven: number;
-  /** Soma dos custos fixos em R$ (produto + frete + taxa fixa + outros em R$). */
   fixedTotal: number;
-  /** Soma dos percentuais variáveis (sem a margem), em %. */
   variableCostPct: number;
-  /** Itens fixos (R$) para o detalhamento. */
   fixedItems: BreakdownItem[];
-  /** Itens variáveis (%) para o detalhamento. */
   variableItems: BreakdownItem[];
-  /** Distribuição da receita (para o donut): cada fatia em % do preço. */
   revenueShare: { key: string; label: string; percent: number; amount: number }[];
-  /** Indica se o resultado é válido (ex.: variáveis < 100%). */
   valid: boolean;
-  /** Mensagem de erro amigável quando inválido. */
   error?: string;
+  /** Frete usado no cálculo (R$) — útil para refletir o auto-frete na UI. */
+  shippingUsed: number;
+  /** Taxa fixa usada no cálculo (R$). */
+  fixedFeeUsed: number;
+  /** Comissão efetiva usada (%) — inclui acréscimo de campanha quando ligado. */
+  commissionUsed: number;
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const clampPct = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0);
+const clamp0 = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0);
 
-/** Soma dos custos fixos em reais (custo do produto + frete + taxa fixa + outros em R$). */
-function computeFixed(input: PricingInput): { total: number; items: BreakdownItem[] } {
+/* ----------------------- Cálculo de custos auxiliares --------------------- */
+
+/** Comissão efetiva (inclui +6 p.p. de Campanhas Destaque). */
+function effectiveCommission(input: PricingInput): number {
+  const base = clamp0(input.commissionPercent);
+  return input.highlightCampaign ? base + CAMPAIGN_COMMISSION_EXTRA : base;
+}
+
+/** Custos fixos em R$ (produto + frete + taxa fixa + outros em R$). */
+function buildFixedItems(
+  input: PricingInput,
+  shipping: number,
+  fixedFee: number,
+): { total: number; items: BreakdownItem[] } {
   const items: BreakdownItem[] = [
-    { key: "product", label: "Custo do produto", amount: clampPct(input.productCost) },
-    { key: "shipping", label: "Frete", amount: clampPct(input.shippingCost) },
-    { key: "fixedFee", label: "Taxa fixa", amount: clampPct(input.fixedFee) },
+    { key: "product", label: "Custo do produto", amount: clamp0(input.productCost) },
+    { key: "shipping", label: "Frete", amount: clamp0(shipping) },
+    { key: "fixedFee", label: "Taxa fixa", amount: clamp0(fixedFee) },
   ];
   if (input.otherCostKind === "reais" && input.otherCostValue > 0) {
-    items.push({ key: "other", label: "Outros custos", amount: clampPct(input.otherCostValue) });
+    items.push({ key: "other", label: "Outros custos", amount: clamp0(input.otherCostValue) });
   }
   const total = items.reduce((s, it) => s + it.amount, 0);
   return { total: round2(total), items };
 }
 
-/**
- * Percentuais variáveis (sobre o preço), SEM a margem desejada.
- * Inclui comissão, impostos, TACoS, afiliados e "outros" quando em %.
- */
-function computeVariablePct(input: PricingInput): { total: number; items: BreakdownItem[] } {
+/** Percentuais variáveis (sem a margem). */
+function buildVariableItems(input: PricingInput, commission: number): { total: number; items: BreakdownItem[] } {
   const items: BreakdownItem[] = [
-    { key: "commission", label: "Comissão do marketplace", percent: clampPct(input.commissionPercent), amount: 0 },
-    { key: "tax", label: "Impostos", percent: clampPct(input.taxPercent), amount: 0 },
-    { key: "tacos", label: "TACoS / ADS", percent: clampPct(input.tacosPercent), amount: 0 },
-    { key: "affiliate", label: "Afiliados", percent: clampPct(input.affiliatePercent), amount: 0 },
+    { key: "commission", label: "Comissão do marketplace", percent: clamp0(commission), amount: 0 },
+    { key: "tax", label: "Impostos", percent: clamp0(input.taxPercent), amount: 0 },
+    { key: "tacos", label: "TACoS / ADS", percent: clamp0(input.tacosPercent), amount: 0 },
+    { key: "affiliate", label: "Afiliados", percent: clamp0(input.affiliatePercent), amount: 0 },
   ];
   if (input.otherCostKind === "percent" && input.otherCostValue > 0) {
-    items.push({ key: "otherPct", label: "Outros custos", percent: clampPct(input.otherCostValue), amount: 0 });
+    items.push({ key: "otherPct", label: "Outros custos", percent: clamp0(input.otherCostValue), amount: 0 });
   }
   const total = items.reduce((s, it) => s + (it.percent ?? 0), 0);
   return { total: round2(total), items };
 }
 
 /**
+ * Determina o frete (R$) a usar para um dado preço, conforme as opções.
+ * Para ML aplica a regra: FGR + preço<79 + (não Full e não Especial) → tabela custo-fixo (WL).
+ */
+function resolveShipping(input: PricingInput, price: number): number {
+  if (input.manualShipping) return clamp0(input.shippingCost);
+  if (!input.autoFees || input.marketplace !== "mercado_livre") {
+    return clamp0(input.shippingCost);
+  }
+  const logistic = input.mlLogisticType ?? "padrao";
+  const weightIndex = input.weightIndex ?? 0;
+  const reputation = input.reputation ?? "verde";
+  const isFull = logistic === "full_super";
+  const isEsp = logistic === "cat_especial";
+  if (input.freeShippingFast && price < 79 && !isFull && !isEsp) {
+    return round2(mlFlatShipping(weightIndex, price));
+  }
+  return round2(mlShipping(weightIndex, price, logistic, reputation));
+}
+
+/** Taxa fixa (R$) a usar conforme o marketplace/opções. */
+function resolveFixedFee(input: PricingInput): number {
+  if (!input.autoFees) return clamp0(input.fixedFee);
+  // No fluxo do ML a taxa fixa do frete é 0 (cue()).
+  if (input.marketplace === "mercado_livre") return 0;
+  return clamp0(input.fixedFee);
+}
+
+/* ------------------------------- Cálculo ---------------------------------- */
+
+/**
  * Calcula a precificação. Funciona nos dois modos:
- * - custo_para_preco: usa a margem desejada e resolve o preço pelo markup divisor.
+ * - custo_para_preco: resolve o preço pelo markup divisor, iterando quando
+ *   o frete depende do preço (ML).
  * - preco_para_margem: usa o preço informado e deduz a margem real.
  */
 export function calculatePricing(input: PricingInput): PricingResult {
-  const fixed = computeFixed(input);
-  const variable = computeVariablePct(input); // sem margem
-
-  const desiredMargin = clampPct(input.desiredMargin);
-  const promoPct = clampPct(input.promoPercent ?? 0);
+  const commission = effectiveCommission(input);
+  const variable = buildVariableItems(input, commission); // sem margem
+  const desiredMargin = clamp0(input.desiredMargin);
+  const promoPct = clamp0(input.promoPercent ?? 0);
+  const fixedFee = resolveFixedFee(input);
 
   if (input.mode === "custo_para_preco") {
-    // Markup divisor: Preço = Fixo / (1 - (variáveis% + margem%)/100)
     const denomPct = variable.total + desiredMargin;
     if (denomPct >= 100) {
-      return {
-        price: 0,
-        promoPrice: 0,
-        contributionMargin: 0,
-        contributionMarginPct: 0,
-        breakEven: fixed.total,
-        fixedTotal: fixed.total,
-        variableCostPct: variable.total,
-        fixedItems: fixed.items,
-        variableItems: variable.items,
-        revenueShare: [],
-        valid: false,
-        error:
-          "A soma da margem com os custos variáveis (comissão, impostos, etc.) atingiu 100% ou mais. Reduza a margem ou os percentuais para obter um preço válido.",
-      };
+      return invalidResult(
+        input,
+        commission,
+        variable,
+        "A soma da margem com os custos variáveis (comissão, impostos, etc.) atingiu 100% ou mais. Reduza a margem ou os percentuais para obter um preço válido.",
+      );
     }
-    const price = round2(fixed.total / (1 - denomPct / 100));
-    return finalize(input, fixed, variable, price, desiredMargin, promoPct);
+
+    // Solver iterativo: o frete depende do preço.
+    let shipping = resolveShipping(input, clamp0(input.productCost)); // estimativa inicial
+    let price = 0;
+    for (let i = 0; i < MAX_ITER; i++) {
+      const fixedTotal =
+        clamp0(input.productCost) +
+        (input.otherCostKind === "reais" ? clamp0(input.otherCostValue) : 0) +
+        fixedFee +
+        shipping;
+      const next = round2(fixedTotal / (1 - denomPct / 100));
+      const nextShipping = resolveShipping(input, next);
+      const converged = Math.abs(next - price) < TOLERANCE && Math.abs(nextShipping - shipping) < TOLERANCE;
+      price = next;
+      shipping = nextShipping;
+      if (converged) break;
+    }
+
+    const fixed = buildFixedItems(input, shipping, fixedFee);
+    return finalize(input, fixed, variable, price, desiredMargin, promoPct, commission, shipping, fixedFee);
   }
 
   // modo preco_para_margem
-  const price = round2(clampPct(input.sellingPrice ?? 0));
+  const price = round2(clamp0(input.sellingPrice ?? 0));
   if (price <= 0) {
-    return {
-      price: 0,
-      promoPrice: 0,
-      contributionMargin: 0,
-      contributionMarginPct: 0,
-      breakEven: fixed.total,
-      fixedTotal: fixed.total,
-      variableCostPct: variable.total,
-      fixedItems: fixed.items,
-      variableItems: variable.items,
-      revenueShare: [],
-      valid: false,
-      error: "Informe um preço de venda maior que zero para calcular a margem.",
-    };
+    return invalidResult(input, commission, variable, "Informe um preço de venda maior que zero para calcular a margem.");
   }
-  // Margem real (R$) = Preço - Fixo - variáveis%*Preço
+  const shipping = resolveShipping(input, price);
+  const fixed = buildFixedItems(input, shipping, fixedFee);
   const variableAmount = (variable.total / 100) * price;
   const contributionMargin = round2(price - fixed.total - variableAmount);
   const realMarginPct = round2((contributionMargin / price) * 100);
-  return finalize(input, fixed, variable, price, realMarginPct, promoPct);
+  return finalize(input, fixed, variable, price, realMarginPct, promoPct, commission, shipping, fixedFee);
+}
+
+function invalidResult(
+  input: PricingInput,
+  commission: number,
+  variable: { total: number; items: BreakdownItem[] },
+  error: string,
+): PricingResult {
+  return {
+    price: 0,
+    promoPrice: 0,
+    contributionMargin: 0,
+    contributionMarginPct: 0,
+    breakEven: 0,
+    fixedTotal: 0,
+    variableCostPct: variable.total,
+    fixedItems: [],
+    variableItems: variable.items,
+    revenueShare: [],
+    valid: false,
+    error,
+    shippingUsed: 0,
+    fixedFeeUsed: 0,
+    commissionUsed: commission,
+  };
 }
 
 /** Monta o resultado final (itens com valores em R$, donut, break-even). */
@@ -229,8 +447,10 @@ function finalize(
   price: number,
   marginPct: number,
   promoPct: number,
+  commission: number,
+  shipping: number,
+  fixedFee: number,
 ): PricingResult {
-  // Preenche os valores em R$ dos itens variáveis a partir do preço.
   const variableItems = variable.items.map((it) => ({
     ...it,
     amount: round2(((it.percent ?? 0) / 100) * price),
@@ -239,7 +459,6 @@ function finalize(
   const contributionMargin = round2((marginPct / 100) * price);
   const breakEven = round2(price - contributionMargin);
 
-  // Distribuição da receita (donut): fatias em % do preço.
   const revenueShare: PricingResult["revenueShare"] = [];
   const pushShare = (key: string, label: string, amount: number) => {
     if (amount <= 0 || price <= 0) return;
@@ -261,6 +480,9 @@ function finalize(
     variableItems,
     revenueShare,
     valid: true,
+    shippingUsed: round2(shipping),
+    fixedFeeUsed: round2(fixedFee),
+    commissionUsed: round2(commission),
   };
 }
 
@@ -268,5 +490,12 @@ function finalize(
 export function defaultCommission(marketplace: Marketplace, listingType: MlListingType): number {
   if (marketplace === "mercado_livre") return ML_DEFAULT_COMMISSION[listingType];
   if (marketplace === "shopee") return SHOPEE_DEFAULT_COMMISSION;
+  return OUTRO_DEFAULT_COMMISSION;
+}
+
+/** Taxa fixa padrão sugerida conforme o canal. */
+export function defaultFixedFee(marketplace: Marketplace): number {
+  if (marketplace === "shopee") return SHOPEE_DEFAULT_FIXED_FEE;
+  if (marketplace === "outro") return OUTRO_DEFAULT_FIXED_FEE;
   return 0;
 }

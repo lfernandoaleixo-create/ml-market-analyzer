@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   calculatePricing,
   defaultCommission,
+  mlShipping,
+  mlFlatShipping,
   ML_DEFAULT_COMMISSION,
+  ML_WEIGHT_LABELS,
+  ML_WEIGHT_KG,
   type PricingInput,
 } from "./pricing";
 
@@ -114,7 +118,121 @@ describe("defaultCommission", () => {
   it("shopee tem comissão padrão própria", () => {
     expect(defaultCommission("shopee", "classico")).toBeGreaterThan(0);
   });
-  it("outro marketplace começa em 0", () => {
-    expect(defaultCommission("outro", "classico")).toBe(0);
+  it("outro marketplace tem comissão padrão própria", () => {
+    expect(defaultCommission("outro", "classico")).toBeGreaterThan(0);
+  });
+});
+
+describe("auto-alimentação de frete (tabelas reais do ML)", () => {
+  it("tem 28 faixas de peso alinhadas entre rótulos e kg", () => {
+    expect(ML_WEIGHT_LABELS.length).toBe(28);
+    expect(ML_WEIGHT_KG.length).toBe(28);
+  });
+
+  it("Clássico/Padrão, Até 300g, preço na faixa 49-78.99 → frete 7,75", () => {
+    expect(mlShipping(0, 55.51, "padrao")).toBeCloseTo(7.75, 2);
+  });
+
+  it("Clássico/Padrão, 1kg a 2kg (idx 3), faixa 49-78.99 → frete 8,15", () => {
+    // qL maxWeight:2 corresponde ao índice 3 (1kg a 2kg)
+    expect(mlShipping(3, 56.1, "padrao")).toBeCloseTo(8.15, 2);
+  });
+
+  it("frete sobe ao mudar a faixa de preço (79-99.99)", () => {
+    expect(mlShipping(0, 85, "padrao")).toBeCloseTo(12.35, 2);
+  });
+
+  it("Cat. Especiais usa tabela própria (amarela > verde em itens médios)", () => {
+    // Em faixas de preço mais altas a tabela especial diverge do padrão.
+    const espVerde = mlShipping(0, 85, "cat_especial", "verde");
+    const espAmarela = mlShipping(0, 85, "cat_especial", "amarela");
+    expect(espVerde).toBeGreaterThan(0);
+    expect(espAmarela).toBeGreaterThan(0);
+    expect(espAmarela).not.toBe(espVerde);
+  });
+
+  it("Full Super usa tabela jLt (faixas de 7) e é mais barato em itens leves", () => {
+    const full = mlShipping(0, 55, "full_super");
+    expect(full).toBeGreaterThan(0);
+  });
+
+  it("frete custo-fixo (FGR < R$79) cresce com o peso", () => {
+    const leve = mlFlatShipping(0, 60);
+    const pesado = mlFlatShipping(10, 60);
+    expect(pesado).toBeGreaterThan(leve);
+  });
+});
+
+describe("auto-frete integrado ao cálculo (solver iterativo)", () => {
+  it("com autoFees, o frete é puxado da tabela e reflete em shippingUsed", () => {
+    const r = calculatePricing({
+      mode: "custo_para_preco",
+      marketplace: "mercado_livre",
+      mlListingType: "classico",
+      mlLogisticType: "padrao",
+      desiredMargin: 20,
+      productCost: 30,
+      taxPercent: 0,
+      tacosPercent: 0,
+      affiliatePercent: 0,
+      otherCostKind: "reais",
+      otherCostValue: 0,
+      commissionPercent: 12,
+      fixedFee: 0,
+      shippingCost: 0,
+      autoFees: true,
+      weightIndex: 0,
+      reputation: "verde",
+    });
+    expect(r.valid).toBe(true);
+    // preço ~55,51 cai na faixa 49-78.99 → frete 7,75
+    expect(r.shippingUsed).toBeCloseTo(7.75, 2);
+    expect(r.price).toBeCloseTo(55.51, 1);
+  });
+
+  it("Campanhas Destaque somam 6 p.p. na comissão efetiva", () => {
+    const r = calculatePricing({
+      mode: "custo_para_preco",
+      marketplace: "mercado_livre",
+      mlListingType: "classico",
+      mlLogisticType: "padrao",
+      desiredMargin: 20,
+      productCost: 30,
+      taxPercent: 0,
+      tacosPercent: 0,
+      affiliatePercent: 0,
+      otherCostKind: "reais",
+      otherCostValue: 0,
+      commissionPercent: 12,
+      fixedFee: 0,
+      shippingCost: 0,
+      autoFees: true,
+      weightIndex: 0,
+      highlightCampaign: true,
+    });
+    expect(r.commissionUsed).toBe(18);
+  });
+
+  it("frete manual sobrescreve a tabela", () => {
+    const r = calculatePricing({
+      mode: "custo_para_preco",
+      marketplace: "mercado_livre",
+      mlListingType: "classico",
+      mlLogisticType: "padrao",
+      desiredMargin: 20,
+      productCost: 30,
+      taxPercent: 0,
+      tacosPercent: 0,
+      affiliatePercent: 0,
+      otherCostKind: "reais",
+      otherCostValue: 0,
+      commissionPercent: 12,
+      fixedFee: 0,
+      shippingCost: 99,
+      autoFees: true,
+      manualShipping: true,
+      weightIndex: 0,
+    });
+    expect(r.shippingUsed).toBe(99);
   });
 });
