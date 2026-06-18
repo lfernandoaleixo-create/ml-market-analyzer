@@ -75,3 +75,39 @@ describe("projectProgress", () => {
     expect(current).toBe("amostra");
   });
 });
+
+import { progressFromCompleted } from "./projectProgress";
+
+describe("progressFromCompleted (régua única)", () => {
+  it("0 concluídas = 0% e não lançado", () => {
+    const r = progressFromCompleted(0);
+    expect(r.progressPct).toBe(0);
+    expect(r.completedCount).toBe(0);
+    expect(r.totalSteps).toBe(10);
+    expect(r.launched).toBe(false);
+  });
+
+  it("5 concluídas = 50%", () => {
+    const r = progressFromCompleted(5);
+    expect(r.progressPct).toBe(50);
+    expect(r.launched).toBe(false);
+  });
+
+  it("10 concluídas = 100% e lançado", () => {
+    const r = progressFromCompleted(10);
+    expect(r.progressPct).toBe(100);
+    expect(r.launched).toBe(true);
+  });
+
+  it("satura acima de 10 e abaixo de 0", () => {
+    expect(progressFromCompleted(99).progressPct).toBe(100);
+    expect(progressFromCompleted(99).launched).toBe(true);
+    expect(progressFromCompleted(-3).progressPct).toBe(0);
+    expect(progressFromCompleted(-3).completedCount).toBe(0);
+  });
+
+  it("trunca valores fracionários", () => {
+    expect(progressFromCompleted(3.9).completedCount).toBe(3);
+    expect(progressFromCompleted(3.9).progressPct).toBe(30);
+  });
+});

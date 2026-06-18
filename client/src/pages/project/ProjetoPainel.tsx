@@ -89,10 +89,15 @@ export default function ProjetoPainel() {
 
   const totalProducts = products?.length ?? 0;
   const altaCount = products?.filter((p) => p.priority === "alta").length ?? 0;
+  // Coerente com a régua de etapas concluídas: em andamento = 1..9 concluídas; lançado = 10/10.
+  const totalSteps = STEP_ORDER.length;
+  const launchedCount =
+    products?.filter((p) => (p.completedCount ?? 0) >= totalSteps).length ?? 0;
   const inProgressCount =
-    products?.filter((p) => p.currentStep !== "fornecedor" && p.currentStep !== "lancamento")
-      .length ?? 0;
-  const launchedCount = products?.filter((p) => p.currentStep === "lancamento").length ?? 0;
+    products?.filter((p) => {
+      const c = p.completedCount ?? 0;
+      return c > 0 && c < totalSteps;
+    }).length ?? 0;
 
   const stats = [
     { label: "Total de Produtos", value: totalProducts, accent: "text-primary" },

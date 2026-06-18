@@ -1171,3 +1171,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Lógica pura testável (shared/projectProgress.ts) + 8 testes vitest verdes; TS/LSP limpos
 - [x] Validação ao vivo: Painel com 16 produtos e ficha do Matador de Mosquito conferidos
 - [ ] Adaptações conscientes vs. original: removida a página "Colaboradores" (dependia de procedures de convite/role e /login inexistentes aqui); seletor de "Responsável" das tarefas ocultado (app é single-user por senha)
+
+## Correção — consistência de progresso na aba Projeto (18/06)
+- [x] Backend: getAllProjectProducts retorna completedCount/progressPct (régua única = etapas concluídas/10)
+- [x] Card do Painel: usa progressPct/completedCount reais (acabou o "10% fantasma"); tracinhos refletem etapas concluídas
+- [x] KPIs do Painel (Em andamento = 1..9 concluídas; Lançados = 10/10) coerentes com o gráfico
+- [x] Gráfico da Análise: largura proporcional, base visível p/ 0%, rótulos -45° sem cortar, Lançados = 100%
+- [x] Testes vitest da régua (progressFromCompleted, 13 verdes) + TS/LSP limpos + validado na preview

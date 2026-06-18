@@ -66,3 +66,25 @@ export function deriveCurrentStep(
   }
   return currentStep;
 }
+
+
+/**
+ * Régua única de progresso a partir do NÚMERO de etapas concluídas.
+ * Usada por Painel, Cronograma e Análise para garantir o mesmo número em todas as telas.
+ * - completedCount é saturado em [0, TOTAL_PROJECT_STEPS].
+ * - launched = todas as etapas concluídas.
+ */
+export function progressFromCompleted(completedCount: number): {
+  completedCount: number;
+  totalSteps: number;
+  progressPct: number;
+  launched: boolean;
+} {
+  const clamped = Math.max(0, Math.min(TOTAL_PROJECT_STEPS, Math.floor(completedCount)));
+  return {
+    completedCount: clamped,
+    totalSteps: TOTAL_PROJECT_STEPS,
+    progressPct: Math.round((clamped / TOTAL_PROJECT_STEPS) * 100),
+    launched: clamped >= TOTAL_PROJECT_STEPS,
+  };
+}

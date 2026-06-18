@@ -54,7 +54,33 @@ export async function getAllProjectProducts(filters?: {
       ? db.select().from(projectProducts).where(and(...conditions))
       : db.select().from(projectProducts);
 
-  return query.orderBy(asc(projectProducts.name));
+  const products = await query.orderBy(asc(projectProducts.name));
+  if (products.length === 0) return [];
+
+  // Régua única de progresso = etapas concluídas / 10 (coerente com Cronograma e Análise).
+  const allSteps = await db
+    .select({
+      productId: projectTimelineSteps.productId,
+      status: projectTimelineSteps.status,
+    })
+    .from(projectTimelineSteps);
+
+  const completedByProduct = new Map<number, number>();
+  for (const s of allSteps) {
+    if (s.status === "concluido") {
+      completedByProduct.set(s.productId, (completedByProduct.get(s.productId) ?? 0) + 1);
+    }
+  }
+
+  return products.map((p) => {
+    const completedCount = completedByProduct.get(p.id) ?? 0;
+    return {
+      ...p,
+      completedCount,
+      totalSteps: PROJECT_STEP_ORDER.length,
+      progressPct: Math.round((completedCount / PROJECT_STEP_ORDER.length) * 100),
+    };
+  });
 }
 
 export async function getProjectProductById(id: number) {

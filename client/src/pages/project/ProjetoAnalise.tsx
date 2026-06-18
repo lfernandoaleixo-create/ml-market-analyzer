@@ -49,8 +49,8 @@ function formatDate(d: Date | null | undefined): string {
   return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-const CHART_HEIGHT = 460;
-const CHART_MARGIN = { top: 28, right: 20, left: 160, bottom: 100 };
+const CHART_HEIGHT = 480;
+const CHART_MARGIN = { top: 28, right: 24, left: 168, bottom: 132 };
 
 type TooltipData = {
   name: string;
@@ -166,7 +166,7 @@ export default function ProjetoAnalise() {
   const stats = useMemo(() => {
     if (!products) return null;
     const total = products.length;
-    const launched = products.filter((p) => p.currentStep === "lancamento").length;
+    const launched = products.filter((p) => p.progressPct >= 100).length;
     const atrasados = products.filter((p) => {
       const exp = calcExpectedProgress(p.expectedArrival);
       return exp !== null && p.progressPct < exp - 10;
@@ -224,11 +224,12 @@ export default function ProjetoAnalise() {
     );
   }
 
-  const innerW = 900;
-  const innerH = CHART_HEIGHT - CHART_MARGIN.top - CHART_MARGIN.bottom;
   const n = chartData.length;
+  // Largura proporcional ao número de produtos: cada barra ocupa ~58px, com piso de 760px.
+  const innerW = Math.max(760, n * 58);
+  const innerH = CHART_HEIGHT - CHART_MARGIN.top - CHART_MARGIN.bottom;
   const barGroupW = n > 0 ? innerW / n : 0;
-  const barW = Math.min(barGroupW * 0.55, 44);
+  const barW = Math.min(barGroupW * 0.5, 40);
   const yScale = (pct: number) => innerH - (pct / 100) * innerH;
 
   return (
@@ -294,7 +295,7 @@ export default function ProjetoAnalise() {
             <svg
               width="100%"
               viewBox={`0 0 ${innerW + CHART_MARGIN.left + CHART_MARGIN.right} ${CHART_HEIGHT}`}
-              style={{ minWidth: 700, display: "block" }}
+              style={{ minWidth: innerW + CHART_MARGIN.left + CHART_MARGIN.right, display: "block" }}
             >
               <g transform={`translate(${CHART_MARGIN.left},${CHART_MARGIN.top})`}>
                 {Y_TICKS.map((tick, i) => {
@@ -334,8 +335,11 @@ export default function ProjetoAnalise() {
                     >
                       <rect x={bx - 6} y={0} width={barW + 12} height={innerH} rx={r} fill={product.barColor} fillOpacity={isHover ? 0.06 : 0} />
                       <rect x={bx} y={0} width={barW} height={innerH} rx={r} ry={r} fill={product.barColor} fillOpacity={isHover ? 0.18 : 0.1} />
-                      {fillH > 0 && (
+                      {fillH > 0 ? (
                         <rect x={bx} y={fillY} width={barW} height={fillH} rx={r} ry={r} fill={barColor} fillOpacity={isHover ? 1 : 0.88} />
+                      ) : (
+                        // Base visível para 0% (não some): traço sobre a linha de base.
+                        <rect x={bx} y={innerH - 3} width={barW} height={3} rx={1.5} ry={1.5} fill={barColor} fillOpacity={isHover ? 0.7 : 0.45} />
                       )}
                       {expY !== null && (
                         <>
@@ -343,20 +347,20 @@ export default function ProjetoAnalise() {
                           <text x={cx} y={expY - 5} textAnchor="middle" fill="#64748b" fontSize={10} opacity={0.85}>◆</text>
                         </>
                       )}
-                      <text x={cx} y={fillH > 0 ? fillY - 5 : innerH - 5} textAnchor="middle" fill="#64748b" fontSize={10} fontFamily="Inter, sans-serif" fontWeight={600}>
+                      <text x={cx} y={fillH > 0 ? fillY - 7 : innerH - 8} textAnchor="middle" fill="#64748b" fontSize={10} fontFamily="Inter, sans-serif" fontWeight={600}>
                         {product.progressPct}%
                       </text>
                       <text
                         x={cx}
-                        y={innerH + 10}
+                        y={innerH + 14}
                         textAnchor="end"
                         fill={isHover ? product.barColor : `${product.barColor}bb`}
                         fontSize={10}
                         fontFamily="Inter, sans-serif"
                         fontWeight={600}
-                        transform={`rotate(-65, ${cx}, ${innerH + 10})`}
+                        transform={`rotate(-45, ${cx}, ${innerH + 14})`}
                       >
-                        {product.name}
+                        {product.name.length > 16 ? product.name.slice(0, 15) + "…" : product.name}
                       </text>
                     </g>
                   );

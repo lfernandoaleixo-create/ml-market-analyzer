@@ -11,6 +11,8 @@ type Product = {
   description?: string | null;
   updatedAt: Date;
   expectedArrival?: Date | null;
+  completedCount?: number;
+  progressPct?: number;
 };
 
 interface ProductCardProps {
@@ -43,9 +45,10 @@ const PRIORITY_CONFIG: Record<
 
 export default function ProjectProductCard({ product, viewMode, onClick }: ProductCardProps) {
   const pConfig = PRIORITY_CONFIG[product.priority] ?? PRIORITY_CONFIG.media;
-  const stepIndex = STEP_ORDER.indexOf(product.currentStep as any);
-  const progress = stepIndex >= 0 ? ((stepIndex + 1) / STEP_ORDER.length) * 100 : 0;
-  const isLaunched = product.currentStep === "lancamento";
+  // Régua única: progresso = etapas concluídas / total (coerente com Cronograma e Análise).
+  const completedCount = product.completedCount ?? 0;
+  const progress = product.progressPct ?? (completedCount / STEP_ORDER.length) * 100;
+  const isLaunched = completedCount >= STEP_ORDER.length || product.currentStep === "lancamento";
   const accent = isLaunched ? "var(--success)" : "var(--primary)";
 
   if (viewMode === "list") {
@@ -148,12 +151,7 @@ export default function ProjectProductCard({ product, viewMode, onClick }: Produ
               key={step}
               className="flex-1 h-0.5 rounded-full transition-all duration-300"
               style={{
-                background:
-                  i < stepIndex
-                    ? "var(--primary)"
-                    : i === stepIndex
-                      ? "color-mix(in oklch, var(--primary) 60%, transparent)"
-                      : "var(--muted)",
+                background: i < completedCount ? "var(--primary)" : "var(--muted)",
               }}
             />
           ))}
