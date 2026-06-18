@@ -254,3 +254,82 @@ describe("computeTargetPrice com overrides", () => {
     expect(comOverride).not.toBeNull();
   });
 });
+
+
+import {
+  autoFieldValues,
+  listingTypeLabel,
+  logisticTypeLabel,
+  weightLabel,
+  type ActiveListingRow,
+} from "./activeListings";
+
+describe("rótulos do valor automático do card de recalibração", () => {
+  function makeRow(over: Partial<ActiveListingRow> = {}): ActiveListingRow {
+    return {
+      itemId: "MLB123",
+      title: "Produto",
+      sku: "SKU1",
+      price: 100,
+      currency: "BRL",
+      listingType: "gold_special",
+      mlListingType: "classico",
+      availableQuantity: 5,
+      soldQuantity: 10,
+      visits: 200,
+      visitsAvailable: true,
+      conversion: 0.05,
+      freeShipping: false,
+      mlLogisticType: "padrao",
+      catalogListing: false,
+      stockValue: 500,
+      cost: 30,
+      costSource: "sku",
+      commissionPercent: 14,
+      fixedFee: 0,
+      shippingCost: 7.75,
+      realProfit: 20,
+      realMarginPct: 20,
+      targetPrices: {},
+      packageWeightGrams: 250,
+      weightIndex: 0,
+      taxPercent: 5.93,
+      ...over,
+    };
+  }
+
+  // O Intl usa espaço não separável (U+00A0) entre "R$" e o número; normalizamos
+  // para um espaço comum antes de comparar.
+  const nb = (s: string) => s.replace(/\u00a0/g, " ");
+
+  it("formata os campos automáticos em pt-BR (R$ e %)", () => {
+    const a = autoFieldValues(makeRow());
+    expect(nb(a.cost)).toBe("R$ 30,00");
+    expect(nb(a.taxPercent)).toBe("5,93%");
+    expect(nb(a.commissionPercent)).toBe("14%");
+    expect(a.mlListingType).toBe("Clássico");
+    expect(a.mlLogisticType).toBe("Padrão (Clássico)");
+    expect(nb(a.shippingCost)).toBe("R$ 7,75");
+    expect(nb(a.fixedFee)).toBe("R$ 0,00");
+    // peso inclui a faixa e os gramas reais
+    expect(a.weight).toContain("Até 300g");
+    expect(a.weight).toContain("250 g");
+  });
+
+  it("mostra 'sem custo' quando o custo é desconhecido", () => {
+    const a = autoFieldValues(makeRow({ cost: null }));
+    expect(a.cost).toBe("sem custo");
+  });
+
+  it("não inclui os gramas quando o peso da embalagem não é declarado", () => {
+    const a = autoFieldValues(makeRow({ packageWeightGrams: null, weightIndex: 2 }));
+    expect(a.weight).toBe(weightLabel(2));
+    expect(a.weight).not.toContain("g)");
+  });
+
+  it("helpers de rótulo cobrem premium e full/super e categorias especiais", () => {
+    expect(listingTypeLabel("premium")).toBe("Premium");
+    expect(logisticTypeLabel("full_super")).toBe("Full / Super");
+    expect(logisticTypeLabel("cat_especial")).toBe("Categorias especiais");
+  });
+});

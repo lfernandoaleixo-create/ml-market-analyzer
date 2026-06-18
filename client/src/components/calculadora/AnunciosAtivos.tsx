@@ -337,6 +337,14 @@ export default function AnunciosAtivos() {
     return {};
   }, [selectedIds, overrides]);
 
+  // Linha REAL (já recalculada) do único anúncio selecionado — alimenta os
+  // rótulos "auto: …" do card. undefined quando 0 ou >1 selecionados (em lote
+  // cada anúncio tem o próprio valor real, então não há um único a mostrar).
+  const autoRow = useMemo(() => {
+    if (selectedIds.length !== 1) return undefined;
+    return rows.find((r) => r.itemId === selectedIds[0]);
+  }, [selectedIds, rows]);
+
   // Aplica um patch de override a todos os anúncios selecionados.
   const applyPatch = useCallback(
     (patch: ListingOverrides) => {
@@ -455,23 +463,6 @@ export default function AnunciosAtivos() {
 
       {/* Controles */}
       <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card p-4">
-        {/* Imposto agregado (default global) */}
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Imposto (%)</label>
-          <Select value={String(taxPercent)} onValueChange={(v) => setTaxPercent(Number(v))}>
-            <SelectTrigger className="h-9 w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TAX_OPTIONS.map((t) => (
-                <SelectItem key={t} value={String(t)}>
-                  {t.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         {/* 3 seletores de margem */}
         {[0, 1, 2].map((idx) => (
           <div key={idx} className="space-y-1">
@@ -528,7 +519,8 @@ export default function AnunciosAtivos() {
         </div>
       </div>
 
-      {/* Card de recalibragem (aparece com seleção) */}
+      {/* Card de recalibragem (aparece com seleção). O seletor de Imposto (%)
+          vive AQUI dentro, junto das demais opções de ajuste. */}
       {selected.size > 0 && (
         <RecalibrarCard
           selectedCount={selected.size}
@@ -536,6 +528,10 @@ export default function AnunciosAtivos() {
           onChange={applyPatch}
           onClear={clearSelected}
           onClose={closeCard}
+          taxPercent={taxPercent}
+          onTaxChange={setTaxPercent}
+          taxOptions={TAX_OPTIONS}
+          autoRow={autoRow}
         />
       )}
 

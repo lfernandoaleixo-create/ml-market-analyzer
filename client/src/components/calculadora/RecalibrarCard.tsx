@@ -1,4 +1,4 @@
-import { SlidersHorizontal, X, RotateCcw } from "lucide-react";
+import { SlidersHorizontal, X, RotateCcw, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -10,15 +10,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ML_WEIGHT_LABELS } from "@shared/pricing";
-import { type ListingOverrides } from "@shared/activeListings";
+import {
+  autoFieldValues,
+  type ActiveListingRow,
+  type ListingOverrides,
+} from "@shared/activeListings";
 
 /**
  * Card de recalibragem — replica os campos da Calculadora de Precificação para
- * que o usuário ajuste os insumos (custo, imposto, comissão, frete, peso, etc.)
+ * que o usuário ajuste os insumos (imposto, custo, comissão, frete, peso, etc.)
  * dos anúncios SELECIONADOS. Em lote (vários selecionados) aplica a todos; com um
  * único selecionado, vira ajuste fino daquele anúncio.
  *
- * Campos deixados em branco/"automático" usam o valor real do anúncio.
+ * Campos deixados em branco/"automático" usam o valor real do anúncio — e, quando
+ * há exatamente UM anúncio selecionado, o card mostra qual valor automático está
+ * sendo usado em cada campo, para o usuário decidir se troca para manual.
  */
 
 export interface RecalibrarCardProps {
@@ -32,6 +38,17 @@ export interface RecalibrarCardProps {
   onClear: () => void;
   /** Fecha o card (desmarca tudo). */
   onClose: () => void;
+  /** Imposto (%) corrente (default global). Editável aqui dentro. */
+  taxPercent: number;
+  /** Atualiza o imposto (%) global. */
+  onTaxChange: (value: number) => void;
+  /** Opções de imposto (%) do seletor. */
+  taxOptions: number[];
+  /**
+   * Linha REAL do único anúncio selecionado (já recalculada) — usada para
+   * mostrar os valores automáticos por campo. undefined em lote (>1 selecionado).
+   */
+  autoRow?: ActiveListingRow;
 }
 
 /** Converte string de input num número ou undefined (campo vazio = automático). */
@@ -54,8 +71,14 @@ export default function RecalibrarCard({
   onChange,
   onClear,
   onClose,
+  taxPercent,
+  onTaxChange,
+  taxOptions,
+  autoRow,
 }: RecalibrarCardProps) {
   const set = (patch: ListingOverrides) => onChange(patch);
+  // Rótulos "auto: …" só fazem sentido com 1 anúncio selecionado.
+  const auto = autoRow ? autoFieldValues(autoRow) : null;
 
   return (
     <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.04] p-4">
@@ -70,7 +93,7 @@ export default function RecalibrarCard({
             </h3>
             <p className="text-xs text-muted-foreground">
               {selectedCount === 1
-                ? "Ajuste fino deste anúncio. Campos em branco usam o valor real."
+                ? "Ajuste fino deste anúncio. Em branco = usa o valor automático mostrado abaixo de cada campo."
                 : `Aplicando a ${selectedCount} anúncios selecionados. Campos em branco usam o valor real de cada um.`}
             </p>
           </div>
@@ -86,39 +109,66 @@ export default function RecalibrarCard({
         </div>
       </div>
 
+      {selectedCount === 1 && (
+        <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-3 py-2 text-xs text-sky-700">
+          <Wand2 className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            Os valores marcados como <strong>auto</strong> são os que o sistema está usando agora
+            neste anúncio. Deixe em branco para mantê-los ou digite/selecione para sobrescrever.
+          </span>
+        </div>
+      )}
+
       <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3 lg:grid-cols-4">
+        {/* Imposto (%) — agora DENTRO do card, junto das demais opções */}
+        <Field label="Imposto (%)" hint="aplica-se a todos os cálculos da tabela">
+          <Select value={String(taxPercent)} onValueChange={(v) => onTaxChange(Number(v))}>
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {taxOptions.map((t) => (
+                <SelectItem key={t} value={String(t)}>
+                  {t.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
         {/* Custo (R$) — sobrescreve Baselinker */}
-        <Field label="Custo do produto (R$)" hint="vazio = custo do Baselinker">
+        <Field
+          label="Custo do produto (R$)"
+          auto={value.cost == null ? auto?.cost : undefined}
+          fallbackHint="vazio = custo do Baselinker"
+        >
           <Input
             inputMode="decimal"
-            placeholder="auto"
+            placeholder={auto ? `auto: ${auto.cost}` : "auto"}
             value={numStr(value.cost)}
             onChange={(e) => set({ cost: toNum(e.target.value) })}
           />
         </Field>
 
-        {/* Imposto (%) */}
-        <Field label="Imposto (%)">
-          <Input
-            inputMode="decimal"
-            placeholder="auto"
-            value={numStr(value.taxPercent)}
-            onChange={(e) => set({ taxPercent: toNum(e.target.value) })}
-          />
-        </Field>
-
         {/* Comissão (%) */}
-        <Field label="Comissão (%)" hint="vazio = padrão do tipo">
+        <Field
+          label="Comissão (%)"
+          auto={value.commissionPercent == null ? auto?.commissionPercent : undefined}
+          fallbackHint="vazio = padrão do tipo"
+        >
           <Input
             inputMode="decimal"
-            placeholder="auto"
+            placeholder={auto ? `auto: ${auto.commissionPercent}` : "auto"}
             value={numStr(value.commissionPercent)}
             onChange={(e) => set({ commissionPercent: toNum(e.target.value) })}
           />
         </Field>
 
         {/* Tipo de anúncio */}
-        <Field label="Tipo de anúncio">
+        <Field
+          label="Tipo de anúncio"
+          auto={value.mlListingType == null ? auto?.mlListingType : undefined}
+        >
           <Select
             value={value.mlListingType ?? AUTO}
             onValueChange={(v) =>
@@ -137,7 +187,10 @@ export default function RecalibrarCard({
         </Field>
 
         {/* Logística */}
-        <Field label="Logística">
+        <Field
+          label="Logística"
+          auto={value.mlLogisticType == null ? auto?.mlLogisticType : undefined}
+        >
           <Select
             value={value.mlLogisticType ?? AUTO}
             onValueChange={(v) =>
@@ -160,12 +213,14 @@ export default function RecalibrarCard({
         </Field>
 
         {/* Peso (faixa) */}
-        <Field label="Peso (faixa)" hint="vazio = peso real do anúncio">
+        <Field
+          label="Peso (faixa)"
+          auto={value.weightIndex == null ? auto?.weight : undefined}
+          fallbackHint="vazio = peso real do anúncio"
+        >
           <Select
             value={value.weightIndex != null ? String(value.weightIndex) : AUTO}
-            onValueChange={(v) =>
-              set({ weightIndex: v === AUTO ? undefined : Number(v) })
-            }
+            onValueChange={(v) => set({ weightIndex: v === AUTO ? undefined : Number(v) })}
           >
             <SelectTrigger className="h-9">
               <SelectValue />
@@ -182,10 +237,14 @@ export default function RecalibrarCard({
         </Field>
 
         {/* Frete manual (R$) */}
-        <Field label="Frete manual (R$)" hint="vazio = tabela por peso">
+        <Field
+          label="Frete manual (R$)"
+          auto={value.shippingCost == null ? auto?.shippingCost : undefined}
+          fallbackHint="vazio = tabela por peso"
+        >
           <Input
             inputMode="decimal"
-            placeholder="auto"
+            placeholder={auto ? `auto: ${auto.shippingCost}` : "auto"}
             value={numStr(value.shippingCost)}
             onChange={(e) => {
               const n = toNum(e.target.value);
@@ -195,10 +254,13 @@ export default function RecalibrarCard({
         </Field>
 
         {/* Taxa fixa (R$) */}
-        <Field label="Taxa fixa (R$)">
+        <Field
+          label="Taxa fixa (R$)"
+          auto={value.fixedFee == null ? auto?.fixedFee : undefined}
+        >
           <Input
             inputMode="decimal"
-            placeholder="auto"
+            placeholder={auto ? `auto: ${auto.fixedFee}` : "auto"}
             value={numStr(value.fixedFee)}
             onChange={(e) => set({ fixedFee: toNum(e.target.value) })}
           />
@@ -259,17 +321,30 @@ export default function RecalibrarCard({
 function Field({
   label,
   hint,
+  auto,
+  fallbackHint,
   children,
 }: {
   label: string;
+  /** Dica fixa exibida sempre. */
   hint?: string;
+  /** Valor automático (real) — quando presente, exibido em destaque sob o campo. */
+  auto?: string;
+  /** Dica exibida quando NÃO há valor automático para mostrar. */
+  fallbackHint?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1">
       <label className="block text-xs font-medium text-muted-foreground">{label}</label>
       {children}
-      {hint && <p className="text-[11px] text-muted-foreground/80">{hint}</p>}
+      {auto ? (
+        <p className="text-[11px] font-medium text-sky-600">auto: {auto}</p>
+      ) : (
+        (hint || fallbackHint) && (
+          <p className="text-[11px] text-muted-foreground/80">{hint ?? fallbackHint}</p>
+        )
+      )}
     </div>
   );
 }

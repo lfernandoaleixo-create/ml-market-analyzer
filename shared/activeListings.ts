@@ -426,3 +426,78 @@ export function normalizeLogisticType(
   // cross_docking / drop_off / self_service / xd_drop_off → Padrão (Clássico).
   return "padrao";
 }
+
+/* ------------------------------------------------------------------------- *
+ *  Rótulos do valor "automático" (real) por campo do card de recalibração
+ * ------------------------------------------------------------------------- *
+ * Quando um campo do card está em "automático", a UI mostra qual valor real
+ * está sendo usado para o anúncio selecionado, para o usuário decidir se passa
+ * para manual. Estes helpers são puros para serem testáveis e reutilizáveis. */
+
+import { ML_WEIGHT_LABELS } from "./pricing";
+
+/** Formata um número em R$ (pt-BR), 2 casas. Ex.: 12.9 → "R$ 12,90". */
+function brl(v: number): string {
+  return v.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Formata uma porcentagem (pt-BR) com até 2 casas. Ex.: 5.93 → "5,93%". */
+function pct(v: number): string {
+  return `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+}
+
+/** Rótulo legível do tipo de anúncio. */
+export function listingTypeLabel(t: MlListingType): string {
+  return t === "premium" ? "Premium" : "Clássico";
+}
+
+/** Rótulo legível do modelo logístico. */
+export function logisticTypeLabel(t: MlLogisticType): string {
+  if (t === "full_super") return "Full / Super";
+  if (t === "cat_especial") return "Categorias especiais";
+  return "Padrão (Clássico)";
+}
+
+/** Rótulo legível da faixa de peso (índice 0..27). */
+export function weightLabel(index: number): string {
+  return ML_WEIGHT_LABELS[index] ?? `Faixa ${index}`;
+}
+
+/**
+ * Valores "automáticos" (reais) de UM anúncio selecionado, já formatados para a
+ * UI mostrar abaixo de cada campo do card quando ele está em "automático".
+ * Quando não há exatamente 1 anúncio selecionado, a UI não exibe (em lote cada
+ * anúncio usa o próprio valor real, então não há um único número a mostrar).
+ */
+export interface AutoFieldValues {
+  cost: string;
+  taxPercent: string;
+  commissionPercent: string;
+  mlListingType: string;
+  mlLogisticType: string;
+  weight: string;
+  shippingCost: string;
+  fixedFee: string;
+}
+
+/** Deriva os rótulos "auto" a partir da linha real do anúncio. */
+export function autoFieldValues(row: ActiveListingRow): AutoFieldValues {
+  return {
+    cost: row.cost != null ? brl(row.cost) : "sem custo",
+    taxPercent: pct(row.taxPercent),
+    commissionPercent: pct(row.commissionPercent),
+    mlListingType: listingTypeLabel(row.mlListingType),
+    mlLogisticType: logisticTypeLabel(row.mlLogisticType),
+    weight:
+      row.packageWeightGrams != null
+        ? `${weightLabel(row.weightIndex)} (${row.packageWeightGrams} g)`
+        : weightLabel(row.weightIndex),
+    shippingCost: brl(row.shippingCost),
+    fixedFee: brl(row.fixedFee),
+  };
+}

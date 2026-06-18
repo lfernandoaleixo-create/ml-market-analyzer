@@ -1146,3 +1146,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] account.connection: probe bem-sucedido (prova que o token funciona) reseta status="connected" no banco (best-effort, não quebra a resposta do probe)
 - [x] 429 durante o probe NÃO rebaixa o status persistido (segue conectado-mas-limitado)
 - [x] Testes vitest (cura de "error"→"connected"; não escreve se já connected; 429 não rebaixa) — 598 testes verdes; TS limpo
+
+## Recalibração — mostrar valor automático + imposto dentro do card (Fernando, 18/06)
+- [x] Card de recalibração: mover o seletor de Imposto (%) para DENTRO do card (topo do grid), removido do bloco de controles externo
+- [x] Em cada campo "automático", exibir o valor real sendo usado para o anúncio selecionado (custo, imposto, comissão, frete, taxa fixa, peso com gramas reais, tipo, logística) — com 1 selecionado
+- [x] Passar a linha real selecionada (autoRow) para o RecalibrarCard
+- [x] Testes vitest (autoFieldValues + rótulos) + TS limpo + validação na preview com dados reais (602 testes verdes)
