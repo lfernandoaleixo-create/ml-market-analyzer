@@ -320,3 +320,21 @@ export function listingsToCsv(items: ListingRow[]): string {
   }
   return lines.join("\n");
 }
+
+/**
+ * Seleciona SOMENTE os anúncios com status ativo, aplicando uma busca textual
+ * opcional por título ou itemId (case-insensitive). Usado pelo card dedicado
+ * "Anúncios ativos" na página Meus anúncios. Mantém a ordem original recebida.
+ */
+export function selectActiveListings(
+  items: ListingRow[],
+  search = "",
+): ListingRow[] {
+  const active = items.filter((i) => i.status === "active");
+  const q = search.trim().toLowerCase();
+  if (!q) return active;
+  return active.filter(
+    (i) =>
+      i.title.toLowerCase().includes(q) || i.itemId.toLowerCase().includes(q),
+  );
+}

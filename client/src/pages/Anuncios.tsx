@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { ProductCell } from "@/components/account/ProductCell";
 import { TechSpecsCard } from "@/components/account/TechSpecsCard";
+import { ActiveListingsCard } from "@/components/account/ActiveListingsCard";
 import {
   PageShell,
   PageHeader,
@@ -420,6 +421,9 @@ export default function Anuncios() {
           accent="orange"
         />
       </div>
+
+      {/* Card dedicado: somente anúncios ATIVOS (grid de cartões) */}
+      <ActiveListingsCard items={items} loading={isLoading} visitWindow={visitWindow} />
 
       {/* Visits broken down by listing status */}
       <SectionCard

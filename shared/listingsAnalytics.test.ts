@@ -12,6 +12,7 @@ import {
   filterListings,
   sortListings,
   listingsToCsv,
+  selectActiveListings,
 } from "./listingsAnalytics";
 
 function row(over: Partial<ListingRow>): ListingRow {
@@ -144,5 +145,40 @@ describe("listingsToCsv", () => {
     expect(lines[1]).toContain('"Produto; especial"');
     expect(lines[1]).toContain("12,50");
     expect(lines[1]).toContain("1,23"); // conversion percent
+  });
+});
+
+describe("selectActiveListings", () => {
+  const items: ListingRow[] = [
+    row({ itemId: "MLB1", title: "Palito de Bambu", status: "active" }),
+    row({ itemId: "MLB2", title: "Hashi Descartável", status: "paused" }),
+    row({ itemId: "MLB3", title: "Vareta Difusor", status: "active" }),
+    row({ itemId: "MLB4", title: "Colar Prata", status: "closed" }),
+    row({ itemId: "MLB5", title: "Espeto Churrasco", status: "active" }),
+  ];
+
+  it("returns only active listings, preserving order", () => {
+    const active = selectActiveListings(items);
+    expect(active.map((i) => i.itemId)).toEqual(["MLB1", "MLB3", "MLB5"]);
+  });
+
+  it("filters active listings by title (case-insensitive)", () => {
+    const r = selectActiveListings(items, "vareta");
+    expect(r.map((i) => i.itemId)).toEqual(["MLB3"]);
+  });
+
+  it("filters active listings by itemId", () => {
+    const r = selectActiveListings(items, "MLB5");
+    expect(r.map((i) => i.itemId)).toEqual(["MLB5"]);
+  });
+
+  it("never returns non-active items even if the search matches them", () => {
+    const r = selectActiveListings(items, "Hashi");
+    expect(r).toHaveLength(0);
+  });
+
+  it("ignores surrounding whitespace in the query", () => {
+    const r = selectActiveListings(items, "  espeto  ");
+    expect(r.map((i) => i.itemId)).toEqual(["MLB5"]);
   });
 });

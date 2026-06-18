@@ -1152,3 +1152,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Em cada campo "automático", exibir o valor real sendo usado para o anúncio selecionado (custo, imposto, comissão, frete, taxa fixa, peso com gramas reais, tipo, logística) — com 1 selecionado
 - [x] Passar a linha real selecionada (autoRow) para o RecalibrarCard
 - [x] Testes vitest (autoFieldValues + rótulos) + TS limpo + validação na preview com dados reais (602 testes verdes)
+
+## Card "Anúncios ativos" na aba Meus anúncios (Fernando, 18/06)
+- [x] Novo componente ActiveListingsCard (grid de cartões) — só status ativo, com foto, título, badge Ativo, tipo, frete grátis, preço, estoque, vendas e visitas (Nd)
+- [x] Cartão clicável abre o anúncio no Mercado Livre; busca interna por nome/ID; contador "N de N ativos"
+- [x] Inserido logo abaixo dos KPIs na página Meus anúncios; acompanha a janela 7/30/90d
+- [x] Lógica testável selectActiveListings no shared + 5 testes vitest (607 verdes); TS limpo
+- [x] Validado ao vivo: 27 de 27 ativos, visitas reais carregadas, links funcionando
