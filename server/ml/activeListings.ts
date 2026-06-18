@@ -208,6 +208,11 @@ export async function buildActiveListings(
   const withCost = items.filter((i) => i.cost != null).length;
   const totalRealProfit = items.reduce((s, i) => s + (i.realProfit ?? 0), 0);
   const totalStockValue = items.reduce((s, i) => s + i.stockValue, 0);
+  // Progresso de visitas: quantos ativos já têm visita REAL coletada do ML.
+  // A coleta é item-a-item em background; enquanto não cobre todos, a aba mostra
+  // "carregando" para os pendentes em vez de um 0 enganoso.
+  const visitsResolved = items.filter((i) => i.visitsAvailable).length;
+  const visitsAttempted = items.length;
 
   return {
     summary: {
@@ -219,6 +224,8 @@ export async function buildActiveListings(
       windowDays: lastDays,
       baselinkerConfigured: blConfigured,
       lastSyncIso: null,
+      visitsResolved,
+      visitsAttempted,
     },
     items,
     margins,

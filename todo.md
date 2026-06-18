@@ -1124,3 +1124,25 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest (peso->faixa, overrides em lote/individual, lucro real, preço-alvo) — 27 em activeListings, suite total 591 verdes + TS limpo
 - [x] Validar na preview com a conta real (custo override R$5 → lucro recalculou de R$5,52 para R$1,58) + checkpoint + orientar publicação
 - [x] Removido endpoint de diagnóstico /api/_debug/probeWeights e helpers de sondagem antes de publicar
+
+## URGENTE: "conexão interrompida" em Anúncios ativos (timeout/502 em produção)
+- [x] Diagnóstico: cold start bloqueante — cachedAccountResilient espera buildActiveListings (>45s/180s) → 502 SESSION_CONNECT_FAILED / "Tempo limite da requisição excedido"
+- [x] Backend: converter activeListings para SWR não-bloqueante (swrAccount) — cold start retorna ready:false/status "loading" em ms e dispara montagem em background
+- [x] Backend: manter parâmetros (margins/tax/tacos/afiliados) na chave de cache; retornar value|undefined + status + asOf; status "error" em falha de cold start (não fica preso em loading)
+- [x] Frontend: tratar status loading com poll (refetchInterval) + "Preparando seus anúncios..."; status "error" com botão Tentar novamente; encerra poll em erro
+- [x] Testes vitest (cold start ready:false → ready:true, dedup, erro de cold start) + TS limpo
+- [ ] Validar na preview (primeiro acesso responde rápido e preenche) — BLOQUEADO pelo 429 de IP do ML (temporário); validar quando o limite reabrir + republicar
+
+## Auditoria de precisão — Anúncios ativos (dados precisam bater com a realidade)
+- [x] Diagnosticar divergência de VISITAS: a aba mostrava 0 enquanto o Painel mostrava 100+ — causa: a aba lia visitas só do fan-out por item (que sob 429/budget não resolvia), exibindo 0 falso
+- [x] Unificar a FONTE de visitas: a aba passa a usar o mesmo visitsStore (coleta progressiva em background, concorrência 2), e expõe visitsResolved/visitsAttempted no summary
+- [x] Corrigir exibição: quando a visita do item ainda não foi resolvida (visitsAvailable:false) mostra "carregando" em vez de 0; banner de progresso parcial de coleta
+- [x] Frete por peso real do anúncio (SELLER_PACKAGE_WEIGHT do ML) → weightGramsToIndex alimenta a faixa de frete
+- [x] Testes vitest (mapeamento de peso, overrides, colunas padrão, contrato SWR, erro de cold start) + TS limpo
+- [ ] Validação final na conta real (visitas batendo com o Painel) — BLOQUEADO pelo 429 de IP do ML (temporário)
+
+## Auto-cura do status preso em "error" (após 429 do ML) — 18/06
+- [x] Diagnóstico: quando o ML retorna 429, o status persistido em ml_credentials podia ficar travado em "error"; mesmo com o token voltando a funcionar, a UI mostrava "desconectado" falso
+- [x] account.connection: probe bem-sucedido (prova que o token funciona) reseta status="connected" no banco (best-effort, não quebra a resposta do probe)
+- [x] 429 durante o probe NÃO rebaixa o status persistido (segue conectado-mas-limitado)
+- [x] Testes vitest (cura de "error"→"connected"; não escreve se já connected; 429 não rebaixa) — 598 testes verdes; TS limpo

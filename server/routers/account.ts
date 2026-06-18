@@ -89,6 +89,20 @@ export const accountRouter = router({
     try {
       const account = await resolveAccount(ctx.user.id);
       const probe = await account.probe();
+      // Self-heal: a successful probe PROVES the token works. If the DB still
+      // carries a stale status="error" (e.g. left over from a previous 429 or a
+      // transient failure), reset it to "connected" so the UI stops showing a
+      // false "desconectado". Best-effort: never let a write failure break the
+      // probe response.
+      if (probe.ok) {
+        const creds = await getCredentials(ctx.user.id).catch(() => null);
+        if (creds && creds.status !== "connected") {
+          await upsertCredentials(ctx.user.id, {
+            status: "connected",
+            statusMessage: "Conexão verificada automaticamente.",
+          }).catch(() => {});
+        }
+      }
       return { connected: probe.ok, nickname: probe.nickname };
     } catch (err) {
       // A rate limit is NOT a disconnection: the account is still linked, ML is
@@ -235,9 +249,16 @@ export const accountRouter = router({
     .query(async ({ ctx, input }) => {
       const margins = input?.margins ?? [20, 30, 40];
       const taxKey = input?.taxPercent ?? "def";
-      const { value, stale, asOf } = await cachedAccountResilient(
+      // SWR NÃO-BLOQUEANTE: a montagem (IDs→detalhes→SKUs→custos) pode levar dezenas
+      // de segundos em contas grandes e, num cold start de produção (Cloud Run),
+      // estourava o limite de 180s → "conexão interrompida" (502). Por isso não
+      // esperamos a montagem: no primeiro acesso devolvemos status "loading" em ms
+      // e disparamos a coleta em background; o cliente faz poll e a tela preenche
+      // assim que fica pronta (mesmo padrão do gráfico de visitas diárias).
+      const key = `activeListings:${margins.join("-")}:t${taxKey}:a${input?.tacosPercent ?? 0}:af${input?.affiliatePercent ?? 0}`;
+      const { value, status, asOf, error } = swrAccount(
         ctx.user.id,
-        `activeListings:${margins.join("-")}:t${taxKey}:a${input?.tacosPercent ?? 0}:af${input?.affiliatePercent ?? 0}`,
+        key,
         async () => {
           const account = await resolveAccount(ctx.user.id);
           return buildActiveListings(ctx.user.id, account, {
@@ -248,13 +269,21 @@ export const accountRouter = router({
           });
         },
         60 * 1000,
-      ).catch((err) => {
-        if (err instanceof MLRateLimitError) {
-          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });
-        }
-        throw err;
-      });
-      return { ...value, stale, asOf };
+      );
+      // Cold start: ainda não há dados → sinaliza loading/erro para o cliente.
+      // Quando a montagem em background falhou (tipicamente ML 429/timeout) e não
+      // há nada para servir, devolvemos status "error" com uma mensagem amigável,
+      // em vez de deixar a tela presa em "Preparando..." para sempre.
+      if (value === undefined) {
+        const isRate = !!error && /rate|429|too many|limit/i.test(error);
+        const message = isRate
+          ? "O Mercado Livre limitou as consultas. Aguarde alguns instantes e tente novamente."
+          : error
+            ? "Não foi possível carregar os anúncios agora. Tente novamente em instantes."
+            : undefined;
+        return { ready: false as const, status, asOf, message };
+      }
+      return { ...value, ready: true as const, stale: status === "stale", asOf };
     }),
 
   /** Listings performance (visits, sales, conversion, stock, status). */

@@ -242,6 +242,32 @@ describe("swrAccount (non-blocking stale-while-revalidate)", () => {
     expect(afterFail.value).toEqual({ n: 1 });
   });
 
+  it("cold start whose loader FAILS surfaces status 'error' with the message (not a forever loading)", async () => {
+    const loader = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("ML rate limited (429)"))
+      .mockResolvedValueOnce({ n: 7 });
+    // Cold read kicks the (failing) background load.
+    const first = swrAccount<{ n: number }>(205, "k", loader);
+    expect(first.status).toBe("loading");
+    expect(first.value).toBeUndefined();
+    // Let the rejection settle.
+    await new Promise((r) => setTimeout(r, 10));
+    // Now a read must report the error (so the client stops polling and shows a message).
+    const errored = swrAccount<{ n: number }>(205, "k", loader);
+    expect(errored.status).toBe("error");
+    expect(errored.value).toBeUndefined();
+    expect(errored.error).toMatch(/rate|429|limit/i);
+    // A manual retry (refetch) re-runs the loader and recovers.
+    await new Promise((r) => setTimeout(r, 10));
+    const recovered = swrAccount<{ n: number }>(205, "k", loader);
+    // The retry kicks a fresh background load; wait for it to land.
+    await new Promise((r) => setTimeout(r, 10));
+    const fresh = swrAccount<{ n: number }>(205, "k", loader);
+    expect(["loading", "error", "fresh"]).toContain(recovered.status);
+    expect(fresh.value).toEqual({ n: 7 });
+  });
+
   it("de-duplicates: a burst of reads triggers only ONE background load", async () => {
     const loader = vi.fn(
       () => new Promise<{ n: number }>((r) => setTimeout(() => r({ n: 1 }), 20)),

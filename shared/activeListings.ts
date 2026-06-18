@@ -140,6 +140,10 @@ export interface ActiveListingsSummary {
   baselinkerConfigured: boolean;
   /** ISO da última sincronização (quando vier do snapshot diário). */
   lastSyncIso?: string | null;
+  /** Quantos anúncios já têm visitas REAIS coletadas do ML (progresso). */
+  visitsResolved?: number;
+  /** Total de anúncios para os quais buscamos visitas. */
+  visitsAttempted?: number;
 }
 
 export interface ActiveListingsResult {

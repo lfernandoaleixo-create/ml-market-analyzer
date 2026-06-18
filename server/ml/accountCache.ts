@@ -32,6 +32,10 @@ type Entry = {
   lastGood?: unknown;
   /** Epoch ms when `lastGood` was captured. */
   lastGoodAt?: number;
+  /** Last error message from a failed background load (cold-start only). */
+  lastError?: string;
+  /** Epoch ms when `lastError` was captured. */
+  lastErrorAt?: number;
 };
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
@@ -212,8 +216,10 @@ export async function cachedAccountResilient<T>(
  */
 export type SwrResult<T> = {
   value: T | undefined;
-  status: "fresh" | "stale" | "loading";
+  status: "fresh" | "stale" | "loading" | "error";
   asOf: number;
+  /** Present only when status is "error" (cold start failed, no value to serve). */
+  error?: string;
 };
 
 /**
@@ -269,15 +275,19 @@ export function swrAccount<T>(
       lastGoodAt: existing?.value !== undefined ? existing?.at : existing?.lastGoodAt,
     });
     // Detach: a background failure must not crash the process or be unhandled.
-    inflight.catch(() => {
+    inflight.catch((err: unknown) => {
       const cur = b.get(key);
-      // Drop only the inflight marker; KEEP any value we were serving.
+      // Drop only the inflight marker; KEEP any value we were serving. Record the
+      // error so a COLD start (no value) can surface an honest "error" status
+      // instead of looping forever on "loading" (e.g. ML 429 on first access).
       if (cur && cur.inflight === inflight) {
         b.set(key, {
           at: cur.at,
           value: cur.value,
           lastGood: cur.lastGood,
           lastGoodAt: cur.lastGoodAt,
+          lastError: err instanceof Error ? err.message : String(err),
+          lastErrorAt: Date.now(),
         });
       }
     });
@@ -286,6 +296,17 @@ export function swrAccount<T>(
   // Serve the old value if we have one (stale), otherwise signal a cold load.
   if (hasValue) {
     return { value: (existing as Entry).value as T, status: "stale", asOf: (existing as Entry).at };
+  }
+  // Cold start with NO value. If the most recent background attempt failed very
+  // recently (and we still have nothing to serve), surface it as an honest error
+  // so the UI can show "tente novamente" instead of an endless "preparando...".
+  const RECENT_ERROR_MS = 20 * 1000;
+  if (
+    existing?.lastError !== undefined &&
+    existing.lastErrorAt !== undefined &&
+    now - existing.lastErrorAt < RECENT_ERROR_MS
+  ) {
+    return { value: undefined, status: "error", asOf: 0, error: existing.lastError };
   }
   return { value: undefined, status: "loading", asOf: 0 };
 }

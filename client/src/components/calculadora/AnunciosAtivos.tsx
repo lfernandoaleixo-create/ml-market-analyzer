@@ -172,7 +172,11 @@ function renderCell(col: string, row: ActiveListingRow, adjusted: boolean) {
     case "visits":
       return (
         <span className="tabular-nums">
-          {row.visitsAvailable ? formatNumber(row.visits) : "—"}
+          {row.visitsAvailable ? (
+            formatNumber(row.visits)
+          ) : (
+            <span className="text-xs text-muted-foreground italic">carregando…</span>
+          )}
         </span>
       );
     case "conversion":
@@ -240,8 +244,32 @@ export default function AnunciosAtivos() {
   const { data, isLoading, isError, error, refetch, isFetching } =
     trpc.account.activeListings.useQuery(
       { margins, taxPercent },
-      { refetchOnWindowFocus: false, retry: 1 },
+      {
+        refetchOnWindowFocus: false,
+        retry: 1,
+        // Enquanto a montagem roda em background (cold start), o backend devolve
+        // `ready:false` com status "loading"/"stale". Fazemos poll a cada 4s até
+        // ficar pronto. Se vier status "error" (ML 429), PARAMOS o poll para não
+        // agravar o rate limit — o usuário reativa com "Tentar novamente".
+        refetchInterval: (query) => {
+          const d = query.state.data as { ready?: boolean; status?: string } | undefined;
+          if (d?.ready === false && d?.status !== "error") return 4000;
+          return false;
+        },
+      },
     );
+
+  // Só há dados completos quando ready === true. Em loading/cold start, payload = null.
+  const payload = data && data.ready === true ? data : null;
+  // ready:false pode ser "preparando" (coleta em background) OU "erro" (a coleta
+  // falhou, típico ML 429). O backend envia status e message para distinguir.
+  const notReady = data != null && data.ready === false;
+  const coldError =
+    notReady && (data as { status?: string }).status === "error";
+  const coldErrorMessage =
+    (data as { message?: string } | null)?.message ??
+    "Não foi possível carregar os anúncios agora. Tente novamente em instantes.";
+  const preparing = notReady && !coldError;
 
   const cols = useMemo(
     () => ACTIVE_LISTING_COLUMNS.filter((c) => visibleCols[c.key] || c.locked),
@@ -250,24 +278,24 @@ export default function AnunciosAtivos() {
 
   // Linhas recalculadas no cliente, aplicando os overrides por anúncio.
   const rows = useMemo(() => {
-    if (!data) return [] as ActiveListingRow[];
-    return data.items.map((row) => recalcRow(row, margins, taxPercent, overrides[row.itemId]));
-  }, [data, margins, taxPercent, overrides]);
+    if (!payload) return [] as ActiveListingRow[];
+    return payload.items.map((row) => recalcRow(row, margins, taxPercent, overrides[row.itemId]));
+  }, [payload, margins, taxPercent, overrides]);
 
   // Resumo recalculado (reflete overrides).
   const summary = useMemo(() => {
-    if (!data) return null;
+    if (!payload) return null;
     const withCost = rows.filter((r) => r.cost != null).length;
     const totalRealProfit = rows.reduce((s, r) => s + (r.realProfit ?? 0), 0);
     const totalStockValue = rows.reduce((s, r) => s + r.stockValue, 0);
     return {
-      ...data.summary,
+      ...payload.summary,
       withCost,
       withoutCost: rows.length - withCost,
       totalRealProfit: Math.round(totalRealProfit * 100) / 100,
       totalStockValue: Math.round(totalStockValue * 100) / 100,
     };
-  }, [data, rows]);
+  }, [payload, rows]);
 
   const toggleCol = (key: string, locked?: boolean) => {
     if (locked) return;
@@ -369,8 +397,23 @@ export default function AnunciosAtivos() {
         </div>
       )}
 
+      {/* Progresso da coleta de visitas (1 item/req no ML — enche aos poucos). */}
+      {payload &&
+        typeof payload.summary.visitsResolved === "number" &&
+        typeof payload.summary.visitsAttempted === "number" &&
+        payload.summary.visitsResolved < payload.summary.visitsAttempted && (
+          <div className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-700">
+            <RefreshCw className="h-4 w-4 shrink-0 animate-spin" />
+            <span>
+              Coletando visitas no Mercado Livre: {payload.summary.visitsResolved} de{" "}
+              {payload.summary.visitsAttempted} anúncios já atualizados. O ML responde 1 anúncio por
+              vez, então os números completam aos poucos — clique em Atualizar em alguns segundos.
+            </span>
+          </div>
+        )}
+
       {/* Avisos */}
-      {data && !data.summary.baselinkerConfigured && (
+      {payload && !payload.summary.baselinkerConfigured && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
@@ -380,9 +423,33 @@ export default function AnunciosAtivos() {
         </div>
       )}
 
-      {data?.stale && (
+      {payload?.stale && (
         <div className="rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
           Mostrando os últimos dados carregados (o Mercado Livre limitou as consultas há instantes).
+        </div>
+      )}
+
+      {/* Cold start falhou (típico ML 429): aviso honesto + retomar, sem zerar nada. */}
+      {coldError && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700">
+          <RefreshCw className="h-4 w-4 shrink-0" />
+          <span>
+            {coldErrorMessage}{" "}
+            <button className="underline font-medium" onClick={() => refetch()}>
+              Tentar novamente
+            </button>
+          </span>
+        </div>
+      )}
+
+      {/* Preparando: a montagem (anúncios + custos) roda em background no 1º acesso. */}
+      {preparing && (
+        <div className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-700">
+          <RefreshCw className="h-4 w-4 shrink-0 animate-spin" />
+          <span>
+            Preparando seus anúncios ativos — buscando preços, custos e peso no Mercado Livre e na
+            BaseLinker. Isso pode levar alguns segundos no primeiro acesso e a tela atualiza sozinha.
+          </span>
         </div>
       )}
 
@@ -503,7 +570,7 @@ export default function AnunciosAtivos() {
             </tr>
           </thead>
           <tbody>
-            {isLoading &&
+            {(isLoading || preparing) &&
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} className="border-b border-border">
                   <td className="px-3 py-2">
@@ -522,7 +589,7 @@ export default function AnunciosAtivos() {
                 </tr>
               ))}
 
-            {!isLoading &&
+            {!isLoading && !preparing &&
               rows.map((row) => {
                 const isSel = selected.has(row.itemId);
                 const adjusted = overrides[row.itemId] != null;
@@ -566,7 +633,7 @@ export default function AnunciosAtivos() {
           </tbody>
         </table>
 
-        {!isLoading && data && rows.length === 0 && (
+        {!isLoading && !preparing && payload && rows.length === 0 && (
           <div className="p-10 text-center text-sm text-muted-foreground">
             Nenhum anúncio ativo encontrado na sua conta no momento.
           </div>

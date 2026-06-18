@@ -640,7 +640,10 @@ export class AccountProvider {
       lastDays,
       detailIds,
       (id) => this.getItemVisits(id, lastDays),
-      { concurrency: 4 },
+      // Concorrência baixa: o endpoint de visitas é 1 item por request e o ML
+      // estrangula (429) rajadas. 2 em paralelo coleta mais devagar porém de
+      // forma CONFIÁVEL (sem disparar 429), então a progressão realmente avança.
+      { concurrency: 2 },
     );
     const windowMap: Map<string, number | null> = new Map(snapshot.map);
 
