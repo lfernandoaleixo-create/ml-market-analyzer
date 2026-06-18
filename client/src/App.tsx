@@ -23,6 +23,7 @@ import Categorias from "./pages/Categorias";
 import Monitoramento from "./pages/Monitoramento";
 import Alertas from "./pages/Alertas";
 import Configuracoes from "./pages/Configuracoes";
+import Projeto from "./pages/project/Projeto";
 
 function Router() {
   return (
@@ -49,6 +50,10 @@ function Router() {
         <Route path="/categorias" component={Categorias} />
         <Route path="/monitoramento" component={Monitoramento} />
         <Route path="/alertas" component={Alertas} />
+        <Route path="/projeto" component={Projeto} />
+        <Route path="/projeto/timeline" component={Projeto} />
+        <Route path="/projeto/analise" component={Projeto} />
+        <Route path="/projeto/produto/:id" component={Projeto} />
         <Route path="/configuracoes" component={Configuracoes} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

@@ -13,6 +13,7 @@ import { accountRouter } from "./routers/account";
 import { competitorsRouter } from "./routers/competitors";
 import { adsRouter } from "./routers/ads";
 import { financeRouter } from "./routers/finance";
+import { projectRouter } from "./routers/project";
 
 // Constant-time-ish string comparison to avoid trivially leaking length/early
 // mismatch timing. Not security-critical here (single shared password), but
@@ -99,6 +100,7 @@ export const appRouter = router({
   competitors: competitorsRouter,
   ads: adsRouter,
   finance: financeRouter,
+  project: projectRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1159,3 +1159,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Inserido logo abaixo dos KPIs na página Meus anúncios; acompanha a janela 7/30/90d
 - [x] Lógica testável selectActiveListings no shared + 5 testes vitest (607 verdes); TS limpo
 - [x] Validado ao vivo: 27 de 27 ativos, visitas reais carregadas, links funcionando
+
+## Nova aba "Projeto" — recriação do Portfólio de Importação China (paleta Mercato)
+- [x] Backend: 5 tabelas project_* (products, timeline_steps, documents, todos, comments) com migração aplicada
+- [x] Backend: helpers em projectDb.ts + router tRPC project.* (products/timeline/todos/documents/comments)
+- [x] Banco semeado com os 16 produtos reais; timeline do "Matador de Mosquito" preservada (5/10 etapas, etapa atual Pedido)
+- [x] Frontend: container Projeto.tsx com sub-navegação (Painel/Cronograma/Análise) e mini-roteamento sob /projeto
+- [x] Frontend: Painel de Produtos, Cronograma, Análise e Ficha do Produto (dossiê, timeline, tarefas, documentos, comentários) com paleta verde do Mercato
+- [x] Componentes de apoio: ProjectProductCard, GuestNameDialog, useGuestName
+- [x] Aba "Projeto" na sidebar (grupo Disponível) com destaque mantido em /projeto/*
+- [x] Lógica pura testável (shared/projectProgress.ts) + 8 testes vitest verdes; TS/LSP limpos
+- [x] Validação ao vivo: Painel com 16 produtos e ficha do Matador de Mosquito conferidos
+- [ ] Adaptações conscientes vs. original: removida a página "Colaboradores" (dependia de procedures de convite/role e /login inexistentes aqui); seletor de "Responsável" das tarefas ocultado (app é single-user por senha)

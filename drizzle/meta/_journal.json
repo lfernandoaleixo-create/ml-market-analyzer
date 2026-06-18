@@ -64,6 +64,13 @@
       "when": 1781528095128,
       "tag": "0008_green_crusher_hogan",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1781802545193,
+      "tag": "0009_faulty_vision",
+      "breakpoints": true
     }
   ]
 }

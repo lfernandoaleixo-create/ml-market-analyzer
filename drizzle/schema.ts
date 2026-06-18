@@ -472,3 +472,129 @@ export const profitSnapshots = mysqlTable(
 
 export type ProfitSnapshotRow = typeof profitSnapshots.$inferSelect;
 export type InsertProfitSnapshotRow = typeof profitSnapshots.$inferInsert;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Aba "Projeto" — Portfólio de Importação (recriação do app importado).
+// Tabelas prefixadas com `project_` para não colidir com as do Mercato.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PROJECT_STEP_ENUM = [
+  "fornecedor",
+  "amostra",
+  "aprovacao",
+  "embalagem",
+  "pedido",
+  "producao",
+  "inspecao",
+  "embarque",
+  "chegada",
+  "lancamento",
+] as const;
+
+/** Produtos em pipeline de importação. */
+export const projectProducts = mysqlTable("project_products", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  priority: mysqlEnum("priority", ["alta", "media", "baixa"]).default("media").notNull(),
+  currentStep: mysqlEnum("currentStep", PROJECT_STEP_ENUM).default("fornecedor").notNull(),
+  supplier: varchar("supplier", { length: 255 }),
+  supplierContact: varchar("supplierContact", { length: 255 }),
+  notes: text("notes"),
+  imageUrl: text("imageUrl"),
+  expectedArrival: timestamp("expectedArrival"),
+  orderDeadline: timestamp("orderDeadline"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdBy: int("createdBy"),
+});
+
+export type ProjectProduct = typeof projectProducts.$inferSelect;
+export type InsertProjectProduct = typeof projectProducts.$inferInsert;
+
+/** Etapas da linha do tempo de cada produto. */
+export const projectTimelineSteps = mysqlTable(
+  "project_timeline_steps",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    step: mysqlEnum("step", PROJECT_STEP_ENUM).notNull(),
+    status: mysqlEnum("status", ["pendente", "em_andamento", "concluido"]).default("pendente").notNull(),
+    notes: text("notes"),
+    completedAt: timestamp("completedAt"),
+    targetDate: timestamp("targetDate"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productIdx: index("project_timeline_product_idx").on(t.productId),
+  }),
+);
+
+export type ProjectTimelineStep = typeof projectTimelineSteps.$inferSelect;
+export type InsertProjectTimelineStep = typeof projectTimelineSteps.$inferInsert;
+
+/** Documentos/fotos anexados a um produto. */
+export const projectDocuments = mysqlTable(
+  "project_documents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    url: text("url").notNull(),
+    fileKey: text("fileKey").notNull(),
+    type: mysqlEnum("type", ["documento", "foto"]).default("documento").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    uploadedBy: int("uploadedBy"),
+  },
+  (t) => ({
+    productIdx: index("project_documents_product_idx").on(t.productId),
+  }),
+);
+
+export type ProjectDocument = typeof projectDocuments.$inferSelect;
+export type InsertProjectDocument = typeof projectDocuments.$inferInsert;
+
+/** Tarefas (to-dos) associadas a um produto. */
+export const projectTodos = mysqlTable(
+  "project_todos",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    description: text("description"),
+    completed: boolean("completed").default(false).notNull(),
+    assignedTo: int("assignedTo"),
+    dueDate: timestamp("dueDate"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdBy: int("createdBy"),
+  },
+  (t) => ({
+    productIdx: index("project_todos_product_idx").on(t.productId),
+  }),
+);
+
+export type ProjectTodo = typeof projectTodos.$inferSelect;
+export type InsertProjectTodo = typeof projectTodos.$inferInsert;
+
+/** Comentários em um produto (suporta visitante por nome). */
+export const projectComments = mysqlTable(
+  "project_comments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    userId: int("userId"),
+    guestName: varchar("guestName", { length: 100 }),
+    content: text("content").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productIdx: index("project_comments_product_idx").on(t.productId),
+  }),
+);
+
+export type ProjectComment = typeof projectComments.$inferSelect;
+export type InsertProjectComment = typeof projectComments.$inferInsert;
