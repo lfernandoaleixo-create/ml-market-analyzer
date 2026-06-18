@@ -29,6 +29,7 @@ import {
   computeTargetPrices,
   normalizeListingType,
   normalizeLogisticType,
+  weightGramsToIndex,
   DEFAULT_MARGINS,
 } from "../../shared/activeListings";
 
@@ -148,8 +149,21 @@ export async function buildActiveListings(
     const mlListingType = normalizeListingType(l.listingType);
     const mlLogisticType = normalizeLogisticType(l.logisticType);
     const commissionPercent = mlListingType === "premium" ? 17 : 12;
+    // Peso REAL do anúncio (SELLER_PACKAGE_WEIGHT do ML) → faixa de peso da calculadora.
+    const packageWeightGrams = l.packageWeightGrams ?? null;
+    const weightIndex = weightGramsToIndex(packageWeightGrams);
 
-    const calcInput = { price: l.price, cost, mlListingType, mlLogisticType, commissionPercent };
+    const calcInput = {
+      price: l.price,
+      cost,
+      mlListingType,
+      mlLogisticType,
+      commissionPercent,
+      weightIndex,
+      // Frete grátis no anúncio costuma ser FGR quando o preço < R$79.
+      freeShippingFast: (l.freeShipping ?? false) && l.price < 79,
+      reputation: "verde" as const,
+    };
     const profit = computeListingProfit(calcInput, params);
     const targetPrices = computeTargetPrices(calcInput, params, margins);
 
@@ -185,6 +199,9 @@ export async function buildActiveListings(
       realProfit: profit.realProfit,
       realMarginPct: profit.realMarginPct,
       targetPrices,
+      packageWeightGrams,
+      weightIndex,
+      taxPercent,
     };
   });
 

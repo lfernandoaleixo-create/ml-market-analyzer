@@ -73,6 +73,53 @@ export interface ActiveListingRow {
   /** Preços-alvo por margem desejada (chave = margem em %, valor = preço R$).
    *  Ex.: { "20": 55.51, "30": 64.2, "40": 75.1 }. Vazio quando custo desconhecido. */
   targetPrices: Record<string, number | null>;
+
+  /* ------------------------- Insumos da calculadora ------------------------ */
+
+  /** Peso da embalagem do vendedor (gramas), conforme o ML. null = não declarado. */
+  packageWeightGrams: number | null;
+  /** Índice da faixa de peso (0..27) derivado do peso real do anúncio. */
+  weightIndex: number;
+  /** Imposto (%) usado no cálculo (default da config tributária). */
+  taxPercent: number;
+}
+
+/**
+ * Overrides editáveis do card "recalcular como na Calculadora". Todos opcionais:
+ * quando ausentes, usa-se o valor real/derivado do anúncio. Aplicados tanto em
+ * lote (a vários selecionados) quanto por anúncio (mais específico vence).
+ */
+export interface ListingOverrides {
+  /** Custo do produto (R$) — sobrescreve o custo da BaseLinker. */
+  cost?: number;
+  /** Comissão (%) do marketplace. */
+  commissionPercent?: number;
+  /** Imposto (%) sobre o preço. */
+  taxPercent?: number;
+  /** TACoS / ADS (%). */
+  tacosPercent?: number;
+  /** Afiliados (%). */
+  affiliatePercent?: number;
+  /** Taxa fixa (R$). */
+  fixedFee?: number;
+  /** Frete manual (R$) — quando definido, ignora a tabela e usa este valor. */
+  shippingCost?: number;
+  /** Liga o frete manual (usa shippingCost em vez da tabela). */
+  manualShipping?: boolean;
+  /** Índice de faixa de peso (0..27) — sobrescreve o peso real. */
+  weightIndex?: number;
+  /** Tipo de anúncio. */
+  mlListingType?: MlListingType;
+  /** Modelo logístico. */
+  mlLogisticType?: MlLogisticType;
+  /** Frete Grátis Rápido (FGR). */
+  freeShippingFast?: boolean;
+  /** Campanha Destaque (+6 p.p. de comissão). */
+  highlightCampaign?: boolean;
+  /** Reputação (afeta Cat. Especiais). */
+  reputation?: MlReputation;
+  /** Outros custos (R$). */
+  otherCostValue?: number;
 }
 
 /** Resumo agregado dos anúncios ativos. */
@@ -104,6 +151,20 @@ export interface ActiveListingsResult {
 
 /** Margens padrão das 3 colunas de simulação. */
 export const DEFAULT_MARGINS = [20, 30, 40];
+
+/**
+ * Converte um peso em GRAMAS no índice de faixa de peso da calculadora (0..27),
+ * escolhendo a MENOR faixa cujo limite em kg seja >= ao peso. Retorna 0 (Até 300g)
+ * quando o peso é desconhecido ou inválido.
+ */
+export function weightGramsToIndex(grams: number | null | undefined): number {
+  if (grams == null || !Number.isFinite(grams) || grams <= 0) return 0;
+  const kg = grams / 1000;
+  for (let i = 0; i < ML_WEIGHT_KG.length; i++) {
+    if (kg <= ML_WEIGHT_KG[i]) return i;
+  }
+  return ML_WEIGHT_KG.length - 1;
+}
 
 /** Opções de margem disponíveis nos seletores das 3 colunas. */
 export const MARGIN_OPTIONS = [5, 10, 12, 15, 18, 20, 22, 25, 28, 30, 35, 40, 45, 50];
@@ -151,9 +212,11 @@ export const ACTIVE_LISTING_COLUMNS: ColumnDef[] = [
 
 import {
   calculatePricing,
+  ML_WEIGHT_KG,
   type PricingInput,
   type MlListingType,
   type MlLogisticType,
+  type MlReputation,
 } from "./pricing";
 
 /** Parâmetros de cálculo que se repetem para cada anúncio. */
@@ -175,6 +238,69 @@ export interface ListingCalcInput {
   mlListingType: MlListingType;
   mlLogisticType: MlLogisticType;
   commissionPercent: number;
+  /** Índice de faixa de peso real do anúncio (0..27). Default 0. */
+  weightIndex?: number;
+  /** Frete Grátis Rápido (FGR) ligado no anúncio. */
+  freeShippingFast?: boolean;
+  /** Reputação do vendedor. */
+  reputation?: MlReputation;
+}
+
+/**
+ * Aplica os overrides (lote/por anúncio) sobre os dados reais do anúncio,
+ * devolvendo os insumos efetivos para o cálculo. "undefined" em um override
+ * significa "usar o valor real do anúncio".
+ */
+export function applyOverrides(
+  listing: ListingCalcInput,
+  params: ListingCalcParams,
+  ov: ListingOverrides = {},
+): {
+  cost: number | null;
+  mlListingType: MlListingType;
+  mlLogisticType: MlLogisticType;
+  commissionPercent: number;
+  taxPercent: number;
+  tacosPercent: number;
+  affiliatePercent: number;
+  fixedFee: number;
+  weightIndex: number;
+  freeShippingFast: boolean;
+  highlightCampaign: boolean;
+  reputation: MlReputation;
+  manualShipping: boolean;
+  shippingCost: number;
+  otherCostValue: number;
+} {
+  const mlListingType = ov.mlListingType ?? listing.mlListingType;
+  // Comissão: override explícito vence; senão mantém a do anúncio. Se o tipo mudou
+  // por override e a comissão não foi informada, segue o default do novo tipo.
+  let commissionPercent = ov.commissionPercent;
+  if (commissionPercent == null) {
+    commissionPercent =
+      ov.mlListingType && ov.mlListingType !== listing.mlListingType
+        ? mlListingType === "premium"
+          ? 17
+          : 12
+        : listing.commissionPercent;
+  }
+  return {
+    cost: ov.cost != null ? ov.cost : listing.cost,
+    mlListingType,
+    mlLogisticType: ov.mlLogisticType ?? listing.mlLogisticType,
+    commissionPercent,
+    taxPercent: ov.taxPercent ?? params.taxPercent ?? 0,
+    tacosPercent: ov.tacosPercent ?? params.tacosPercent ?? 0,
+    affiliatePercent: ov.affiliatePercent ?? params.affiliatePercent ?? 0,
+    fixedFee: ov.fixedFee ?? 0,
+    weightIndex: ov.weightIndex ?? listing.weightIndex ?? params.weightIndex ?? 0,
+    freeShippingFast: ov.freeShippingFast ?? listing.freeShippingFast ?? false,
+    highlightCampaign: ov.highlightCampaign ?? false,
+    reputation: ov.reputation ?? listing.reputation ?? "verde",
+    manualShipping: ov.manualShipping ?? false,
+    shippingCost: ov.shippingCost ?? 0,
+    otherCostValue: ov.otherCostValue ?? 0,
+  };
 }
 
 /** Resultado do cálculo de lucro/comissão/frete de um anúncio no preço atual. */
@@ -186,47 +312,55 @@ export interface ListingCalcResult {
 }
 
 /**
- * Monta a entrada base da calculadora para um anúncio (campos comuns).
+ * Monta a entrada base da calculadora para um anúncio (campos comuns), aplicando
+ * os overrides (lote/por anúncio) sobre os valores reais do anúncio.
  */
 function baseInput(
   listing: ListingCalcInput,
   params: ListingCalcParams,
+  ov: ListingOverrides = {},
 ): Omit<PricingInput, "mode" | "desiredMargin" | "sellingPrice"> {
+  const e = applyOverrides(listing, params, ov);
   return {
     marketplace: "mercado_livre",
-    mlListingType: listing.mlListingType,
-    productCost: listing.cost ?? 0,
-    taxPercent: params.taxPercent ?? 0,
-    tacosPercent: params.tacosPercent ?? 0,
-    affiliatePercent: params.affiliatePercent ?? 0,
+    mlListingType: e.mlListingType,
+    productCost: e.cost ?? 0,
+    taxPercent: e.taxPercent,
+    tacosPercent: e.tacosPercent,
+    affiliatePercent: e.affiliatePercent,
     otherCostKind: "reais",
-    otherCostValue: 0,
-    commissionPercent: listing.commissionPercent,
-    fixedFee: 0,
-    shippingCost: 0,
+    otherCostValue: e.otherCostValue,
+    commissionPercent: e.commissionPercent,
+    fixedFee: e.fixedFee,
+    shippingCost: e.shippingCost,
     autoFees: true,
-    mlLogisticType: listing.mlLogisticType,
-    weightIndex: params.weightIndex ?? 0,
-    reputation: "verde",
+    mlLogisticType: e.mlLogisticType,
+    freeShippingFast: e.freeShippingFast,
+    highlightCampaign: e.highlightCampaign,
+    weightIndex: e.weightIndex,
+    reputation: e.reputation,
+    manualShipping: e.manualShipping,
   };
 }
 
 /**
  * Calcula comissão/frete/taxa e o LUCRO REAL ATUAL de um anúncio, usando o preço
  * de venda de hoje (modo preço→margem). Retorna lucro/margem null quando o custo
- * é desconhecido.
+ * é desconhecido. Aceita overrides (card de recalibragem).
  */
 export function computeListingProfit(
   listing: ListingCalcInput,
   params: ListingCalcParams,
+  ov: ListingOverrides = {},
 ): ListingCalcResult {
+  const effectiveCost = ov.cost != null ? ov.cost : listing.cost;
   const res = calculatePricing({
-    ...baseInput(listing, params),
+    ...baseInput(listing, params, ov),
     mode: "preco_para_margem",
     desiredMargin: 0,
     sellingPrice: listing.price,
   });
-  if (listing.cost == null || listing.cost <= 0) {
+  if (effectiveCost == null || effectiveCost <= 0) {
     return {
       fixedFee: res.fixedFeeUsed,
       shippingCost: res.shippingUsed,
@@ -250,10 +384,12 @@ export function computeTargetPrice(
   listing: ListingCalcInput,
   params: ListingCalcParams,
   desiredMargin: number,
+  ov: ListingOverrides = {},
 ): number | null {
-  if (listing.cost == null || listing.cost <= 0) return null;
+  const effectiveCost = ov.cost != null ? ov.cost : listing.cost;
+  if (effectiveCost == null || effectiveCost <= 0) return null;
   const res = calculatePricing({
-    ...baseInput(listing, params),
+    ...baseInput(listing, params, ov),
     mode: "custo_para_preco",
     desiredMargin,
   });
@@ -265,9 +401,10 @@ export function computeTargetPrices(
   listing: ListingCalcInput,
   params: ListingCalcParams,
   margins: number[],
+  ov: ListingOverrides = {},
 ): Record<string, number | null> {
   const out: Record<string, number | null> = {};
-  for (const m of margins) out[String(m)] = computeTargetPrice(listing, params, m);
+  for (const m of margins) out[String(m)] = computeTargetPrice(listing, params, m, ov);
   return out;
 }
 

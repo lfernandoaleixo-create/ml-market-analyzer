@@ -62,6 +62,40 @@ export class MLRateLimitError extends Error {
   }
 }
 
+/**
+ * Extrai o peso da embalagem do vendedor (gramas) a partir dos atributos do ML.
+ * O ML usa o `SELLER_PACKAGE_WEIGHT` para calcular o frete. O valor vem como
+ * string com unidade (ex.: "1920 g", "2.5 kg", "400"). Converte tudo para gramas.
+ * Retorna null quando o anúncio não declara o peso.
+ */
+export function extractPackageWeightGrams(attributes: unknown): number | null {
+  if (!Array.isArray(attributes)) return null;
+  const attr = attributes.find((a: any) => a?.id === "SELLER_PACKAGE_WEIGHT");
+  if (!attr) return null;
+  // Prefer the structured value when present (value_struct: { number, unit }).
+  const vs = (attr as any).value_struct;
+  if (vs && typeof vs.number === "number") {
+    const unit = String(vs.unit ?? "g").toLowerCase();
+    return unit.startsWith("kg") ? vs.number * 1000 : vs.number;
+  }
+  const raw = String((attr as any).value_name ?? (attr as any).values?.[0]?.name ?? "").trim();
+  if (!raw) return null;
+  // Aceita "1.920,5 g" / "1920 g" / "2,5 kg" / "2.5kg".
+  const m = raw.match(/([\d.,]+)\s*(kg|g)?/i);
+  if (!m) return null;
+  let numStr = m[1];
+  // Normaliza separadores: se tiver vírgula como decimal, troca por ponto.
+  if (numStr.includes(",") && numStr.includes(".")) {
+    numStr = numStr.replace(/\./g, "").replace(",", "."); // 1.920,5 -> 1920.5
+  } else if (numStr.includes(",")) {
+    numStr = numStr.replace(",", ".");
+  }
+  const num = Number(numStr);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  const unit = (m[2] ?? "g").toLowerCase();
+  return unit === "kg" ? num * 1000 : num;
+}
+
 export class AccountProvider {
   /** Max retries when ML responds 429 (rate limited). */
   static readonly MAX_RATE_LIMIT_RETRIES = 4;
@@ -634,6 +668,9 @@ export class AccountProvider {
       const sku = String(
         d._resolvedSku || d.seller_custom_field || d.seller_sku || skuAttr || "",
       ).trim();
+      // Peso da embalagem do vendedor (SELLER_PACKAGE_WEIGHT) — o ML usa este peso
+      // para o frete. Vem como string com unidade (ex.: "1920 g", "2.5 kg").
+      const packageWeightGrams = extractPackageWeightGrams(d.attributes);
       return {
         itemId: d.id,
         title: d.title ?? "",
@@ -657,6 +694,7 @@ export class AccountProvider {
         catalogListing,
         stockValue: price * availableQuantity,
         sku,
+        packageWeightGrams,
       };
     });
 
@@ -1297,6 +1335,7 @@ export class AccountProvider {
     if (!me?.id) return { ok: false };
     return { ok: true, nickname: me.nickname };
   }
+
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   ListChecks,
   Columns3,
@@ -7,6 +7,7 @@ import {
   TrendingUp,
   AlertTriangle,
   PackageSearch,
+  SlidersHorizontal,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -28,9 +29,15 @@ import {
 import {
   ACTIVE_LISTING_COLUMNS,
   MARGIN_OPTIONS,
+  computeListingProfit,
+  computeTargetPrices,
   type ActiveListingRow,
+  type ListingCalcInput,
+  type ListingCalcParams,
+  type ListingOverrides,
 } from "@shared/activeListings";
 import { formatBRL, formatNumber, formatRatePct, formatDateShort } from "@/lib/format";
+import RecalibrarCard from "./RecalibrarCard";
 
 /** Opções de imposto agregado (%) para o seletor. */
 const TAX_OPTIONS = [0, 4, 5.93, 8, 10, 12, 15, 18];
@@ -41,8 +48,54 @@ function defaultVisibleCols(): Record<string, boolean> {
   return out;
 }
 
+/** Converte uma linha (já recalculada) em entrada da calculadora. */
+function toCalcInput(row: ActiveListingRow): ListingCalcInput {
+  return {
+    price: row.price,
+    cost: row.cost,
+    mlListingType: row.mlListingType,
+    mlLogisticType: row.mlLogisticType,
+    commissionPercent: row.commissionPercent,
+    weightIndex: row.weightIndex,
+    freeShippingFast: row.freeShipping && row.price < 79,
+    reputation: "verde",
+  };
+}
+
+/**
+ * Recalcula uma linha aplicando os overrides do anúncio (se houver). Devolve
+ * uma cópia da linha com frete/lucro/margem/preços-alvo recomputados e os campos
+ * efetivos refletindo os overrides (custo, comissão, tipo, logística).
+ */
+function recalcRow(
+  row: ActiveListingRow,
+  margins: number[],
+  taxPercent: number,
+  ov: ListingOverrides | undefined,
+): ActiveListingRow {
+  const params: ListingCalcParams = { taxPercent };
+  const calcInput = toCalcInput(row);
+  const overrides = ov ?? {};
+  const profit = computeListingProfit(calcInput, params, overrides);
+  const targetPrices = computeTargetPrices(calcInput, params, margins, overrides);
+
+  return {
+    ...row,
+    cost: overrides.cost != null ? overrides.cost : row.cost,
+    commissionPercent: overrides.commissionPercent ?? row.commissionPercent,
+    mlListingType: overrides.mlListingType ?? row.mlListingType,
+    mlLogisticType: overrides.mlLogisticType ?? row.mlLogisticType,
+    weightIndex: overrides.weightIndex ?? row.weightIndex,
+    shippingCost: profit.shippingCost,
+    fixedFee: profit.fixedFee,
+    realProfit: profit.realProfit,
+    realMarginPct: profit.realMarginPct,
+    targetPrices,
+  };
+}
+
 /** Célula de conteúdo para uma coluna "fixa" (não-simulação). */
-function renderCell(col: string, row: ActiveListingRow) {
+function renderCell(col: string, row: ActiveListingRow, adjusted: boolean) {
   switch (col) {
     case "thumbnail":
       return row.thumbnail ? (
@@ -59,7 +112,14 @@ function renderCell(col: string, row: ActiveListingRow) {
       );
     case "title":
       return (
-        <span className="line-clamp-2 max-w-[280px] text-sm font-medium">{row.title}</span>
+        <div className="flex max-w-[280px] flex-col gap-1">
+          <span className="line-clamp-2 text-sm font-medium">{row.title}</span>
+          {adjusted && (
+            <Badge variant="outline" className="w-fit gap-1 border-sky-500/40 text-sky-600">
+              <SlidersHorizontal className="h-3 w-3" /> ajustado
+            </Badge>
+          )}
+        </div>
       );
     case "sku":
       return <span className="font-mono text-xs">{row.sku || "—"}</span>;
@@ -172,6 +232,11 @@ export default function AnunciosAtivos() {
   const [margins, setMargins] = useState<[number, number, number]>([20, 30, 40]);
   const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>(defaultVisibleCols);
 
+  // Seleção de anúncios (para recalibragem em lote/individual).
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  // Overrides por anúncio (itemId → overrides). Não persistido (decisão do Fernando).
+  const [overrides, setOverrides] = useState<Record<string, ListingOverrides>>({});
+
   const { data, isLoading, isError, error, refetch, isFetching } =
     trpc.account.activeListings.useQuery(
       { margins, taxPercent },
@@ -182,6 +247,27 @@ export default function AnunciosAtivos() {
     () => ACTIVE_LISTING_COLUMNS.filter((c) => visibleCols[c.key] || c.locked),
     [visibleCols],
   );
+
+  // Linhas recalculadas no cliente, aplicando os overrides por anúncio.
+  const rows = useMemo(() => {
+    if (!data) return [] as ActiveListingRow[];
+    return data.items.map((row) => recalcRow(row, margins, taxPercent, overrides[row.itemId]));
+  }, [data, margins, taxPercent, overrides]);
+
+  // Resumo recalculado (reflete overrides).
+  const summary = useMemo(() => {
+    if (!data) return null;
+    const withCost = rows.filter((r) => r.cost != null).length;
+    const totalRealProfit = rows.reduce((s, r) => s + (r.realProfit ?? 0), 0);
+    const totalStockValue = rows.reduce((s, r) => s + r.stockValue, 0);
+    return {
+      ...data.summary,
+      withCost,
+      withoutCost: rows.length - withCost,
+      totalRealProfit: Math.round(totalRealProfit * 100) / 100,
+      totalStockValue: Math.round(totalStockValue * 100) / 100,
+    };
+  }, [data, rows]);
 
   const toggleCol = (key: string, locked?: boolean) => {
     if (locked) return;
@@ -195,6 +281,58 @@ export default function AnunciosAtivos() {
       return next;
     });
   };
+
+  const allSelected = rows.length > 0 && selected.size === rows.length;
+  const someSelected = selected.size > 0 && !allSelected;
+
+  const toggleAll = useCallback(() => {
+    setSelected((prev) => {
+      if (prev.size === rows.length) return new Set();
+      return new Set(rows.map((r) => r.itemId));
+    });
+  }, [rows]);
+
+  const toggleOne = (itemId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  // Override "representativo" exibido no card: quando 1 selecionado, mostra o dele;
+  // em lote, mostra um override comum vazio (cada alteração é aplicada a todos).
+  const selectedIds = useMemo(() => Array.from(selected), [selected]);
+  const cardValue: ListingOverrides = useMemo(() => {
+    if (selectedIds.length === 1) return overrides[selectedIds[0]] ?? {};
+    return {};
+  }, [selectedIds, overrides]);
+
+  // Aplica um patch de override a todos os anúncios selecionados.
+  const applyPatch = useCallback(
+    (patch: ListingOverrides) => {
+      setOverrides((prev) => {
+        const next = { ...prev };
+        for (const id of selectedIds) {
+          next[id] = { ...(next[id] ?? {}), ...patch };
+        }
+        return next;
+      });
+    },
+    [selectedIds],
+  );
+
+  // Limpa os overrides dos selecionados.
+  const clearSelected = useCallback(() => {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      for (const id of selectedIds) delete next[id];
+      return next;
+    });
+  }, [selectedIds]);
+
+  const closeCard = useCallback(() => setSelected(new Set()), []);
 
   return (
     <div className="space-y-5">
@@ -218,16 +356,16 @@ export default function AnunciosAtivos() {
       </div>
 
       {/* KPIs */}
-      {data && (
+      {summary && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <KpiCard label="Anúncios ativos" value={formatNumber(data.summary.totalActive)} />
+          <KpiCard label="Anúncios ativos" value={formatNumber(summary.totalActive)} />
           <KpiCard
             label="Com custo"
-            value={formatNumber(data.summary.withCost)}
-            hint={data.summary.withoutCost > 0 ? `${data.summary.withoutCost} sem custo` : "todos com custo"}
+            value={formatNumber(summary.withCost)}
+            hint={summary.withoutCost > 0 ? `${summary.withoutCost} sem custo` : "todos com custo"}
           />
-          <KpiCard label="Lucro real total" value={formatBRL(data.summary.totalRealProfit)} />
-          <KpiCard label="Valor em estoque" value={formatBRL(data.summary.totalStockValue)} />
+          <KpiCard label="Lucro real total" value={formatBRL(summary.totalRealProfit)} />
+          <KpiCard label="Valor em estoque" value={formatBRL(summary.totalStockValue)} />
         </div>
       )}
 
@@ -241,6 +379,7 @@ export default function AnunciosAtivos() {
           </span>
         </div>
       )}
+
       {data?.stale && (
         <div className="rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
           Mostrando os últimos dados carregados (o Mercado Livre limitou as consultas há instantes).
@@ -249,7 +388,7 @@ export default function AnunciosAtivos() {
 
       {/* Controles */}
       <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card p-4">
-        {/* Imposto agregado */}
+        {/* Imposto agregado (default global) */}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Imposto (%)</label>
           <Select value={String(taxPercent)} onValueChange={(v) => setTaxPercent(Number(v))}>
@@ -322,11 +461,29 @@ export default function AnunciosAtivos() {
         </div>
       </div>
 
+      {/* Card de recalibragem (aparece com seleção) */}
+      {selected.size > 0 && (
+        <RecalibrarCard
+          selectedCount={selected.size}
+          value={cardValue}
+          onChange={applyPatch}
+          onClear={clearSelected}
+          onClose={closeCard}
+        />
+      )}
+
       {/* Tabela */}
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="w-10 px-3 py-2">
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleAll}
+                  aria-label="Selecionar todos"
+                />
+              </th>
               {cols.map((c) => (
                 <th key={c.key} className="whitespace-nowrap px-3 py-2 font-medium">
                   {c.label}
@@ -349,6 +506,9 @@ export default function AnunciosAtivos() {
             {isLoading &&
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} className="border-b border-border">
+                  <td className="px-3 py-2">
+                    <Skeleton className="h-4 w-4" />
+                  </td>
                   {cols.map((c) => (
                     <td key={c.key} className="px-3 py-2">
                       <Skeleton className="h-5 w-16" />
@@ -363,36 +523,50 @@ export default function AnunciosAtivos() {
               ))}
 
             {!isLoading &&
-              data?.items.map((row) => (
-                <tr key={row.itemId} className="border-b border-border last:border-0 hover:bg-muted/30">
-                  {cols.map((c) => (
-                    <td key={c.key} className="px-3 py-2 align-middle">
-                      {renderCell(c.key, row)}
+              rows.map((row) => {
+                const isSel = selected.has(row.itemId);
+                const adjusted = overrides[row.itemId] != null;
+                return (
+                  <tr
+                    key={row.itemId}
+                    className={`border-b border-border last:border-0 hover:bg-muted/30 ${isSel ? "bg-sky-500/[0.04]" : ""}`}
+                  >
+                    <td className="px-3 py-2 align-middle">
+                      <Checkbox
+                        checked={isSel}
+                        onCheckedChange={() => toggleOne(row.itemId)}
+                        aria-label="Selecionar anúncio"
+                      />
                     </td>
-                  ))}
-                  {margins.map((m, idx) => {
-                    const target = row.targetPrices[String(m)];
-                    return (
-                      <td
-                        key={`sim-${idx}`}
-                        className="border-l border-border bg-sky-500/5 px-3 py-2 align-middle"
-                      >
-                        {target != null ? (
-                          <span className="tabular-nums font-semibold text-sky-700">
-                            {formatBRL(target)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                    {cols.map((c) => (
+                      <td key={c.key} className="px-3 py-2 align-middle">
+                        {renderCell(c.key, row, adjusted)}
                       </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                    ))}
+                    {margins.map((m, idx) => {
+                      const target = row.targetPrices[String(m)];
+                      return (
+                        <td
+                          key={`sim-${idx}`}
+                          className="border-l border-border bg-sky-500/5 px-3 py-2 align-middle"
+                        >
+                          {target != null ? (
+                            <span className="tabular-nums font-semibold text-sky-700">
+                              {formatBRL(target)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
 
-        {!isLoading && data && data.items.length === 0 && (
+        {!isLoading && data && rows.length === 0 && (
           <div className="p-10 text-center text-sm text-muted-foreground">
             Nenhum anúncio ativo encontrado na sua conta no momento.
           </div>

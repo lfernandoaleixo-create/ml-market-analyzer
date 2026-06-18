@@ -1111,3 +1111,16 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest (filtro active; cálculo de lucro real; preço-alvo por margem) + suíte verde (568) + TS limpo
 - [x] Validar na preview com a conta real (LOJADOSRWU) + checkpoint + orientar publicação
 - [ ] Após publicar: registrar o cron das 7h e Fernando confere em produção
+
+## Anúncios ativos — recalibrar métricas (reaproveitar Calculadora)
+- [x] Sondar origem do peso real na conta: ML expoe SELLER_PACKAGE_WEIGHT em 100% dos anúncios (Baselinker inconsistente) → fonte = ML
+- [x] Backend: extrair peso do anúncio (g) e mapear para a faixa de peso da calculadora (weightGramsToIndex/ML_WEIGHT_KG)
+- [x] Backend: expor por anúncio peso/weightIndex e imposto; motor de cálculo aceita overrides completos (applyOverrides)
+- [x] Backend: comissão efetiva (campanha destaque +6pp) e frete por peso real → lucro real total caiu de R$821 para R$668 (real)
+- [x] Frontend: checkbox de seleção por linha + "marcar todos"; abre card ao selecionar
+- [x] Frontend: card configurável em LOTE (estilo Calculadora) aplicando overrides aos selecionados
+- [x] Frontend: ajuste fino individual quando 1 anúncio selecionado (custo da base + todos os campos editáveis) + selo "ajustado"
+- [x] Sem persistência por enquanto (apenas simulação na sessão) — confirmado pelo Fernando
+- [x] Testes vitest (peso->faixa, overrides em lote/individual, lucro real, preço-alvo) — 27 em activeListings, suite total 591 verdes + TS limpo
+- [x] Validar na preview com a conta real (custo override R$5 → lucro recalculou de R$5,52 para R$1,58) + checkpoint + orientar publicação
+- [x] Removido endpoint de diagnóstico /api/_debug/probeWeights e helpers de sondagem antes de publicar

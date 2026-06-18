@@ -5,10 +5,13 @@ import {
   computeTargetPrices,
   normalizeListingType,
   normalizeLogisticType,
+  applyOverrides,
+  weightGramsToIndex,
   ACTIVE_LISTING_COLUMNS,
   type ListingCalcInput,
   type ListingCalcParams,
 } from "./activeListings";
+import { ML_WEIGHT_KG } from "./pricing";
 
 const params: ListingCalcParams = { taxPercent: 0, tacosPercent: 0, affiliatePercent: 0, weightIndex: 0 };
 
@@ -146,5 +149,108 @@ describe("ACTIVE_LISTING_COLUMNS — colunas visíveis por padrão (lista do Fer
   it("o título permanece travado (não pode ser ocultado)", () => {
     const title = ACTIVE_LISTING_COLUMNS.find((c) => c.key === "title");
     expect(title?.locked).toBe(true);
+  });
+});
+
+describe("weightGramsToIndex (peso real → faixa de peso da calculadora)", () => {
+  it("retorna 0 (Até 300g) para peso desconhecido ou inválido", () => {
+    expect(weightGramsToIndex(null)).toBe(0);
+    expect(weightGramsToIndex(undefined)).toBe(0);
+    expect(weightGramsToIndex(0)).toBe(0);
+    expect(weightGramsToIndex(-100)).toBe(0);
+  });
+
+  it("escolhe a menor faixa cujo limite (kg) cobre o peso", () => {
+    // ML_WEIGHT_KG = [0.3, 0.5, 1, 2, 3, 4, 5, ...]
+    expect(weightGramsToIndex(250)).toBe(0); // <= 300g
+    expect(weightGramsToIndex(300)).toBe(0); // exatamente 300g
+    expect(weightGramsToIndex(400)).toBe(1); // <= 500g
+    expect(weightGramsToIndex(1920)).toBe(3); // <= 2kg
+    expect(weightGramsToIndex(4280)).toBe(6); // <= 5kg
+  });
+
+  it("pesos muito altos caem na última faixa disponível", () => {
+    const lastIdx = weightGramsToIndex(999_000);
+    expect(lastIdx).toBe(ML_WEIGHT_KG.length - 1);
+  });
+});
+
+describe("applyOverrides (precedência lote/anúncio)", () => {
+  it("sem overrides usa os valores reais do anúncio", () => {
+    const e = applyOverrides(baseListing, params, {});
+    expect(e.cost).toBe(30);
+    expect(e.commissionPercent).toBe(12);
+    expect(e.mlListingType).toBe("classico");
+    expect(e.manualShipping).toBe(false);
+  });
+
+  it("override de custo e comissão vence o valor real", () => {
+    const e = applyOverrides(baseListing, params, { cost: 18, commissionPercent: 14 });
+    expect(e.cost).toBe(18);
+    expect(e.commissionPercent).toBe(14);
+  });
+
+  it("mudar o tipo sem informar comissão aplica o default do novo tipo", () => {
+    const e = applyOverrides(baseListing, params, { mlListingType: "premium" });
+    expect(e.mlListingType).toBe("premium");
+    expect(e.commissionPercent).toBe(17); // default premium
+  });
+
+  it("frete manual liga a flag e usa o valor informado", () => {
+    const e = applyOverrides(baseListing, params, { shippingCost: 9.9, manualShipping: true });
+    expect(e.manualShipping).toBe(true);
+    expect(e.shippingCost).toBe(9.9);
+  });
+
+  it("override de peso vence o peso real do anúncio", () => {
+    const e = applyOverrides({ ...baseListing, weightIndex: 2 }, params, { weightIndex: 6 });
+    expect(e.weightIndex).toBe(6);
+  });
+});
+
+describe("computeListingProfit com overrides", () => {
+  it("frete manual altera o frete usado e o lucro", () => {
+    const base = computeListingProfit(baseListing, params);
+    const manual = computeListingProfit(baseListing, params, {
+      shippingCost: 20,
+      manualShipping: true,
+    });
+    expect(manual.shippingCost).toBeCloseTo(20, 2);
+    expect(manual.realProfit!).toBeLessThan(base.realProfit!);
+  });
+
+  it("peso maior aumenta o frete e reduz o lucro", () => {
+    const leve = computeListingProfit({ ...baseListing, weightIndex: 0 }, params);
+    const pesado = computeListingProfit({ ...baseListing, weightIndex: 6 }, params);
+    expect(pesado.shippingCost).toBeGreaterThan(leve.shippingCost);
+    expect(pesado.realProfit!).toBeLessThan(leve.realProfit!);
+  });
+
+  it("campanha destaque reduz o lucro (mais comissão)", () => {
+    const sem = computeListingProfit(baseListing, params);
+    const com = computeListingProfit(baseListing, params, { highlightCampaign: true });
+    expect(com.realProfit!).toBeLessThan(sem.realProfit!);
+  });
+
+  it("override de custo recalcula o lucro mesmo sem custo na base", () => {
+    const semCusto = computeListingProfit({ ...baseListing, cost: null }, params);
+    expect(semCusto.realProfit).toBeNull();
+    const comOverride = computeListingProfit({ ...baseListing, cost: null }, params, { cost: 25 });
+    expect(comOverride.realProfit).not.toBeNull();
+  });
+});
+
+describe("computeTargetPrice com overrides", () => {
+  it("comissão maior exige preço-alvo maior para a mesma margem", () => {
+    const baseP = computeTargetPrice(baseListing, params, 20)!;
+    const altP = computeTargetPrice(baseListing, params, 20, { commissionPercent: 20 })!;
+    expect(altP).toBeGreaterThan(baseP);
+  });
+
+  it("usa o custo do override quando a base não tem custo", () => {
+    const semCusto = computeTargetPrice({ ...baseListing, cost: null }, params, 20);
+    expect(semCusto).toBeNull();
+    const comOverride = computeTargetPrice({ ...baseListing, cost: null }, params, 20, { cost: 25 });
+    expect(comOverride).not.toBeNull();
   });
 });

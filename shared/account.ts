@@ -136,6 +136,9 @@ export interface ListingRow {
   /** Seller SKU (from seller_custom_field / seller_sku / SELLER_SKU attribute),
    *  used to match the product cost in BaseLinker. Empty string when absent. */
   sku?: string;
+  /** Peso da embalagem do vendedor (gramas), do atributo SELLER_PACKAGE_WEIGHT do
+   *  ML — é o que o ML usa para o frete. null quando o anúncio não declara. */
+  packageWeightGrams?: number | null;
 }
 
 export interface ListingsSummary {
