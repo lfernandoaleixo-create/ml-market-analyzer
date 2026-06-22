@@ -1238,3 +1238,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Botão excluir (lixeira): trocado clique-duplo silencioso por AlertDialog de confirmação explícito ("Excluir [nome]?")
 - [x] Nome do produto cortado: removido truncate, nome quebra em linhas e aparece completo; coluna Produto ampliada (24%/min 180px)
 - [x] TS limpo; checkpoint (validação ao vivo depende do login do usuário)
+
+## Reposicionar barra de controles (Fernando 22/06 - parte 3)
+- [x] Mover barra COM/SEM TTS + Clássico/Premium (+ TACoS/Afiliados/Frete) para dentro do card "Planilha de preços por margem", logo abaixo do título
+- [x] Manter barra fixa (sticky top-2) para ficar sempre visível ao rolar planilha com muitas linhas
+- [x] TS limpo + checkpoint

@@ -226,11 +226,10 @@ export default function CustoAlvoCalc() {
   const regimeSemTts = settings?.ttsRegime === "sem_tts";
   const isPremium = settings?.listingType === "premium";
 
-  return (
-    <div className="space-y-6">
-      {/* ----------------- BARRA DE CONTROLES GLOBAIS (STICKY) ----------------- */}
-      <div className="sticky top-0 z-30 -mx-1 rounded-2xl border border-border bg-card/95 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+  /* Barra de controles globais — fica fixa (sticky) dentro do card da planilha. */
+  const controlsBar = (
+    <div className="sticky top-2 z-30 mb-4 rounded-xl border border-border bg-card/95 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* Regime TTS */}
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Regime</span>
@@ -304,9 +303,12 @@ export default function CustoAlvoCalc() {
             />
             <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Frete grátis</span>
           </label>
-        </div>
       </div>
+    </div>
+  );
 
+  return (
+    <div className="space-y-6">
       {/* ----------------------- ADICIONAR PRODUTO ----------------------- */}
       <SectionCard
         title="Adicionar produto"
@@ -366,6 +368,9 @@ export default function CustoAlvoCalc() {
         title="Planilha de preços por margem"
         description="Para cada produto, o preço de venda no ML necessário para atingir cada margem, mantendo fixo o custo a pagar à Matriz. A coluna âncora é o preço que você informou."
       >
+        {/* Barra de controles globais (regime/anúncio/TACoS/afiliados/frete) — sticky */}
+        {controlsBar}
+
         {/* Gerenciar colunas (margens) */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">Margens (colunas):</span>
