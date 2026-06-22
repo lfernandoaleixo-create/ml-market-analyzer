@@ -214,7 +214,12 @@ export default function CustoAlvoCalc() {
   }
 
   /* ----- coluna variável (ajuste em tempo real) ----- */
-  const [varMargin, setVarMargin] = useState(45);
+  // Mantemos como string controlada para evitar zero à esquerda (ex.: "050").
+  const [varMarginStr, setVarMarginStr] = useState("45");
+  const varMargin = useMemo(() => {
+    const v = parseFloat(varMarginStr);
+    return Number.isFinite(v) ? Math.min(95, Math.max(0, v)) : 0;
+  }, [varMarginStr]);
 
   // Margens base fixas para todos os produtos (não removíveis).
   const anchor = 20;
@@ -402,16 +407,20 @@ export default function CustoAlvoCalc() {
             <span className="text-xs font-semibold text-amber-700">Coluna variável</span>
             <div className="relative w-24">
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min={0}
-                max={95}
-                step="0.5"
-                value={Number.isFinite(varMargin) ? varMargin : ""}
+                value={varMarginStr}
                 onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                 onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  setVarMargin(Number.isFinite(v) ? Math.min(95, Math.max(0, v)) : 0);
+                  // Mantém apenas dígitos e ponto/vírgula; remove zeros à esquerda.
+                  let raw = e.target.value.replace(/[^0-9.,]/g, "").replace(",", ".");
+                  raw = raw.replace(/^0+(?=\d)/, "");
+                  setVarMarginStr(raw);
+                }}
+                onBlur={() => {
+                  if (varMarginStr.trim() === "" || !Number.isFinite(parseFloat(varMarginStr))) {
+                    setVarMarginStr("0");
+                  }
                 }}
                 className="h-7 border-amber-300 bg-white pl-3 pr-7 text-sm font-semibold tabular-nums"
               />

@@ -1262,3 +1262,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Confirmar persistência: deleteMatrixProduct só remove por id+userId explícito (rota delete via confirmação); nenhuma rotina apaga automaticamente
 - [x] Unicidade por (nome + priceType): mesmo produto pode ter linha 'Preço médio' e 'Melhor preço' separadas; bloqueia só a combinação duplicada
 - [x] 653 testes verdes; TS limpo; checkpoint
+
+## Ajustes coluna variável + default regime (Fernando 22/06 - parte 7)
+- [x] Coluna variável: campo agora é string controlada (type=text), remove zero à esquerda em tempo real (ex.: "050" -> "50"); blur vazio vira "0"
+- [x] COM TTS marcado por padrão: confirmado no front (regimeSemTts false quando settings undefined) e backend (resolveSettings default com_tts)
+- [x] TS limpo + checkpoint
