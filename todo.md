@@ -1228,3 +1228,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] UI: controles globais COM/SEM TTS (14/24%) e Clássico (12%)/Premium (17%) recalculando tudo
 - [x] UI: adicionar produto (form inline) e adicionar/remover coluna de margem; aba Histórico antiga removida
 - [x] Testes vitest do cálculo invertido (10 testes) + suíte completa 650 verdes; TS limpo
+
+## Ajustes de layout da planilha (Fernando 22/06)
+- [x] Barra de controles COM/SEM TTS + Clássico/Premium fixa (sticky) no topo da planilha, em toolbar horizontal compacta (SegBtn) + TACoS/Afiliados/Frete grátis
+- [x] Eliminar/minimizar scroll horizontal: table-fixed + colgroup, cabeçalho compacto ("20%" em vez de "Margem 20%"), paddings/fontes menores, ações estreitas
+- [x] TS/LSP limpos; mudança apenas de UI (650 testes da engine seguem válidos); checkpoint

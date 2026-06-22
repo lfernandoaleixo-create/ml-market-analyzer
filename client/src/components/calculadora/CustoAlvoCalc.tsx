@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SectionCard } from "@/components/account/AccountUI";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,6 +76,32 @@ function MoneyInput({
         className={cn("tabular-nums", prefix ? "pl-9" : "", className)}
       />
     </div>
+  );
+}
+
+/** Botão de segmento compacto para a barra de controles globais. */
+function SegBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-all active:scale-[0.97]",
+        active
+          ? "bg-primary/12 text-primary shadow-sm"
+          : "text-muted-foreground hover:bg-muted/60",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -186,144 +212,89 @@ export default function CustoAlvoCalc() {
   const anchor = settings?.anchorMarginPct ?? 20;
   const margins = settings?.margins ?? [20, 15, 25, 30, 35, 40];
 
+  const regimeSemTts = settings?.ttsRegime === "sem_tts";
+  const isPremium = settings?.listingType === "premium";
+
   return (
     <div className="space-y-6">
-      {/* ----------------------- CONTROLES GLOBAIS ----------------------- */}
-      <SectionCard
-        title="Controles globais"
-        description="Estes ajustes valem para TODOS os produtos da planilha de uma vez. Você informa, por produto, o preço de venda no ML que dá a margem âncora; calculamos o preço a pagar à Matriz e o preço de venda necessário para cada outra margem."
-      >
-        <div className="grid gap-5 lg:grid-cols-2">
+      {/* ----------------- BARRA DE CONTROLES GLOBAIS (STICKY) ----------------- */}
+      <div className="sticky top-0 z-30 -mx-1 rounded-2xl border border-border bg-card/95 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* Regime TTS */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">Regime tributário</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => upsertSettings.mutate({ ttsRegime: "com_tts" })}
-                className={cn(
-                  "flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all active:scale-[0.99]",
-                  settings?.ttsRegime !== "sem_tts"
-                    ? "border-primary bg-primary/10 shadow-sm"
-                    : "border-border bg-card hover:border-primary/40",
-                )}
-              >
-                <span className="flex items-center gap-1.5 text-sm font-semibold">
-                  <Sparkles className={cn("h-4 w-4", settings?.ttsRegime !== "sem_tts" ? "text-primary" : "text-muted-foreground")} />
-                  COM TTS
-                </span>
-                <span className="text-[11px] text-muted-foreground">Impostos 14%</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => upsertSettings.mutate({ ttsRegime: "sem_tts" })}
-                className={cn(
-                  "flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all active:scale-[0.99]",
-                  settings?.ttsRegime === "sem_tts"
-                    ? "border-primary bg-primary/10 shadow-sm"
-                    : "border-border bg-card hover:border-primary/40",
-                )}
-              >
-                <span className="text-sm font-semibold">SEM TTS</span>
-                <span className="text-[11px] text-muted-foreground">Impostos 24%</span>
-              </button>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Regime</span>
+            <div className="flex rounded-lg border border-border p-0.5">
+              <SegBtn active={!regimeSemTts} onClick={() => upsertSettings.mutate({ ttsRegime: "com_tts" })}>
+                <Sparkles className={cn("h-3.5 w-3.5", !regimeSemTts ? "text-primary" : "text-muted-foreground")} />
+                COM TTS <span className="opacity-70">14%</span>
+              </SegBtn>
+              <SegBtn active={regimeSemTts} onClick={() => upsertSettings.mutate({ ttsRegime: "sem_tts" })}>
+                SEM TTS <span className="opacity-70">24%</span>
+              </SegBtn>
             </div>
           </div>
 
           {/* Tipo de anúncio */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">Tipo de anúncio</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => upsertSettings.mutate({ listingType: "classico" })}
-                className={cn(
-                  "flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all active:scale-[0.99]",
-                  settings?.listingType !== "premium"
-                    ? "border-primary bg-primary/10 shadow-sm"
-                    : "border-border bg-card hover:border-primary/40",
-                )}
-              >
-                <span className="text-sm font-semibold">Clássico</span>
-                <span className="text-[11px] text-muted-foreground">Comissão 12%</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => upsertSettings.mutate({ listingType: "premium" })}
-                className={cn(
-                  "flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all active:scale-[0.99]",
-                  settings?.listingType === "premium"
-                    ? "border-primary bg-primary/10 shadow-sm"
-                    : "border-border bg-card hover:border-primary/40",
-                )}
-              >
-                <span className="text-sm font-semibold">Premium</span>
-                <span className="text-[11px] text-muted-foreground">Comissão 17%</span>
-              </button>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Anúncio</span>
+            <div className="flex rounded-lg border border-border p-0.5">
+              <SegBtn active={!isPremium} onClick={() => upsertSettings.mutate({ listingType: "classico" })}>
+                Clássico <span className="opacity-70">12%</span>
+              </SegBtn>
+              <SegBtn active={isPremium} onClick={() => upsertSettings.mutate({ listingType: "premium" })}>
+                Premium <span className="opacity-70">17%</span>
+              </SegBtn>
             </div>
           </div>
 
-          {/* TACoS / Afiliados / Frete grátis */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">TACoS / ADS</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.1"
-                  min={0}
-                  value={settings ? settings.tacosPercent : ""}
-                  onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                  onChange={(e) =>
-                    upsertSettings.mutate({ tacosPercent: parseFloat(e.target.value) || 0 })
-                  }
-                  className="pr-7 tabular-nums"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Afiliados</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.1"
-                  min={0}
-                  value={settings ? settings.affiliatePercent : ""}
-                  onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                  onChange={(e) =>
-                    upsertSettings.mutate({ affiliatePercent: parseFloat(e.target.value) || 0 })
-                  }
-                  className="pr-7 tabular-nums"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-              </div>
-            </div>
-          </div>
+          <div className="hidden h-6 w-px bg-border sm:block" />
 
-          <div className="flex items-end">
-            <label className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-sm">
-              <span>
-                Frete grátis (full/flex)
-                <span className="block text-[11px] text-muted-foreground">Debita o frete do vendedor</span>
-              </span>
-              <Switch
-                checked={settings?.freeShipping ?? true}
-                onCheckedChange={(v) => upsertSettings.mutate({ freeShipping: v })}
+          {/* TACoS */}
+          <label className="flex items-center gap-1.5">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">TACoS</span>
+            <div className="relative w-16">
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min={0}
+                value={settings ? settings.tacosPercent : ""}
+                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                onChange={(e) => upsertSettings.mutate({ tacosPercent: parseFloat(e.target.value) || 0 })}
+                className="h-8 pr-5 text-sm tabular-nums"
               />
-            </label>
-          </div>
-        </div>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+            </div>
+          </label>
 
-        <div className="mt-4 rounded-lg border border-border bg-muted/40 px-4 py-2.5 text-[11px] text-muted-foreground">
-          Régua atual: <span className="font-medium text-foreground">{settings?.ttsRegime === "sem_tts" ? "SEM TTS (24%)" : "COM TTS (14%)"}</span>
-          {" · "}
-          <span className="font-medium text-foreground">{settings?.listingType === "premium" ? "Premium (17%)" : "Clássico (12%)"}</span>
-          {" · "}TACoS {settings?.tacosPercent ?? 3}% · Afiliados {settings?.affiliatePercent ?? 0}% · âncora {anchor}%
+          {/* Afiliados */}
+          <label className="flex items-center gap-1.5">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Afiliados</span>
+            <div className="relative w-16">
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min={0}
+                value={settings ? settings.affiliatePercent : ""}
+                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                onChange={(e) => upsertSettings.mutate({ affiliatePercent: parseFloat(e.target.value) || 0 })}
+                className="h-8 pr-5 text-sm tabular-nums"
+              />
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+            </div>
+          </label>
+
+          {/* Frete grátis */}
+          <label className="flex items-center gap-2">
+            <Switch
+              checked={settings?.freeShipping ?? true}
+              onCheckedChange={(v) => upsertSettings.mutate({ freeShipping: v })}
+            />
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Frete grátis</span>
+          </label>
         </div>
-      </SectionCard>
+      </div>
 
       {/* ----------------------- ADICIONAR PRODUTO ----------------------- */}
       <SectionCard
@@ -478,31 +449,39 @@ function SpreadsheetTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full table-fixed border-collapse text-sm">
+        <colgroup>
+          <col className="w-[20%] min-w-[150px]" />
+          <col className="w-[12%]" />
+          {margins.map((m) => (
+            <col key={m} />
+          ))}
+          <col className="w-[64px]" />
+        </colgroup>
         <thead>
           <tr className="bg-muted/50">
-            <th className="sticky left-0 z-10 min-w-[220px] bg-muted/50 px-4 py-3 text-left font-semibold">
+            <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2.5 text-left text-xs font-semibold">
               Produto
             </th>
-            <th className="min-w-[120px] px-4 py-3 text-right font-semibold">
-              <span className="block">Pagar à Matriz</span>
-              <span className="block text-[10px] font-normal text-muted-foreground">custo fixo</span>
+            <th className="px-2 py-2.5 text-right text-xs font-semibold">
+              <span className="block leading-tight">Pagar à Matriz</span>
+              <span className="block text-[9px] font-normal text-muted-foreground">custo fixo</span>
             </th>
             {margins.map((m) => (
               <th
                 key={m}
                 className={cn(
-                  "min-w-[110px] px-4 py-3 text-right font-semibold",
+                  "px-2 py-2.5 text-right text-xs font-semibold",
                   m === anchor && "bg-primary/10 text-primary",
                 )}
               >
-                <span className="block">Margem {m}%</span>
-                <span className="block text-[10px] font-normal text-muted-foreground">
-                  {m === anchor ? "preço informado" : "preço de venda"}
+                <span className="block leading-tight">{m}%</span>
+                <span className="block text-[9px] font-normal text-muted-foreground">
+                  {m === anchor ? "informado" : "venda"}
                 </span>
               </th>
             ))}
-            <th className="min-w-[90px] px-4 py-3 text-center font-semibold">Ações</th>
+            <th className="px-1 py-2.5 text-center text-xs font-semibold">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -582,7 +561,7 @@ function ProductRow({
   if (editing) {
     return (
       <tr className="border-t border-border bg-primary/5">
-        <td className="sticky left-0 z-10 bg-primary/5 px-4 py-3">
+        <td className="sticky left-0 z-10 bg-primary/5 px-3 py-2.5">
           <div className="space-y-2">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" className="h-8" />
             <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU (opcional)" className="h-8" />
@@ -598,20 +577,20 @@ function ProductRow({
             </Select>
           </div>
         </td>
-        <td className="px-4 py-3 text-right" colSpan={1}>
+        <td className="px-2 py-2.5 text-right" colSpan={1}>
           <MoneyInput value={price} onChange={setPrice} prefix="" className="h-8 text-right" onEnter={save} />
           <span className="mt-1 block text-[10px] text-muted-foreground">preço @{anchor}%</span>
         </td>
-        <td className="px-4 py-3 text-center text-xs text-muted-foreground" colSpan={margins.length}>
+        <td className="px-2 py-2.5 text-center text-[11px] text-muted-foreground" colSpan={margins.length}>
           Edite o preço âncora e o peso; os preços por margem são recalculados ao salvar.
         </td>
-        <td className="px-4 py-3">
-          <div className="flex items-center justify-center gap-1">
-            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" onClick={save}>
-              <Check className="h-4 w-4" />
+        <td className="px-1 py-2.5">
+          <div className="flex items-center justify-center gap-0.5">
+            <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-emerald-600" onClick={save}>
+              <Check className="h-3.5 w-3.5" />
             </Button>
-            <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(false)}>
-              <X className="h-4 w-4" />
+            <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(false)}>
+              <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         </td>
@@ -621,18 +600,18 @@ function ProductRow({
 
   return (
     <tr className="border-t border-border transition-colors hover:bg-muted/30">
-      <td className="sticky left-0 z-10 bg-card px-4 py-3">
-        <p className="font-medium leading-tight">{row.name}</p>
-        <p className="text-[11px] text-muted-foreground">
+      <td className="sticky left-0 z-10 bg-card px-3 py-2.5">
+        <p className="truncate text-sm font-medium leading-tight">{row.name}</p>
+        <p className="truncate text-[10px] text-muted-foreground">
           {row.sku ? `SKU ${row.sku} · ` : ""}
           {ML_WEIGHT_LABELS[row.weightIndex]}
         </p>
       </td>
-      <td className="px-4 py-3 text-right">
+      <td className="px-2 py-2.5 text-right">
         {feasible ? (
-          <span className="font-display text-base font-semibold tabular-nums">{formatBRL(row.matrixCost)}</span>
+          <span className="text-sm font-semibold tabular-nums">{formatBRL(row.matrixCost)}</span>
         ) : (
-          <span className="text-xs text-destructive">inviável</span>
+          <span className="text-[11px] text-destructive">inviável</span>
         )}
       </td>
       {margins.map((m) => {
@@ -643,7 +622,7 @@ function ProductRow({
           <td
             key={m}
             className={cn(
-              "px-4 py-3 text-right tabular-nums",
+              "px-2 py-2.5 text-right text-sm tabular-nums",
               isAnchor && "bg-primary/5",
             )}
           >
@@ -652,25 +631,25 @@ function ProductRow({
                 {formatBRL(cell!.sellingPrice)}
               </span>
             ) : (
-              <span className="text-xs text-destructive">—</span>
+              <span className="text-[11px] text-destructive">—</span>
             )}
           </td>
         );
       })}
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-center gap-1">
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(true)}>
-            <Pencil className="h-4 w-4" />
+      <td className="px-1 py-2.5">
+        <div className="flex items-center justify-center gap-0.5">
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className={cn("h-8 w-8", confirmDel ? "text-destructive" : "text-muted-foreground")}
+            className={cn("h-7 w-7", confirmDel ? "text-destructive" : "text-muted-foreground")}
             onClick={handleDelete}
             title={confirmDel ? "Clique de novo para confirmar" : "Excluir"}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </td>
