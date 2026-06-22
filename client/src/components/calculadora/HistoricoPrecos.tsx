@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { formatBRL, formatDateTime } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Search, Trash2, History, Table2, Package } from "lucide-react";
+import { Search, Trash2, History, Table2, Package, RefreshCw } from "lucide-react";
 
 type MarginResult = {
   marginPct: number;
@@ -87,6 +87,19 @@ export default function HistoricoPrecos() {
     },
     onError: (e) => toast.error(e.message || "Não foi possível remover."),
     onSettled: () => setToDelete(null),
+  });
+
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const toggleRegime = trpc.pricing.history.toggleRegime.useMutation({
+    onMutate: (vars) => setTogglingId(vars.id),
+    onSuccess: (res) => {
+      toast.success(
+        res.params?.hasTts ? "Alterado para COM TTS (14%)." : "Alterado para SEM TTS (24%).",
+      );
+      utils.pricing.history.list.invalidate();
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível alternar o regime."),
+    onSettled: () => setTogglingId(null),
   });
 
   const rows = (list.data ?? []) as Row[];
@@ -188,6 +201,8 @@ export default function HistoricoPrecos() {
                 key={g.key}
                 group={g}
                 onDelete={(id, name) => setToDelete({ id, name })}
+                onToggleRegime={(id) => toggleRegime.mutate({ id })}
+                togglingId={togglingId}
               />
             ))}
           </div>
@@ -231,9 +246,13 @@ export default function HistoricoPrecos() {
 function ProductSpreadsheet({
   group,
   onDelete,
+  onToggleRegime,
+  togglingId,
 }: {
   group: ProductGroup;
   onDelete: (id: number, name: string) => void;
+  onToggleRegime: (id: number) => void;
+  togglingId: number | null;
 }) {
   // União ordenada de todas as margens testadas nas variações deste produto.
   const marginRows = useMemo(() => {
@@ -328,9 +347,30 @@ function ProductSpreadsheet({
               )}
             />
             <AttrRow
-              label="Regime"
+              label="Regime (clique p/ alternar)"
               variations={group.variations}
-              render={(v) => <span className="text-muted-foreground">{regimeLabel(v.params)}</span>}
+              render={(v) => {
+                const isTts = v.params.hasTts !== false;
+                const busy = togglingId === v.id;
+                return (
+                  <button
+                    type="button"
+                    disabled={busy || v.params.hasTts === undefined}
+                    onClick={() => onToggleRegime(v.id)}
+                    title="Alternar COM TTS (14%) / SEM TTS (24%)"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                      isTts
+                        ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
+                        : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100",
+                      (busy || v.params.hasTts === undefined) && "cursor-not-allowed opacity-60",
+                    )}
+                  >
+                    <RefreshCw className={cn("h-3 w-3", busy && "animate-spin")} />
+                    {regimeLabel(v.params)}
+                  </button>
+                );
+              }}
             />
             <AttrRow
               label="Anúncio / Comissão"

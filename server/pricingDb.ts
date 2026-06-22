@@ -44,3 +44,32 @@ export async function deletePricingSimulation(userId: number, id: number): Promi
     .where(and(eq(pricingSimulations.id, id), eq(pricingSimulations.userId, userId)));
   return true;
 }
+
+/**
+ * Atualiza os campos de regime/resultados de uma simulação do usuário.
+ * Retorna a linha atualizada (ou null se não encontrada).
+ */
+export async function updatePricingSimulation(
+  userId: number,
+  id: number,
+  patch: Pick<InsertPricingSimulation, "params" | "results">,
+): Promise<PricingSimulation | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [existing] = await db
+    .select({ id: pricingSimulations.id })
+    .from(pricingSimulations)
+    .where(and(eq(pricingSimulations.id, id), eq(pricingSimulations.userId, userId)))
+    .limit(1);
+  if (!existing) return null;
+  await db
+    .update(pricingSimulations)
+    .set({ params: patch.params, results: patch.results })
+    .where(and(eq(pricingSimulations.id, id), eq(pricingSimulations.userId, userId)));
+  const [row] = await db
+    .select()
+    .from(pricingSimulations)
+    .where(eq(pricingSimulations.id, id))
+    .limit(1);
+  return row ?? null;
+}

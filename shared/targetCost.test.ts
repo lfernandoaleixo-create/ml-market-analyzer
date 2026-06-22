@@ -128,3 +128,56 @@ describe("calculateTargetCost — regime TTS (filial → matriz)", () => {
     expect(r.perMargin[0].productCostBRL).toBeGreaterThan(r.perMargin[2].productCostBRL);
   });
 });
+
+describe("toggle de regime (recompute COM/SEM TTS)", () => {
+  // Espelha server/routers/pricing.ts: alternar hasTts muda taxPercent 14<->24
+  // e o custo a pagar à Matriz cai/sobe exatamente (24-14)% * preço.
+  it("alternar de COM TTS (14%) para SEM TTS (24%) reduz o custo em 10% do preço", () => {
+    const price = 100;
+    const margins = [20, 30, 40];
+    const comTts = calculateTargetCost(
+      baseInput({ commissionPercent: 12, taxPercent: 14, tacosPercent: 3 }),
+      price,
+      margins,
+      1,
+    );
+    const semTts = calculateTargetCost(
+      baseInput({ commissionPercent: 12, taxPercent: 24, tacosPercent: 3 }),
+      price,
+      margins,
+      1,
+    );
+    expect(comTts.valid).toBe(true);
+    expect(semTts.valid).toBe(true);
+    for (let i = 0; i < margins.length; i++) {
+      const diff = comTts.perMargin[i].productCostBRL - semTts.perMargin[i].productCostBRL;
+      // 24% - 14% = 10 p.p. sobre R$100 = R$10 de diferença.
+      expect(diff).toBeCloseTo(10, 2);
+    }
+  });
+
+  it("o toggle é simétrico: alternar duas vezes volta ao valor original", () => {
+    const price = 149.9;
+    const margins = [25];
+    const original = calculateTargetCost(
+      baseInput({ commissionPercent: 12, taxPercent: 14 }),
+      price,
+      margins,
+      1,
+    ).perMargin[0].productCostBRL;
+    const toggled = calculateTargetCost(
+      baseInput({ commissionPercent: 12, taxPercent: 24 }),
+      price,
+      margins,
+      1,
+    ).perMargin[0].productCostBRL;
+    const back = calculateTargetCost(
+      baseInput({ commissionPercent: 12, taxPercent: 14 }),
+      price,
+      margins,
+      1,
+    ).perMargin[0].productCostBRL;
+    expect(back).toBeCloseTo(original, 2);
+    expect(toggled).not.toBeCloseTo(original, 2);
+  });
+});

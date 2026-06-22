@@ -1210,3 +1210,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Histórico agrupado por produto (SKU quando houver, senão nome): cada simulação salva vira uma COLUNA de variação, NÃO uma nova linha
 - [x] Planilha por produto: linhas de parâmetros (preço, regime, anúncio/comissão, peso, frete) + preço à Matriz por margem; cada variação é uma coluna
 - [x] Textos da aba e do Histórico atualizados; validado ao vivo (Barraca: 2 variações COM/SEM TTS em colunas); 638 testes verdes; TS limpo
+
+## Toggle de regime na planilha do histórico (Fernando 22/06)
+- [ ] Backend: mutation pricing.toggleRegime que alterna COM TTS (14%) <-> SEM TTS (24%) de uma variação salva e recalcula os resultados
+- [ ] Frontend: botão na coluna de variação para alternar regime; atualiza valores e badge (otimista + invalidate)
+- [ ] Testes vitest do toggle + validação ao vivo + checkpoint
+- [ ] Layout planilha real: 1 bloco por produto, colunas fixas base (Nome, Preço ML, Regime c/ botão TTS, Frete grátis) + 1 coluna por pesquisa salva (margem + valor Matriz)
+- [x] Toggle de regime na planilha: botão COM TTS (14%) ↔ SEM TTS (24%) por variação; backend recalcula via calculateTargetCost e persiste; 640 testes verdes; verificado diff R$10 em todas as margens
