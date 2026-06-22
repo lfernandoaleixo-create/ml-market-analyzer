@@ -49,7 +49,7 @@ const MODELS: Model[] = [
   {
     key: "custo-alvo",
     path: "/calculadora/custo-alvo",
-    title: "Custo-alvo (China)",
+    title: "Preço a ser pago para a Matriz",
     tagline: "Quanto posso pagar pelo produto",
     description:
       "Informe o preço de venda no Mercado Livre e as margens desejadas. Descontando impostos, comissão, frete e toda a logística, mostramos o custo máximo que você pode pagar pelo produto — em Real, Dólar e Yuan, com câmbio em tempo real.",
