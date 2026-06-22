@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { SectionCard } from "@/components/account/AccountUI";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { formatBRL, formatUSD, formatCNY } from "@/lib/format";
+import { formatBRL } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -28,14 +28,13 @@ import {
   type PricingInput,
 } from "@shared/pricing";
 import {
-  RefreshCw,
   Plus,
   X,
   Save,
-  ArrowRightLeft,
   CheckCircle2,
   AlertTriangle,
   PackageCheck,
+  Sparkles,
 } from "lucide-react";
 
 const LOGISTIC_LABEL: Record<MlLogisticType, string> = {
@@ -45,7 +44,15 @@ const LOGISTIC_LABEL: Record<MlLogisticType, string> = {
 };
 
 /** Margens sugeridas iniciais. */
-const DEFAULT_MARGINS = [15, 20, 30];
+const DEFAULT_MARGINS = [20, 30, 40];
+
+/** Alíquota de impostos por regime de TTS (Tratamento Tributário). */
+const TTS_TAX_PERCENT = 14;
+const NO_TTS_TAX_PERCENT = 24;
+
+/** Defaults editáveis solicitados pelo Fernando. */
+const DEFAULT_TACOS = 3;
+const DEFAULT_AFFILIATE = 0;
 
 /** Campo numérico com prefixo/sufixo (mesmo visual da calculadora). */
 function NumField({
@@ -107,10 +114,14 @@ export default function CustoAlvoCalc() {
   const [margins, setMargins] = useState<number[]>(DEFAULT_MARGINS);
   const [newMargin, setNewMargin] = useState("");
 
-  // Parâmetros de custo (mesma régua da calculadora)
-  const [taxPercent, setTaxPercent] = useState(0);
-  const [tacosPercent, setTacosPercent] = useState(0);
-  const [affiliatePercent, setAffiliatePercent] = useState(0);
+  // Regime tributário: COM TTS (14%) por padrão; SEM TTS (24%).
+  const [hasTts, setHasTts] = useState(true);
+  const [taxTouched, setTaxTouched] = useState(false);
+  const [taxPercent, setTaxPercent] = useState(TTS_TAX_PERCENT);
+
+  // Demais parâmetros (defaults editáveis).
+  const [tacosPercent, setTacosPercent] = useState(DEFAULT_TACOS);
+  const [affiliatePercent, setAffiliatePercent] = useState(DEFAULT_AFFILIATE);
   const [marketplace, setMarketplace] = useState<Marketplace>("mercado_livre");
   const [listingType, setListingType] = useState<MlListingType>("classico");
   const [commissionPercent, setCommissionPercent] = useState(
@@ -121,35 +132,19 @@ export default function CustoAlvoCalc() {
   const [shippingCost, setShippingCost] = useState(0);
   const [logisticType, setLogisticType] = useState<MlLogisticType>("padrao");
   const [freeShippingFast, setFreeShippingFast] = useState(false);
-  const [highlightCampaign, setHighlightCampaign] = useState(false);
   const [weightIndex, setWeightIndex] = useState(0);
   const [reputation, setReputation] = useState<MlReputation>("verde");
   const [manualShipping, setManualShipping] = useState(false);
 
-  // Câmbio
-  const fx = trpc.pricing.fxRate.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-    staleTime: 60_000,
-  });
-  const [usdToBrl, setUsdToBrl] = useState(0);
-  const [rateTouched, setRateTouched] = useState(false);
-  const [cnyToBrl, setCnyToBrl] = useState(0);
-  const [cnyTouched, setCnyTouched] = useState(false);
-
-  // Quando a cotação chega (e o usuário não editou manualmente), aplica.
-  useEffect(() => {
-    if (fx.data?.usdToBrl && !rateTouched) {
-      setUsdToBrl(Number(fx.data.usdToBrl.toFixed(4)));
-    }
-  }, [fx.data?.usdToBrl, rateTouched]);
-
-  useEffect(() => {
-    if (fx.data?.cnyToBrl && !cnyTouched) {
-      setCnyToBrl(Number(fx.data.cnyToBrl.toFixed(4)));
-    }
-  }, [fx.data?.cnyToBrl, cnyTouched]);
-
   const autoFees = marketplace !== "outro";
+
+  /** Alterna COM/SEM TTS e aplica a alíquota correspondente (se não editada à mão). */
+  function toggleTts(next: boolean) {
+    setHasTts(next);
+    if (!taxTouched) {
+      setTaxPercent(next ? TTS_TAX_PERCENT : NO_TTS_TAX_PERCENT);
+    }
+  }
 
   function applyMarketplace(mk: Marketplace, lt: MlListingType) {
     setMarketplace(mk);
@@ -179,7 +174,7 @@ export default function CustoAlvoCalc() {
       autoFees,
       mlLogisticType: logisticType,
       freeShippingFast,
-      highlightCampaign,
+      highlightCampaign: false,
       weightIndex,
       reputation,
       manualShipping,
@@ -189,21 +184,22 @@ export default function CustoAlvoCalc() {
     [
       name, sku, marketplace, listingType, taxPercent, tacosPercent, affiliatePercent,
       commissionPercent, fixedFee, shippingCost, autoFees, logisticType, freeShippingFast,
-      highlightCampaign, weightIndex, reputation, manualShipping, sellingPrice,
+      weightIndex, reputation, manualShipping, sellingPrice,
     ],
   );
 
   const sortedMargins = useMemo(() => [...margins].sort((a, b) => a - b), [margins]);
 
+  // Cálculo em R$ (a cotação é irrelevante aqui — passamos 1 só para validar).
   const result = useMemo(
-    () => calculateTargetCost(input, sellingPrice, sortedMargins, usdToBrl, cnyToBrl),
-    [input, sellingPrice, sortedMargins, usdToBrl, cnyToBrl],
+    () => calculateTargetCost(input, sellingPrice, sortedMargins, 1),
+    [input, sellingPrice, sortedMargins],
   );
 
   const utils = trpc.useUtils();
   const saveMutation = trpc.pricing.history.save.useMutation({
     onSuccess: () => {
-      toast.success("Simulação salva no histórico.");
+      toast.success("Pesquisa fixada no histórico (planilha).");
       utils.pricing.history.list.invalidate();
     },
     onError: (e) => toast.error(e.message || "Não foi possível salvar."),
@@ -230,7 +226,7 @@ export default function CustoAlvoCalc() {
       return;
     }
     if (!result.valid) {
-      toast.error(result.error || "Preencha o preço de venda e a cotação.");
+      toast.error(result.error || "Preencha o preço de venda.");
       return;
     }
     saveMutation.mutate({
@@ -238,10 +234,10 @@ export default function CustoAlvoCalc() {
       sku: sku.trim() || undefined,
       notes: notes.trim() || undefined,
       sellingPrice,
-      usdToBrl,
-      cnyToBrl: cnyToBrl || undefined,
+      usdToBrl: 1, // não usado neste fluxo (mantido por compatibilidade do schema)
       margins: sortedMargins,
       params: {
+        hasTts,
         taxPercent,
         tacosPercent,
         affiliatePercent,
@@ -252,7 +248,6 @@ export default function CustoAlvoCalc() {
         shippingCost: result.shippingUsed,
         logisticType,
         freeShippingFast,
-        highlightCampaign,
         weightIndex,
         weightLabel: ML_WEIGHT_LABELS[weightIndex],
         reputation,
@@ -262,8 +257,7 @@ export default function CustoAlvoCalc() {
       results: result.perMargin.map((p) => ({
         marginPct: p.marginPct,
         productCostBRL: p.productCostBRL,
-        productCostUSD: p.productCostUSD,
-        productCostCNY: p.productCostCNY,
+        productCostUSD: 0,
         netProfitBRL: p.netProfitBRL,
         feasible: p.feasible,
       })),
@@ -276,7 +270,10 @@ export default function CustoAlvoCalc() {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       {/* ----------------------------- ENTRADAS ----------------------------- */}
       <div className="space-y-6">
-        <SectionCard title="Produto e preço de venda">
+        <SectionCard
+          title="Produto e preço de venda"
+          description="Você informa por quanto quer vender no Mercado Livre. Descontando comissão, impostos, ADS e a logística do ML — e a margem desejada — calculamos quanto a sua filial (ML) pode pagar à Matriz (loja no Brasil que te abastece) por cada produto."
+        >
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -292,7 +289,7 @@ export default function CustoAlvoCalc() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="ca-sku" className="text-xs font-medium text-muted-foreground">
-                  SKU
+                  SKU <span className="text-muted-foreground/60">(opcional)</span>
                 </Label>
                 <Input
                   id="ca-sku"
@@ -309,15 +306,77 @@ export default function CustoAlvoCalc() {
               value={sellingPrice}
               onChange={setSellingPrice}
             />
-            <p className="text-[11px] text-muted-foreground">
-              Informe por quanto você quer vender. Descontamos impostos, comissão e toda a logística
-              do ML e a margem escolhida — o que sobra é o máximo que você pode pagar pelo produto.
-            </p>
+          </div>
+        </SectionCard>
+
+        {/* Regime tributário com alternador COM/SEM TTS */}
+        <SectionCard
+          title="Regime tributário (TTS)"
+          description="COM TTS seus impostos são 14%. SEM TTS são 24%. Você pode ajustar a alíquota manualmente, se precisar."
+        >
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => toggleTts(true)}
+                className={cn(
+                  "flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all active:scale-[0.99]",
+                  hasTts
+                    ? "border-primary bg-primary/10 shadow-sm"
+                    : "border-border bg-card hover:border-primary/40",
+                )}
+              >
+                <span className="flex items-center gap-1.5 text-sm font-semibold">
+                  <Sparkles className={cn("h-4 w-4", hasTts ? "text-primary" : "text-muted-foreground")} />
+                  COM TTS
+                </span>
+                <span className="text-[11px] text-muted-foreground">Impostos 14%</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleTts(false)}
+                className={cn(
+                  "flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all active:scale-[0.99]",
+                  !hasTts
+                    ? "border-primary bg-primary/10 shadow-sm"
+                    : "border-border bg-card hover:border-primary/40",
+                )}
+              >
+                <span className="text-sm font-semibold">SEM TTS</span>
+                <span className="text-[11px] text-muted-foreground">Impostos 24%</span>
+              </button>
+            </div>
+            <NumField
+              id="ca-tax"
+              label="Impostos aplicados"
+              suffix="%"
+              step="0.1"
+              value={taxPercent}
+              onChange={(n) => {
+                setTaxTouched(true);
+                setTaxPercent(n);
+              }}
+            />
+            {taxTouched && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxTouched(false);
+                  setTaxPercent(hasTts ? TTS_TAX_PERCENT : NO_TTS_TAX_PERCENT);
+                }}
+                className="text-[11px] text-primary hover:underline"
+              >
+                Voltar ao padrão do regime ({hasTts ? "14%" : "24%"})
+              </button>
+            )}
           </div>
         </SectionCard>
 
         <SectionCard title="Margens de lucro a testar">
           <div className="space-y-3">
+            <p className="text-[11px] text-muted-foreground">
+              Cada margem vira uma coluna na planilha do histórico. Adicione quantas quiser.
+            </p>
             <div className="flex flex-wrap gap-2">
               {sortedMargins.map((m) => (
                 <span
@@ -365,71 +424,10 @@ export default function CustoAlvoCalc() {
           </div>
         </SectionCard>
 
-        {/* Conversor de câmbio (USD e RMB) */}
-        <SectionCard
-          title="Câmbio em tempo real (USD e RMB)"
-          actions={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setRateTouched(false);
-                setCnyTouched(false);
-                fx.refetch();
-              }}
-              disabled={fx.isFetching}
-            >
-              <RefreshCw className={cn("h-4 w-4", fx.isFetching && "animate-spin")} />
-              Atualizar
-            </Button>
-          }
-        >
-          <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <NumField
-                id="ca-rate"
-                label="Dólar (R$ por US$ 1,00)"
-                prefix="R$"
-                step="0.0001"
-                value={usdToBrl}
-                onChange={(n) => {
-                  setRateTouched(true);
-                  setUsdToBrl(n);
-                }}
-              />
-              <NumField
-                id="ca-rate-cny"
-                label="Yuan/RMB (R$ por ¥ 1,00)"
-                prefix="R$"
-                step="0.0001"
-                value={cnyToBrl}
-                onChange={(n) => {
-                  setCnyTouched(true);
-                  setCnyToBrl(n);
-                }}
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              {fx.isLoading
-                ? "Buscando cotações em tempo real…"
-                : fx.data
-                  ? `Cotações ${fx.data.source === "fallback" ? "estimadas" : "em tempo real"} · atualizadas às ${new Date(
-                      fx.data.fetchedAt,
-                    ).toLocaleTimeString("pt-BR")}`
-                  : "Não foi possível buscar as cotações — informe manualmente."}
-              {(rateTouched || cnyTouched) && " · valores editados manualmente"}
-            </p>
-            {/* Conversor de três moedas */}
-            <TriConverter usdToBrl={usdToBrl} cnyToBrl={cnyToBrl} />
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Impostos e taxas">
+        <SectionCard title="Custos de venda (editáveis)">
           <div className="grid gap-3 sm:grid-cols-2">
-            <NumField id="ca-tax" label="Impostos" suffix="%" step="0.1" value={taxPercent} onChange={setTaxPercent} />
             <NumField id="ca-tacos" label="TACoS / ADS" suffix="%" step="0.1" value={tacosPercent} onChange={setTacosPercent} />
-            <NumField id="ca-aff" label="Afiliados" suffix="%" step="0.1" value={affiliatePercent} onChange={setAffiliatePercent} />
+            <NumField id="ca-aff" label="Afiliados + outros" suffix="%" step="0.1" value={affiliatePercent} onChange={setAffiliatePercent} />
             {marketplace === "outro" && (
               <NumField id="ca-comm-o" label="Comissão" suffix="%" step="0.1" value={commissionPercent} onChange={(n) => { setCommissionTouched(true); setCommissionPercent(n); }} />
             )}
@@ -528,7 +526,8 @@ export default function CustoAlvoCalc() {
       {/* ----------------------------- RESULTADOS ----------------------------- */}
       <div className="space-y-6">
         <SectionCard
-          title="Quanto posso pagar pelo produto"
+          title="Preço a ser pago para a Matriz"
+          description="O máximo que sua filial (ML) pode pagar à Matriz, por margem desejada. Sem impostos de importação ou navegação — só a régua do Mercado Livre."
           actions={
             <Button
               type="button"
@@ -537,7 +536,7 @@ export default function CustoAlvoCalc() {
               disabled={!result.valid || saveMutation.isPending}
             >
               <Save className="h-4 w-4" />
-              {saveMutation.isPending ? "Salvando…" : "Salvar no histórico"}
+              {saveMutation.isPending ? "Salvando…" : "Fixar no histórico"}
             </Button>
           }
         >
@@ -547,8 +546,8 @@ export default function CustoAlvoCalc() {
                 <PackageCheck className="h-6 w-6" />
               </div>
               <p className="max-w-xs text-sm text-muted-foreground">
-                Informe o preço de venda para descobrir, em cada margem, o custo máximo do produto
-                em reais e em dólar.
+                Informe o preço de venda para descobrir, em cada margem, o preço máximo a pagar
+                para a Matriz (em R$).
               </p>
             </div>
           ) : !result.valid ? (
@@ -562,48 +561,29 @@ export default function CustoAlvoCalc() {
                 <div
                   key={p.marginPct}
                   className={cn(
-                    "rounded-xl border p-4 transition-colors",
+                    "flex items-center justify-between rounded-xl border p-4 transition-colors",
                     p.feasible ? "border-border bg-card" : "border-destructive/30 bg-destructive/5",
                   )}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={p.feasible ? "default" : "destructive"} className="rounded-md">
-                        Margem {p.marginPct}%
-                      </Badge>
-                      {p.feasible ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> viável
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-destructive">
-                          <AlertTriangle className="h-3.5 w-3.5" /> inviável neste preço
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-muted-foreground">
-                      Lucro: {formatBRL(p.netProfitBRL)}
-                    </span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={p.feasible ? "default" : "destructive"} className="rounded-md">
+                      Margem {p.marginPct}%
+                    </Badge>
+                    {p.feasible ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> viável
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-destructive">
+                        <AlertTriangle className="h-3.5 w-3.5" /> inviável neste preço
+                      </span>
+                    )}
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <div className="rounded-lg bg-muted/40 px-3 py-2">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Custo máx. (R$)</p>
-                      <p className={cn("font-display text-lg tabular-nums", !p.feasible && "text-destructive")}>
-                        {formatBRL(p.productCostBRL)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-muted/40 px-3 py-2">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Custo máx. (US$)</p>
-                      <p className={cn("font-display text-lg tabular-nums", !p.feasible && "text-destructive")}>
-                        {formatUSD(p.productCostUSD)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-muted/40 px-3 py-2">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Custo máx. (¥)</p>
-                      <p className={cn("font-display text-lg tabular-nums", !p.feasible && "text-destructive")}>
-                        {p.productCostCNY != null ? formatCNY(p.productCostCNY) : "—"}
-                      </p>
-                    </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Pagar à Matriz</p>
+                    <p className={cn("font-display text-xl tabular-nums", !p.feasible && "text-destructive")}>
+                      {formatBRL(p.productCostBRL)}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -629,8 +609,8 @@ export default function CustoAlvoCalc() {
                   <Row key={d.key} label={d.label} value={`− ${formatBRL(d.amount)}`} muted />
                 ))}
               <div className="border-t border-border pt-2 text-[11px] text-muted-foreground">
-                Em seguida descontamos a margem escolhida de cada cenário acima. Cotações usadas:{" "}
-                R$ {usdToBrl.toFixed(4)}/US$ 1,00{cnyToBrl > 0 ? ` · R$ ${cnyToBrl.toFixed(4)}/¥ 1,00` : ""}.
+                Em seguida descontamos a margem escolhida de cada cenário acima. Regime:{" "}
+                <span className="font-medium text-foreground">{hasTts ? "COM TTS (14%)" : "SEM TTS (24%)"}</span>.
               </div>
             </div>
           </SectionCard>
@@ -666,81 +646,6 @@ function Row({
     <div className="flex items-center justify-between">
       <span className={cn(muted ? "text-muted-foreground" : "")}>{label}</span>
       <span className={cn("tabular-nums", strong && "font-semibold")}>{value}</span>
-    </div>
-  );
-}
-
-/**
- * Conversor de três moedas. O usuário digita um valor e escolhe a moeda de
- * origem; mostramos a conversão nas outras duas em tempo real (via BRL).
- */
-function TriConverter({ usdToBrl, cnyToBrl }: { usdToBrl: number; cnyToBrl: number }) {
-  const [amount, setAmount] = useState(1);
-  const [base, setBase] = useState<"BRL" | "USD" | "CNY">("USD");
-
-  // Converte o valor digitado (na moeda base) para BRL.
-  const inBrl =
-    base === "BRL"
-      ? amount
-      : base === "USD"
-        ? usdToBrl > 0
-          ? amount * usdToBrl
-          : null
-        : cnyToBrl > 0
-          ? amount * cnyToBrl
-          : null;
-
-  const brl = inBrl;
-  const usd = inBrl != null && usdToBrl > 0 ? inBrl / usdToBrl : null;
-  const cny = inBrl != null && cnyToBrl > 0 ? inBrl / cnyToBrl : null;
-
-  return (
-    <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-2">
-        <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-[11px] font-medium text-muted-foreground">Conversor rápido</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Input
-            type="number"
-            min={0}
-            step="0.01"
-            value={amount !== 0 ? amount : ""}
-            onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-            className="h-9 tabular-nums"
-          />
-        </div>
-        <Select value={base} onValueChange={(v) => setBase(v as "BRL" | "USD" | "CNY")}>
-          <SelectTrigger className="h-9 w-24 bg-card">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="BRL">R$ (BRL)</SelectItem>
-            <SelectItem value="USD">US$ (USD)</SelectItem>
-            <SelectItem value="CNY">¥ (RMB)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-3 gap-2 pt-0.5">
-        <ConvCell label="R$" value={base === "BRL" ? null : brl != null ? formatBRL(brl) : "—"} active={base === "BRL"} />
-        <ConvCell label="US$" value={base === "USD" ? null : usd != null ? formatUSD(usd) : "—"} active={base === "USD"} />
-        <ConvCell label="¥" value={base === "CNY" ? null : cny != null ? formatCNY(cny) : "—"} active={base === "CNY"} />
-      </div>
-    </div>
-  );
-}
-
-function ConvCell({ label, value, active }: { label: string; value: string | null; active: boolean }) {
-  return (
-    <div
-      className={cn(
-        "rounded-md border px-2 py-1.5",
-        active ? "border-primary/40 bg-primary/10" : "border-border bg-background",
-      )}
-    >
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-sm tabular-nums">{active ? "(origem)" : value}</p>
     </div>
   );
 }

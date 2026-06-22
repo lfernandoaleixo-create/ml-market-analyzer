@@ -103,3 +103,28 @@ describe("calculateTargetCost", () => {
     expect(forward.contributionMarginPct).toBeCloseTo(20, 1);
   });
 });
+
+describe("calculateTargetCost — regime TTS (filial → matriz)", () => {
+  it("COM TTS (14%) deixa pagar MAIS à matriz do que SEM TTS (24%) no mesmo preço/margem", () => {
+    const comTts = baseInput({ commissionPercent: 12, taxPercent: 14, tacosPercent: 3, affiliatePercent: 0 });
+    const semTts = baseInput({ commissionPercent: 12, taxPercent: 24, tacosPercent: 3, affiliatePercent: 0 });
+    const rCom = calculateTargetCost(comTts, 100, [20], 1);
+    const rSem = calculateTargetCost(semTts, 100, [20], 1);
+    expect(rCom.valid).toBe(true);
+    expect(rSem.valid).toBe(true);
+    // 10 p.p. a mais de imposto sobre R$100 = R$10 a menos para pagar à matriz.
+    expect(rCom.perMargin[0].productCostBRL - rSem.perMargin[0].productCostBRL).toBeCloseTo(10, 2);
+  });
+
+  it("calcula em R$ com cotação neutra (1) e mantém uma coluna por margem", () => {
+    const input = baseInput({ commissionPercent: 12, taxPercent: 14, tacosPercent: 3, affiliatePercent: 0 });
+    const r = calculateTargetCost(input, 120, [20, 30, 40], 1);
+    expect(r.perMargin.map((p) => p.marginPct)).toEqual([20, 30, 40]);
+    // Em R$, productCostUSD == productCostBRL quando a cotação é 1.
+    for (const p of r.perMargin) {
+      expect(p.productCostUSD).toBeCloseTo(p.productCostBRL, 2);
+    }
+    // Margem maior ⇒ menos a pagar para a matriz.
+    expect(r.perMargin[0].productCostBRL).toBeGreaterThan(r.perMargin[2].productCostBRL);
+  });
+});

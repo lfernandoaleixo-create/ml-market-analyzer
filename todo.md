@@ -1191,3 +1191,14 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend: aba "Histórico" elegante (lista nome/data/preço/margens, detalhe expandível, excluir)
 - [x] Testes vitest (custo-alvo multi-margem, câmbio parse/fallback) + TS limpo + validação na preview + checkpoint
 - [x] BUG: rota /calculadora/custo-alvo e /calculadora/historico retornavam 404 — rotas wouter adicionadas em App.tsx; validadas ao vivo (cálculo R$ 100 → custo máx R$ 58,65/53,65/43,65, salvar e listar no histórico OK). 636 testes verdes; TS limpo.
+
+## Reformulação "Preço a ser pago para a Matriz" (conceito filial→matriz, Fernando 22/06)
+- [x] Remover câmbio/US$/¥ da aba — cálculo só em R$
+- [x] Alternador COM TTS (14%) / SEM TTS (24%), inicia em COM TTS; alíquota editável
+- [x] Defaults editáveis: TACoS/ADS 3%, afiliados 0%, Clássico (comissão 12%), Padrão, peso escolhido, sem promoção
+- [x] Múltiplas margens livres por pesquisa (chips add/remove), default 20/30/40
+- [x] Resultado "Pagar à Matriz" por margem + detalhamento "Como chegamos nesse valor"
+- [x] Histórico em formato de planilha: 1 linha por produto, colunas dinâmicas por margem (Matriz · X%)
+- [x] Botão "Fixar no histórico" salva a linha; coluna de Regime (COM/SEM TTS)
+- [x] Testes vitest TTS 14% vs 24% e múltiplas margens em R$ (9 testes no targetCost) + suíte completa 636+ verde; TS limpo
+- [x] Validado ao vivo: R$100 COM TTS → 36,65/26,65/16,65; SEM TTS → 26,65/16,65/6,65; planilha OK
