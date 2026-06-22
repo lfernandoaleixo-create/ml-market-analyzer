@@ -1178,3 +1178,16 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] KPIs do Painel (Em andamento = 1..9 concluídas; Lançados = 10/10) coerentes com o gráfico
 - [x] Gráfico da Análise: largura proporcional, base visível p/ 0%, rótulos -45° sem cortar, Lançados = 100%
 - [x] Testes vitest da régua (progressFromCompleted, 13 verdes) + TS/LSP limpos + validado na preview
+
+## Calculadora — Custo-alvo (China), câmbio em tempo real e Histórico (Fernando, 22/06)
+- [x] Backend: câmbio USD/BRL + CNY/BRL em tempo real (AwesomeAPI) com cache curto + fallback; rota tRPC pricing.fxRate
+- [x] Backend: lógica pura de custo-alvo (preço de venda -> quanto posso pagar pelo produto) por margem, descontando impostos + comissão ML + frete/logística (mesma régua do pricing existente)
+- [x] Backend: suportar múltiplas margens numa simulação (ex.: 15/20/30%); resultado em BRL, USD e CNY
+- [x] Backend: tabela pricing_simulations (usuário, nome, sku, preço, margens, snapshot de parâmetros, resultados, câmbio, createdAt)
+- [x] Backend: rotas tRPC pricing.history.save/list/delete (protected)
+- [x] Frontend: novo modo "Custo-alvo (China)" na Calculadora — preço de venda + chips de margens + resultado BRL/USD/CNY
+- [x] Frontend: conversor tri-moeda BRL<->USD<->RMB com cotação ao vivo (editável)
+- [x] Frontend: botão "Salvar no histórico" a partir do resultado
+- [x] Frontend: aba "Histórico" elegante (lista nome/data/preço/margens, detalhe expandível, excluir)
+- [x] Testes vitest (custo-alvo multi-margem, câmbio parse/fallback) + TS limpo + validação na preview + checkpoint
+- [x] BUG: rota /calculadora/custo-alvo e /calculadora/historico retornavam 404 — rotas wouter adicionadas em App.tsx; validadas ao vivo (cálculo R$ 100 → custo máx R$ 58,65/53,65/43,65, salvar e listar no histórico OK). 636 testes verdes; TS limpo.

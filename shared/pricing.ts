@@ -283,6 +283,7 @@ export interface PricingResult {
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const round4 = (n: number) => Math.round((n + Number.EPSILON) * 10000) / 10000;
 const clamp0 = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0);
 
 /* ----------------------- Cálculo de custos auxiliares --------------------- */
@@ -498,4 +499,167 @@ export function defaultFixedFee(marketplace: Marketplace): number {
   if (marketplace === "shopee") return SHOPEE_DEFAULT_FIXED_FEE;
   if (marketplace === "outro") return OUTRO_DEFAULT_FIXED_FEE;
   return 0;
+}
+
+
+/* ============================ CUSTO-ALVO (China) ===========================
+ * Cálculo INVERSO: dado o PREÇO de venda no ML e a MARGEM desejada, descobrir
+ * o CUSTO MÁXIMO do produto ("quanto posso pagar pelo produto") já descontando
+ * impostos + comissão + frete + taxa fixa + outros, exatamente com a MESMA
+ * régua de custos da Calculadora de Precificação.
+ *
+ *   custoProduto = P − (varPct% + margem%)·P − frete(P) − taxaFixa − outros(R$)
+ *
+ * Onde varPct = comissão efetiva + impostos + TACoS + afiliados + outros(%).
+ * O frete e a taxa fixa são auto-alimentados pelas tabelas do ML conforme o
+ * preço informado (não há iteração: o preço é conhecido).
+ * ------------------------------------------------------------------------- */
+
+/** Resultado do custo-alvo para uma única margem. */
+export interface TargetCostMarginResult {
+  /** Margem desejada (%). */
+  marginPct: number;
+  /** Custo máximo do produto em BRL (pode ser negativo = inviável). */
+  productCostBRL: number;
+  /** Custo máximo do produto em USD (convertido pela cotação). */
+  productCostUSD: number;
+  /** Custo máximo do produto em RMB/CNY (convertido pela cotação). */
+  productCostCNY: number;
+  /** Lucro líquido em R$ nesse cenário. */
+  netProfitBRL: number;
+  /** Verdadeiro quando o custo-alvo é positivo (cenário viável). */
+  feasible: boolean;
+}
+
+/** Detalhamento (em R$) dos descontos sobre o preço, comum a todas as margens. */
+export interface TargetCostBreakdownItem {
+  key: string;
+  label: string;
+  percent?: number;
+  amount: number;
+}
+
+/** Resultado completo do cálculo de custo-alvo. */
+export interface TargetCostResult {
+  sellingPrice: number;
+  /** Cotação USD→BRL usada (quantos reais vale 1 dólar). */
+  usdToBrl: number;
+  /** Cotação CNY→BRL usada (quantos reais vale 1 yuan). */
+  cnyToBrl: number;
+  /** Comissão efetiva usada (%). */
+  commissionUsed: number;
+  /** Frete usado (R$) para o preço informado. */
+  shippingUsed: number;
+  /** Taxa fixa usada (R$). */
+  fixedFeeUsed: number;
+  /** Soma dos custos variáveis SEM a margem (%). */
+  variableCostPct: number;
+  /** Descontos fixos (R$) que não dependem da margem (frete, taxa fixa, outros R$). */
+  fixedDeductions: TargetCostBreakdownItem[];
+  /** Descontos percentuais (R$) que não dependem da margem (comissão, impostos, etc.). */
+  variableDeductions: TargetCostBreakdownItem[];
+  /** Um resultado por margem solicitada. */
+  perMargin: TargetCostMarginResult[];
+  valid: boolean;
+  error?: string;
+}
+
+/**
+ * Calcula o custo-alvo do produto para uma ou várias margens, a partir do preço
+ * de venda. Reaproveita a régua de custos da calculadora (comissão efetiva,
+ * frete e taxa fixa auto-alimentados, impostos/TACoS/afiliados/outros).
+ *
+ * @param input  Mesmos parâmetros da calculadora (productCost e desiredMargin são ignorados aqui).
+ * @param sellingPrice  Preço de venda no ML (R$).
+ * @param margins  Lista de margens desejadas (%). Ex.: [15, 20, 30].
+ * @param usdToBrl  Cotação USD→BRL (quantos reais vale 1 dólar). > 0.
+ */
+export function calculateTargetCost(
+  input: PricingInput,
+  sellingPrice: number,
+  margins: number[],
+  usdToBrl: number,
+  cnyToBrl = 0,
+): TargetCostResult {
+  const commission = effectiveCommission(input);
+  const variable = buildVariableItems(input, commission); // sem margem
+  const price = round2(clamp0(sellingPrice));
+  const rate = Number.isFinite(usdToBrl) && usdToBrl > 0 ? usdToBrl : 0;
+  const rateCny = Number.isFinite(cnyToBrl) && cnyToBrl > 0 ? cnyToBrl : 0;
+
+  const baseResult = (error?: string): TargetCostResult => ({
+    sellingPrice: price,
+    usdToBrl: round2(rate),
+    cnyToBrl: round4(rateCny),
+    commissionUsed: round2(commission),
+    shippingUsed: 0,
+    fixedFeeUsed: 0,
+    variableCostPct: variable.total,
+    fixedDeductions: [],
+    variableDeductions: [],
+    perMargin: [],
+    valid: false,
+    error,
+  });
+
+  if (price <= 0) {
+    return baseResult("Informe um preço de venda maior que zero.");
+  }
+  if (rate <= 0) {
+    return baseResult("Cotação do dólar indisponível. Tente novamente em instantes.");
+  }
+
+  const shipping = resolveShipping(input, price);
+  const fixedFee = resolveFixedFee(input);
+  const otherFixed = input.otherCostKind === "reais" ? clamp0(input.otherCostValue) : 0;
+
+  // Descontos fixos em R$ (não dependem da margem).
+  const fixedDeductions: TargetCostBreakdownItem[] = [
+    { key: "shipping", label: "Frete", amount: round2(shipping) },
+    { key: "fixedFee", label: "Taxa fixa", amount: round2(fixedFee) },
+  ];
+  if (otherFixed > 0) {
+    fixedDeductions.push({ key: "other", label: "Outros custos", amount: round2(otherFixed) });
+  }
+  const fixedTotal = round2(shipping + fixedFee + otherFixed);
+
+  // Descontos percentuais convertidos em R$ sobre o preço (não dependem da margem).
+  const variableDeductions: TargetCostBreakdownItem[] = variable.items.map((it) => ({
+    key: it.key,
+    label: it.label,
+    percent: it.percent,
+    amount: round2(((it.percent ?? 0) / 100) * price),
+  }));
+  const variableAmount = round2((variable.total / 100) * price);
+
+  // Para cada margem: custoProduto = P − margem$ − variável$ − fixos$.
+  const perMargin: TargetCostMarginResult[] = margins.map((m) => {
+    const marginPct = clamp0(m);
+    const marginAmount = round2((marginPct / 100) * price);
+    const productCostBRL = round2(price - marginAmount - variableAmount - fixedTotal);
+    const productCostUSD = round2(productCostBRL / rate);
+    const productCostCNY = rateCny > 0 ? round2(productCostBRL / rateCny) : 0;
+    return {
+      marginPct: round2(marginPct),
+      productCostBRL,
+      productCostUSD,
+      productCostCNY,
+      netProfitBRL: marginAmount,
+      feasible: productCostBRL > 0,
+    };
+  });
+
+  return {
+    sellingPrice: price,
+    usdToBrl: round2(rate),
+    cnyToBrl: round4(rateCny),
+    commissionUsed: round2(commission),
+    shippingUsed: round2(shipping),
+    fixedFeeUsed: round2(fixedFee),
+    variableCostPct: variable.total,
+    fixedDeductions,
+    variableDeductions,
+    perMargin,
+    valid: true,
+  };
 }

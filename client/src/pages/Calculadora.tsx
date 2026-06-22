@@ -2,14 +2,22 @@ import { PageShell, PageHeader } from "@/components/account/AccountUI";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { Calculator, Scale, Tag, ListChecks, ArrowLeft, ArrowRight } from "lucide-react";
+import { Calculator, Scale, Tag, ListChecks, Globe, History, ArrowLeft, ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import PrecificacaoCalc from "@/components/calculadora/PrecificacaoCalc";
 import PontoEquilibrioCalc from "@/components/calculadora/PontoEquilibrioCalc";
 import ReferenciaPreco from "@/components/calculadora/ReferenciaPreco";
 import AnunciosAtivos from "@/components/calculadora/AnunciosAtivos";
+import CustoAlvoCalc from "@/components/calculadora/CustoAlvoCalc";
+import HistoricoPrecos from "@/components/calculadora/HistoricoPrecos";
 
-type ModelKey = "precificacao" | "ponto-equilibrio" | "referencia-preco" | "anuncios-ativos";
+type ModelKey =
+  | "precificacao"
+  | "custo-alvo"
+  | "ponto-equilibrio"
+  | "referencia-preco"
+  | "anuncios-ativos"
+  | "historico";
 
 type Model = {
   key: ModelKey;
@@ -37,6 +45,21 @@ const MODELS: Model[] = [
     ],
     icon: Calculator,
     accent: "bg-primary/12 text-primary",
+  },
+  {
+    key: "custo-alvo",
+    path: "/calculadora/custo-alvo",
+    title: "Custo-alvo (China)",
+    tagline: "Quanto posso pagar pelo produto",
+    description:
+      "Informe o preço de venda no Mercado Livre e as margens desejadas. Descontando impostos, comissão, frete e toda a logística, mostramos o custo máximo que você pode pagar pelo produto — em Real, Dólar e Yuan, com câmbio em tempo real.",
+    bullets: [
+      "Preço de venda → custo máximo do produto",
+      "Várias margens ao mesmo tempo (livres)",
+      "Conversor R$ / US$ / ¥ em tempo real",
+    ],
+    icon: Globe,
+    accent: "bg-rose-500/12 text-rose-600",
   },
   {
     key: "ponto-equilibrio",
@@ -83,6 +106,21 @@ const MODELS: Model[] = [
     icon: ListChecks,
     accent: "bg-sky-500/12 text-sky-600",
   },
+  {
+    key: "historico",
+    path: "/calculadora/historico",
+    title: "Histórico",
+    tagline: "Suas simulações salvas",
+    description:
+      "Registro das simulações de custo-alvo que você salvar, para não se perder nas reuniões. Consulte por produto, preço de venda, margens testadas e o custo máximo em R$, US$ e ¥.",
+    bullets: [
+      "Histórico por produto e SKU",
+      "Margens e custo-alvo em 3 moedas",
+      "Busca e exclusão de registros",
+    ],
+    icon: History,
+    accent: "bg-violet-500/12 text-violet-600",
+  },
 ];
 
 /** Renderiza o componente do modelo ativo. */
@@ -96,6 +134,10 @@ function ModelView({ modelKey }: { modelKey: ModelKey }) {
       return <ReferenciaPreco />;
     case "anuncios-ativos":
       return <AnunciosAtivos />;
+    case "custo-alvo":
+      return <CustoAlvoCalc />;
+    case "historico":
+      return <HistoricoPrecos />;
     default:
       return null;
   }

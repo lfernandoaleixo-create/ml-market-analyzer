@@ -11,6 +11,22 @@ export function formatNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat("pt-BR").format(value);
 }
 
+export function formatUSD(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(value);
+}
+
+export function formatCNY(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return new Intl.NumberFormat("zh-CN", {
+    style: "currency",
+    currency: "CNY",
+  }).format(value);
+}
+
 export function formatCompact(value: number | null | undefined): string {
   if (value == null) return "—";
   return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(

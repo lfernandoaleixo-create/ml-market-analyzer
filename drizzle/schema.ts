@@ -598,3 +598,39 @@ export const projectComments = mysqlTable(
 
 export type ProjectComment = typeof projectComments.$inferSelect;
 export type InsertProjectComment = typeof projectComments.$inferInsert;
+
+
+/**
+ * Histórico de simulações de precificação / custo-alvo (China).
+ * Cada linha registra um cenário salvo durante reuniões: nome do produto,
+ * preço de venda no ML, margens testadas, snapshot dos parâmetros usados
+ * (impostos, comissão, frete, logística, peso, etc.), os resultados por
+ * margem (custo-alvo em BRL e USD) e a cotação USD->BRL do momento.
+ */
+export const pricingSimulations = mysqlTable(
+  "pricing_simulations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    productName: varchar("productName", { length: 200 }).notNull(),
+    sku: varchar("sku", { length: 100 }),
+    notes: text("notes"),
+    /** Preço de venda no ML (centavos para precisão). */
+    sellingPriceCents: int("sellingPriceCents").notNull(),
+    /** Cotação USD->BRL usada, x10000 (ex.: 5.4321 -> 54321). */
+    usdToBrlMilli: int("usdToBrlMilli").notNull(),
+    /** Margens testadas (array de %), ex.: [15,20,30]. */
+    margins: json("margins").notNull(),
+    /** Snapshot completo dos parâmetros (PricingInput parcial) usados. */
+    params: json("params").notNull(),
+    /** Resultados por margem (TargetCostMarginResult[]). */
+    results: json("results").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    userIdx: index("pricing_simulations_user_idx").on(t.userId),
+  }),
+);
+export type PricingSimulation = typeof pricingSimulations.$inferSelect;
+export type InsertPricingSimulation = typeof pricingSimulations.$inferInsert;

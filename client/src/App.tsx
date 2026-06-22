@@ -39,6 +39,8 @@ function Router() {
         <Route path="/calculadora/ponto-equilibrio" component={Calculadora} />
         <Route path="/calculadora/referencia-preco" component={Calculadora} />
         <Route path="/calculadora/anuncios-ativos" component={Calculadora} />
+        <Route path="/calculadora/custo-alvo" component={Calculadora} />
+        <Route path="/calculadora/historico" component={Calculadora} />
         <Route path="/pos-venda" component={PosVenda} />
         <Route path="/reputacao" component={Reputacao} />
         <Route path="/radar" component={RadarConcorrentes} />

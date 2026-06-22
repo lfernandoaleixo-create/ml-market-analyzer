@@ -71,6 +71,13 @@
       "when": 1781802545193,
       "tag": "0009_faulty_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1782130159010,
+      "tag": "0010_marvelous_raider",
+      "breakpoints": true
     }
   ]
 }
