@@ -78,6 +78,13 @@
       "when": 1782130159010,
       "tag": "0010_marvelous_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1782152168156,
+      "tag": "0011_dapper_stingray",
+      "breakpoints": true
     }
   ]
 }

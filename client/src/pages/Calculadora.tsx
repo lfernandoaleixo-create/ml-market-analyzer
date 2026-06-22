@@ -2,22 +2,20 @@ import { PageShell, PageHeader } from "@/components/account/AccountUI";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { Calculator, Scale, Tag, ListChecks, Globe, History, ArrowLeft, ArrowRight } from "lucide-react";
+import { Calculator, Scale, Tag, ListChecks, Globe, ArrowLeft, ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import PrecificacaoCalc from "@/components/calculadora/PrecificacaoCalc";
 import PontoEquilibrioCalc from "@/components/calculadora/PontoEquilibrioCalc";
 import ReferenciaPreco from "@/components/calculadora/ReferenciaPreco";
 import AnunciosAtivos from "@/components/calculadora/AnunciosAtivos";
 import CustoAlvoCalc from "@/components/calculadora/CustoAlvoCalc";
-import HistoricoPrecos from "@/components/calculadora/HistoricoPrecos";
 
 type ModelKey =
   | "precificacao"
   | "custo-alvo"
   | "ponto-equilibrio"
   | "referencia-preco"
-  | "anuncios-ativos"
-  | "historico";
+  | "anuncios-ativos";
 
 type Model = {
   key: ModelKey;
@@ -50,13 +48,13 @@ const MODELS: Model[] = [
     key: "custo-alvo",
     path: "/calculadora/custo-alvo",
     title: "Preço a ser pago para a Matriz",
-    tagline: "Quanto pagar à Matriz pelo produto",
+    tagline: "Planilha de preço por margem",
     description:
-      "Informe o preço de venda no Mercado Livre e as margens desejadas. Escolha o regime (COM TTS 14% ou SEM TTS 24%); descontando comissão, impostos, ADS e a logística do ML, mostramos em R$ o máximo que sua filial pode pagar à Matriz por cada produto. Cada vez que você fixa uma simulação, ela vira uma coluna de variação do produto no histórico.",
+      "Planilha estilo Excel: cada produto é uma linha, cada margem é uma coluna. Você informa o preço de venda no ML que dá a margem âncora (20%); o sistema deriva o custo fixo a pagar à Matriz e calcula o preço de venda necessário para cada outra margem. Os controles globais (COM/SEM TTS e Clássico/Premium) recalculam toda a planilha de uma vez.",
     bullets: [
-      "Preço de venda → preço a pagar para a Matriz (R$)",
-      "Alternador COM TTS (14%) / SEM TTS (24%)",
-      "Várias margens viram colunas na planilha",
+      "Linhas = produtos · colunas = margens",
+      "Controles globais COM/SEM TTS e Clássico/Premium",
+      "Nome de produto único, sem duplicatas",
     ],
     icon: Globe,
     accent: "bg-rose-500/12 text-rose-600",
@@ -106,21 +104,6 @@ const MODELS: Model[] = [
     icon: ListChecks,
     accent: "bg-sky-500/12 text-sky-600",
   },
-  {
-    key: "historico",
-    path: "/calculadora/historico",
-    title: "Histórico",
-    tagline: "Sua planilha de pesquisas",
-    description:
-      "Cada produto vira uma planilha. Cada simulação que você fixa (mudando margem, frete, peso ou regime) acrescenta uma coluna de variação — comparando lado a lado o preço a pagar para a Matriz em cada cenário.",
-    bullets: [
-      "Uma planilha por produto (agrupado por SKU ou nome)",
-      "Cada simulação salva vira uma coluna de variação",
-      "Busca por nome/SKU e exclusão de variações",
-    ],
-    icon: History,
-    accent: "bg-violet-500/12 text-violet-600",
-  },
 ];
 
 /** Renderiza o componente do modelo ativo. */
@@ -136,8 +119,6 @@ function ModelView({ modelKey }: { modelKey: ModelKey }) {
       return <AnunciosAtivos />;
     case "custo-alvo":
       return <CustoAlvoCalc />;
-    case "historico":
-      return <HistoricoPrecos />;
     default:
       return null;
   }

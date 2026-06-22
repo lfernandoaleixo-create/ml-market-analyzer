@@ -7,15 +7,26 @@ import {
   listPricingSimulations,
   deletePricingSimulation,
   updatePricingSimulation,
+  listMatrixProducts,
+  findMatrixProductByName,
+  insertMatrixProduct,
+  updateMatrixProduct,
+  deleteMatrixProduct,
+  getMatrixSettings,
+  upsertMatrixSettings,
+  DEFAULT_MATRIX_MARGINS,
 } from "../pricingDb";
-import type { PricingSimulation } from "../../drizzle/schema";
+import type { PricingSimulation, MatrixProduct, MatrixSettings } from "../../drizzle/schema";
 import {
   calculateTargetCost,
+  computeMatrixRow,
   type PricingInput,
   type Marketplace,
   type MlListingType,
   type MlLogisticType,
   type MlReputation,
+  type MatrixGlobalSettings,
+  type MatrixTtsRegime,
 } from "../../shared/pricing";
 
 /** Alíquotas de imposto por regime de TTS. */
@@ -92,6 +103,52 @@ function toClient(row: PricingSimulation) {
     params: row.params as Record<string, unknown>,
     results: row.results as Array<z.infer<typeof marginResultSchema>>,
     createdAt: row.createdAt,
+  };
+}
+
+/** Margens efetivas resolvidas (com a âncora garantida no início). */
+export interface ResolvedMatrixSettings extends MatrixGlobalSettings {
+  margins: number[];
+  anchorMarginPct: number;
+}
+
+/** Converte a linha de settings do banco (ou null) em settings resolvidas com defaults. */
+function resolveSettings(row: MatrixSettings | null): ResolvedMatrixSettings {
+  const anchorMarginPct = row?.anchorMarginPct ?? 20;
+  const rawMargins = (row?.margins as number[] | undefined) ?? DEFAULT_MATRIX_MARGINS;
+  // Garante a âncora presente e remove duplicatas, preservando a ordem (âncora primeiro).
+  const margins = Array.from(new Set([anchorMarginPct, ...rawMargins]));
+  return {
+    ttsRegime: (row?.ttsRegime as MatrixTtsRegime) ?? "com_tts",
+    listingType: (row?.listingType as MlListingType) ?? "classico",
+    tacosPercent: row?.tacosPercent ?? 3,
+    affiliatePercent: row?.affiliatePercent ?? 0,
+    freeShipping: row?.freeShipping ?? true,
+    anchorMarginPct,
+    margins,
+  };
+}
+
+/** Monta a linha (produto + custo Matriz + células por margem) para o cliente. */
+function buildRow(p: MatrixProduct, settings: ResolvedMatrixSettings) {
+  const anchorPrice = p.anchorPriceCents / 100;
+  const computed = computeMatrixRow(
+    settings,
+    p.weightIndex,
+    anchorPrice,
+    settings.anchorMarginPct,
+    settings.margins,
+  );
+  return {
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    anchorPrice,
+    anchorMarginPct: settings.anchorMarginPct,
+    weightIndex: p.weightIndex,
+    matrixCost: computed.matrixCost,
+    cells: computed.cells,
+    sortOrder: p.sortOrder,
   };
 }
 
@@ -175,6 +232,110 @@ export const pricingRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "Simulação não encontrada." });
         }
         return { success: true };
+      }),
+  }),
+
+  /* ============== PLANILHA INVERTIDA (preço a pagar à Matriz) ============== */
+  spreadsheet: router({
+    /**
+     * Retorna a planilha completa: configurações globais + linhas (produtos)
+     * com o custo Matriz derivado e o preço de venda por margem já calculado.
+     */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const [products, settingsRow] = await Promise.all([
+        listMatrixProducts(ctx.user.id),
+        getMatrixSettings(ctx.user.id),
+      ]);
+      const settings = resolveSettings(settingsRow);
+      const margins = settings.margins;
+      const rows = products.map((p) => buildRow(p, settings));
+      return { settings, rows };
+    }),
+
+    /**
+     * Cria ou atualiza um produto da planilha. Valida nome único por usuário.
+     * Quando `id` é informado, atualiza; caso contrário, cria.
+     */
+    upsert: protectedProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive().optional(),
+          name: z.string().trim().min(1, "Informe o nome do produto").max(200),
+          sku: z.string().trim().max(100).optional(),
+          anchorPrice: z.number().positive("Informe o preço de venda com a margem âncora"),
+          anchorMarginPct: z.number().min(0).max(95).optional(),
+          weightIndex: z.number().int().min(0).max(27).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Nome único por usuário (ignora a própria linha em edição).
+        const existing = await findMatrixProductByName(ctx.user.id, input.name);
+        if (existing && existing.id !== input.id) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Já existe um produto chamado "${input.name}". Use um nome diferente.`,
+          });
+        }
+        const anchorPriceCents = Math.round(input.anchorPrice * 100);
+        const patch = {
+          name: input.name,
+          sku: input.sku ?? null,
+          anchorPriceCents,
+          anchorMarginPct: input.anchorMarginPct ?? 20,
+          weightIndex: input.weightIndex ?? 0,
+        };
+        let row: MatrixProduct | null;
+        if (input.id) {
+          row = await updateMatrixProduct(ctx.user.id, input.id, patch);
+          if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Produto não encontrado." });
+        } else {
+          const all = await listMatrixProducts(ctx.user.id);
+          const sortOrder = all.length;
+          row = await insertMatrixProduct({ userId: ctx.user.id, ...patch, sortOrder });
+          if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível salvar o produto." });
+        }
+        const settings = resolveSettings(await getMatrixSettings(ctx.user.id));
+        return buildRow(row, settings);
+      }),
+
+    /** Exclui um produto (linha) da planilha. */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await deleteMatrixProduct(ctx.user.id, input.id);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Produto não encontrado." });
+        return { success: true };
+      }),
+
+    /**
+     * Atualiza as configurações globais (recalculam todas as linhas):
+     * regime TTS, tipo de anúncio, margens exibidas, TACoS, afiliados, frete.
+     */
+    updateSettings: protectedProcedure
+      .input(
+        z.object({
+          ttsRegime: z.enum(["com_tts", "sem_tts"]).optional(),
+          listingType: z.enum(["classico", "premium"]).optional(),
+          margins: z.array(z.number().min(0).max(95)).min(1).max(12).optional(),
+          anchorMarginPct: z.number().min(0).max(95).optional(),
+          tacosPercent: z.number().min(0).max(100).optional(),
+          affiliatePercent: z.number().min(0).max(100).optional(),
+          freeShipping: z.boolean().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const patch: Record<string, unknown> = { ...input };
+        if (input.margins) {
+          // Normaliza: remove duplicatas e garante a âncora presente.
+          const anchor = input.anchorMarginPct ?? (await getMatrixSettings(ctx.user.id))?.anchorMarginPct ?? 20;
+          const set = Array.from(new Set([anchor, ...input.margins]));
+          patch.margins = set;
+        }
+        await upsertMatrixSettings(ctx.user.id, patch);
+        const settings = resolveSettings(await getMatrixSettings(ctx.user.id));
+        const products = await listMatrixProducts(ctx.user.id);
+        const rows = products.map((p) => buildRow(p, settings));
+        return { settings, rows };
       }),
   }),
 });

@@ -634,3 +634,76 @@ export const pricingSimulations = mysqlTable(
 );
 export type PricingSimulation = typeof pricingSimulations.$inferSelect;
 export type InsertPricingSimulation = typeof pricingSimulations.$inferInsert;
+
+
+/**
+ * Planilha invertida "Preço a ser pago para a Matriz" (v3).
+ *
+ * Cada linha é um PRODUTO (nome único por usuário). O usuário informa o preço
+ * de venda no ML que produz a margem âncora (ex.: 20%); a partir disso o sistema
+ * deriva o CUSTO FIXO a pagar à Matriz e recalcula o preço de venda necessário
+ * para cada outra margem. Os controles globais (COM/SEM TTS e tipo de anúncio
+ * Clássico/Premium) são salvos por usuário em `matrix_settings` e aplicam-se a
+ * TODAS as linhas de uma vez.
+ */
+export const matrixProducts = mysqlTable(
+  "matrix_products",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** Nome do produto (único por usuário). */
+    name: varchar("name", { length: 200 }).notNull(),
+    /** SKU opcional (apenas informativo). */
+    sku: varchar("sku", { length: 100 }),
+    /** Preço de venda âncora no ML (centavos), que produz a margem âncora. */
+    anchorPriceCents: int("anchorPriceCents").notNull(),
+    /** Margem âncora (%) usada para derivar o custo da Matriz. Default 20. */
+    anchorMarginPct: double("anchorMarginPct").default(20).notNull(),
+    /** Índice da faixa de peso do produto embalado (0..27). */
+    weightIndex: int("weightIndex").default(0).notNull(),
+    /** Ordem de exibição na planilha. */
+    sortOrder: int("sortOrder").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    userIdx: index("matrix_products_user_idx").on(t.userId),
+    userNameIdx: index("matrix_products_user_name_idx").on(t.userId, t.name),
+  }),
+);
+
+export type MatrixProduct = typeof matrixProducts.$inferSelect;
+export type InsertMatrixProduct = typeof matrixProducts.$inferInsert;
+
+/**
+ * Configurações globais da planilha invertida por usuário (uma linha por user).
+ * Guardam os controles globais que recalculam todas as linhas: regime de imposto
+ * (COM TTS = 14% / SEM TTS = 24%), tipo de anúncio (Clássico/Premium), as margens
+ * exibidas (array de %), e os defaults de TACoS/afiliados/frete grátis.
+ */
+export const matrixSettings = mysqlTable(
+  "matrix_settings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().unique(),
+    /** Regime de imposto: com_tts (14%) ou sem_tts (24%). */
+    ttsRegime: mysqlEnum("ttsRegime", ["com_tts", "sem_tts"]).default("com_tts").notNull(),
+    /** Tipo de anúncio do ML: classico (12%) ou premium (17%). */
+    listingType: mysqlEnum("listingType", ["classico", "premium"]).default("classico").notNull(),
+    /** Margens exibidas na planilha (array de %), ex.: [20,15,25,30,35,40]. */
+    margins: json("margins").notNull(),
+    /** Margem âncora global (%). Default 20. */
+    anchorMarginPct: double("anchorMarginPct").default(20).notNull(),
+    /** TACoS/ADS (%) aplicado a todas as linhas. Default 3. */
+    tacosPercent: double("tacosPercent").default(3).notNull(),
+    /** Afiliados (%) aplicado a todas as linhas. Default 0. */
+    affiliatePercent: double("affiliatePercent").default(0).notNull(),
+    /** Frete grátis (full/flex) ligado. Default true. */
+    freeShipping: boolean("freeShipping").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+);
+
+export type MatrixSettings = typeof matrixSettings.$inferSelect;
+export type InsertMatrixSettings = typeof matrixSettings.$inferInsert;

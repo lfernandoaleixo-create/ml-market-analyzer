@@ -663,3 +663,150 @@ export function calculateTargetCost(
     valid: true,
   };
 }
+
+
+/* ===================== PLANILHA INVERTIDA (preço por margem) =================
+ * Conceito (v3): o usuário informa, por produto, o PREÇO DE VENDA no ML que dá
+ * uma margem âncora (ex.: 20%). A partir desse preço derivamos o CUSTO FIXO a
+ * pagar à Matriz (o quanto sobra para o produto naquele cenário). Esse custo é
+ * fixo. Para cada outra margem, recalculamos o PREÇO DE VENDA necessário para
+ * obter aquela margem, mantendo o mesmo custo (mesma régua: comissão, impostos,
+ * TACoS, afiliados, frete auto-alimentado, taxa fixa).
+ *
+ *   custoMatriz = priceAnchor − (varPct% + margemAncora%)·priceAnchor − frete(priceAnchor) − fixos
+ *   precoMargem = (custoMatriz + fixos) / (1 − (varPct% + margem%)/100)   [solver de frete]
+ * ------------------------------------------------------------------------- */
+
+/** Deriva o custo fixo a pagar à Matriz a partir de um preço de venda e margem. */
+export function deriveMatrixCost(
+  input: PricingInput,
+  anchorSellingPrice: number,
+  anchorMarginPct: number,
+): number {
+  const res = calculateTargetCost(input, anchorSellingPrice, [anchorMarginPct], 1, 0);
+  if (!res.valid || res.perMargin.length === 0) return 0;
+  return res.perMargin[0].productCostBRL;
+}
+
+/**
+ * Dado um custo fixo de produto (Matriz) e uma margem desejada, calcula o
+ * PREÇO DE VENDA no ML necessário (markup divisor com solver de frete).
+ * Reaproveita calculatePricing no modo custo_para_preco.
+ */
+export function priceForMargin(
+  input: PricingInput,
+  matrixCost: number,
+  marginPct: number,
+): { price: number; valid: boolean; error?: string } {
+  const res = calculatePricing({
+    ...input,
+    mode: "custo_para_preco",
+    productCost: clamp0(matrixCost),
+    desiredMargin: clamp0(marginPct),
+  });
+  return { price: res.price, valid: res.valid, error: res.error };
+}
+
+/** Resultado de uma célula (margem) da planilha invertida. */
+export interface MarginPriceCell {
+  marginPct: number;
+  sellingPrice: number;
+  valid: boolean;
+  error?: string;
+}
+
+/** Calcula a linha completa de preços por margem para um produto. */
+export function computeMarginRow(
+  input: PricingInput,
+  anchorSellingPrice: number,
+  anchorMarginPct: number,
+  margins: number[],
+): { matrixCost: number; cells: MarginPriceCell[] } {
+  const matrixCost = deriveMatrixCost(input, anchorSellingPrice, anchorMarginPct);
+  const cells: MarginPriceCell[] = margins.map((m) => {
+    // A coluna âncora reflete exatamente o preço informado.
+    if (Math.abs(m - anchorMarginPct) < 1e-9) {
+      return { marginPct: round2(m), sellingPrice: round2(anchorSellingPrice), valid: matrixCost > 0 };
+    }
+    const r = priceForMargin(input, matrixCost, m);
+    return { marginPct: round2(m), sellingPrice: round2(r.price), valid: r.valid && matrixCost > 0, error: r.error };
+  });
+  return { matrixCost: round2(matrixCost), cells };
+}
+
+
+/* =================== CONFIGURAÇÕES GLOBAIS DA PLANILHA ====================== */
+
+/** Regime de imposto da planilha invertida. */
+export type MatrixTtsRegime = "com_tts" | "sem_tts";
+
+/** Alíquota de imposto (%) por regime. COM TTS = 14%, SEM TTS = 24%. */
+export const MATRIX_TAX_BY_REGIME: Record<MatrixTtsRegime, number> = {
+  com_tts: 14,
+  sem_tts: 24,
+};
+
+/** Configurações globais que se aplicam a TODAS as linhas da planilha. */
+export interface MatrixGlobalSettings {
+  ttsRegime: MatrixTtsRegime;
+  listingType: MlListingType;
+  tacosPercent: number;
+  affiliatePercent: number;
+  freeShipping: boolean;
+}
+
+/**
+ * Monta o PricingInput base da planilha invertida a partir das configurações
+ * globais e do peso do produto. Frete e taxa fixa são auto-alimentados pelas
+ * tabelas reais do ML (Padrão), comissão pelo tipo de anúncio, imposto pelo
+ * regime de TTS.
+ */
+export function buildMatrixInput(
+  settings: MatrixGlobalSettings,
+  weightIndex: number,
+): PricingInput {
+  return {
+    mode: "preco_para_margem",
+    marketplace: "mercado_livre",
+    mlListingType: settings.listingType,
+    desiredMargin: 0,
+    productCost: 0,
+    taxPercent: MATRIX_TAX_BY_REGIME[settings.ttsRegime],
+    tacosPercent: clamp0(settings.tacosPercent),
+    affiliatePercent: clamp0(settings.affiliatePercent),
+    otherCostKind: "reais",
+    otherCostValue: 0,
+    commissionPercent: ML_DEFAULT_COMMISSION[settings.listingType],
+    fixedFee: 0,
+    shippingCost: 0,
+    autoFees: true,
+    mlLogisticType: "padrao",
+    freeShippingFast: settings.freeShipping,
+    highlightCampaign: false,
+    weightIndex: clamp0(weightIndex),
+    reputation: "verde",
+    manualShipping: false,
+    promoPercent: 0,
+  };
+}
+
+/** Uma linha completa da planilha (produto + custo Matriz + células por margem). */
+export interface MatrixRow {
+  matrixCost: number;
+  cells: MarginPriceCell[];
+}
+
+/**
+ * Calcula a linha da planilha para um produto, a partir das configurações
+ * globais, do preço âncora, da margem âncora e das margens exibidas.
+ */
+export function computeMatrixRow(
+  settings: MatrixGlobalSettings,
+  weightIndex: number,
+  anchorSellingPrice: number,
+  anchorMarginPct: number,
+  margins: number[],
+): MatrixRow {
+  const input = buildMatrixInput(settings, weightIndex);
+  return computeMarginRow(input, anchorSellingPrice, anchorMarginPct, margins);
+}

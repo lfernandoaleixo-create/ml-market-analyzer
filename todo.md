@@ -1217,3 +1217,14 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [ ] Testes vitest do toggle + validação ao vivo + checkpoint
 - [ ] Layout planilha real: 1 bloco por produto, colunas fixas base (Nome, Preço ML, Regime c/ botão TTS, Frete grátis) + 1 coluna por pesquisa salva (margem + valor Matriz)
 - [x] Toggle de regime na planilha: botão COM TTS (14%) ↔ SEM TTS (24%) por variação; backend recalcula via calculateTargetCost e persiste; 640 testes verdes; verificado diff R$10 em todas as margens
+
+
+## Planilha única invertida (preço de venda por margem) — v3
+- [x] Lógica: dado preço de venda ML @20% -> derivar custo fixo Matriz -> recalcular preço de venda ML para cada margem (15/20/25/30/35/40 + adicionáveis)
+- [x] shared/pricing: funções deriveMatrixCost + priceForMargin + computeMatrixRow + buildMatrixInput (mesma régua: comissão, imposto TTS, TACoS, afiliados, frete)
+- [x] Schema: tabelas matrix_products (nome único por usuário) + matrix_settings (regime, anúncio, margens globais)
+- [x] Backend: rotas spreadsheet.list/upsert/delete/updateSettings; nome duplicado tratado; histórico antigo limpo
+- [x] UI: planilha única (linhas=produtos, colunas=margens), inputs preço @20%, células = preço de venda por margem
+- [x] UI: controles globais COM/SEM TTS (14/24%) e Clássico (12%)/Premium (17%) recalculando tudo
+- [x] UI: adicionar produto (form inline) e adicionar/remover coluna de margem; aba Histórico antiga removida
+- [x] Testes vitest do cálculo invertido (10 testes) + suíte completa 650 verdes; TS limpo
