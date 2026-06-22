@@ -10,8 +10,10 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   ML_WEIGHT_LABELS,
+  computeMatrixRow,
   type MlListingType,
   type MatrixTtsRegime,
+  type MatrixGlobalSettings,
 } from "@shared/pricing";
 import {
   Select,
@@ -195,33 +197,12 @@ export default function CustoAlvoCalc() {
     );
   }
 
-  /* ----- adicionar margem (coluna) ----- */
-  const [newMargin, setNewMargin] = useState("");
-  function addMargin() {
-    const v = parseFloat(newMargin.replace(",", "."));
-    if (!settings) return;
-    if (!Number.isFinite(v) || v < 0 || v > 95) {
-      toast.error("Margem inválida (0 a 95%).");
-      return;
-    }
-    if (settings.margins.includes(v)) {
-      setNewMargin("");
-      return;
-    }
-    upsertSettings.mutate({ margins: [...settings.margins, v] });
-    setNewMargin("");
-  }
-  function removeMargin(m: number) {
-    if (!settings) return;
-    if (m === settings.anchorMarginPct) {
-      toast.error("A coluna âncora não pode ser removida.");
-      return;
-    }
-    upsertSettings.mutate({ margins: settings.margins.filter((x) => x !== m) });
-  }
+  /* ----- coluna variável (ajuste em tempo real) ----- */
+  const [varMargin, setVarMargin] = useState(45);
 
-  const anchor = settings?.anchorMarginPct ?? 20;
-  const margins = settings?.margins ?? [20, 15, 25, 30, 35, 40];
+  // Margens base fixas para todos os produtos (não removíveis).
+  const anchor = 20;
+  const margins = [20, 15, 25, 30, 35, 40];
 
   const regimeSemTts = settings?.ttsRegime === "sem_tts";
   const isPremium = settings?.listingType === "premium";
@@ -371,55 +352,44 @@ export default function CustoAlvoCalc() {
         {/* Barra de controles globais (regime/anúncio/TACoS/afiliados/frete) — sticky */}
         {controlsBar}
 
-        {/* Gerenciar colunas (margens) */}
+        {/* Colunas fixas + coluna variável */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Margens (colunas):</span>
+          <span className="text-xs font-medium text-muted-foreground">Colunas fixas:</span>
           {margins.map((m) => (
             <span
               key={m}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium",
+                "inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium",
                 m === anchor
                   ? "border-primary bg-primary/15 text-primary"
                   : "border-primary/30 bg-primary/10 text-primary",
               )}
             >
               {m}%{m === anchor && " (âncora)"}
-              {m !== anchor && (
-                <button
-                  type="button"
-                  onClick={() => removeMargin(m)}
-                  className="rounded-full p-0.5 text-primary/70 transition-colors hover:bg-primary/20 hover:text-primary"
-                  aria-label={`Remover margem ${m}%`}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
             </span>
           ))}
-          <div className="relative w-24">
-            <Input
-              type="number"
-              min={0}
-              max={95}
-              value={newMargin}
-              placeholder="Ex.: 45"
-              onChange={(e) => setNewMargin(e.target.value)}
-              onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addMargin();
-                }
-              }}
-              className="h-8 pr-6 text-sm tabular-nums"
-            />
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-          </div>
-          <Button type="button" variant="outline" size="sm" className="h-8 bg-card" onClick={addMargin}>
-            <Plus className="h-3.5 w-3.5" />
-            Coluna
-          </Button>
+          <span className="mx-1 h-4 w-px bg-border" />
+          <label className="inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-1">
+            <span className="text-xs font-semibold text-amber-700">Coluna variável</span>
+            <div className="relative w-16">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={95}
+                step="0.5"
+                value={Number.isFinite(varMargin) ? varMargin : ""}
+                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  setVarMargin(Number.isFinite(v) ? Math.min(95, Math.max(0, v)) : 0);
+                }}
+                className="h-7 border-amber-300 bg-white pr-5 text-sm tabular-nums"
+              />
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-amber-600">%</span>
+            </div>
+          </label>
+          <span className="text-[11px] text-muted-foreground">— ajuste em tempo real</span>
         </div>
 
         {isLoading ? (
@@ -439,6 +409,8 @@ export default function CustoAlvoCalc() {
             rows={rows as Row[]}
             margins={margins}
             anchor={anchor}
+            varMargin={varMargin}
+            settings={settings}
             onEdit={(id, patch) => upsertProduct.mutate({ id, ...patch })}
             onDelete={(id) => deleteProduct.mutate({ id })}
           />
@@ -454,12 +426,16 @@ function SpreadsheetTable({
   rows,
   margins,
   anchor,
+  varMargin,
+  settings,
   onEdit,
   onDelete,
 }: {
   rows: Row[];
   margins: number[];
   anchor: number;
+  varMargin: number;
+  settings?: Settings;
   onEdit: (id: number, patch: { name: string; sku?: string; anchorPrice: number; weightIndex: number }) => void;
   onDelete: (id: number) => void;
 }) {
@@ -472,6 +448,7 @@ function SpreadsheetTable({
           {margins.map((m) => (
             <col key={m} />
           ))}
+          <col />
           <col className="w-[64px]" />
         </colgroup>
         <thead>
@@ -497,6 +474,10 @@ function SpreadsheetTable({
                 </span>
               </th>
             ))}
+            <th className="bg-amber-50 px-2 py-2.5 text-right text-xs font-semibold text-amber-700">
+              <span className="block leading-tight">{varMargin}%</span>
+              <span className="block text-[9px] font-normal text-amber-600">variável</span>
+            </th>
             <th className="px-1 py-2.5 text-center text-xs font-semibold">Ações</th>
           </tr>
         </thead>
@@ -507,6 +488,8 @@ function SpreadsheetTable({
               row={row}
               margins={margins}
               anchor={anchor}
+              varMargin={varMargin}
+              settings={settings}
               onEdit={onEdit}
               onDelete={onDelete}
             />
@@ -521,12 +504,16 @@ function ProductRow({
   row,
   margins,
   anchor,
+  varMargin,
+  settings,
   onEdit,
   onDelete,
 }: {
   row: Row;
   margins: number[];
   anchor: number;
+  varMargin: number;
+  settings?: Settings;
   onEdit: (id: number, patch: { name: string; sku?: string; anchorPrice: number; weightIndex: number }) => void;
   onDelete: (id: number) => void;
 }) {
@@ -562,6 +549,20 @@ function ProductRow({
   const cellByMargin = (m: number) => row.cells.find((c) => Math.abs(c.marginPct - m) < 1e-9);
   const feasible = row.matrixCost > 0;
 
+  // Coluna variável: recalculada no cliente em tempo real (sem ida ao servidor).
+  const varCell = useMemo(() => {
+    if (!settings) return null;
+    const globals: MatrixGlobalSettings = {
+      ttsRegime: settings.ttsRegime,
+      listingType: settings.listingType,
+      tacosPercent: settings.tacosPercent,
+      affiliatePercent: settings.affiliatePercent,
+      freeShipping: settings.freeShipping,
+    };
+    const res = computeMatrixRow(globals, row.weightIndex, row.anchorPrice, row.anchorMarginPct, [varMargin]);
+    return res.cells[0] ?? null;
+  }, [settings, row.weightIndex, row.anchorPrice, row.anchorMarginPct, varMargin]);
+
   if (editing) {
     return (
       <tr className="border-t border-border bg-primary/5">
@@ -585,7 +586,7 @@ function ProductRow({
           <MoneyInput value={price} onChange={setPrice} prefix="" className="h-8 text-right" onEnter={save} />
           <span className="mt-1 block text-[10px] text-muted-foreground">preço @{anchor}%</span>
         </td>
-        <td className="px-2 py-2.5 text-center text-[11px] text-muted-foreground" colSpan={margins.length}>
+        <td className="px-2 py-2.5 text-center text-[11px] text-muted-foreground" colSpan={margins.length + 1}>
           Edite o preço âncora e o peso; os preços por margem são recalculados ao salvar.
         </td>
         <td className="px-1 py-2.5">
@@ -640,6 +641,13 @@ function ProductRow({
           </td>
         );
       })}
+      <td className="bg-amber-50/60 px-2 py-2.5 text-right text-sm tabular-nums">
+        {varCell && varCell.valid ? (
+          <span className="font-semibold text-amber-700">{formatBRL(varCell.sellingPrice)}</span>
+        ) : (
+          <span className="text-[11px] text-destructive">—</span>
+        )}
+      </td>
       <td className="px-1 py-2.5 align-top">
         <div className="flex items-center justify-center gap-0.5">
           <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)} title="Editar">

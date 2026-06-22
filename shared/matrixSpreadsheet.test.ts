@@ -125,3 +125,28 @@ describe("computeMatrixRow", () => {
     expect(row.cells.every((c) => !c.valid)).toBe(true);
   });
 });
+
+describe("coluna variável (recálculo em tempo real)", () => {
+  it("uma margem arbitrária produz o mesmo preço de uma coluna fixa equivalente", () => {
+    // Coluna variável em 30% deve bater com a coluna fixa de 30%.
+    const fixed = computeMatrixRow(baseSettings, 0, 100, 20, [20, 30]);
+    const variable = computeMatrixRow(baseSettings, 0, 100, 20, [30]);
+    const fixed30 = fixed.cells.find((c) => c.marginPct === 30)!;
+    expect(variable.cells[0].marginPct).toBe(30);
+    expect(variable.cells[0].sellingPrice).toBeCloseTo(fixed30.sellingPrice, 2);
+  });
+
+  it("a coluna variável é monotônica: margem maior => preço maior", () => {
+    const m25 = computeMatrixRow(baseSettings, 0, 100, 20, [25]).cells[0];
+    const m45 = computeMatrixRow(baseSettings, 0, 100, 20, [45]).cells[0];
+    const m60 = computeMatrixRow(baseSettings, 0, 100, 20, [60]).cells[0];
+    expect(m45.sellingPrice).toBeGreaterThan(m25.sellingPrice);
+    expect(m60.sellingPrice).toBeGreaterThan(m45.sellingPrice);
+  });
+
+  it("mantém o mesmo custo Matriz independentemente da margem variável escolhida", () => {
+    const a = computeMatrixRow(baseSettings, 0, 100, 20, [45]);
+    const b = computeMatrixRow(baseSettings, 0, 100, 20, [12]);
+    expect(a.matrixCost).toBeCloseTo(b.matrixCost, 2);
+  });
+});

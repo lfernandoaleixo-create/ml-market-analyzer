@@ -1243,3 +1243,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Mover barra COM/SEM TTS + Clássico/Premium (+ TACoS/Afiliados/Frete) para dentro do card "Planilha de preços por margem", logo abaixo do título
 - [x] Manter barra fixa (sticky top-2) para ficar sempre visível ao rolar planilha com muitas linhas
 - [x] TS limpo + checkpoint
+
+## Colunas fixas + coluna variável (Fernando 22/06 - parte 4)
+- [x] Fixar margens base 20/15/25/30/35/40% para todos os produtos (removida UI de adicionar/remover coluna)
+- [x] Adicionar coluna "Variável" com input de % no cabeçalho, recalculando preço de venda em tempo real (cliente, via computeMatrixRow)
+- [x] Mesmo custo Matriz fixo; coluna variável não altera as colunas fixas
+- [x] 3 testes vitest novos da coluna variável (13 no total no arquivo, verdes); TS limpo; checkpoint
