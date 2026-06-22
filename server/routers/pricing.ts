@@ -143,6 +143,7 @@ function buildRow(p: MatrixProduct, settings: ResolvedMatrixSettings) {
     id: p.id,
     name: p.name,
     sku: p.sku,
+    priceType: p.priceType ?? null,
     anchorPrice,
     anchorMarginPct: settings.anchorMarginPct,
     weightIndex: p.weightIndex,
@@ -262,24 +263,29 @@ export const pricingRouter = router({
           id: z.number().int().positive().optional(),
           name: z.string().trim().min(1, "Informe o nome do produto").max(200),
           sku: z.string().trim().max(100).optional(),
+          priceType: z.enum(["medio", "melhor"]).nullable().optional(),
           anchorPrice: z.number().positive("Informe o preço de venda com a margem âncora"),
           anchorMarginPct: z.number().min(0).max(95).optional(),
           weightIndex: z.number().int().min(0).max(27).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        // Nome único por usuário (ignora a própria linha em edição).
-        const existing = await findMatrixProductByName(ctx.user.id, input.name);
+        // Unicidade por (nome + tipo de preço): a mesma combinação não pode duplicar,
+        // mas o mesmo produto pode ter linhas separadas para 'Preço médio' e 'Melhor preço'.
+        const priceType = input.priceType ?? null;
+        const existing = await findMatrixProductByName(ctx.user.id, input.name, priceType);
         if (existing && existing.id !== input.id) {
+          const label = priceType === "medio" ? " (Preço médio)" : priceType === "melhor" ? " (Melhor preço)" : "";
           throw new TRPCError({
             code: "CONFLICT",
-            message: `Já existe um produto chamado "${input.name}". Use um nome diferente.`,
+            message: `Já existe um produto "${input.name}"${label}. Mude o nome ou o tipo de preço.`,
           });
         }
         const anchorPriceCents = Math.round(input.anchorPrice * 100);
         const patch = {
           name: input.name,
           sku: input.sku ?? null,
+          priceType,
           anchorPriceCents,
           anchorMarginPct: input.anchorMarginPct ?? 20,
           weightIndex: input.weightIndex ?? 0,

@@ -125,6 +125,7 @@ type Row = {
   id: number;
   name: string;
   sku: string | null;
+  priceType: "medio" | "melhor" | null;
   anchorPrice: number;
   anchorMarginPct: number;
   weightIndex: number;
@@ -140,6 +141,13 @@ type Settings = {
   freeShipping: boolean;
   anchorMarginPct: number;
   margins: number[];
+};
+
+/** Tipo de preço informado (rótulo amigável). */
+export type PriceType = "medio" | "melhor" | null;
+const PRICE_TYPE_LABEL: Record<"medio" | "melhor", string> = {
+  medio: "Preço médio",
+  melhor: "Melhor preço",
 };
 
 /* ------------------------------ componente -------------------------------- */
@@ -172,6 +180,7 @@ export default function CustoAlvoCalc() {
   const [newSku, setNewSku] = useState("");
   const [newPrice, setNewPrice] = useState(0);
   const [newWeight, setNewWeight] = useState(0);
+  const [newPriceType, setNewPriceType] = useState<"medio" | "melhor" | "none">("none");
 
   function addProduct() {
     const name = newName.trim();
@@ -184,7 +193,13 @@ export default function CustoAlvoCalc() {
       return;
     }
     upsertProduct.mutate(
-      { name, sku: newSku.trim() || undefined, anchorPrice: newPrice, weightIndex: newWeight },
+      {
+        name,
+        sku: newSku.trim() || undefined,
+        priceType: newPriceType === "none" ? null : newPriceType,
+        anchorPrice: newPrice,
+        weightIndex: newWeight,
+      },
       {
         onSuccess: () => {
           toast.success(`"${name}" adicionado à planilha.`);
@@ -192,6 +207,7 @@ export default function CustoAlvoCalc() {
           setNewSku("");
           setNewPrice(0);
           setNewWeight(0);
+          setNewPriceType("none");
         },
       },
     );
@@ -295,7 +311,7 @@ export default function CustoAlvoCalc() {
         title="Adicionar produto"
         description="Cada produto é uma linha. Informe o preço de venda no ML que produz a margem âncora; o sistema deriva o custo fixo da Matriz e calcula o preço para as demais margens. Nomes não podem se repetir."
       >
-        <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_auto]">
+        <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.1fr)_auto]">
           <div className="space-y-1.5">
             <Label htmlFor="np-name" className="text-xs font-medium text-muted-foreground">Nome do produto</Label>
             <Input
@@ -321,6 +337,19 @@ export default function CustoAlvoCalc() {
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">Preço @{anchor}%</Label>
             <MoneyInput value={newPrice} onChange={setNewPrice} onEnter={addProduct} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Tipo de preço</Label>
+            <Select value={newPriceType} onValueChange={(v) => setNewPriceType(v as "medio" | "melhor" | "none")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Vazio</SelectItem>
+                <SelectItem value="medio">Preço médio</SelectItem>
+                <SelectItem value="melhor">Melhor preço</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">Peso (frete)</Label>
@@ -436,7 +465,7 @@ function SpreadsheetTable({
   anchor: number;
   varMargin: number;
   settings?: Settings;
-  onEdit: (id: number, patch: { name: string; sku?: string; anchorPrice: number; weightIndex: number }) => void;
+  onEdit: (id: number, patch: { name: string; sku?: string; priceType: "medio" | "melhor" | null; anchorPrice: number; weightIndex: number }) => void;
   onDelete: (id: number) => void;
 }) {
   return (
@@ -514,7 +543,10 @@ function ProductRow({
   anchor: number;
   varMargin: number;
   settings?: Settings;
-  onEdit: (id: number, patch: { name: string; sku?: string; anchorPrice: number; weightIndex: number }) => void;
+  onEdit: (
+    id: number,
+    patch: { name: string; sku?: string; priceType: "medio" | "melhor" | null; anchorPrice: number; weightIndex: number },
+  ) => void;
   onDelete: (id: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -522,6 +554,7 @@ function ProductRow({
   const [sku, setSku] = useState(row.sku ?? "");
   const [price, setPrice] = useState(row.anchorPrice);
   const [weight, setWeight] = useState(row.weightIndex);
+  const [priceType, setPriceType] = useState<"medio" | "melhor" | "none">(row.priceType ?? "none");
 
   // Mantém os campos em sincronia quando a linha muda externamente (recalcule global).
   useEffect(() => {
@@ -530,8 +563,9 @@ function ProductRow({
       setSku(row.sku ?? "");
       setPrice(row.anchorPrice);
       setWeight(row.weightIndex);
+      setPriceType(row.priceType ?? "none");
     }
-  }, [row.name, row.sku, row.anchorPrice, row.weightIndex, editing]);
+  }, [row.name, row.sku, row.anchorPrice, row.weightIndex, row.priceType, editing]);
 
   function save() {
     if (!name.trim()) {
@@ -542,7 +576,13 @@ function ProductRow({
       toast.error("Informe um preço válido.");
       return;
     }
-    onEdit(row.id, { name: name.trim(), sku: sku.trim() || undefined, anchorPrice: price, weightIndex: weight });
+    onEdit(row.id, {
+      name: name.trim(),
+      sku: sku.trim() || undefined,
+      priceType: priceType === "none" ? null : priceType,
+      anchorPrice: price,
+      weightIndex: weight,
+    });
     setEditing(false);
   }
 
@@ -570,6 +610,16 @@ function ProductRow({
           <div className="space-y-2">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" className="h-8" />
             <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU (opcional)" className="h-8" />
+            <Select value={priceType} onValueChange={(v) => setPriceType(v as "medio" | "melhor" | "none")}>
+              <SelectTrigger className="h-8">
+                <SelectValue placeholder="Tipo de preço" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Vazio</SelectItem>
+                <SelectItem value="medio">Preço médio</SelectItem>
+                <SelectItem value="melhor">Melhor preço</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={String(weight)} onValueChange={(v) => setWeight(Number(v))}>
               <SelectTrigger className="h-8">
                 <SelectValue />
@@ -606,7 +656,21 @@ function ProductRow({
   return (
     <tr className="border-t border-border transition-colors odd:bg-muted/20 hover:bg-muted/40">
       <td className="sticky left-0 z-10 bg-inherit px-3 py-2.5 align-top">
-        <p className="text-sm font-medium leading-snug break-words">{row.name}</p>
+        <div className="flex items-start gap-1.5">
+          <p className="text-sm font-medium leading-snug break-words">{row.name}</p>
+        </div>
+        {row.priceType && (
+          <span
+            className={cn(
+              "mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              row.priceType === "medio"
+                ? "bg-sky-100 text-sky-700"
+                : "bg-violet-100 text-violet-700",
+            )}
+          >
+            {PRICE_TYPE_LABEL[row.priceType]}
+          </span>
+        )}
         <p className="text-[10px] leading-tight text-muted-foreground break-words">
           {row.sku ? `SKU ${row.sku} · ` : ""}
           {ML_WEIGHT_LABELS[row.weightIndex]}

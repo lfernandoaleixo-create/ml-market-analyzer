@@ -1,0 +1,1 @@
+ALTER TABLE `matrix_products` ADD `priceType` varchar(20);

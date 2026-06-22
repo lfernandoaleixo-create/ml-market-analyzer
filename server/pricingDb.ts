@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "./db";
 import { pricingSimulations, type PricingSimulation, type InsertPricingSimulation } from "../drizzle/schema";
 
@@ -101,17 +101,26 @@ export async function listMatrixProducts(userId: number): Promise<MatrixProduct[
     .orderBy(asc(matrixProducts.sortOrder), asc(matrixProducts.id));
 }
 
-/** Busca um produto por (userId, nome) — usado para checar duplicidade. */
+/**
+ * Busca um produto por (userId, nome, priceType) — usado para checar duplicidade.
+ * A unicidade é por combinação nome + tipo de preço, então o mesmo produto pode
+ * ter linhas separadas para 'Preço médio' e 'Melhor preço' (e uma sem tipo).
+ */
 export async function findMatrixProductByName(
   userId: number,
   name: string,
+  priceType?: string | null,
 ): Promise<MatrixProduct | null> {
   const db = await getDb();
   if (!db) return null;
+  const ptFilter =
+    priceType == null || priceType === ""
+      ? isNull(matrixProducts.priceType)
+      : eq(matrixProducts.priceType, priceType);
   const [row] = await db
     .select()
     .from(matrixProducts)
-    .where(and(eq(matrixProducts.userId, userId), eq(matrixProducts.name, name)))
+    .where(and(eq(matrixProducts.userId, userId), eq(matrixProducts.name, name), ptFilter))
     .limit(1);
   return row ?? null;
 }
@@ -132,7 +141,7 @@ export async function insertMatrixProduct(
 export async function updateMatrixProduct(
   userId: number,
   id: number,
-  patch: Partial<Pick<InsertMatrixProduct, "name" | "sku" | "anchorPriceCents" | "anchorMarginPct" | "weightIndex" | "sortOrder">>,
+  patch: Partial<Pick<InsertMatrixProduct, "name" | "sku" | "priceType" | "anchorPriceCents" | "anchorMarginPct" | "weightIndex" | "sortOrder">>,
 ): Promise<MatrixProduct | null> {
   const db = await getDb();
   if (!db) return null;

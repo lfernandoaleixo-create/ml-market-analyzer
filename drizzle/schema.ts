@@ -655,6 +655,8 @@ export const matrixProducts = mysqlTable(
     name: varchar("name", { length: 200 }).notNull(),
     /** SKU opcional (apenas informativo). */
     sku: varchar("sku", { length: 100 }),
+    /** Tipo do preço informado: 'medio' | 'melhor' | null (vazio). Apenas informativo. */
+    priceType: varchar("priceType", { length: 20 }),
     /** Preço de venda âncora no ML (centavos), que produz a margem âncora. */
     anchorPriceCents: int("anchorPriceCents").notNull(),
     /** Margem âncora (%) usada para derivar o custo da Matriz. Default 20. */

@@ -1249,3 +1249,16 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Adicionar coluna "Variável" com input de % no cabeçalho, recalculando preço de venda em tempo real (cliente, via computeMatrixRow)
 - [x] Mesmo custo Matriz fixo; coluna variável não altera as colunas fixas
 - [x] 3 testes vitest novos da coluna variável (13 no total no arquivo, verdes); TS limpo; checkpoint
+
+## Ajustes visuais da planilha (Fernando 22/06 - parte 5)
+- [x] Divisórias verticais entre colunas (cabeçalho + células) e zebra nas linhas para melhor leitura
+- [x] Campo de % da coluna variável alargado (w-24) para não cortar o número (ex.: 45)
+
+## Tipo de preço + persistência (Fernando 22/06 - parte 6)
+- [x] Schema: campo price_type em matrix_products (medio | melhor | vazio/null)
+- [x] Backend: aceitar/retornar priceType em upsert e list
+- [x] UI: seletor "Tipo de preço" (Preço médio / Melhor preço / Vazio) no form de adicionar e na edição
+- [x] UI: exibir o rótulo (badge) do tipo de preço na linha da planilha
+- [x] Confirmar persistência: deleteMatrixProduct só remove por id+userId explícito (rota delete via confirmação); nenhuma rotina apaga automaticamente
+- [x] Unicidade por (nome + priceType): mesmo produto pode ter linha 'Preço médio' e 'Melhor preço' separadas; bloqueia só a combinação duplicada
+- [x] 653 testes verdes; TS limpo; checkpoint
