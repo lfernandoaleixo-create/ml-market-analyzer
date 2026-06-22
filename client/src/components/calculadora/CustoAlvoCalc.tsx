@@ -131,7 +131,7 @@ export default function CustoAlvoCalc() {
   const [fixedFee, setFixedFee] = useState(defaultFixedFee("mercado_livre"));
   const [shippingCost, setShippingCost] = useState(0);
   const [logisticType, setLogisticType] = useState<MlLogisticType>("padrao");
-  const [freeShippingFast, setFreeShippingFast] = useState(false);
+  const [freeShippingFast, setFreeShippingFast] = useState(true);
   const [weightIndex, setWeightIndex] = useState(0);
   const [reputation, setReputation] = useState<MlReputation>("verde");
   const [manualShipping, setManualShipping] = useState(false);
