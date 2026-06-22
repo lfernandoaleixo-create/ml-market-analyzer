@@ -52,7 +52,7 @@ const MODELS: Model[] = [
     title: "Preço a ser pago para a Matriz",
     tagline: "Quanto pagar à Matriz pelo produto",
     description:
-      "Informe o preço de venda no Mercado Livre e as margens desejadas. Escolha o regime (COM TTS 14% ou SEM TTS 24%); descontando comissão, impostos, ADS e a logística do ML, mostramos em R$ o máximo que sua filial pode pagar à Matriz por cada produto. Cada pesquisa salva vira uma linha na planilha do histórico.",
+      "Informe o preço de venda no Mercado Livre e as margens desejadas. Escolha o regime (COM TTS 14% ou SEM TTS 24%); descontando comissão, impostos, ADS e a logística do ML, mostramos em R$ o máximo que sua filial pode pagar à Matriz por cada produto. Cada vez que você fixa uma simulação, ela vira uma coluna de variação do produto no histórico.",
     bullets: [
       "Preço de venda → preço a pagar para a Matriz (R$)",
       "Alternador COM TTS (14%) / SEM TTS (24%)",
@@ -112,11 +112,11 @@ const MODELS: Model[] = [
     title: "Histórico",
     tagline: "Sua planilha de pesquisas",
     description:
-      "Cada pesquisa fixada vira uma linha em uma planilha estilo Excel. As margens testadas viram colunas — cada célula mostra o preço a pagar para a Matriz naquela margem. Ideal para comparar produtos lado a lado.",
+      "Cada produto vira uma planilha. Cada simulação que você fixa (mudando margem, frete, peso ou regime) acrescenta uma coluna de variação — comparando lado a lado o preço a pagar para a Matriz em cada cenário.",
     bullets: [
-      "Uma linha por produto (nome, SKU, regime, preço)",
-      "Colunas dinâmicas por margem (20% / 30% / 40%…)",
-      "Busca e exclusão de linhas",
+      "Uma planilha por produto (agrupado por SKU ou nome)",
+      "Cada simulação salva vira uma coluna de variação",
+      "Busca por nome/SKU e exclusão de variações",
     ],
     icon: History,
     accent: "bg-violet-500/12 text-violet-600",

@@ -94,6 +94,7 @@ function NumField({
           value={value !== 0 ? value : ""}
           placeholder={placeholder}
           onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
           className={cn("tabular-nums", prefix ? "pl-9" : "", suffix ? "pr-8" : "")}
         />
         {suffix && (
@@ -528,7 +529,8 @@ export default function CustoAlvoCalc() {
         <SectionCard
           title="Preço a ser pago para a Matriz"
           description="O máximo que sua filial (ML) pode pagar à Matriz, por margem desejada. Sem impostos de importação ou navegação — só a régua do Mercado Livre."
-          actions={
+        >
+          <div className="mb-4 flex justify-end">
             <Button
               type="button"
               size="sm"
@@ -538,8 +540,7 @@ export default function CustoAlvoCalc() {
               <Save className="h-4 w-4" />
               {saveMutation.isPending ? "Salvando…" : "Fixar no histórico"}
             </Button>
-          }
-        >
+          </div>
           {!hasPrice ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">

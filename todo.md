@@ -1202,3 +1202,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Botão "Fixar no histórico" salva a linha; coluna de Regime (COM/SEM TTS)
 - [x] Testes vitest TTS 14% vs 24% e múltiplas margens em R$ (9 testes no targetCost) + suíte completa 636+ verde; TS limpo
 - [x] Validado ao vivo: R$100 COM TTS → 36,65/26,65/16,65; SEM TTS → 26,65/16,65/6,65; planilha OK
+
+## Ajustes "Preço a ser pago para a Matriz" (2ª rodada, Fernando 22/06)
+- [x] Frete grátis (full/flex) ativado por padrão na aba
+- [x] BUG: botão "Fixar no histórico" vazava para fora do card — movido para dentro do corpo do card
+- [x] BUG: preço R$ 100 virava R$ 99,99 no histórico — desabilitado scroll/wheel no input numérico (onWheel blur)
+- [x] Histórico agrupado por produto (SKU quando houver, senão nome): cada simulação salva vira uma COLUNA de variação, NÃO uma nova linha
+- [x] Planilha por produto: linhas de parâmetros (preço, regime, anúncio/comissão, peso, frete) + preço à Matriz por margem; cada variação é uma coluna
+- [x] Textos da aba e do Histórico atualizados; validado ao vivo (Barraca: 2 variações COM/SEM TTS em colunas); 638 testes verdes; TS limpo
