@@ -1233,3 +1233,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Barra de controles COM/SEM TTS + Clássico/Premium fixa (sticky) no topo da planilha, em toolbar horizontal compacta (SegBtn) + TACoS/Afiliados/Frete grátis
 - [x] Eliminar/minimizar scroll horizontal: table-fixed + colgroup, cabeçalho compacto ("20%" em vez de "Margem 20%"), paddings/fontes menores, ações estreitas
 - [x] TS/LSP limpos; mudança apenas de UI (650 testes da engine seguem válidos); checkpoint
+
+## Correções planilha (Fernando 22/06 - parte 2)
+- [x] Botão excluir (lixeira): trocado clique-duplo silencioso por AlertDialog de confirmação explícito ("Excluir [nome]?")
+- [x] Nome do produto cortado: removido truncate, nome quebra em linhas e aparece completo; coluna Produto ampliada (24%/min 180px)
+- [x] TS limpo; checkpoint (validação ao vivo depende do login do usuário)

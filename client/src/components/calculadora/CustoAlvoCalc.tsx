@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SectionCard } from "@/components/account/AccountUI";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Plus,
   X,
@@ -451,7 +462,7 @@ function SpreadsheetTable({
     <div className="overflow-x-auto rounded-xl border border-border">
       <table className="w-full table-fixed border-collapse text-sm">
         <colgroup>
-          <col className="w-[20%] min-w-[150px]" />
+          <col className="w-[24%] min-w-[180px]" />
           <col className="w-[12%]" />
           {margins.map((m) => (
             <col key={m} />
@@ -519,8 +530,6 @@ function ProductRow({
   const [sku, setSku] = useState(row.sku ?? "");
   const [price, setPrice] = useState(row.anchorPrice);
   const [weight, setWeight] = useState(row.weightIndex);
-  const [confirmDel, setConfirmDel] = useState(false);
-  const confirmRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Mantém os campos em sincronia quando a linha muda externamente (recalcule global).
   useEffect(() => {
@@ -543,16 +552,6 @@ function ProductRow({
     }
     onEdit(row.id, { name: name.trim(), sku: sku.trim() || undefined, anchorPrice: price, weightIndex: weight });
     setEditing(false);
-  }
-
-  function handleDelete() {
-    if (confirmDel) {
-      if (confirmRef.current) clearTimeout(confirmRef.current);
-      onDelete(row.id);
-      return;
-    }
-    setConfirmDel(true);
-    confirmRef.current = setTimeout(() => setConfirmDel(false), 3000);
   }
 
   const cellByMargin = (m: number) => row.cells.find((c) => Math.abs(c.marginPct - m) < 1e-9);
@@ -600,9 +599,9 @@ function ProductRow({
 
   return (
     <tr className="border-t border-border transition-colors hover:bg-muted/30">
-      <td className="sticky left-0 z-10 bg-card px-3 py-2.5">
-        <p className="truncate text-sm font-medium leading-tight">{row.name}</p>
-        <p className="truncate text-[10px] text-muted-foreground">
+      <td className="sticky left-0 z-10 bg-card px-3 py-2.5 align-top">
+        <p className="text-sm font-medium leading-snug break-words">{row.name}</p>
+        <p className="text-[10px] leading-tight text-muted-foreground break-words">
           {row.sku ? `SKU ${row.sku} · ` : ""}
           {ML_WEIGHT_LABELS[row.weightIndex]}
         </p>
@@ -636,21 +635,41 @@ function ProductRow({
           </td>
         );
       })}
-      <td className="px-1 py-2.5">
+      <td className="px-1 py-2.5 align-top">
         <div className="flex items-center justify-center gap-0.5">
-          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)}>
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)} title="Editar">
             <Pencil className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className={cn("h-7 w-7", confirmDel ? "text-destructive" : "text-muted-foreground")}
-            onClick={handleDelete}
-            title={confirmDel ? "Clique de novo para confirmar" : "Excluir"}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                title="Excluir"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir “{row.name}”?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação remove o produto da planilha permanentemente. Não é possível desfazer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => onDelete(row.id)}
+                >
+                  Excluir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </td>
     </tr>
