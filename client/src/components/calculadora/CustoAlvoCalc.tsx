@@ -371,7 +371,7 @@ export default function CustoAlvoCalc() {
           <span className="mx-1 h-4 w-px bg-border" />
           <label className="inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-1">
             <span className="text-xs font-semibold text-amber-700">Coluna variável</span>
-            <div className="relative w-16">
+            <div className="relative w-24">
               <Input
                 type="number"
                 inputMode="decimal"
@@ -384,9 +384,9 @@ export default function CustoAlvoCalc() {
                   const v = parseFloat(e.target.value);
                   setVarMargin(Number.isFinite(v) ? Math.min(95, Math.max(0, v)) : 0);
                 }}
-                className="h-7 border-amber-300 bg-white pr-5 text-sm tabular-nums"
+                className="h-7 border-amber-300 bg-white pl-3 pr-7 text-sm font-semibold tabular-nums"
               />
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-amber-600">%</span>
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-amber-600">%</span>
             </div>
           </label>
           <span className="text-[11px] text-muted-foreground">— ajuste em tempo real</span>
@@ -456,7 +456,7 @@ function SpreadsheetTable({
             <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2.5 text-left text-xs font-semibold">
               Produto
             </th>
-            <th className="px-2 py-2.5 text-right text-xs font-semibold">
+            <th className="border-l border-border px-2 py-2.5 text-right text-xs font-semibold">
               <span className="block leading-tight">Pagar à Matriz</span>
               <span className="block text-[9px] font-normal text-muted-foreground">custo fixo</span>
             </th>
@@ -464,7 +464,7 @@ function SpreadsheetTable({
               <th
                 key={m}
                 className={cn(
-                  "px-2 py-2.5 text-right text-xs font-semibold",
+                  "border-l border-border px-2 py-2.5 text-right text-xs font-semibold",
                   m === anchor && "bg-primary/10 text-primary",
                 )}
               >
@@ -474,11 +474,11 @@ function SpreadsheetTable({
                 </span>
               </th>
             ))}
-            <th className="bg-amber-50 px-2 py-2.5 text-right text-xs font-semibold text-amber-700">
+            <th className="border-l border-amber-200 bg-amber-50 px-2 py-2.5 text-right text-xs font-semibold text-amber-700">
               <span className="block leading-tight">{varMargin}%</span>
               <span className="block text-[9px] font-normal text-amber-600">variável</span>
             </th>
-            <th className="px-1 py-2.5 text-center text-xs font-semibold">Ações</th>
+            <th className="border-l border-border px-1 py-2.5 text-center text-xs font-semibold">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -582,14 +582,14 @@ function ProductRow({
             </Select>
           </div>
         </td>
-        <td className="px-2 py-2.5 text-right" colSpan={1}>
+        <td className="border-l border-border px-2 py-2.5 text-right" colSpan={1}>
           <MoneyInput value={price} onChange={setPrice} prefix="" className="h-8 text-right" onEnter={save} />
           <span className="mt-1 block text-[10px] text-muted-foreground">preço @{anchor}%</span>
         </td>
-        <td className="px-2 py-2.5 text-center text-[11px] text-muted-foreground" colSpan={margins.length + 1}>
+        <td className="border-l border-border px-2 py-2.5 text-center text-[11px] text-muted-foreground" colSpan={margins.length + 1}>
           Edite o preço âncora e o peso; os preços por margem são recalculados ao salvar.
         </td>
-        <td className="px-1 py-2.5">
+        <td className="border-l border-border px-1 py-2.5">
           <div className="flex items-center justify-center gap-0.5">
             <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-emerald-600" onClick={save}>
               <Check className="h-3.5 w-3.5" />
@@ -604,15 +604,15 @@ function ProductRow({
   }
 
   return (
-    <tr className="border-t border-border transition-colors hover:bg-muted/30">
-      <td className="sticky left-0 z-10 bg-card px-3 py-2.5 align-top">
+    <tr className="border-t border-border transition-colors odd:bg-muted/20 hover:bg-muted/40">
+      <td className="sticky left-0 z-10 bg-inherit px-3 py-2.5 align-top">
         <p className="text-sm font-medium leading-snug break-words">{row.name}</p>
         <p className="text-[10px] leading-tight text-muted-foreground break-words">
           {row.sku ? `SKU ${row.sku} · ` : ""}
           {ML_WEIGHT_LABELS[row.weightIndex]}
         </p>
       </td>
-      <td className="px-2 py-2.5 text-right">
+      <td className="border-l border-border px-2 py-2.5 text-right">
         {feasible ? (
           <span className="text-sm font-semibold tabular-nums">{formatBRL(row.matrixCost)}</span>
         ) : (
@@ -627,7 +627,7 @@ function ProductRow({
           <td
             key={m}
             className={cn(
-              "px-2 py-2.5 text-right text-sm tabular-nums",
+              "border-l border-border px-2 py-2.5 text-right text-sm tabular-nums",
               isAnchor && "bg-primary/5",
             )}
           >
@@ -641,14 +641,14 @@ function ProductRow({
           </td>
         );
       })}
-      <td className="bg-amber-50/60 px-2 py-2.5 text-right text-sm tabular-nums">
+      <td className="border-l border-amber-200 bg-amber-50/60 px-2 py-2.5 text-right text-sm tabular-nums">
         {varCell && varCell.valid ? (
           <span className="font-semibold text-amber-700">{formatBRL(varCell.sellingPrice)}</span>
         ) : (
           <span className="text-[11px] text-destructive">—</span>
         )}
       </td>
-      <td className="px-1 py-2.5 align-top">
+      <td className="border-l border-border px-1 py-2.5 align-top">
         <div className="flex items-center justify-center gap-0.5">
           <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)} title="Editar">
             <Pencil className="h-3.5 w-3.5" />
