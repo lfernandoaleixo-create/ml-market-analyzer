@@ -7,7 +7,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
 import { formatNumber, isoToWeekdayLong } from "@/lib/format";
 import { Eye, ExternalLink, Loader2, ImageOff, TrendingUp } from "lucide-react";
@@ -72,7 +71,7 @@ export function DayVisitsBreakdownDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Eye className="h-4 w-4 text-primary" />
@@ -117,16 +116,16 @@ export function DayVisitsBreakdownDialog({
             </p>
           </div>
         ) : (
-          <ScrollArea className="max-h-[55vh] pr-3">
-            <ul className="space-y-1.5">
+          <div className="-mr-2 max-h-[55vh] w-full overflow-y-auto overflow-x-hidden pr-2">
+            <ul className="w-full space-y-1.5">
               {rows.map((r, i) => {
                 const pct = dayTotal > 0 ? (r.visits / dayTotal) * 100 : 0;
                 return (
                   <li
                     key={r.itemId}
-                    className="flex items-center gap-3 rounded-lg border bg-card px-2.5 py-2"
+                    className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border bg-card px-2.5 py-2"
                   >
-                    <span className="w-5 shrink-0 text-center text-xs font-medium tabular-nums text-muted-foreground">
+                    <span className="w-4 shrink-0 text-center text-xs font-medium tabular-nums text-muted-foreground">
                       {i + 1}
                     </span>
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/30">
@@ -176,7 +175,7 @@ export function DayVisitsBreakdownDialog({
                 );
               })}
             </ul>
-          </ScrollArea>
+          </div>
         )}
       </DialogContent>
     </Dialog>

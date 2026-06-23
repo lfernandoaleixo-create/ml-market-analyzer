@@ -933,8 +933,8 @@ function DailyHeader({
   onSort: (k: SortKey) => void;
 }) {
   return (
-    <th className="pb-2 px-3 text-center font-medium" title="Visitas por dia: anteontem, ontem e hoje (hoje ainda parcial). Clique em um dia para ordenar.">
-      <div className="flex items-end justify-center gap-1.5">
+    <th className="pb-2 px-3 text-center font-medium" title="Visitas por dia: hoje e os 3 dias anteriores (hoje ainda parcial). Clique em um dia para ordenar pelo maior/menor.">
+      <div className="flex items-stretch justify-center gap-1">
         {dayLabels.map(({ key, label }) => {
           const active = sortKey === key;
           const Icon = active ? (sortDir === "desc" ? ArrowDown : ArrowUp) : ArrowUpDown;
@@ -944,13 +944,15 @@ function DailyHeader({
               key={key}
               onClick={() => onSort(key)}
               className={cn(
-                "flex w-11 flex-col items-center gap-0.5 rounded-md py-0.5 transition-colors hover:text-foreground",
-                active && "text-foreground",
-                isToday && !active && "text-primary/80",
+                "flex w-12 shrink-0 flex-col items-center justify-end gap-1 rounded-md py-1 transition-colors hover:text-foreground",
+                active ? "bg-muted/60 text-foreground" : "text-muted-foreground",
+                isToday && !active && "text-primary",
               )}
               title={`Ordenar por ${label}`}
             >
-              <span className="text-[10px] uppercase leading-none">{label}</span>
+              <span className="whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-tight">
+                {label}
+              </span>
               <Icon className="h-3 w-3" />
             </button>
           );
@@ -975,8 +977,8 @@ function DailyVisitsCell({ series }: { series?: VisitsDayPoint[] }) {
       </div>
     );
   }
-  // Exibe os 3 últimos dias (anteontem, ontem, hoje).
-  const visible = series.slice(-3);
+  // Exibe os 4 últimos dias (hoje + 3 anteriores).
+  const visible = series.slice(-4);
   const today = visible[visible.length - 1];
   const yest = visible.length >= 2 ? visible[visible.length - 2] : null;
   // Variação hoje vs. ontem (indicativo — hoje é parcial).
@@ -991,27 +993,30 @@ function DailyVisitsCell({ series }: { series?: VisitsDayPoint[] }) {
 
   return (
     <div className="flex items-center justify-center gap-2">
-      <div className="flex items-end gap-1.5">
+      <div className="flex items-stretch gap-1">
         {visible.map((p) => {
           const isToday = p.date === todayKey;
           return (
             <div
               key={p.date}
-              className="flex w-11 flex-col items-center rounded-md px-1 py-1"
+              className={cn(
+                "flex w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-md py-1",
+                isToday && "bg-primary/5",
+              )}
               title={`${isoToWeekdayLong(p.date)}${isToday ? " (hoje, parcial)" : ""}: ${formatNumber(p.visits)} visitas`}
             >
               <span
                 className={cn(
-                  "text-[10px] uppercase leading-none",
+                  "whitespace-nowrap text-[10px] uppercase leading-none tracking-tight",
                   isToday ? "font-semibold text-primary" : "text-muted-foreground",
                 )}
               >
-                {isToday ? "hoje" : `${isoToWeekdayShort(p.date)} ${isoToDayNum(p.date)}`}
+                {isToday ? "Hoje" : `${isoToWeekdayShort(p.date)} ${isoToDayNum(p.date)}`}
               </span>
               <span
                 className={cn(
-                  "mt-0.5 tabular-nums leading-none",
-                  isToday ? "text-sm font-semibold text-foreground" : "text-sm text-foreground/80",
+                  "tabular-nums leading-none",
+                  isToday ? "text-sm font-bold text-foreground" : "text-sm font-medium text-foreground/80",
                 )}
               >
                 {formatNumber(p.visits)}
@@ -1023,7 +1028,7 @@ function DailyVisitsCell({ series }: { series?: VisitsDayPoint[] }) {
       {delta != null && (up || down) && (
         <span
           className={cn(
-            "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+            "inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
             up ? "bg-emerald-500/12 text-emerald-700" : "bg-rose-500/12 text-rose-700",
           )}
           title="Variação de hoje (parcial) em relação a ontem"
@@ -1050,22 +1055,22 @@ function ListingsTable({
   /** itemId -> série de 4 dias (mais antigo -> hoje). Vazio enquanto coleta. */
   dailyVisits: Record<string, VisitsDayPoint[]>;
 }) {
-  // Deriva os rótulos dos 3 dias (anteontem/ontem/hoje) a partir da 1ª série disponível.
+  // Deriva os rótulos dos 4 dias (hoje + 3 anteriores) a partir da 1ª série disponível.
   const sampleSeries = useMemo(() => {
     for (const r of rows) {
       const s = dailyVisits[r.itemId];
-      if (s && s.length > 0) return s.slice(-3);
+      if (s && s.length > 0) return s.slice(-4);
     }
     return [] as VisitsDayPoint[];
   }, [rows, dailyVisits]);
   const todayKey = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  // dayLabels alinhado às chaves de sort: day2=anteontem, day1=ontem, day0=hoje.
+  // dayLabels alinhado às chaves de sort: day3=3 dias atrás ... day0=hoje.
   const dayLabels = useMemo(() => {
-    // Garante 3 posições (mais antigo -> hoje) mesmo quando a série vier curta.
-    const padded = sampleSeries.slice(-3);
+    // Garante 4 posições (mais antigo -> hoje) mesmo quando a série vier curta.
+    const padded = sampleSeries.slice(-4);
     const labels: { key: SortKey; label: string }[] = [];
-    const offsets: SortKey[] = ["day2", "day1", "day0"]; // posições 0,1,2 da janela de 3 dias
-    for (let i = 0; i < 3; i++) {
+    const offsets: SortKey[] = ["day3", "day2", "day1", "day0"]; // posições 0..3 da janela de 4 dias
+    for (let i = 0; i < 4; i++) {
       const p = padded[i];
       let label = "—";
       if (p) {

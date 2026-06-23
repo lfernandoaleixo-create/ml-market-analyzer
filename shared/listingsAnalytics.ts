@@ -251,7 +251,8 @@ export type SortKey =
   | "stockValue"
   | "day0" // hoje (último ponto da série diária)
   | "day1" // ontem
-  | "day2"; // anteontem
+  | "day2" // anteontem
+  | "day3"; // 3 dias atrás
 
 export type SortDir = "asc" | "desc";
 
@@ -283,7 +284,7 @@ export function sortListings(
 ): ListingRow[] {
   const sign = dir === "asc" ? 1 : -1;
   const copy = items.slice();
-  const dayOffset: Record<string, number> = { day0: 0, day1: 1, day2: 2 };
+  const dayOffset: Record<string, number> = { day0: 0, day1: 1, day2: 2, day3: 3 };
   copy.sort((a, b) => {
     if (key === "title") {
       return sign * normalize(a.title).localeCompare(normalize(b.title));

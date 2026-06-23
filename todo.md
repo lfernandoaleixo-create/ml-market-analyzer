@@ -1349,3 +1349,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] monitor.getCredentials reflete o dono; saveCredentials/testCredentials gravam no dono
 - [x] OAuth /connect e /callback gravam tokens na linha do dono
 - [x] Testes: 4 novos para resolveMlOwnerUserId + mocks atualizados; 681 testes verdes, tsc limpo
+
+## Ajustes de layout (visitas por dia + modal) — 23/06
+- [x] Modal "Visitas por anúncio": conter linhas dentro do card (sem vazamento horizontal)
+- [x] Tabela de anúncios: ampliar de 3 para 4 dias (hoje + 3 anteriores)
+- [x] Tabela de anúncios: layout das colunas de dia sem sobreposição (rótulo numa linha, número alinhado, larguras iguais)
+- [x] Adicionar SortKey day3 e ordenação pelo 4º dia
