@@ -972,20 +972,29 @@ function ProductRow({
           <span className="text-[11px] font-medium text-destructive" title="Impossível: margem + custos variáveis atingem 100% — não existe preço que feche a conta.">impossível</span>
         )}
       </td>
-      <td className="border-l border-border px-1 py-2.5 align-top">
-        <div className="flex items-center justify-center gap-0.5">
+      <td className="border-l border-border px-2 py-2.5 align-middle">
+        <div className="flex items-center justify-center gap-1">
+          {/* Calculadora: destaque — maior e separada à esquerda. */}
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className={cn("h-7 w-7", simOpen ? "bg-primary/15 text-primary" : "text-primary/80 hover:text-primary")}
+            className={cn(
+              "h-9 w-9 rounded-lg border transition-colors",
+              simOpen
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-primary/25 bg-primary/5 text-primary hover:bg-primary/10",
+            )}
             onClick={() => setSimOpen((v) => !v)}
             title="Simular preços (brincar com Matriz, margem e preço)"
           >
-            <Calculator className="h-3.5 w-3.5" />
+            <Calculator className="h-5 w-5" />
           </Button>
-          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)} title="Editar">
-            <Pencil className="h-3.5 w-3.5" />
+          {/* Divisor para separar o destaque das ações secundárias. */}
+          <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
+          {/* Ações secundárias: menores e discretas. */}
+          <Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => setEditing(true)} title="Editar">
+            <Pencil className="h-3 w-3" />
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -993,10 +1002,10 @@ function ProductRow({
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                className="h-6 w-6 text-muted-foreground hover:text-destructive"
                 title="Excluir"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3 w-3" />
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
