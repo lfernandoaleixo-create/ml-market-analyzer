@@ -26,6 +26,7 @@ vi.mock("../ml/oauthMl", () => ({
 vi.mock("../dbMl", () => ({
   getCredentials: (uid: number) => getCredentials(uid),
   upsertCredentials: (uid: number, patch: unknown) => upsertCredentials(uid, patch),
+  resolveMlOwnerUserId: vi.fn(async (uid: number) => uid),
 }));
 vi.mock("../ml/resolveMlUserId", () => ({
   resolveMlUserId: vi.fn(async () => ({ mlUserId: "123456", source: "db" })),

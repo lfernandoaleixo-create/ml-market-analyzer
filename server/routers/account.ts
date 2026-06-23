@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthMl";
 import { AccountProvider } from "../ml/accountProvider";
-import { getCredentials, upsertCredentials } from "../dbMl";
+import { getCredentials, upsertCredentials, resolveMlOwnerUserId } from "../dbMl";
 import { resolveMlUserId } from "../ml/resolveMlUserId";
 import { cachedAccount, cachedAccountResilient, swrAccount } from "../ml/accountCache";
 import { MLRateLimitError } from "../ml/accountProvider";
@@ -49,7 +49,10 @@ export async function resolveAccount(manusUserId: number): Promise<AccountProvid
   //     last-resort heuristic
   // We DO NOT trust the local app user id — using it makes ML reply
   // "Searching another user items is restricted" and the dashboard shows zeros.
-  const creds = await getCredentials(manusUserId);
+  // SINGLE-STORE: the seller id / credentials live on the OWNER's row, shared by
+  // every login. Resolve it once so reads + backfill all target the same row.
+  const ownerUserId = await resolveMlOwnerUserId(manusUserId);
+  const creds = await getCredentials(ownerUserId);
   const { mlUserId, source } = await resolveMlUserId(token, creds?.mlUserId ?? null);
   if (!mlUserId) {
     throw new TRPCError({
@@ -60,7 +63,7 @@ export async function resolveAccount(manusUserId: number): Promise<AccountProvid
   // Backfill the column when it was resolved from /users/me or the token suffix
   // so subsequent requests use the fast, reliable persisted value.
   if (source !== "db" && creds && creds.mlUserId !== mlUserId) {
-    await upsertCredentials(manusUserId, { mlUserId }).catch(() => {});
+    await upsertCredentials(ownerUserId, { mlUserId }).catch(() => {});
   }
   return new AccountProvider(token, mlUserId, "BRL", (staleToken) =>
     forceRefreshUserAccessToken(manusUserId, staleToken),
@@ -95,9 +98,10 @@ export const accountRouter = router({
       // false "desconectado". Best-effort: never let a write failure break the
       // probe response.
       if (probe.ok) {
-        const creds = await getCredentials(ctx.user.id).catch(() => null);
+        const ownerUserId = await resolveMlOwnerUserId(ctx.user.id).catch(() => ctx.user.id);
+        const creds = await getCredentials(ownerUserId).catch(() => null);
         if (creds && creds.status !== "connected") {
-          await upsertCredentials(ctx.user.id, {
+          await upsertCredentials(ownerUserId, {
             status: "connected",
             statusMessage: "Conexão verificada automaticamente.",
           }).catch(() => {});

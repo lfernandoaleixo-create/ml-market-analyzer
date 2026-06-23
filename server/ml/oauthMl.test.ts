@@ -12,6 +12,9 @@ vi.mock("../dbMl", () => ({
     store = { ...store, ...data };
     return store;
   }),
+  // Single-store owner resolver: in these unit tests there is exactly one user,
+  // so the owner resolves to the requesting id (identity).
+  resolveMlOwnerUserId: vi.fn(async (userId: number) => userId),
 }));
 
 import { ensureUserAccessToken, forceRefreshUserAccessToken } from "./oauthMl";

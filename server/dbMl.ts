@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull } from "drizzle-orm";
 import {
   alerts,
   appConfig,
@@ -19,9 +19,62 @@ import {
   type TaxConfigRow,
   type TaxConfigHistoryRow,
 } from "../drizzle/schema";
-import { getDb } from "./db";
+import { getDb, getOwnerUser } from "./db";
 
 // ---- Credentials ---------------------------------------------------------
+
+/**
+ * Resolve WHICH user id actually owns the project-wide Mercado Livre connection.
+ *
+ * Why this exists: the ML credential row is keyed by the Manus `userId`. But
+ * this app is a SINGLE-STORE tool — the whole project shares ONE Mercado Livre
+ * seller account (the owner's). Different Manus logins (the owner's Apple login,
+ * `gestao@grupo-fox.com`, future staff logging in via the shared password) must
+ * all read/refresh the SAME ML connection. Without this, switching logins shows
+ * a false "desconectado" because the new user has no credential row of its own.
+ *
+ * Resolution order (each a fallback for the previous):
+ *   1. The canonical owner user (ENV.OWNER_OPEN_ID → admin → first user) IF its
+ *      credential row carries a refresh_token (a real, renewable connection).
+ *   2. ANY credential row that has a refresh_token (the connection lives on some
+ *      user row — use it regardless of which login is active).
+ *   3. The requesting user id itself (preserves the original per-user behavior
+ *      when no shared connection exists yet, e.g. brand-new project).
+ *
+ * The result is intentionally NOT cached: connections can be (re)created at any
+ * time and these are cheap indexed reads. Callers that need the token already
+ * cache at a higher level (accountCache / in-flight refresh lock).
+ */
+export async function resolveMlOwnerUserId(requestUserId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return requestUserId;
+
+  // 1) Canonical owner with a renewable connection.
+  try {
+    const owner = await getOwnerUser();
+    if (owner) {
+      const ownerCreds = await getCredentials(owner.id);
+      if (ownerCreds?.refreshToken) return owner.id;
+    }
+  } catch {
+    // ignore — fall through to the generic lookup
+  }
+
+  // 2) Any row that actually has a refresh_token (the live connection).
+  try {
+    const rows = await db
+      .select({ userId: mlCredentials.userId })
+      .from(mlCredentials)
+      .where(isNotNull(mlCredentials.refreshToken))
+      .limit(1);
+    if (rows[0]?.userId) return rows[0].userId;
+  } catch {
+    // ignore — fall through
+  }
+
+  // 3) No shared connection yet — behave exactly as before (per-user).
+  return requestUserId;
+}
 
 export async function getCredentials(userId: number) {
   const db = await getDb();

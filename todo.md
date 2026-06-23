@@ -1328,8 +1328,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 
 ## Ordenação por dia + quebra diária por anúncio (pedido 23/06)
 - [x] Lista de anúncios: ordenar por hoje / ontem / anteontem (setinhas como nas outras colunas)
-- [ ] Backend: quebra do total diário por anúncio (visitas por dia x anúncio) no gráfico Evolução das visitas
-- [ ] Frontend (Painel): ao olhar um dia do gráfico, ver quanto cada anúncio teve naquele dia
+- [x] Backend: quebra do total diário por anúncio (visitas por dia x anúncio) no gráfico Evolução das visitas
+- [x] Frontend (Painel): ao olhar um dia do gráfico, ver quanto cada anúncio teve naquele dia
 
 ## Quebra do total diário de visitas por anúncio (Painel + Anúncios)
 - [x] shared/account.ts: tipos ListingDailySeries e ListingDailyBreakdownResult
@@ -1340,3 +1340,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Ligado no Painel e em Meus Anúncios
 - [x] 3 testes novos em accountProvider.test.ts (ordenação, soma por dia, fallback de permalink)
 - [x] tsc limpo; 677 testes verdes
+
+## Conexão ML compartilhada (corrigir "API desconectou" ao trocar de login) — 23/06
+- [x] Causa: credencial ML é por usuário Manus; login diferente (gestao@grupo-fox vs Apple/dono) caía em conta sem credencial
+- [x] Backend: resolveMlOwnerUserId() em dbMl.ts (dono com refresh -> qualquer linha com refresh -> próprio user)
+- [x] ensureUserAccessToken/forceRefreshUserAccessToken resolvem o dono (renovação automática sempre na conexão real)
+- [x] resolveAccount lê credenciais/mlUserId do dono; connection self-heal grava no dono
+- [x] monitor.getCredentials reflete o dono; saveCredentials/testCredentials gravam no dono
+- [x] OAuth /connect e /callback gravam tokens na linha do dono
+- [x] Testes: 4 novos para resolveMlOwnerUserId + mocks atualizados; 681 testes verdes, tsc limpo

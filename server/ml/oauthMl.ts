@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { sdk } from "../_core/sdk";
 import { ENV } from "../_core/env";
-import { getCredentials, upsertCredentials } from "../dbMl";
+import { getCredentials, upsertCredentials, resolveMlOwnerUserId } from "../dbMl";
 
 /**
  * Mercado Livre OAuth 2.0 — Authorization Code flow (with offline_access).
@@ -110,11 +110,14 @@ export function registerMlOAuthRoutes(app: Express) {
    * can persist tokens for the right account and bounce back to the SPA.
    */
   app.get("/api/oauth/ml/connect", async (req: Request, res: Response) => {
-    const userId = await resolveUserId(req);
-    if (!userId) {
+    const requestUserId = await resolveUserId(req);
+    if (!requestUserId) {
       res.status(401).send("É necessário estar autenticado no Mercato para conectar o Mercado Livre.");
       return;
     }
+    // SINGLE-STORE: connect/refresh the OWNER's shared ML connection so every
+    // login updates the same row instead of creating an orphan per-user one.
+    const userId = await resolveMlOwnerUserId(requestUserId);
     const creds = await getCredentials(userId);
     if (!creds || !creds.appId) {
       res.status(400).send("Configure o App ID antes de conectar.");
@@ -181,6 +184,8 @@ export function registerMlOAuthRoutes(app: Express) {
       return;
     }
 
+    // Persist tokens on the OWNER's row (single-store shared connection).
+    userId = await resolveMlOwnerUserId(userId);
     const creds = await getCredentials(userId);
     if (!creds || !creds.appId || !creds.clientSecret) {
       res.redirect(302, settingsUrl("sem-credenciais"));
@@ -351,7 +356,12 @@ async function performRefresh(userId: number, force = false): Promise<string | n
  * `inFlightRefresh`), so simultaneous callers never race over the single-use
  * refresh_token.
  */
-export async function ensureUserAccessToken(userId: number): Promise<string | null> {
+export async function ensureUserAccessToken(requestUserId: number): Promise<string | null> {
+  // SINGLE-STORE: always operate on the OWNER's ML connection, no matter which
+  // Manus login is active. This is what stops the false "desconectado" when the
+  // user signs in with a different account (e.g. gestao@grupo-fox.com vs the
+  // owner's Apple login). See resolveMlOwnerUserId for the resolution order.
+  const userId = await resolveMlOwnerUserId(requestUserId);
   const creds = await getCredentials(userId);
   if (!creds) return null;
 
@@ -379,9 +389,12 @@ export async function ensureUserAccessToken(userId: number): Promise<string | nu
  * in-flight lock so it never races concurrent callers.
  */
 export async function forceRefreshUserAccessToken(
-  userId: number,
+  requestUserId: number,
   staleToken?: string,
 ): Promise<string | null> {
+  // Same single-store resolution as ensureUserAccessToken: refresh the OWNER's
+  // connection so the per-user in-flight lock is keyed on the real connection.
+  const userId = await resolveMlOwnerUserId(requestUserId);
   // If a refresh is already running, await it first — it may already produce a
   // brand-new token (refreshed by another caller), which resolves our 401.
   const pending = inFlightRefresh.get(userId);

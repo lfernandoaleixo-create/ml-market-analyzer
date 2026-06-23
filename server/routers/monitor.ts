@@ -18,6 +18,7 @@ import {
   removeMonitored,
   upsertAppConfig,
   upsertCredentials,
+  resolveMlOwnerUserId,
 } from "../dbMl";
 import { buildBackfillSnapshots, runMonitoringForUser } from "../ml/monitoring";
 import { resolveProviderForUser, isRealOrigin } from "../ml/providerSelect";
@@ -161,7 +162,11 @@ export const monitorRouter = router({
   // ---- Credentials -------------------------------------------------------
 
   getCredentials: protectedProcedure.query(async ({ ctx }) => {
-    const creds = await getCredentials(ctx.user.id);
+    // SINGLE-STORE: reflect the OWNER's shared ML connection so any login (e.g.
+    // gestao@grupo-fox.com) sees the real "conectado" state instead of a false
+    // "desconectado" just because it has no credential row of its own.
+    const ownerUserId = await resolveMlOwnerUserId(ctx.user.id);
+    const creds = await getCredentials(ownerUserId);
     if (!creds) {
       return {
         configured: false,
@@ -206,14 +211,18 @@ export const monitorRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const existing = await getCredentials(ctx.user.id);
+      // Write onto the OWNER's row when a shared connection exists, so editing
+      // credentials/reconnecting always targets the real connection instead of
+      // creating an orphan row on the currently-logged-in user.
+      const ownerUserId = await resolveMlOwnerUserId(ctx.user.id);
+      const existing = await getCredentials(ownerUserId);
       // Merge with existing: an empty form field must NEVER wipe a stored value,
       // and a healthy OAuth session must NOT be demoted. See mergeCredentialsForSave.
       const merged = mergeCredentialsForSave(
         { appId: input.appId, clientSecret: input.clientSecret },
         existing,
       );
-      await upsertCredentials(ctx.user.id, {
+      await upsertCredentials(ownerUserId, {
         appId: merged.appId,
         clientSecret: merged.clientSecret,
         siteId: input.siteId,
@@ -235,14 +244,15 @@ export const monitorRouter = router({
    * connected OAuth session to "error".
    */
   testCredentials: protectedProcedure.mutation(async ({ ctx }) => {
-    const creds = await getCredentials(ctx.user.id);
+    const ownerUserId = await resolveMlOwnerUserId(ctx.user.id);
+    const creds = await getCredentials(ownerUserId);
     const mayFlagError = probeMayFlagError(creds);
     const oauthConnected = !mayFlagError;
 
     if (!creds || !hasValidMlCredentialFormat(creds.appId, creds.clientSecret)) {
       // Only flag an error when there is no live OAuth session to protect.
       if (mayFlagError) {
-        await upsertCredentials(ctx.user.id, {
+        await upsertCredentials(ownerUserId, {
           status: "error",
           statusMessage: "Credenciais ausentes ou em formato inválido.",
         });
@@ -268,7 +278,7 @@ export const monitorRouter = router({
       const json = (await res.json()) as { access_token?: string; error?: string };
       if (json.access_token) {
         // Mark connected WITHOUT clobbering the user OAuth tokens.
-        await upsertCredentials(ctx.user.id, {
+        await upsertCredentials(ownerUserId, {
           status: "connected",
           statusMessage: "Conexão bem-sucedida.",
         });
@@ -276,7 +286,7 @@ export const monitorRouter = router({
       }
       // Probe failed, but keep a healthy OAuth session intact.
       if (mayFlagError) {
-        await upsertCredentials(ctx.user.id, {
+        await upsertCredentials(ownerUserId, {
           status: "error",
           statusMessage: `Falha: ${json.error ?? "desconhecida"}`,
         });
@@ -284,7 +294,7 @@ export const monitorRouter = router({
       return { ok: false, message: `Falha na autenticação: ${json.error ?? "desconhecida"}` };
     } catch (err) {
       if (mayFlagError) {
-        await upsertCredentials(ctx.user.id, {
+        await upsertCredentials(ownerUserId, {
           status: "error",
           statusMessage: String(err),
         });
