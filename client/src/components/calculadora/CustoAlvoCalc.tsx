@@ -709,7 +709,7 @@ function ProductRow({
                 {formatBRL(cell!.sellingPrice)}
               </span>
             ) : (
-              <span className="text-[11px] text-destructive">—</span>
+              <span className="text-[11px] font-medium text-destructive" title="Margem inviável: margem + custos variáveis chegam perto de 100%.">inviável</span>
             )}
           </td>
         );
@@ -718,7 +718,7 @@ function ProductRow({
         {varCell && varCell.valid ? (
           <span className="font-semibold text-amber-700">{formatBRL(varCell.sellingPrice)}</span>
         ) : (
-          <span className="text-[11px] text-destructive">—</span>
+          <span className="text-[11px] font-medium text-destructive" title="Margem inviável: margem + custos variáveis chegam perto de 100%.">inviável</span>
         )}
       </td>
       <td className="border-l border-border px-1 py-2.5 align-top">

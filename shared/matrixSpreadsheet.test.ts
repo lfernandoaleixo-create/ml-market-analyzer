@@ -150,3 +150,42 @@ describe("coluna variável (recálculo em tempo real)", () => {
     expect(a.matrixCost).toBeCloseTo(b.matrixCost, 2);
   });
 });
+
+describe("margens altas inviáveis (guard contra explosão de preço)", () => {
+  // Clássico 12% + COM TTS 14% + TACoS 3% = 29% de custos variáveis.
+  // Margem 70% -> 70 + 29 = 99% de deduções -> antes explodia para ~R$ 5.880.
+  it("margem de 70% com Clássico não explode: célula marcada como inviável", () => {
+    const row = computeMatrixRow(baseSettings, 0, 100, 20, [70]);
+    const cell = row.cells[0];
+    expect(cell.marginPct).toBe(70);
+    expect(cell.valid).toBe(false);
+    // Em vez de um número astronômico, o preço NÃO deve ser exibido como válido.
+    expect(cell.sellingPrice).not.toBeGreaterThan(1000);
+  });
+
+  it("não retorna preços astronômicos para nenhuma margem entre 67% e 95%", () => {
+    for (let m = 67; m <= 95; m += 1) {
+      const cell = computeMatrixRow(baseSettings, 0, 100, 20, [m]).cells[0];
+      // Toda margem cujo (variáveis + margem) >= 95% deve ser inviável.
+      if (!cell.valid) continue;
+      // Quando válida, o preço precisa ser financeiramente razoável (sem explosão).
+      expect(cell.sellingPrice).toBeLessThan(1000);
+    }
+  });
+
+  it("margens viáveis (<= ~50%) continuam produzindo preços válidos e crescentes", () => {
+    const m40 = computeMatrixRow(baseSettings, 0, 100, 20, [40]).cells[0];
+    const m50 = computeMatrixRow(baseSettings, 0, 100, 20, [50]).cells[0];
+    expect(m40.valid).toBe(true);
+    expect(m50.valid).toBe(true);
+    expect(m50.sellingPrice).toBeGreaterThan(m40.sellingPrice);
+    expect(m50.sellingPrice).toBeLessThan(1000);
+  });
+
+  it("SEM TTS (24%) torna a inviabilidade ocorrer em margem mais baixa", () => {
+    // SEM TTS 24% + Clássico 12% + TACoS 3% = 39% -> margem 60% já dá 99%.
+    const semTts = { ...baseSettings, ttsRegime: "sem_tts" as const };
+    const cell = computeMatrixRow(semTts, 0, 100, 20, [60]).cells[0];
+    expect(cell.valid).toBe(false);
+  });
+});

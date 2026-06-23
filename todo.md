@@ -1267,3 +1267,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Coluna variável: campo agora é string controlada (type=text), remove zero à esquerda em tempo real (ex.: "050" -> "50"); blur vazio vira "0"
 - [x] COM TTS marcado por padrão: confirmado no front (regimeSemTts false quando settings undefined) e backend (resolveSettings default com_tts)
 - [x] TS limpo + checkpoint
+
+## Bug margem alta (70%) explodindo preço (Fernando 23/06)
+- [x] Diagnóstico: markup divisor explode quando (margem + variáveis) -> ~100% (ex.: 70% + 29% = 99% -> denominador ~0,01 -> R$ 5.880)
+- [x] Guard na engine: denomPct >= MAX_DEDUCTION_PCT (95%) retorna valid:false ("Margem inviável")
+- [x] UI: célula sem valor agora mostra "inviável" (antes "—") com tooltip, nas colunas fixas e variável
+- [x] 4 novos testes (70% inviável; varredura 67-95% sem explosão; viáveis <=50% crescentes; SEM TTS inviabiliza mais cedo) — 657 testes verdes
+- [x] TypeScript limpo
+- [x] Validado via engine com dados reais (Barraca R$34,15): 70% -> INVIÁVEL; 40% -> R$180; 50% -> R$280
