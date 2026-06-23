@@ -120,10 +120,33 @@ describe("computeMatrixRow", () => {
     expect(premium.matrixCost).toBeLessThan(classico.matrixCost);
   });
 
-  it("preço âncora muito baixo torna o custo Matriz inviável (<= 0) e invalida as células", () => {
-    const row = computeMatrixRow(baseSettings, 0, 0.5, 20, [20, 30]);
-    expect(row.matrixCost).toBeLessThanOrEqual(0);
+  it("Opção A: custo Matriz negativo oculta (invalida) as células cujo preço ficaria <= 0", () => {
+    // Marmita real: R$ 25, peso 300g–500g (índice 1), com frete grátis (baseSettings).
+    const row = computeMatrixRow(baseSettings, 1, 25, 20, [15, 20, 30, 50]);
+    // O custo derivado à Matriz fica negativo (preço âncora não cobre os custos do ML).
+    expect(row.matrixCost).toBeLessThan(0);
+    // Regra refinada pelo usuário: preço não positivo => célula inválida (UI mostra —).
     expect(row.cells.every((c) => !c.valid)).toBe(true);
+  });
+
+  it("Opção A: todo preço exibido (válido) é estritamente positivo", () => {
+    // Cenário realista: várias margens; as válidas devem ter preço > 0.
+    const row = computeMatrixRow(baseSettings, 0, 100, 20, [10, 20, 30, 40, 50]);
+    for (const c of row.cells) {
+      if (c.valid) expect(c.sellingPrice).toBeGreaterThan(0);
+    }
+    // E margem maior => preço maior, entre as válidas.
+    const valid = row.cells.filter((c) => c.valid).sort((a, b) => a.marginPct - b.marginPct);
+    for (let i = 1; i < valid.length; i++) {
+      expect(valid[i].sellingPrice).toBeGreaterThan(valid[i - 1].sellingPrice);
+    }
+  });
+
+  it("Opção A: só é impossível quando as deduções% (margem + variáveis) atingem 100%", () => {
+    // Comissão + impostos + TACoS já somam ~29%; margem de 80% => 109% => impossível.
+    const row = computeMatrixRow(baseSettings, 0, 100, 20, [80]);
+    const c80 = row.cells.find((c) => c.marginPct === 80)!;
+    expect(c80.valid).toBe(false);
   });
 });
 

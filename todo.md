@@ -1296,3 +1296,19 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Trocar ícone do simulador (SlidersHorizontal -> Calculator) na dica e no botão Ações
 - [x] Redesenhar painel do simulador em cartão profissional (cabeçalho + 3 campos + setas, sem sobreposição)
 - [x] Atualizar testes ao novo comportamento (664 testes verdes)
+
+## Planilha invertida: sempre exibir valores (Opção A - 23/06)
+- [] Engine: permitir custo Matriz negativo (sem clamp0 no priceForMargin do modo planilha)
+- [] Engine: célula válida sempre que preço finito; só inválida quando deduções% >= 100
+- [] Exibir custo Matriz negativo na coluna âncora (sem "inviável")
+- [] Atualizar testes (margens altas/negativas) e UI (remover "impossível"/"inviável" quando há valor)
+- [] Validar vitest + tsc + preview da Marmita R$ 25
+
+## Planilha invertida: preços altos e custo negativo (Opção A refinada) — CONCLUÍDO
+- [x] Remover guard de 95%: só bloqueia quando deduções >= 100% (impossível)
+- [x] Permitir custo Matriz negativo (deriveMatrixCost) e exibir o valor na coluna Matriz
+- [x] Regra do usuário: célula só mostra preço quando o preço resolvido for > 0; senão, "—"
+- [x] Âncora também segue a regra quando custo Matriz < 0
+- [x] Selo "abaixo do custo" na coluna Matriz quando negativo (com explicação no tooltip)
+- [x] Testes atualizados (Marmita R$25/300-500g => negativo; preços válidos sempre > 0); 666 testes verdes
+- [x] Validado ao vivo: Marmita mostra -R$0,50 + "—"; simulador com Matriz R$6,10 @20% => R$37,94

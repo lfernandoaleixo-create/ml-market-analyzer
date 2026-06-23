@@ -696,20 +696,64 @@ export function deriveMatrixCost(
 /**
  * Dado um custo fixo de produto (Matriz) e uma margem desejada, calcula o
  * PREÇO DE VENDA no ML necessário (markup divisor com solver de frete).
- * Reaproveita calculatePricing no modo custo_para_preco.
+ *
+ * IMPORTANTE (planilha invertida — Opção A): o custo da Matriz PODE ser
+ * NEGATIVO quando o preço âncora informado não cobre os custos do ML naquele
+ * cenário (ex.: item barato com frete grátis). Nesse caso continuamos
+ * calculando o preço de venda real (markup divisor com solver de frete),
+ * usando o custo negativo como está — sem zerar (clamp0). Assim a planilha
+ * sempre exibe os valores, em vez de "inviável/impossível". Só é realmente
+ * impossível quando as deduções percentuais (margem + comissão + impostos +
+ * TACoS + afiliados) atingem 100% (denominador <= 0).
  */
 export function priceForMargin(
   input: PricingInput,
   matrixCost: number,
   marginPct: number,
 ): { price: number; valid: boolean; error?: string } {
-  const res = calculatePricing({
-    ...input,
-    mode: "custo_para_preco",
-    productCost: clamp0(matrixCost),
-    desiredMargin: clamp0(marginPct),
-  });
-  return { price: res.price, valid: res.valid, error: res.error };
+  const commission = effectiveCommission(input);
+  const variable = buildVariableItems(input, commission); // sem margem
+  const desiredMargin = clamp0(marginPct);
+  const denomPct = variable.total + desiredMargin;
+
+  // Matematicamente impossível só quando as deduções% atingem/ultrapassam 100%.
+  if (denomPct >= 100) {
+    return {
+      price: 0,
+      valid: false,
+      error:
+        "Margem impossível: a soma da margem com os custos variáveis (comissão, impostos, TACoS, afiliados) atinge ou ultrapassa 100%.",
+    };
+  }
+
+  const fixedFee = resolveFixedFee(input);
+  const otherFixed = input.otherCostKind === "reais" ? clamp0(input.otherCostValue) : 0;
+  // Custo da Matriz mantido COMO ESTÁ (pode ser negativo).
+  const cost = Number.isFinite(matrixCost) ? matrixCost : 0;
+
+  // Solver iterativo: o frete depende do preço. Estimativa inicial pelo custo+taxas.
+  let shipping = resolveShipping(input, Math.max(0, cost));
+  let price = 0;
+  for (let i = 0; i < MAX_ITER; i++) {
+    const fixedTotal = cost + otherFixed + fixedFee + shipping;
+    const next = round2(fixedTotal / (1 - denomPct / 100));
+    const nextShipping = resolveShipping(input, Math.max(0, next));
+    const converged = Math.abs(next - price) < TOLERANCE && Math.abs(nextShipping - shipping) < TOLERANCE;
+    price = next;
+    shipping = nextShipping;
+    if (converged) break;
+  }
+
+  const finalPrice = round2(price);
+  // Opção A (refinada pelo usuário): se o preço resolvido não for positivo, a
+  // célula não faz sentido (custo + frete + taxas tornam o preço <= 0 para essa
+  // margem). Nesse caso marcamos como inválida para a UI ocultar o valor; nas
+  // margens em que o preço volta a ser positivo, a célula aparece normalmente.
+  if (!(finalPrice > 0)) {
+    return { price: 0, valid: false, error: "Preço não positivo nesta margem." };
+  }
+
+  return { price: finalPrice, valid: true };
 }
 
 /** Resultado de uma célula (margem) da planilha invertida. */
@@ -728,13 +772,20 @@ export function computeMarginRow(
   margins: number[],
 ): { matrixCost: number; cells: MarginPriceCell[] } {
   const matrixCost = deriveMatrixCost(input, anchorSellingPrice, anchorMarginPct);
+  // Quando o custo derivado à Matriz é negativo, o preço âncora informado não
+  // cobre os custos do ML. Nesse caso, mesmo a coluna âncora não "faz sentido"
+  // (estaria mostrando um preço que dá prejuízo). Por decisão do usuário, só
+  // exibimos as margens cujo preço resolvido for positivo (priceForMargin),
+  // ocultando (—) as demais. As margens maiores voltam a fazer sentido.
+  const anchorMakesSense = matrixCost >= 0;
   const cells: MarginPriceCell[] = margins.map((m) => {
-    // A coluna âncora reflete exatamente o preço informado.
-    if (Math.abs(m - anchorMarginPct) < 1e-9) {
-      return { marginPct: round2(m), sellingPrice: round2(anchorSellingPrice), valid: matrixCost > 0 };
+    // A coluna âncora reflete exatamente o preço informado — desde que o custo
+    // derivado seja não-negativo. Se for negativo, cai na regra geral abaixo.
+    if (anchorMakesSense && Math.abs(m - anchorMarginPct) < 1e-9) {
+      return { marginPct: round2(m), sellingPrice: round2(anchorSellingPrice), valid: true };
     }
     const r = priceForMargin(input, matrixCost, m);
-    return { marginPct: round2(m), sellingPrice: round2(r.price), valid: r.valid && matrixCost > 0, error: r.error };
+    return { marginPct: round2(m), sellingPrice: round2(r.price), valid: r.valid, error: r.error };
   });
   return { matrixCost: round2(matrixCost), cells };
 }
@@ -864,20 +915,20 @@ export function marginFromPriceAndCost(
   if (price <= 0) {
     return { marginPct: 0, valid: false, error: "Informe um preço de venda maior que zero.", shippingUsed: 0 };
   }
-  const res = calculatePricing({
-    ...input,
-    mode: "preco_para_margem",
-    productCost: clamp0(matrixCost),
-    sellingPrice: price,
-  });
-  if (!res.valid) {
-    return { marginPct: 0, valid: false, error: res.error, shippingUsed: res.shippingUsed };
-  }
-  // contributionMarginPct já é a margem real (líquida) sobre o preço,
-  // descontando custo do produto + frete + taxas + variáveis.
-  const marginPct = round2(res.contributionMarginPct);
-  // Quando o custo + custos consomem todo o preço, a margem fica negativa: inviável "para baixo".
-  return { marginPct, valid: true, shippingUsed: res.shippingUsed };
+  // Opção A: o custo da Matriz pode ser negativo. Calculamos a margem real
+  // diretamente para preservar o sinal (calculatePricing zeraria o custo).
+  const commission = effectiveCommission(input);
+  const variable = buildVariableItems(input, commission); // sem margem
+  const shipping = resolveShipping(input, price);
+  const fixedFee = resolveFixedFee(input);
+  const otherFixed = input.otherCostKind === "reais" ? clamp0(input.otherCostValue) : 0;
+  const cost = Number.isFinite(matrixCost) ? matrixCost : 0;
+  const fixedTotal = cost + shipping + fixedFee + otherFixed;
+  const variableAmount = (variable.total / 100) * price;
+  const contributionMargin = round2(price - fixedTotal - variableAmount);
+  // Margem real (líquida) sobre o preço. Pode ser negativa (prejuízo).
+  const marginPct = round2((contributionMargin / price) * 100);
+  return { marginPct, valid: true, shippingUsed: round2(shipping) };
 }
 
 /**
@@ -892,7 +943,8 @@ export function solveSimulator(
   current: { matrixCost: number; marginPct: number; sellingPrice: number },
   edited: SimulatorEdited,
 ): SimulatorResult {
-  const matrixCost = clamp0(current.matrixCost);
+  // Opção A: o custo da Matriz pode ser negativo (mantemos como está).
+  const matrixCost = Number.isFinite(current.matrixCost) ? current.matrixCost : 0;
   const marginPct = clamp0(current.marginPct);
   const sellingPrice = clamp0(current.sellingPrice);
 

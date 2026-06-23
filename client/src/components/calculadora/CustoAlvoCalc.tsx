@@ -937,10 +937,23 @@ function ProductRow({
         </p>
       </td>
       <td className="border-l border-border px-2 py-2.5 text-right">
-        {feasible ? (
-          <span className="text-sm font-semibold tabular-nums">{formatBRL(row.matrixCost)}</span>
-        ) : (
-          <span className="text-[11px] text-destructive">inviável</span>
+        {/* Opção A: sempre exibe o custo da Matriz. Se for negativo, sinaliza em
+            vermelho e explica o motivo (preço âncora abaixo do custo do ML). */}
+        <span
+          className={cn(
+            "text-sm font-semibold tabular-nums",
+            !feasible && "text-destructive",
+          )}
+        >
+          {formatBRL(row.matrixCost)}
+        </span>
+        {!feasible && (
+          <span
+            className="mt-0.5 block text-[10px] leading-tight text-destructive"
+            title="Neste preço âncora, os custos do ML (frete + comissão + impostos + TACoS) superam o preço de venda. Em itens baratos, normalmente é o frete grátis. Aumente o preço âncora ou desligue o frete grátis para ver os preços por margem."
+          >
+            abaixo do custo
+          </span>
         )}
       </td>
       {margins.map((m) => {
@@ -960,7 +973,12 @@ function ProductRow({
                 {formatBRL(cell!.sellingPrice)}
               </span>
             ) : (
-              <span className="text-[11px] font-medium text-destructive" title="Impossível: margem + custos variáveis atingem 100% — não existe preço que feche a conta.">impossível</span>
+              <span
+                className="text-muted-foreground"
+                title="Sem preço que faça sentido nesta margem (o preço calculado ficaria zero ou negativo). Em margens maiores o valor volta a aparecer."
+              >
+                —
+              </span>
             )}
           </td>
         );
@@ -969,7 +987,12 @@ function ProductRow({
         {varCell && varCell.valid ? (
           <span className="font-semibold text-amber-700">{formatBRL(varCell.sellingPrice)}</span>
         ) : (
-          <span className="text-[11px] font-medium text-destructive" title="Impossível: margem + custos variáveis atingem 100% — não existe preço que feche a conta.">impossível</span>
+          <span
+            className="text-muted-foreground"
+            title="Sem preço que faça sentido nesta margem (o preço calculado ficaria zero ou negativo). Aumente a margem para ver o valor."
+          >
+            —
+          </span>
         )}
       </td>
       <td className="border-l border-border px-2 py-2.5 align-middle">
