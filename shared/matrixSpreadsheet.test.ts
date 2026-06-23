@@ -4,6 +4,7 @@ import {
   computeMatrixRow,
   deriveMatrixCost,
   priceForMargin,
+  solveSimulator,
   MATRIX_TAX_BY_REGIME,
   type MatrixGlobalSettings,
 } from "./pricing";
@@ -187,5 +188,65 @@ describe("margens altas inviáveis (guard contra explosão de preço)", () => {
     const semTts = { ...baseSettings, ttsRegime: "sem_tts" as const };
     const cell = computeMatrixRow(semTts, 0, 100, 20, [60]).cells[0];
     expect(cell.valid).toBe(false);
+  });
+});
+
+
+describe("simulador de 3 variáveis interligadas (solveSimulator)", () => {
+  // baseSettings: Clássico 12% + COM TTS 14% + TACoS 3% = 29% variáveis, frete grátis.
+  const input = buildMatrixInput(baseSettings, 3); // peso "2kg a 3kg" (índice 3)
+
+  it("editar margem (mantendo custo) recalcula o preço de venda", () => {
+    // Custo Matriz R$ 10,03 (exemplo do tapete higiênico), margem 30%.
+    const out = solveSimulator(input, { matrixCost: 10.03, marginPct: 30, sellingPrice: 0 }, "margem");
+    expect(out.valid).toBe(true);
+    expect(out.matrixCost).toBeCloseTo(10.03, 2);
+    expect(out.marginPct).toBeCloseTo(30, 2);
+    expect(out.sellingPrice).toBeGreaterThan(10.03);
+  });
+
+  it("editar custo (mantendo margem) recalcula o preço: custo maior => preço maior", () => {
+    const a = solveSimulator(input, { matrixCost: 10, marginPct: 25, sellingPrice: 0 }, "custo");
+    const b = solveSimulator(input, { matrixCost: 20, marginPct: 25, sellingPrice: 0 }, "custo");
+    expect(a.valid).toBe(true);
+    expect(b.valid).toBe(true);
+    expect(b.sellingPrice).toBeGreaterThan(a.sellingPrice);
+  });
+
+  it("editar preço (mantendo custo) deriva a margem coerente", () => {
+    // Primeiro descubro o preço para custo 10,03 @ 30%.
+    const fromMargin = solveSimulator(input, { matrixCost: 10.03, marginPct: 30, sellingPrice: 0 }, "margem");
+    expect(fromMargin.valid).toBe(true);
+    // Agora informo esse mesmo preço editando o campo "preço" e devo recuperar ~30%.
+    const fromPrice = solveSimulator(
+      input,
+      { matrixCost: 10.03, marginPct: 0, sellingPrice: fromMargin.sellingPrice },
+      "preco",
+    );
+    expect(fromPrice.valid).toBe(true);
+    expect(fromPrice.marginPct).toBeCloseTo(30, 0); // tolerância de arredondamento de frete
+  });
+
+  it("ida e volta margem→preço→margem é estável (round-trip)", () => {
+    const margins = [10, 20, 35, 45];
+    for (const m of margins) {
+      const p = solveSimulator(input, { matrixCost: 15, marginPct: m, sellingPrice: 0 }, "margem");
+      if (!p.valid) continue;
+      const back = solveSimulator(input, { matrixCost: 15, marginPct: 0, sellingPrice: p.sellingPrice }, "preco");
+      expect(back.valid).toBe(true);
+      expect(back.marginPct).toBeCloseTo(m, 0);
+    }
+  });
+
+  it("preço abaixo do necessário gera margem baixa/negativa, mas não quebra", () => {
+    // Custo 50, preço de venda apenas 40 (não cobre custo + taxas) => margem negativa.
+    const out = solveSimulator(input, { matrixCost: 50, marginPct: 0, sellingPrice: 40 }, "preco");
+    expect(out.valid).toBe(true);
+    expect(out.marginPct).toBeLessThan(0);
+  });
+
+  it("margem inviável (alta demais) propaga valid:false ao editar a margem", () => {
+    const out = solveSimulator(input, { matrixCost: 10, marginPct: 80, sellingPrice: 0 }, "margem");
+    expect(out.valid).toBe(false);
   });
 });

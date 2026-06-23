@@ -11,9 +11,12 @@ import { toast } from "sonner";
 import {
   ML_WEIGHT_LABELS,
   computeMatrixRow,
+  buildMatrixInput,
+  solveSimulator,
   type MlListingType,
   type MatrixTtsRegime,
   type MatrixGlobalSettings,
+  type SimulatorEdited,
 } from "@shared/pricing";
 import {
   Select,
@@ -41,6 +44,8 @@ import {
   Trash2,
   Check,
   Table2,
+  SlidersHorizontal,
+  RotateCcw,
 } from "lucide-react";
 
 /* ------------------------------- helpers UI ------------------------------- */
@@ -430,6 +435,16 @@ export default function CustoAlvoCalc() {
           <span className="text-[11px] text-muted-foreground">— ajuste em tempo real</span>
         </div>
 
+        {/* Dica do simulador por linha */}
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground">
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <span>
+            Clique no ícone de controles na coluna <strong>Ações</strong> de cada produto para abrir o
+            <strong className="text-primary"> Simulador</strong>: mexa em <em>Pagar à Matriz</em>, <em>Margem</em> ou
+            <em> Vender no ML</em> e os outros dois se ajustam automaticamente. É só um rascunho — não altera o produto salvo.
+          </span>
+        </div>
+
         {isLoading ? (
           <div className="py-12 text-center text-sm text-muted-foreground">Carregando planilha…</div>
         ) : rows.length === 0 ? (
@@ -538,6 +553,213 @@ function SpreadsheetTable({
   );
 }
 
+/* ----------------------- Simulador de 3 variáveis ------------------------- */
+
+/** Campo numérico grande e editável do simulador (com prefixo/sufixo). */
+function SimField({
+  label,
+  value,
+  onCommit,
+  prefix,
+  suffix,
+  active,
+  invalid,
+}: {
+  label: string;
+  value: number;
+  onCommit: (n: number) => void;
+  prefix?: string;
+  suffix?: string;
+  active?: boolean;
+  invalid?: boolean;
+}) {
+  // String controlada para edição livre; só comita no blur/Enter.
+  const [str, setStr] = useState(value > 0 ? String(value) : "");
+  useEffect(() => {
+    setStr(value > 0 ? String(round2str(value)) : "");
+  }, [value]);
+  const commit = () => {
+    const n = parseFloat(str.replace(",", "."));
+    onCommit(Number.isFinite(n) ? Math.max(0, n) : 0);
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+      <div className="relative">
+        {prefix && (
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{prefix}</span>
+        )}
+        <Input
+          type="text"
+          inputMode="decimal"
+          value={str}
+          onChange={(e) => {
+            let raw = e.target.value.replace(/[^0-9.,]/g, "").replace(",", ".");
+            raw = raw.replace(/^0+(?=\d)/, "");
+            setStr(raw);
+          }}
+          onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              (e.currentTarget as HTMLInputElement).blur();
+            }
+          }}
+          className={cn(
+            "h-9 text-right text-sm font-semibold tabular-nums",
+            prefix ? "pl-7" : "",
+            suffix ? "pr-7" : "",
+            active && "border-primary ring-1 ring-primary/30",
+            invalid && "border-destructive text-destructive",
+          )}
+        />
+        {suffix && (
+          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{suffix}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function round2str(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * Painel de simulação por produto: 3 variáveis interligadas (Matriz, Margem,
+ * Preço ML). Editar qualquer uma recalcula as outras duas via solveSimulator.
+ * É um rascunho local (não persiste); o botão de reset volta aos valores reais.
+ */
+function SimulatorPanel({
+  row,
+  settings,
+  colSpan,
+}: {
+  row: Row;
+  settings: Settings;
+  colSpan: number;
+}) {
+  // Valores reais de partida (custo Matriz derivado, margem âncora, preço âncora).
+  const baseCost = round2str(row.matrixCost);
+  const baseMargin = round2str(row.anchorMarginPct);
+  const basePrice = round2str(row.anchorPrice);
+
+  const [sim, setSim] = useState({ cost: baseCost, margin: baseMargin, price: basePrice });
+  const [valid, setValid] = useState(true);
+  const [errMsg, setErrMsg] = useState<string | undefined>(undefined);
+  const [lastEdited, setLastEdited] = useState<SimulatorEdited | null>(null);
+
+  // Recarrega o rascunho quando o produto base muda (recalcule global, edição).
+  useEffect(() => {
+    setSim({ cost: round2str(row.matrixCost), margin: round2str(row.anchorMarginPct), price: round2str(row.anchorPrice) });
+    setValid(true);
+    setErrMsg(undefined);
+    setLastEdited(null);
+  }, [row.matrixCost, row.anchorMarginPct, row.anchorPrice, row.weightIndex]);
+
+  const input = useMemo(() => {
+    const globals: MatrixGlobalSettings = {
+      ttsRegime: settings.ttsRegime,
+      listingType: settings.listingType,
+      tacosPercent: settings.tacosPercent,
+      affiliatePercent: settings.affiliatePercent,
+      freeShipping: settings.freeShipping,
+    };
+    return buildMatrixInput(globals, row.weightIndex);
+  }, [settings.ttsRegime, settings.listingType, settings.tacosPercent, settings.affiliatePercent, settings.freeShipping, row.weightIndex]);
+
+  const recompute = (next: { cost: number; margin: number; price: number }, edited: SimulatorEdited) => {
+    const out = solveSimulator(
+      input,
+      { matrixCost: next.cost, marginPct: next.margin, sellingPrice: next.price },
+      edited,
+    );
+    setLastEdited(edited);
+    if (!out.valid) {
+      setValid(false);
+      setErrMsg(out.error);
+      // Mantém o valor que o usuário digitou; zera os derivados para sinalizar.
+      setSim(next);
+      return;
+    }
+    setValid(true);
+    setErrMsg(undefined);
+    setSim({ cost: out.matrixCost, margin: out.marginPct, price: out.sellingPrice });
+  };
+
+  const reset = () => {
+    setSim({ cost: baseCost, margin: baseMargin, price: basePrice });
+    setValid(true);
+    setErrMsg(undefined);
+    setLastEdited(null);
+  };
+
+  const changed =
+    Math.abs(sim.cost - baseCost) > 0.005 ||
+    Math.abs(sim.margin - baseMargin) > 0.005 ||
+    Math.abs(sim.price - basePrice) > 0.005;
+
+  return (
+    <tr className="border-t border-primary/20 bg-primary/[0.04]">
+      <td colSpan={colSpan} className="px-3 py-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Simulador — mexa em qualquer campo e os outros dois se ajustam
+          </div>
+          <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+            <SimField
+              label="Pagar à Matriz"
+              prefix="R$"
+              value={sim.cost}
+              active={lastEdited === "custo"}
+              onCommit={(n) => recompute({ ...sim, cost: n }, "custo")}
+            />
+            <SimField
+              label="Margem de lucro"
+              suffix="%"
+              value={sim.margin}
+              active={lastEdited === "margem"}
+              invalid={!valid && lastEdited === "margem"}
+              onCommit={(n) => recompute({ ...sim, margin: n }, "margem")}
+            />
+            <SimField
+              label="Vender no ML"
+              prefix="R$"
+              value={sim.price}
+              active={lastEdited === "preco"}
+              onCommit={(n) => recompute({ ...sim, price: n }, "preco")}
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="shrink-0 gap-1.5 text-muted-foreground"
+            onClick={reset}
+            disabled={!changed}
+            title="Voltar aos valores reais do produto"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Resetar
+          </Button>
+        </div>
+        {!valid && (
+          <p className="mt-2 text-[11px] font-medium text-destructive">
+            {errMsg ?? "Combinação inviável: a margem somada aos custos variáveis ultrapassa o limite. Ajuste os valores."}
+          </p>
+        )}
+        {valid && sim.margin < 0 && (
+          <p className="mt-2 text-[11px] font-medium text-amber-600">
+            Atenção: nesse preço a margem fica negativa ({sim.margin.toFixed(2)}%) — você venderia no prejuízo.
+          </p>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function ProductRow({
   row,
   margins,
@@ -559,6 +781,7 @@ function ProductRow({
   onDelete: (id: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [simOpen, setSimOpen] = useState(false);
   const [name, setName] = useState(row.name);
   const [sku, setSku] = useState(row.sku ?? "");
   const [price, setPrice] = useState(row.anchorPrice);
@@ -662,8 +885,12 @@ function ProductRow({
     );
   }
 
+  // Total de colunas da tabela (Produto + Matriz + margens + variável + Ações).
+  const totalCols = margins.length + 4;
+
   return (
-    <tr className="border-t border-border transition-colors odd:bg-muted/20 hover:bg-muted/40">
+    <>
+    <tr className={cn("border-t border-border transition-colors odd:bg-muted/20 hover:bg-muted/40", simOpen && "bg-primary/[0.04]")}>
       <td className="sticky left-0 z-10 bg-inherit px-3 py-2.5 align-top">
         <div className="flex items-start gap-1.5">
           <p className="text-sm font-medium leading-snug break-words">{row.name}</p>
@@ -723,6 +950,16 @@ function ProductRow({
       </td>
       <td className="border-l border-border px-1 py-2.5 align-top">
         <div className="flex items-center justify-center gap-0.5">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className={cn("h-7 w-7", simOpen ? "bg-primary/15 text-primary" : "text-primary/80 hover:text-primary")}
+            onClick={() => setSimOpen((v) => !v)}
+            title="Simular preços (brincar com Matriz, margem e preço)"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+          </Button>
           <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)} title="Editar">
             <Pencil className="h-3.5 w-3.5" />
           </Button>
@@ -759,5 +996,9 @@ function ProductRow({
         </div>
       </td>
     </tr>
+    {simOpen && settings && (
+      <SimulatorPanel row={row} settings={settings} colSpan={totalCols} />
+    )}
+    </>
   );
 }

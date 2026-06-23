@@ -1275,3 +1275,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] 4 novos testes (70% inviável; varredura 67-95% sem explosão; viáveis <=50% crescentes; SEM TTS inviabiliza mais cedo) — 657 testes verdes
 - [x] TypeScript limpo
 - [x] Validado via engine com dados reais (Barraca R$34,15): 70% -> INVIÁVEL; 40% -> R$180; 50% -> R$280
+
+## Simulador de 3 variáveis interligadas (Matriz / Margem / Preço ML)
+- [x] solveSimulator na engine (pricing.ts) com solver bidirecional
+- [x] Testes do solver (round-trip margem->preço->margem)
+- [x] UI: painel expansível por produto na planilha de custo-alvo
+- [x] Botão "Simular" na coluna Ações + botão Resetar
+- [x] Validado no preview: margem->preço (30%->R$59,71) e preço->margem (R$45->16,6%)

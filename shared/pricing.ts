@@ -822,3 +822,111 @@ export function computeMatrixRow(
   const input = buildMatrixInput(settings, weightIndex);
   return computeMarginRow(input, anchorSellingPrice, anchorMarginPct, margins);
 }
+
+
+/* ===================== SIMULADOR DE 3 VARIÁVEIS INTERLIGADAS ================
+ * Por linha, três grandezas se relacionam mantendo a mesma régua de custos
+ * (comissão + impostos + TACoS + afiliados + frete auto + taxa fixa):
+ *
+ *   1) custoMatriz  → quanto se paga à Matriz pelo produto (R$)
+ *   2) margemPct    → margem de lucro líquida desejada (%)
+ *   3) precoVenda   → preço de venda no Mercado Livre (R$)
+ *
+ * Dado DOIS deles, o terceiro é derivado. O usuário escolhe qual campo está
+ * editando (`edited`) e o simulador devolve o trio consistente:
+ *
+ *   - edited "margem"  (mantém custoMatriz)        → resolve precoVenda e devolve margem
+ *   - edited "preco"   (mantém custoMatriz)        → resolve margemPct a partir de preço+custo
+ *   - edited "custo"   (mantém margemPct)           → resolve precoVenda (e custo é o informado)
+ *
+ * Observação: como a relação preço↔margem usa a MESMA régua, ao editar o preço
+ * (mantendo custo) obtemos a margem real; ao editar a margem (mantendo custo)
+ * obtemos o preço. Editar o custo mantém a margem e recalcula o preço.
+ * ------------------------------------------------------------------------- */
+
+/** Qual das três variáveis o usuário acabou de editar. */
+export type SimulatorEdited = "custo" | "margem" | "preco";
+
+/** Resultado consistente do simulador (trio + validade). */
+export interface SimulatorResult {
+  matrixCost: number;
+  marginPct: number;
+  sellingPrice: number;
+  valid: boolean;
+  error?: string;
+  /** Frete usado (R$) no cenário resolvido. */
+  shippingUsed: number;
+}
+
+/**
+ * Calcula a margem real (%) a partir de um preço de venda e um custo de produto,
+ * usando a régua de custos (modo preço→margem). Frete auto pelo preço.
+ */
+export function marginFromPriceAndCost(
+  input: PricingInput,
+  sellingPrice: number,
+  matrixCost: number,
+): { marginPct: number; valid: boolean; error?: string; shippingUsed: number } {
+  const price = round2(clamp0(sellingPrice));
+  if (price <= 0) {
+    return { marginPct: 0, valid: false, error: "Informe um preço de venda maior que zero.", shippingUsed: 0 };
+  }
+  const res = calculatePricing({
+    ...input,
+    mode: "preco_para_margem",
+    productCost: clamp0(matrixCost),
+    sellingPrice: price,
+  });
+  if (!res.valid) {
+    return { marginPct: 0, valid: false, error: res.error, shippingUsed: res.shippingUsed };
+  }
+  // contributionMarginPct já é a margem real (líquida) sobre o preço,
+  // descontando custo do produto + frete + taxas + variáveis.
+  const marginPct = round2(res.contributionMarginPct);
+  // Quando o custo + custos consomem todo o preço, a margem fica negativa: inviável "para baixo".
+  return { marginPct, valid: true, shippingUsed: res.shippingUsed };
+}
+
+/**
+ * Resolve as três variáveis interligadas a partir do campo editado.
+ *
+ * @param input        PricingInput base (régua de custos da linha).
+ * @param current      Trio atual conhecido { matrixCost, marginPct, sellingPrice }.
+ * @param edited       Qual variável o usuário editou.
+ */
+export function solveSimulator(
+  input: PricingInput,
+  current: { matrixCost: number; marginPct: number; sellingPrice: number },
+  edited: SimulatorEdited,
+): SimulatorResult {
+  const matrixCost = clamp0(current.matrixCost);
+  const marginPct = clamp0(current.marginPct);
+  const sellingPrice = clamp0(current.sellingPrice);
+
+  if (edited === "preco") {
+    // Mantém o custo; deriva a margem a partir do novo preço.
+    const r = marginFromPriceAndCost(input, sellingPrice, matrixCost);
+    return {
+      matrixCost: round2(matrixCost),
+      marginPct: r.marginPct,
+      sellingPrice: round2(sellingPrice),
+      valid: r.valid,
+      error: r.error,
+      shippingUsed: r.shippingUsed,
+    };
+  }
+
+  // edited === "custo" ou "margem": mantém a margem informada e o custo informado,
+  // e resolve o preço de venda (markup divisor com solver de frete).
+  const r = priceForMargin(input, matrixCost, marginPct);
+  // Frete usado no preço resolvido (para exibir, se quiser).
+  const shippingUsed = r.valid ? resolveShipping(input, r.price) : 0;
+  return {
+    matrixCost: round2(matrixCost),
+    marginPct: round2(marginPct),
+    sellingPrice: round2(r.price),
+    valid: r.valid,
+    error: r.error,
+    shippingUsed: round2(shippingUsed),
+  };
+}
