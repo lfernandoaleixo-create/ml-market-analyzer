@@ -76,14 +76,6 @@ const MAX_ITER = 10;
 /** Tolerância de convergência (R$). */
 const TOLERANCE = 0.01;
 /**
- * Teto de deduções percentuais (margem + comissão + impostos + TACoS +
- * afiliados) acima do qual o preço pelo markup divisor é considerado inviável.
- * A 95% o multiplicador já é 20x (1/0,05) e cresce sem limite até 100%, gerando
- * preços irreais; por isso travamos em 95%.
- */
-const MAX_DEDUCTION_PCT = 95;
-
-/**
  * Mapa índice de peso → kg (RR da Mamba). 28 faixas (0..27).
  */
 export const ML_WEIGHT_KG: number[] = [
@@ -379,17 +371,18 @@ export function calculatePricing(input: PricingInput): PricingResult {
 
   if (input.mode === "custo_para_preco") {
     const denomPct = variable.total + desiredMargin;
-    // O markup divisor (Preço = fixos / (1 − deduções%)) explode quando as
-    // deduções percentuais (margem + comissão + impostos + TACoS + afiliados)
-    // se aproximam de 100%: o denominador tende a zero e o preço dispara para
-    // valores irreais (ex.: margem 70% + variáveis 29% = 99% → preço × ~100).
-    // Acima de MAX_DEDUCTION_PCT a margem é considerada inviável naquele cenário.
-    if (denomPct >= MAX_DEDUCTION_PCT) {
+    // O markup divisor (Preço = fixos / (1 − deduções%)) só é matematicamente
+    // impossível quando as deduções (margem + comissão + impostos + TACoS +
+    // afiliados) atingem ou ultrapassam 100% — aí o denominador zera/negativa e
+    // não existe preço que feche a conta. Abaixo disso (mesmo a 99%) o preço é
+    // calculável: por decisão do usuário, exibimos o valor mesmo quando alto,
+    // sem rotular como "inviável".
+    if (denomPct >= 100) {
       return invalidResult(
         input,
         commission,
         variable,
-        "Margem inviável: a soma da margem desejada com os custos variáveis (comissão, impostos, TACoS, afiliados) está próxima ou acima de 100%. Não há preço de venda que cubra os custos fixos sem disparar para valores irreais. Reduza a margem ou os percentuais.",
+        "Margem impossível: a soma da margem desejada com os custos variáveis (comissão, impostos, TACoS, afiliados) atinge ou ultrapassa 100%. Não existe preço de venda que cubra os custos. Reduza a margem ou os percentuais.",
       );
     }
 

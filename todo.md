@@ -1282,3 +1282,17 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] UI: painel expansível por produto na planilha de custo-alvo
 - [x] Botão "Simular" na coluna Ações + botão Resetar
 - [x] Validado no preview: margem->preço (30%->R$59,71) e preço->margem (R$45->16,6%)
+
+
+## Ajustes simulador (pedido Fernando 23/06)
+- [ ] Remover "inviável" — mostrar o valor calculado mesmo quando alto (reverter guard MAX_DEDUCTION_PCT na exibição)
+- [ ] Trocar ícone dos controles (SlidersHorizontal) pelo ícone de Calculadora
+- [ ] Melhorar layout do simulador: sem sobreposição, visual profissional
+
+## Ajustes simulador (23/06) — concluído
+- [x] Remover rótulo "inviável" para margens altas: exibir valor calculado (só >=100% deduções = "impossível")
+- [x] Relaxar guard da engine (custo_para_preco) para bloquear apenas deduções >= 100%
+- [x] Coluna variável global aceita até 99%
+- [x] Trocar ícone do simulador (SlidersHorizontal -> Calculator) na dica e no botão Ações
+- [x] Redesenhar painel do simulador em cartão profissional (cabeçalho + 3 campos + setas, sem sobreposição)
+- [x] Atualizar testes ao novo comportamento (664 testes verdes)

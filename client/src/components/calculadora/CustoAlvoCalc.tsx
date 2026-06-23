@@ -44,8 +44,9 @@ import {
   Trash2,
   Check,
   Table2,
-  SlidersHorizontal,
+  Calculator,
   RotateCcw,
+  ArrowRightLeft,
 } from "lucide-react";
 
 /* ------------------------------- helpers UI ------------------------------- */
@@ -223,7 +224,9 @@ export default function CustoAlvoCalc() {
   const [varMarginStr, setVarMarginStr] = useState("45");
   const varMargin = useMemo(() => {
     const v = parseFloat(varMarginStr);
-    return Number.isFinite(v) ? Math.min(95, Math.max(0, v)) : 0;
+    // Permite até 99% (o único bloqueio matemático ocorre quando margem + custos
+    // variáveis atingem 100%). Valores altos são exibidos normalmente.
+    return Number.isFinite(v) ? Math.min(99, Math.max(0, v)) : 0;
   }, [varMarginStr]);
 
   // Margens base fixas para todos os produtos (não removíveis).
@@ -437,9 +440,9 @@ export default function CustoAlvoCalc() {
 
         {/* Dica do simulador por linha */}
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground">
-          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <Calculator className="h-3.5 w-3.5 shrink-0 text-primary" />
           <span>
-            Clique no ícone de controles na coluna <strong>Ações</strong> de cada produto para abrir o
+            Clique no ícone de <strong className="text-primary">calculadora</strong> na coluna <strong>Ações</strong> de cada produto para abrir o
             <strong className="text-primary"> Simulador</strong>: mexa em <em>Pagar à Matriz</em>, <em>Margem</em> ou
             <em> Vender no ML</em> e os outros dois se ajustam automaticamente. É só um rascunho — não altera o produto salvo.
           </span>
@@ -701,60 +704,81 @@ function SimulatorPanel({
     Math.abs(sim.price - basePrice) > 0.005;
 
   return (
-    <tr className="border-t border-primary/20 bg-primary/[0.04]">
-      <td colSpan={colSpan} className="px-3 py-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Simulador — mexa em qualquer campo e os outros dois se ajustam
+    <tr className="border-t border-primary/15 bg-primary/[0.03]">
+      <td colSpan={colSpan} className="p-0">
+        {/* Cartão do simulador: contido na largura da tabela, sem sobreposição. */}
+        <div className="m-3 overflow-hidden rounded-xl border border-primary/25 bg-card shadow-sm">
+          {/* Cabeçalho */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/15 bg-primary/[0.06] px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/15 text-primary">
+                <Calculator className="h-3.5 w-3.5" />
+              </span>
+              <div className="leading-tight">
+                <p className="text-xs font-semibold text-foreground">Simulador de preços</p>
+                <p className="text-[10px] text-muted-foreground">Mexa em qualquer campo — os outros dois se ajustam. Rascunho; não altera o produto.</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
+              onClick={reset}
+              disabled={!changed}
+              title="Voltar aos valores reais do produto"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Resetar
+            </Button>
           </div>
-          <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
-            <SimField
-              label="Pagar à Matriz"
-              prefix="R$"
-              value={sim.cost}
-              active={lastEdited === "custo"}
-              onCommit={(n) => recompute({ ...sim, cost: n }, "custo")}
-            />
-            <SimField
-              label="Margem de lucro"
-              suffix="%"
-              value={sim.margin}
-              active={lastEdited === "margem"}
-              invalid={!valid && lastEdited === "margem"}
-              onCommit={(n) => recompute({ ...sim, margin: n }, "margem")}
-            />
-            <SimField
-              label="Vender no ML"
-              prefix="R$"
-              value={sim.price}
-              active={lastEdited === "preco"}
-              onCommit={(n) => recompute({ ...sim, price: n }, "preco")}
-            />
+
+          {/* Corpo: 3 campos com conectores */}
+          <div className="px-4 py-4">
+            <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+              <SimField
+                label="Pagar à Matriz"
+                prefix="R$"
+                value={sim.cost}
+                active={lastEdited === "custo"}
+                onCommit={(n) => recompute({ ...sim, cost: n }, "custo")}
+              />
+              <div className="hidden items-center justify-center pb-2 text-muted-foreground/50 md:flex">
+                <ArrowRightLeft className="h-4 w-4" />
+              </div>
+              <SimField
+                label="Margem de lucro"
+                suffix="%"
+                value={sim.margin}
+                active={lastEdited === "margem"}
+                invalid={!valid && lastEdited === "margem"}
+                onCommit={(n) => recompute({ ...sim, margin: n }, "margem")}
+              />
+              <div className="hidden items-center justify-center pb-2 text-muted-foreground/50 md:flex">
+                <ArrowRightLeft className="h-4 w-4" />
+              </div>
+              <SimField
+                label="Vender no ML"
+                prefix="R$"
+                value={sim.price}
+                active={lastEdited === "preco"}
+                onCommit={(n) => recompute({ ...sim, price: n }, "preco")}
+              />
+            </div>
+
+            {/* Avisos */}
+            {!valid && (
+              <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-[11px] font-medium text-destructive">
+                {errMsg ?? "Combinação impossível: a margem somada aos custos variáveis atinge 100%. Ajuste os valores."}
+              </p>
+            )}
+            {valid && sim.margin < 0 && (
+              <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-700">
+                Atenção: nesse preço a margem fica negativa ({sim.margin.toFixed(2)}%) — você venderia no prejuízo.
+              </p>
+            )}
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="shrink-0 gap-1.5 text-muted-foreground"
-            onClick={reset}
-            disabled={!changed}
-            title="Voltar aos valores reais do produto"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Resetar
-          </Button>
         </div>
-        {!valid && (
-          <p className="mt-2 text-[11px] font-medium text-destructive">
-            {errMsg ?? "Combinação inviável: a margem somada aos custos variáveis ultrapassa o limite. Ajuste os valores."}
-          </p>
-        )}
-        {valid && sim.margin < 0 && (
-          <p className="mt-2 text-[11px] font-medium text-amber-600">
-            Atenção: nesse preço a margem fica negativa ({sim.margin.toFixed(2)}%) — você venderia no prejuízo.
-          </p>
-        )}
       </td>
     </tr>
   );
@@ -936,7 +960,7 @@ function ProductRow({
                 {formatBRL(cell!.sellingPrice)}
               </span>
             ) : (
-              <span className="text-[11px] font-medium text-destructive" title="Margem inviável: margem + custos variáveis chegam perto de 100%.">inviável</span>
+              <span className="text-[11px] font-medium text-destructive" title="Impossível: margem + custos variáveis atingem 100% — não existe preço que feche a conta.">impossível</span>
             )}
           </td>
         );
@@ -945,7 +969,7 @@ function ProductRow({
         {varCell && varCell.valid ? (
           <span className="font-semibold text-amber-700">{formatBRL(varCell.sellingPrice)}</span>
         ) : (
-          <span className="text-[11px] font-medium text-destructive" title="Margem inviável: margem + custos variáveis chegam perto de 100%.">inviável</span>
+          <span className="text-[11px] font-medium text-destructive" title="Impossível: margem + custos variáveis atingem 100% — não existe preço que feche a conta.">impossível</span>
         )}
       </td>
       <td className="border-l border-border px-1 py-2.5 align-top">
@@ -958,7 +982,7 @@ function ProductRow({
             onClick={() => setSimOpen((v) => !v)}
             title="Simular preços (brincar com Matriz, margem e preço)"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <Calculator className="h-3.5 w-3.5" />
           </Button>
           <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)} title="Editar">
             <Pencil className="h-3.5 w-3.5" />
