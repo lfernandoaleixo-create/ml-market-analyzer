@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AccountProvider, brtDateKey } from "./accountProvider";
 import { __clearVisitsStore } from "./visitsStore";
+import { __clearVisitsDailyStore } from "./visitsDailyStore";
 
 /** Wait for the detached background visits collector to settle. */
 async function settle(ms = 30) {
@@ -1254,5 +1255,100 @@ describe("AccountProvider rate limit (429) handling", () => {
     expect(rep).not.toBeNull();
     expect(rep!.nickname).toBe("LOJADOSRWU");
     expect(calls).toBeGreaterThanOrEqual(2);
+  });
+});
+
+
+describe("AccountProvider.getDailyVisitsBreakdown", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    // Limpa os dois stores progressivos entre os testes.
+    __clearVisitsStore();
+    __clearVisitsDailyStore();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  /**
+   * Helper: prime o coletor (1ª leitura vem vazia), espera o background settle e
+   * lê de novo — espelha o modelo progressivo do breakdown diário.
+   */
+  async function collectDaily(provider: AccountProvider, ids: string[], days: 4 | 7 = 4) {
+    provider.getDailyVisitsBreakdown(ids, days);
+    await settle();
+    return provider.getDailyVisitsBreakdown(ids, days);
+  }
+
+  it("monta a série diária por item (hoje + 3 dias atrás), zero-preenchida e ancorada em BRT", async () => {
+    // ML responde com 2 dos 4 dias preenchidos; os outros devem virar 0.
+    const today = brtDateKey(Date.now());
+    const DAY = 24 * 60 * 60 * 1000;
+    const yest = brtDateKey(Date.now() - DAY);
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (/\/items\/MLB1\/visits\/time_window/.test(u)) {
+        return {
+          ok: true,
+          json: async () => ({
+            item_id: "MLB1",
+            total_visits: 30,
+            results: [
+              { date: `${yest}T00:00:00.000-03:00`, total: 10 },
+              { date: `${today}T00:00:00.000-03:00`, total: 20 },
+            ],
+          }),
+        } as any;
+      }
+      return { ok: true, json: async () => ({}) } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await collectDaily(provider, ["MLB1"], 4);
+    const series = res.perItem.get("MLB1");
+    expect(series).toBeDefined();
+    expect(series!.length).toBe(4); // hoje + 3 dias atrás
+    // Eixo do mais antigo -> hoje; último ponto é hoje.
+    expect(series![3].date).toBe(today);
+    expect(series![3].visits).toBe(20);
+    expect(series![2].date).toBe(yest);
+    expect(series![2].visits).toBe(10);
+    // Os 2 dias mais antigos não vieram no payload -> 0.
+    expect(series![0].visits).toBe(0);
+    expect(series![1].visits).toBe(0);
+    expect(res.resolved).toBe(1);
+    expect(res.attempted).toBe(1);
+  });
+
+  it("conta item que o ML respondeu com ZERO visitas como resolvido (série toda 0, não pendente)", async () => {
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (/\/items\/MLB9\/visits\/time_window/.test(u)) {
+        return { ok: true, json: async () => ({ item_id: "MLB9", total_visits: 0, results: [] }) } as any;
+      }
+      return { ok: true, json: async () => ({}) } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await collectDaily(provider, ["MLB9"], 4);
+    const series = res.perItem.get("MLB9");
+    expect(series).toBeDefined();
+    expect(series!.length).toBe(4);
+    expect(series!.every((p) => p.visits === 0)).toBe(true);
+    expect(res.resolved).toBe(1); // respondeu (zero) => resolvido
+  });
+
+  it("um item que falha (429) NÃO entra no resultado e mantém collecting=true (retry no próximo poll)", async () => {
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (/\/items\/MLBFAIL\/visits\/time_window/.test(u)) {
+        return { ok: false, status: 429, json: async () => ({ message: "too many requests" }) } as any;
+      }
+      return { ok: true, json: async () => ({}) } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    const res = await collectDaily(provider, ["MLBFAIL"], 4);
+    expect(res.perItem.has("MLBFAIL")).toBe(false); // não resolvido
+    expect(res.resolved).toBe(0);
+    expect(res.collecting).toBe(true); // segue coletando para tentar de novo
   });
 });

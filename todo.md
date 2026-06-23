@@ -1312,3 +1312,16 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Selo "abaixo do custo" na coluna Matriz quando negativo (com explicação no tooltip)
 - [x] Testes atualizados (Marmita R$25/300-500g => negativo; preços válidos sempre > 0); 666 testes verdes
 - [x] Validado ao vivo: Marmita mostra -R$0,50 + "—"; simulador com Matriz R$6,10 @20% => R$37,94
+
+## Visitas diárias por anúncio na Lista (hoje + 3 dias atrás)
+- [ ] Backend: helper para extrair visitas por dia (4 dias) por item a partir do time_window
+- [ ] Backend: endpoint leve account.visitsDaily (4 dias) por anúncio (hoje, ontem, anteontem, 3d atrás) + total
+- [ ] Backend: testes do helper/endpoint (timezone BRT, dias ausentes = 0, falha = indisponível)
+- [ ] Frontend: exibir os 4 dias por anúncio na Lista de anúncios com indicação de tendência
+- [ ] Validar (vitest+tsc+preview), checkpoint e reportar
+
+## Visitas por dia na Lista de anúncios (CONCLUÍDO)
+- [x] Backend: endpoint account.visitsDaily (breakdown de 4 dias por anúncio) + visitsDailyStore progressivo
+- [x] Helper getDailyVisitsBreakdown (BRT, dias ausentes = 0) + 3 testes
+- [x] Frontend: coluna "Últimos dias" (dom/seg/hoje) com valores + seta de tendência hoje-vs-ontem
+- [x] Validado ao vivo no preview e 39 testes do provider verdes

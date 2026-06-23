@@ -360,6 +360,33 @@ export const accountRouter = router({
     };
     }),
 
+  /**
+   * Visitas DIÁRIAS por anúncio (últimos N dias, default 4 = hoje + 3 dias atrás).
+   * Recebe os itemIds visíveis na lista e devolve, por anúncio, a série diária
+   * (do mais antigo ao mais recente; o último é HOJE, ainda parcial). NÃO bloqueia:
+   * usa o coletor progressivo (visitsDailyStore) e devolve o que já foi coletado,
+   * sinalizando `collecting` para o cliente continuar o poll até completar.
+   */
+  visitsDaily: protectedProcedure
+    .input(
+      z.object({
+        itemIds: z.array(z.string().min(1)).min(1).max(400),
+        days: z.union([z.literal(4), z.literal(7)]).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) =>
+      runAccount(async () => {
+        const days = input.days ?? 4;
+        const account = await resolveAccount(ctx.user.id);
+        const { perItem, attempted, resolved, collecting } =
+          account.getDailyVisitsBreakdown(input.itemIds, days);
+        // Mapa -> objeto serializável { itemId: VisitsDayPoint[] }.
+        const items: Record<string, { date: string; visits: number }[]> = {};
+        for (const [id, series] of Array.from(perItem.entries())) items[id] = series;
+        return { items, days, attempted, resolved, collecting };
+      }),
+    ),
+
   /** Post-sale summary (claims, cancellations). */
   postSale: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 180;

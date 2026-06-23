@@ -23,6 +23,8 @@ import {
   formatRatePct,
   formatCompact,
   isoToWeekdayLong,
+  isoToWeekdayShort,
+  isoToDayNum,
 } from "@/lib/format";
 import { computeVisitsTrendPct } from "@shared/visitsTrend";
 import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
@@ -177,6 +179,27 @@ export default function Anuncios() {
   );
 
   const items = useMemo<ListingRow[]>(() => data?.items ?? [], [data]);
+
+  // Visitas DIÁRIAS por anúncio (hoje + 3 dias atrás) — endpoint dedicado e
+  // não-bloqueante. Envia os itemIds da conta e devolve a série de 4 dias por
+  // anúncio; faz poll enquanto o ML ainda está sendo coletado em background.
+  const dailyItemIds = useMemo(
+    () => items.map((i) => i.itemId).filter(Boolean),
+    [items],
+  );
+  const visitsDaily = trpc.account.visitsDaily.useQuery(
+    { itemIds: dailyItemIds, days: 4 },
+    {
+      enabled: conn.data?.connected === true && dailyItemIds.length > 0,
+      refetchInterval: (query) => (query.state.data?.collecting ? 5 * 1000 : 5 * 60 * 1000),
+      refetchOnWindowFocus: true,
+    },
+  );
+  // Mapa estável itemId -> série de 4 dias, consumido pela tabela.
+  const dailyVisitsMap = useMemo<Record<string, VisitsDayPoint[]>>(
+    () => visitsDaily.data?.items ?? {},
+    [visitsDaily.data],
+  );
 
   const insights = useMemo(() => computeInsights(items), [items]);
 
@@ -589,7 +612,7 @@ export default function Anuncios() {
               <p className="text-sm text-muted-foreground">Nenhum anúncio neste grupo no momento.</p>
             </div>
           ) : (
-            <ListingsTable rows={insightRows} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+            <ListingsTable rows={insightRows} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} dailyVisits={dailyVisitsMap} />
           )}
         </SectionCard>
       )}
@@ -741,7 +764,7 @@ export default function Anuncios() {
             </p>
           </div>
         ) : (
-          <ListingsTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+          <ListingsTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} dailyVisits={dailyVisitsMap} />
         )}
         {isFetching && !isLoading && (
           <p className="mt-3 text-center text-xs text-muted-foreground">Atualizando janela de {visitWindow} dias…</p>
@@ -879,16 +902,95 @@ function SortableTh({
   );
 }
 
+/**
+ * Célula "Últimos dias": mostra as visitas de anteontem, ontem e hoje (3 colunas
+ * curtas) com a variação hoje-vs-ontem. A série recebida tem 4 pontos
+ * (mais antigo -> hoje); usamos os 3 últimos na exibição e o 4º só daria contexto.
+ * Hoje ainda é PARCIAL, por isso a variação é apenas um indicativo.
+ */
+function DailyVisitsCell({ series }: { series?: VisitsDayPoint[] }) {
+  // Ainda coletando do ML (ou item sem dados): mostra placeholder discreto.
+  if (!series || series.length === 0) {
+    return (
+      <div className="flex items-center justify-center">
+        <span className="text-muted-foreground/40" title="Carregando as visitas por dia do Mercado Livre…">—</span>
+      </div>
+    );
+  }
+  // Exibe os 3 últimos dias (anteontem, ontem, hoje).
+  const visible = series.slice(-3);
+  const today = visible[visible.length - 1];
+  const yest = visible.length >= 2 ? visible[visible.length - 2] : null;
+  // Variação hoje vs. ontem (indicativo — hoje é parcial).
+  let delta: number | null = null;
+  if (yest) {
+    if (yest.visits === 0) delta = today.visits > 0 ? 100 : 0;
+    else delta = ((today.visits - yest.visits) / yest.visits) * 100;
+  }
+  const up = delta != null && delta > 0;
+  const down = delta != null && delta < 0;
+  const todayKey = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  return (
+    <div className="flex items-center justify-center gap-2">
+      <div className="flex items-end gap-1.5">
+        {visible.map((p) => {
+          const isToday = p.date === todayKey;
+          return (
+            <div
+              key={p.date}
+              className="flex w-11 flex-col items-center rounded-md px-1 py-1"
+              title={`${isoToWeekdayLong(p.date)}${isToday ? " (hoje, parcial)" : ""}: ${formatNumber(p.visits)} visitas`}
+            >
+              <span
+                className={cn(
+                  "text-[10px] uppercase leading-none",
+                  isToday ? "font-semibold text-primary" : "text-muted-foreground",
+                )}
+              >
+                {isToday ? "hoje" : `${isoToWeekdayShort(p.date)} ${isoToDayNum(p.date)}`}
+              </span>
+              <span
+                className={cn(
+                  "mt-0.5 tabular-nums leading-none",
+                  isToday ? "text-sm font-semibold text-foreground" : "text-sm text-foreground/80",
+                )}
+              >
+                {formatNumber(p.visits)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {delta != null && (up || down) && (
+        <span
+          className={cn(
+            "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+            up ? "bg-emerald-500/12 text-emerald-700" : "bg-rose-500/12 text-rose-700",
+          )}
+          title="Variação de hoje (parcial) em relação a ontem"
+        >
+          {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+          {Math.abs(delta).toFixed(0)}%
+        </span>
+      )}
+    </div>
+  );
+}
+
 function ListingsTable({
   rows,
   sortKey,
   sortDir,
   onSort,
+  dailyVisits,
 }: {
   rows: ListingRow[];
   sortKey: SortKey;
   sortDir: SortDir;
   onSort: (k: SortKey) => void;
+  /** itemId -> série de 4 dias (mais antigo -> hoje). Vazio enquanto coleta. */
+  dailyVisits: Record<string, VisitsDayPoint[]>;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -900,6 +1002,9 @@ function ListingsTable({
             <SortableTh label="Estoque" k="availableQuantity" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Vendas" k="soldQuantity" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Visitas" k="visits" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <th className="pb-2 px-3 text-center font-medium" title="Visitas por dia: anteontem, ontem e hoje (hoje ainda parcial)">
+              <span className="inline-flex items-center gap-1">Últimos dias</span>
+            </th>
             <SortableTh label="Conversão" k="conversion" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Saúde" k="health" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <th className="pb-2 pl-3 font-medium">Status</th>
@@ -926,6 +1031,9 @@ function ListingsTable({
                 ) : (
                   <span className="text-muted-foreground/50" title="Visitas ainda carregando do Mercado Livre">—</span>
                 )}
+              </td>
+              <td className="px-3">
+                <DailyVisitsCell series={dailyVisits[r.itemId]} />
               </td>
               <td className="px-3 text-right tabular-nums">
                 {r.visitsAvailable ? (

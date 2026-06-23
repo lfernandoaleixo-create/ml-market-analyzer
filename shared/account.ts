@@ -139,6 +139,11 @@ export interface ListingRow {
   /** Peso da embalagem do vendedor (gramas), do atributo SELLER_PACKAGE_WEIGHT do
    *  ML — é o que o ML usa para o frete. null quando o anúncio não declara. */
   packageWeightGrams?: number | null;
+  /** Visitas discriminadas por dia (BRT) para os últimos dias — hoje, ontem,
+   *  anteontem e 3 dias atrás. Ordenado do mais ANTIGO para o mais RECENTE
+   *  (o último item é HOJE, ainda parcial). Ausente/undefined enquanto o ML não
+   *  respondeu (a UI mostra "—" e mantém o poll). */
+  dailyVisits?: VisitsDayPoint[];
 }
 
 export interface ListingsSummary {

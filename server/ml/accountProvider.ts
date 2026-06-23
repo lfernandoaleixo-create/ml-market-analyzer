@@ -23,6 +23,7 @@ import {
 } from "@shared/technicalSpecs";
 import { mlLimiter } from "./mlRateLimiter";
 import { readVisits, ensureCollecting } from "./visitsStore";
+import { readDailyVisits, ensureCollectingDaily } from "./visitsDailyStore";
 
 /**
  * AccountProvider — reads REAL data from the connected seller account using the
@@ -590,6 +591,61 @@ export class AccountProvider {
   ): Promise<{ series: VisitsDayPoint[]; attempted: number; resolved: number }> {
     const { ids } = await this.getActiveItemIds(cap);
     return this.getVisitsSeries(ids, lastDays, cap);
+  }
+
+  /**
+   * Per-item DAILY visits breakdown for the last `lastDays` days (default 4 =
+   * hoje + 3 dias atrás). NON-BLOCKING and progressive: reads whatever the
+   * background collector (visitsDailyStore) has gathered so far and kicks a
+   * collection for the items still missing/stale. Each item's series is
+   * zero-filled and BRT-anchored so every requested day is present (the last
+   * point is always today, still partial).
+   *
+   * Returns one entry per item id that ML has already answered for; items not
+   * yet collected are simply absent from the map (the UI shows "—" and keeps
+   * polling). `collecting` lets the client know to poll again.
+   */
+  getDailyVisitsBreakdown(
+    ids: string[],
+    lastDays = 4,
+  ): {
+    perItem: Map<string, VisitsDayPoint[]>;
+    attempted: number;
+    resolved: number;
+    collecting: boolean;
+  } {
+    const snapshot = readDailyVisits(this.userId, lastDays, ids);
+    // Kick the background collector for missing/stale items. Gentle concurrency
+    // (2) because the dated endpoint is 1 item/call and ML throttles bursts.
+    ensureCollectingDaily(
+      this.userId,
+      lastDays,
+      ids,
+      (id) => this.getItemVisitsSeries(id, lastDays),
+      { concurrency: 2 },
+    );
+
+    // Build the BRT-anchored day axis for the window: oldest -> today.
+    const DAY = 24 * 60 * 60 * 1000;
+    const endAnchor = Date.parse(`${brtDateKey(Date.now())}T03:00:00.000Z`);
+    const startAnchor = endAnchor - (lastDays - 1) * DAY;
+    const axis: string[] = [];
+    for (let t = startAnchor; t <= endAnchor; t += DAY) axis.push(brtDateKey(t));
+
+    const perItem = new Map<string, VisitsDayPoint[]>();
+    for (const [id, days] of Array.from(snapshot.map.entries())) {
+      const series: VisitsDayPoint[] = axis.map((key) => ({
+        date: key,
+        visits: days.get(key) ?? 0,
+      }));
+      perItem.set(id, series);
+    }
+    return {
+      perItem,
+      attempted: snapshot.attempted,
+      resolved: snapshot.resolved,
+      collecting: snapshot.collecting || snapshot.resolved < snapshot.attempted,
+    };
   }
 
   private mapStatus(s: string | undefined): ListingStatus {
