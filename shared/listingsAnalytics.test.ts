@@ -11,6 +11,7 @@ import {
   computeInsights,
   filterListings,
   sortListings,
+  dayVisitsFromMap,
   listingsToCsv,
   selectActiveListings,
 } from "./listingsAnalytics";
@@ -180,5 +181,64 @@ describe("selectActiveListings", () => {
   it("ignores surrounding whitespace in the query", () => {
     const r = selectActiveListings(items, "  espeto  ");
     expect(r.map((i) => i.itemId)).toEqual(["MLB5"]);
+  });
+});
+
+
+describe("sortListings por dia (day0/day1/day2) + dayVisitsFromMap", () => {
+  // Série: mais antigo -> hoje. Janela de 3 dias usada na UI.
+  const daily = {
+    A: [
+      { date: "2026-06-21", visits: 5 },
+      { date: "2026-06-22", visits: 10 },
+      { date: "2026-06-23", visits: 2 },
+    ],
+    B: [
+      { date: "2026-06-21", visits: 1 },
+      { date: "2026-06-22", visits: 3 },
+      { date: "2026-06-23", visits: 50 },
+    ],
+    C: [
+      { date: "2026-06-21", visits: 8 },
+      { date: "2026-06-22", visits: 0 },
+      { date: "2026-06-23", visits: 0 },
+    ],
+  };
+  const rows = [
+    row({ itemId: "A", title: "A" }),
+    row({ itemId: "B", title: "B" }),
+    row({ itemId: "C", title: "C" }),
+  ];
+
+  it("dayVisitsFromMap resolve hoje/ontem/anteontem por offset do fim", () => {
+    expect(dayVisitsFromMap(daily, "A", 0)).toBe(2); // hoje
+    expect(dayVisitsFromMap(daily, "A", 1)).toBe(10); // ontem
+    expect(dayVisitsFromMap(daily, "A", 2)).toBe(5); // anteontem
+    expect(dayVisitsFromMap(daily, "A", 3)).toBeNull(); // fora da janela
+    expect(dayVisitsFromMap(daily, "Z", 0)).toBeNull(); // item sem série
+    expect(dayVisitsFromMap(undefined, "A", 0)).toBeNull();
+  });
+
+  it("ordena por HOJE (day0) desc: B(50) > A(2) > C(0)", () => {
+    const out = sortListings(rows, "day0", "desc", daily).map((r) => r.itemId);
+    expect(out).toEqual(["B", "A", "C"]);
+  });
+
+  it("ordena por ONTEM (day1) desc: A(10) > B(3) > C(0)", () => {
+    const out = sortListings(rows, "day1", "desc", daily).map((r) => r.itemId);
+    expect(out).toEqual(["A", "B", "C"]);
+  });
+
+  it("ordena por ANTEONTEM (day2) asc: B(1) < A(5) < C(8)", () => {
+    const out = sortListings(rows, "day2", "asc", daily).map((r) => r.itemId);
+    expect(out).toEqual(["B", "A", "C"]);
+  });
+
+  it("itens sem série vão para o fim (nulls last) independente da direção", () => {
+    const withMissing = [...rows, row({ itemId: "Z", title: "Z" })];
+    const desc = sortListings(withMissing, "day0", "desc", daily).map((r) => r.itemId);
+    const asc = sortListings(withMissing, "day0", "asc", daily).map((r) => r.itemId);
+    expect(desc[desc.length - 1]).toBe("Z");
+    expect(asc[asc.length - 1]).toBe("Z");
   });
 });

@@ -1325,3 +1325,18 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Helper getDailyVisitsBreakdown (BRT, dias ausentes = 0) + 3 testes
 - [x] Frontend: coluna "Últimos dias" (dom/seg/hoje) com valores + seta de tendência hoje-vs-ontem
 - [x] Validado ao vivo no preview e 39 testes do provider verdes
+
+## Ordenação por dia + quebra diária por anúncio (pedido 23/06)
+- [x] Lista de anúncios: ordenar por hoje / ontem / anteontem (setinhas como nas outras colunas)
+- [ ] Backend: quebra do total diário por anúncio (visitas por dia x anúncio) no gráfico Evolução das visitas
+- [ ] Frontend (Painel): ao olhar um dia do gráfico, ver quanto cada anúncio teve naquele dia
+
+## Quebra do total diário de visitas por anúncio (Painel + Anúncios)
+- [x] shared/account.ts: tipos ListingDailySeries e ListingDailyBreakdownResult
+- [x] accountProvider.getDailyVisitsByListing(lastDays=30): séries por item + título/thumbnail/permalink, ordenado por total desc
+- [x] Endpoint tRPC account.visitsByListing (protected, days 7/30/90, com flag collecting)
+- [x] VisitsEvolutionChart: prop onSelectDay (clique no dia) + dica no tooltip
+- [x] DayVisitsBreakdownDialog: modal com lista de anúncios por dia (thumbnail, título, visitas, %, link)
+- [x] Ligado no Painel e em Meus Anúncios
+- [x] 3 testes novos em accountProvider.test.ts (ordenação, soma por dia, fallback de permalink)
+- [x] tsc limpo; 677 testes verdes

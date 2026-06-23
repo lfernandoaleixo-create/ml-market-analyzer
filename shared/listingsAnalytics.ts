@@ -248,20 +248,56 @@ export type SortKey =
   | "visits"
   | "conversion"
   | "health"
-  | "stockValue";
+  | "stockValue"
+  | "day0" // hoje (último ponto da série diária)
+  | "day1" // ontem
+  | "day2"; // anteontem
 
 export type SortDir = "asc" | "desc";
 
-/** Stable sort by a numeric/string key. Nulls always sort last. */
-export function sortListings(items: ListingRow[], key: SortKey, dir: SortDir): ListingRow[] {
+/** Mapa itemId -> série diária (último ponto = hoje). */
+export type DailyVisitsMap = Record<string, { date: string; visits: number }[]>;
+
+/** Resolve as visitas do dia `offsetFromEnd` (0 = hoje, 1 = ontem, 2 = anteontem)
+ *  a partir do mapa diário. Retorna null quando ainda não há dado. */
+export function dayVisitsFromMap(
+  daily: DailyVisitsMap | undefined,
+  itemId: string,
+  offsetFromEnd: number,
+): number | null {
+  const series = daily?.[itemId];
+  if (!series || series.length === 0) return null;
+  const idx = series.length - 1 - offsetFromEnd;
+  if (idx < 0) return null;
+  const pt = series[idx];
+  return pt ? pt.visits : null;
+}
+
+/** Stable sort by a numeric/string key. Nulls always sort last.
+ *  Para as chaves de dia (day0/day1/day2), passe o `daily` (mapa por itemId). */
+export function sortListings(
+  items: ListingRow[],
+  key: SortKey,
+  dir: SortDir,
+  daily?: DailyVisitsMap,
+): ListingRow[] {
   const sign = dir === "asc" ? 1 : -1;
   const copy = items.slice();
+  const dayOffset: Record<string, number> = { day0: 0, day1: 1, day2: 2 };
   copy.sort((a, b) => {
     if (key === "title") {
       return sign * normalize(a.title).localeCompare(normalize(b.title));
     }
-    const av = a[key] as number | null;
-    const bv = b[key] as number | null;
+    let av: number | null;
+    let bv: number | null;
+    if (key in dayOffset) {
+      const off = dayOffset[key];
+      av = dayVisitsFromMap(daily, a.itemId, off);
+      bv = dayVisitsFromMap(daily, b.itemId, off);
+    } else {
+      av = a[key as keyof ListingRow] as number | null;
+      bv = b[key as keyof ListingRow] as number | null;
+    }
     if (av == null && bv == null) return 0;
     if (av == null) return 1; // nulls last regardless of dir
     if (bv == null) return -1;

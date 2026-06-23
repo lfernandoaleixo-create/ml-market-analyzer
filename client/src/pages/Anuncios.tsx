@@ -29,6 +29,7 @@ import {
 import { computeVisitsTrendPct } from "@shared/visitsTrend";
 import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
 import { VisitsEvolutionChart } from "@/components/charts/VisitsEvolutionChart";
+import { DayVisitsBreakdownDialog } from "@/components/charts/DayVisitsBreakdownDialog";
 import {
   Select,
   SelectContent,
@@ -147,6 +148,8 @@ export default function Anuncios() {
   const [filters, setFilters] = useState<ListingFilters>(emptyFilters);
   const [sortKey, setSortKey] = useState<SortKey>("visits");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  // Day picked on the VISITS chart -> opens the per-listing breakdown modal.
+  const [visitsDay, setVisitsDay] = useState<string | null>(null);
 
   const conn = trpc.account.connection.useQuery();
   const { data, isLoading, error, isFetching, dataUpdatedAt, refetch } = trpc.account.listings.useQuery(
@@ -223,7 +226,10 @@ export default function Anuncios() {
   );
 
   const filtered = useMemo(() => filterListings(items, filters), [items, filters]);
-  const sorted = useMemo(() => sortListings(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
+  const sorted = useMemo(
+    () => sortListings(filtered, sortKey, sortDir, dailyVisitsMap),
+    [filtered, sortKey, sortDir, dailyVisitsMap],
+  );
 
   // When an insight card is selected we surface the matching listings right
   // below the Oportunidades section (in addition to driving the full table).
@@ -232,8 +238,8 @@ export default function Anuncios() {
     [filters.insightId, insights],
   );
   const insightRows = useMemo(
-    () => (selectedInsight ? sortListings(selectedInsight.items, sortKey, sortDir) : []),
-    [selectedInsight, sortKey, sortDir],
+    () => (selectedInsight ? sortListings(selectedInsight.items, sortKey, sortDir, dailyVisitsMap) : []),
+    [selectedInsight, sortKey, sortDir, dailyVisitsMap],
   );
 
 
@@ -540,8 +546,17 @@ export default function Anuncios() {
           pending={visits.data?.pending === true}
           onRetry={() => visits.refetch()}
           refreshing={visits.isFetching}
+          onSelectDay={(d) => setVisitsDay(d)}
         />
       </SectionCard>
+
+      <DayVisitsBreakdownDialog
+        date={visitsDay}
+        open={visitsDay !== null}
+        onOpenChange={(o) => {
+          if (!o) setVisitsDay(null);
+        }}
+      />
 
       {/* Raio-X da Ficha Técnica */}
       <TechSpecsCard connected={conn.data?.connected === true} />
@@ -903,6 +918,49 @@ function SortableTh({
 }
 
 /**
+ * Cabeçalho da coluna "Últimos dias": 3 mini-colunas (anteontem/ontem/hoje),
+ * cada uma ordenável (setinha) pelo número de visitas daquele dia.
+ */
+function DailyHeader({
+  dayLabels,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  dayLabels: { key: SortKey; label: string }[];
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (k: SortKey) => void;
+}) {
+  return (
+    <th className="pb-2 px-3 text-center font-medium" title="Visitas por dia: anteontem, ontem e hoje (hoje ainda parcial). Clique em um dia para ordenar.">
+      <div className="flex items-end justify-center gap-1.5">
+        {dayLabels.map(({ key, label }) => {
+          const active = sortKey === key;
+          const Icon = active ? (sortDir === "desc" ? ArrowDown : ArrowUp) : ArrowUpDown;
+          const isToday = label === "Hoje";
+          return (
+            <button
+              key={key}
+              onClick={() => onSort(key)}
+              className={cn(
+                "flex w-11 flex-col items-center gap-0.5 rounded-md py-0.5 transition-colors hover:text-foreground",
+                active && "text-foreground",
+                isToday && !active && "text-primary/80",
+              )}
+              title={`Ordenar por ${label}`}
+            >
+              <span className="text-[10px] uppercase leading-none">{label}</span>
+              <Icon className="h-3 w-3" />
+            </button>
+          );
+        })}
+      </div>
+    </th>
+  );
+}
+
+/**
  * Célula "Últimos dias": mostra as visitas de anteontem, ontem e hoje (3 colunas
  * curtas) com a variação hoje-vs-ontem. A série recebida tem 4 pontos
  * (mais antigo -> hoje); usamos os 3 últimos na exibição e o 4º só daria contexto.
@@ -992,6 +1050,31 @@ function ListingsTable({
   /** itemId -> série de 4 dias (mais antigo -> hoje). Vazio enquanto coleta. */
   dailyVisits: Record<string, VisitsDayPoint[]>;
 }) {
+  // Deriva os rótulos dos 3 dias (anteontem/ontem/hoje) a partir da 1ª série disponível.
+  const sampleSeries = useMemo(() => {
+    for (const r of rows) {
+      const s = dailyVisits[r.itemId];
+      if (s && s.length > 0) return s.slice(-3);
+    }
+    return [] as VisitsDayPoint[];
+  }, [rows, dailyVisits]);
+  const todayKey = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // dayLabels alinhado às chaves de sort: day2=anteontem, day1=ontem, day0=hoje.
+  const dayLabels = useMemo(() => {
+    // Garante 3 posições (mais antigo -> hoje) mesmo quando a série vier curta.
+    const padded = sampleSeries.slice(-3);
+    const labels: { key: SortKey; label: string }[] = [];
+    const offsets: SortKey[] = ["day2", "day1", "day0"]; // posições 0,1,2 da janela de 3 dias
+    for (let i = 0; i < 3; i++) {
+      const p = padded[i];
+      let label = "—";
+      if (p) {
+        label = p.date === todayKey ? "Hoje" : `${isoToWeekdayShort(p.date)} ${isoToDayNum(p.date)}`;
+      }
+      labels.push({ key: offsets[i], label });
+    }
+    return labels;
+  }, [sampleSeries, todayKey]);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -1002,9 +1085,7 @@ function ListingsTable({
             <SortableTh label="Estoque" k="availableQuantity" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Vendas" k="soldQuantity" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Visitas" k="visits" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <th className="pb-2 px-3 text-center font-medium" title="Visitas por dia: anteontem, ontem e hoje (hoje ainda parcial)">
-              <span className="inline-flex items-center gap-1">Últimos dias</span>
-            </th>
+            <DailyHeader dayLabels={dayLabels} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Conversão" k="conversion" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Saúde" k="health" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <th className="pb-2 pl-3 font-medium">Status</th>

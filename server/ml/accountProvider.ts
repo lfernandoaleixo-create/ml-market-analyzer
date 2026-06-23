@@ -12,6 +12,8 @@ import type {
   StoreLifetime,
   DayProducts,
   VisitsDayPoint,
+  ListingDailySeries,
+  ListingDailyBreakdownResult,
   TechSpecsResult,
   TechSpecListing,
 } from "@shared/account";
@@ -645,6 +647,67 @@ export class AccountProvider {
       attempted: snapshot.attempted,
       resolved: snapshot.resolved,
       collecting: snapshot.collecting || snapshot.resolved < snapshot.attempted,
+    };
+  }
+
+  /**
+   * Per-listing daily visits over a window (default 30 days) for the Painel
+   * "Evolução das visitas" chart breakdown. NON-BLOCKING and progressive: it
+   * builds on top of `getDailyVisitsBreakdown` (which reads the background
+   * collector) and enriches each item that already has data with its
+   * title/thumbnail/permalink so the UI can show, for any given day, exactly
+   * which listings produced that day's visits.
+   *
+   * Returns `{ listings, attempted, resolved, collecting }`. While `collecting`
+   * is true the client should keep polling. Items not yet collected are simply
+   * absent from `listings`.
+   */
+  async getDailyVisitsByListing(lastDays = 30): Promise<ListingDailyBreakdownResult> {
+    const { ids } = await this.getActiveItemIds(200);
+    const breakdown = this.getDailyVisitsBreakdown(ids, lastDays);
+
+    const resolvedIds = Array.from(breakdown.perItem.keys());
+    // Enrich only the items that already have a series — cheaper and avoids
+    // fetching details for items the collector hasn't answered for yet.
+    const detailsById = new Map<string, any>();
+    if (resolvedIds.length > 0) {
+      try {
+        const details = await this.getItemsDetails(resolvedIds);
+        for (const d of details) detailsById.set(d.id, d);
+      } catch {
+        // Best-effort: if details fail we still return the series with fallbacks.
+      }
+    }
+
+    const listings: ListingDailySeries[] = resolvedIds.map((id) => {
+      const d = detailsById.get(id);
+      const thumb =
+        (d?.thumbnail ||
+          (Array.isArray(d?.pictures) && d.pictures.length ? d.pictures[0].url : undefined)) ??
+        undefined;
+      return {
+        itemId: id,
+        title: d?.title ?? id,
+        thumbnail: thumb ? String(thumb).replace(/^http:\/\//, "https://") : undefined,
+        permalink:
+          d?.permalink ?? `https://produto.mercadolivre.com.br/${id}`,
+        series: breakdown.perItem.get(id) ?? [],
+      };
+    });
+
+    // Stable order: highest total visits first so the most relevant listings
+    // surface at the top of the breakdown.
+    listings.sort(
+      (a, b) =>
+        b.series.reduce((s, p) => s + p.visits, 0) -
+        a.series.reduce((s, p) => s + p.visits, 0),
+    );
+
+    return {
+      listings,
+      attempted: breakdown.attempted,
+      resolved: breakdown.resolved,
+      collecting: breakdown.collecting,
     };
   }
 

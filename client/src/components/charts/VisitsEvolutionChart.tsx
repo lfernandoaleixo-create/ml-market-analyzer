@@ -29,6 +29,7 @@ export function VisitsEvolutionChart({
   pending = false,
   onRetry,
   refreshing = false,
+  onSelectDay,
 }: {
   series: VisitsDayPoint[];
   loading?: boolean;
@@ -40,6 +41,9 @@ export function VisitsEvolutionChart({
   onRetry?: () => void;
   /** True while a manual/auto refetch triggered by onRetry is in flight. */
   refreshing?: boolean;
+  /** When provided, clicking a day on the chart calls back with the ISO date
+   *  (yyyy-mm-dd) so the parent can show the per-listing breakdown for that day. */
+  onSelectDay?: (date: string) => void;
 }) {
   if (loading) {
     return <Skeleton className="h-52 w-full" />;
@@ -116,7 +120,16 @@ export function VisitsEvolutionChart({
       </div>
       <div className="h-56 w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={80}>
-          <ComposedChart data={data} margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
+          <ComposedChart
+            data={data}
+            margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
+            onClick={(state: any) => {
+              if (!onSelectDay) return;
+              const label = state?.activeLabel;
+              if (typeof label === "string" && label) onSelectDay(label);
+            }}
+            style={onSelectDay ? { cursor: "pointer" } : undefined}
+          >
             <defs>
               <linearGradient id="visitsFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.28} />
@@ -240,6 +253,7 @@ function VisitsTooltip({ active, payload, todayKey }: any) {
         <Eye className="h-3.5 w-3.5" /> {formatNumber(d.visits)}
         <span className="text-muted-foreground">visita(s)</span>
       </p>
+      <p className="mt-1 text-[10px] text-muted-foreground">Clique para ver por anúncio</p>
     </div>
   );
 }

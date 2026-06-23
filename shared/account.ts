@@ -195,6 +195,29 @@ export interface VisitsDayPoint {
   visits: number;
 }
 
+/** Per-listing daily visits series (BRT-anchored, zero-filled) used by the
+ *  Painel "Evolução das visitas" chart to break a day's total down into the
+ *  individual listings that produced those visits. */
+export interface ListingDailySeries {
+  itemId: string;
+  title: string;
+  thumbnail?: string;
+  permalink?: string;
+  /** BRT-anchored, zero-filled daily visits for the requested window. */
+  series: VisitsDayPoint[];
+}
+
+export interface ListingDailyBreakdownResult {
+  /** One entry per listing ML has answered for (others keep being collected). */
+  listings: ListingDailySeries[];
+  /** Number of items the collector attempted. */
+  attempted: number;
+  /** Number of items already resolved with at least one data point. */
+  resolved: number;
+  /** True while the background collector is still gathering data — poll again. */
+  collecting: boolean;
+}
+
 export interface ListingsResult {
   summary: ListingsSummary;
   items: ListingRow[];

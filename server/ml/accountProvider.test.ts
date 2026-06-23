@@ -1352,3 +1352,153 @@ describe("AccountProvider.getDailyVisitsBreakdown", () => {
     expect(res.collecting).toBe(true); // segue coletando para tentar de novo
   });
 });
+
+describe("AccountProvider.getDailyVisitsByListing", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    __clearVisitsStore();
+    __clearVisitsDailyStore();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  /**
+   * Mocks: search de itens ativos, /items multiget (detalhes) e
+   * /items/{id}/visits/time_window (coletor diário). Dois anúncios com visitas
+   * diferentes em dias diferentes, para validar a quebra e a ordenação.
+   */
+  function mockFetch() {
+    const today = brtDateKey(Date.now());
+    const DAY = 24 * 60 * 60 * 1000;
+    const yest = brtDateKey(Date.now() - DAY);
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (/\/users\/\d+\/items\/search/.test(u)) {
+        return {
+          ok: true,
+          json: async () => ({ results: ["MLB1", "MLB2"], paging: { total: 2 } }),
+        } as any;
+      }
+      if (/\/items\?ids=/.test(u)) {
+        return {
+          ok: true,
+          json: async () => [
+            {
+              code: 200,
+              body: {
+                id: "MLB1",
+                title: "Produto Um",
+                thumbnail: "http://img/mlb1.jpg",
+                permalink: "https://ml.com/mlb1",
+              },
+            },
+            {
+              code: 200,
+              body: {
+                id: "MLB2",
+                title: "Produto Dois",
+                thumbnail: "https://img/mlb2.jpg",
+                permalink: "https://ml.com/mlb2",
+              },
+            },
+          ],
+        } as any;
+      }
+      if (/\/items\/MLB1\/visits\/time_window/.test(u)) {
+        return {
+          ok: true,
+          json: async () => ({
+            item_id: "MLB1",
+            total_visits: 5,
+            results: [{ date: `${today}T00:00:00.000-03:00`, total: 5 }],
+          }),
+        } as any;
+      }
+      if (/\/items\/MLB2\/visits\/time_window/.test(u)) {
+        return {
+          ok: true,
+          json: async () => ({
+            item_id: "MLB2",
+            total_visits: 12,
+            results: [
+              { date: `${yest}T00:00:00.000-03:00`, total: 8 },
+              { date: `${today}T00:00:00.000-03:00`, total: 4 },
+            ],
+          }),
+        } as any;
+      }
+      return { ok: true, json: async () => ({}) } as any;
+    }) as unknown as typeof fetch;
+    return { today, yest };
+  }
+
+  it("devolve, por anúncio, a série diária + título/thumbnail/permalink, ordenada por total de visitas desc", async () => {
+    mockFetch();
+    const provider = new AccountProvider("token", USER_ID);
+    // 1ª chamada primeia o coletor (série ainda vazia); 2ª lê o que coletou.
+    await provider.getDailyVisitsByListing(7);
+    await settle();
+    const res = await provider.getDailyVisitsByListing(7);
+
+    expect(res.listings.length).toBe(2);
+    // MLB2 tem 12 visitas no total > MLB1 (5) => vem primeiro.
+    expect(res.listings[0].itemId).toBe("MLB2");
+    expect(res.listings[0].title).toBe("Produto Dois");
+    expect(res.listings[1].itemId).toBe("MLB1");
+    // Cada série é zero-preenchida no tamanho da janela (7).
+    expect(res.listings[0].series.length).toBe(7);
+    // thumbnail http:// é normalizado para https://.
+    expect(res.listings[1].thumbnail).toBe("https://img/mlb1.jpg");
+    expect(res.listings[1].permalink).toBe("https://ml.com/mlb1");
+  });
+
+  it("as visitas de um dia específico batem com a soma dos anúncios daquele dia", async () => {
+    const { today, yest } = mockFetch();
+    const provider = new AccountProvider("token", USER_ID);
+    await provider.getDailyVisitsByListing(7);
+    await settle();
+    const res = await provider.getDailyVisitsByListing(7);
+
+    const visitsOn = (date: string) =>
+      res.listings.reduce(
+        (s, l) => s + (l.series.find((p) => p.date === date)?.visits ?? 0),
+        0,
+      );
+    // Hoje: MLB1=5 + MLB2=4 = 9. Ontem: MLB2=8.
+    expect(visitsOn(today)).toBe(9);
+    expect(visitsOn(yest)).toBe(8);
+  });
+
+  it("usa fallback de permalink quando o detalhe do item não traz permalink", async () => {
+    const today = brtDateKey(Date.now());
+    global.fetch = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (/\/users\/\d+\/items\/search/.test(u)) {
+        return { ok: true, json: async () => ({ results: ["MLB7"], paging: { total: 1 } }) } as any;
+      }
+      if (/\/items\?ids=/.test(u)) {
+        return {
+          ok: true,
+          json: async () => [{ code: 200, body: { id: "MLB7", title: "Sem Link" } }],
+        } as any;
+      }
+      if (/\/items\/MLB7\/visits\/time_window/.test(u)) {
+        return {
+          ok: true,
+          json: async () => ({
+            item_id: "MLB7",
+            total_visits: 3,
+            results: [{ date: `${today}T00:00:00.000-03:00`, total: 3 }],
+          }),
+        } as any;
+      }
+      return { ok: true, json: async () => ({}) } as any;
+    }) as unknown as typeof fetch;
+
+    const provider = new AccountProvider("token", USER_ID);
+    await provider.getDailyVisitsByListing(7);
+    await settle();
+    const res = await provider.getDailyVisitsByListing(7);
+    expect(res.listings.length).toBe(1);
+    expect(res.listings[0].permalink).toContain("MLB7");
+  });
+});

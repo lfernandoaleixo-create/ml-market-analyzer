@@ -43,6 +43,7 @@ import {
 } from "recharts";
 import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
 import { VisitsEvolutionChart } from "@/components/charts/VisitsEvolutionChart";
+import { DayVisitsBreakdownDialog } from "@/components/charts/DayVisitsBreakdownDialog";
 import type { VisitsDayPoint } from "@shared/account";
 import {
   Package,
@@ -83,6 +84,8 @@ export default function Painel() {
   // Top 10 ranking starts collapsed every time the page opens, so the user can
   // scroll past it quickly when there are many products.
   const [topOpen, setTopOpen] = useState(false);
+  // Day picked on the VISITS chart -> opens the per-listing breakdown modal.
+  const [visitsDay, setVisitsDay] = useState<string | null>(null);
 
   // Keep querying as long as we believe we're connected OR we still have a
   // cached connection from before a transient session hiccup.
@@ -298,8 +301,17 @@ export default function Painel() {
           pending={visitsSeriesPending}
           onRetry={() => visits.refetch()}
           refreshing={visits.isFetching}
+          onSelectDay={(d) => setVisitsDay(d)}
         />
       </SectionCard>
+
+      <DayVisitsBreakdownDialog
+        date={visitsDay}
+        open={visitsDay !== null}
+        onOpenChange={(o) => {
+          if (!o) setVisitsDay(null);
+        }}
+      />
 
       {/* Period selector — controls both the KPI cards and the chart below */}
       <PeriodSelector

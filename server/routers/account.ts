@@ -387,6 +387,30 @@ export const accountRouter = router({
       }),
     ),
 
+  /**
+   * Quebra do total diário de visitas POR ANÚNCIO (últimos N dias, default 30 =
+   * janela do gráfico "Evolução das visitas" do Painel). Para cada dia, o
+   * cliente pode somar/listar quais anúncios produziram as visitas daquele dia.
+   * NÃO bloqueia: usa o coletor progressivo (visitsDailyStore) e devolve o que
+   * já foi coletado, sinalizando `collecting` para o cliente continuar o poll.
+   */
+  visitsByListing: protectedProcedure
+    .input(
+      z
+        .object({
+          days: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) =>
+      runAccount(async () => {
+        const days = input?.days ?? 30;
+        const account = await resolveAccount(ctx.user.id);
+        const result = await account.getDailyVisitsByListing(days);
+        return { ...result, days };
+      }),
+    ),
+
   /** Post-sale summary (claims, cancellations). */
   postSale: protectedProcedure.input(periodInput).query(async ({ ctx, input }) => {
     const days = input?.days ?? 180;
