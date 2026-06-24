@@ -1394,3 +1394,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Cronograma Luís: atualizar router (remover suppliers; setDone/Note por productId)
 - [x] Cronograma Luís: atualizar testes do luisTimelineDb e rodar suíte
 - [x] Cronograma Luís: corrigir clique (stopPropagation na bolinha + cabeçalho como div role=button) — marcar etapa agora persiste (validado ao vivo: Matador 2/4 · 50%)
+
+
+## Ajustes UI/PDF anúncios (24/jun)
+- [x] Sidebar redimensionável: alça de arraste para alargar/estreitar; largura persistida (localStorage) — validado: 268→420px
+- [x] Remover botões 7d/30d/90d + CSV da aba de anúncios (janela fixa em 30d)
+- [x] PDF anúncios: baixar direto (doc.save via jsPDF, sem tela de impressão) — validado: meus-anuncios-2026-06-24.pdf, 7 páginas
+- [x] PDF anúncios: TODAS as colunas (Anúncio, SKU, Preço, Estoque, Vendas, Visitas, dom/seg/ter/hoje, Conversão, Saúde, Status)
+- [x] Testes + checkpoint (705 testes verdes, 0 erros TS)

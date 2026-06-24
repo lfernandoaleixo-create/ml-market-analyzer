@@ -57,7 +57,6 @@ import {
   computeInsights,
   filterListings,
   sortListings,
-  listingsToCsv,
   type ListingFilters,
   type InsightId,
   type SortKey,
@@ -73,7 +72,6 @@ import {
   PauseCircle,
   AlertCircle,
   Boxes,
-  Download,
   FileText,
   Search as SearchIcon,
   ArrowUpDown,
@@ -274,19 +272,6 @@ export default function Anuncios() {
     }));
   }
 
-  function exportCsv() {
-    const csv = listingsToCsv(sorted);
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `meus-anuncios-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
   function exportPdf() {
     // Monta um rótulo curto descrevendo os filtros aplicados, para o relatório.
     const parts: string[] = [];
@@ -308,9 +293,7 @@ export default function Anuncios() {
         filtersLabel: parts.length ? parts.join(" · ") : "Todos os anúncios",
       });
     } catch (e) {
-      toast.error(
-        "Não foi possível abrir a janela de impressão. Verifique se o navegador está bloqueando pop-ups para este site.",
-      );
+      toast.error("Não foi possível gerar o PDF. Tente novamente.");
     }
   }
 
@@ -372,41 +355,16 @@ export default function Anuncios() {
         title="Meus anúncios"
         subtitle="Central analítica dos seus anúncios: cruze visitas, vendas, conversão, estoque e saúde para agir onde rende mais."
         actions={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-xl bg-secondary p-1">
-              {([7, 30, 90] as const).map((w) => (
-                <Button
-                  key={w}
-                  size="sm"
-                  variant={visitWindow === w ? "default" : "ghost"}
-                  className="h-8 rounded-lg px-2.5 text-xs"
-                  onClick={() => setVisitWindow(w)}
-                  title={`Visitas reais dos últimos ${w} dias`}
-                >
-                  {w}d
-                </Button>
-              ))}
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 gap-1.5 bg-card"
-              onClick={exportCsv}
-              disabled={isLoading || sorted.length === 0}
-            >
-              <Download className="h-4 w-4" /> CSV
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 gap-1.5 bg-card"
-              onClick={exportPdf}
-              disabled={isLoading || sorted.length === 0}
-              title="Gerar PDF dos anúncios filtrados (com visitas)"
-            >
-              <FileText className="h-4 w-4" /> PDF
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1.5 bg-card"
+            onClick={exportPdf}
+            disabled={isLoading || sorted.length === 0}
+            title="Baixar PDF dos anúncios filtrados (com todas as colunas)"
+          >
+            <FileText className="h-4 w-4" /> Baixar PDF
+          </Button>
         }
       />
 

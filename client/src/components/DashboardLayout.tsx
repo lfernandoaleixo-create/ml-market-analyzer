@@ -47,6 +47,7 @@ import {
   Award,
   FolderKanban,
   GitBranch,
+  GripVertical,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -97,8 +98,8 @@ const menuItems: MenuItem[] = menuGroups.flatMap((g) => g.items);
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 268;
-const MIN_WIDTH = 220;
-const MAX_WIDTH = 360;
+const MIN_WIDTH = 200;
+const MAX_WIDTH = 460;
 
 function Wordmark() {
   return (
@@ -406,14 +407,38 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
             </DropdownMenu>
           </SidebarFooter>
         </Sidebar>
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
-          onMouseDown={() => {
-            if (isCollapsed) return;
-            setIsResizing(true);
-          }}
-          style={{ zIndex: 50 }}
-        />
+        {!isCollapsed && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            title="Arraste para alargar ou estreitar o menu"
+            className={`group/resize absolute top-0 right-0 z-50 flex h-full w-2.5 translate-x-1/2 cursor-col-resize items-center justify-center ${
+              isResizing ? "" : ""
+            }`}
+            onMouseDown={() => {
+              if (isCollapsed) return;
+              setIsResizing(true);
+            }}
+            onDoubleClick={() => setSidebarWidth(DEFAULT_WIDTH)}
+          >
+            {/* trilha vertical sutil que acende no hover/arraste */}
+            <span
+              className={`h-full w-px transition-colors ${
+                isResizing ? "bg-primary" : "bg-sidebar-border group-hover/resize:bg-primary/50"
+              }`}
+            />
+            {/* pega central (grip) */}
+            <span
+              className={`pointer-events-none absolute flex h-8 w-3 items-center justify-center rounded-full border shadow-sm transition-all ${
+                isResizing
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-sidebar-border bg-card text-muted-foreground opacity-0 group-hover/resize:opacity-100"
+              }`}
+            >
+              <GripVertical className="h-3 w-3" />
+            </span>
+          </div>
+        )}
       </div>
 
       <SidebarInset>
