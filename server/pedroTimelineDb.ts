@@ -1,5 +1,5 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { pedroProductStepProgress, pedroTimelineStages, pedroProducts } from "../drizzle/schema";
+import { pedroProductStepProgress, pedroTimelineStages, projectProducts } from "../drizzle/schema";
 import { getDb } from "./db";
 import { decideSequentialToggle } from "../shared/luisSequential";
 
@@ -180,17 +180,19 @@ export async function getPedroTimelineOverview() {
     .from(pedroTimelineStages)
     .orderBy(asc(pedroTimelineStages.position));
 
+  // Mesma fonte de itens do Projeto (project_products), como no Cronograma do Luís.
+  // O progresso/observações de cada produto ficam isolados em pedro_product_step_progress.
   const products = await db
     .select({
-      id: pedroProducts.id,
-      name: pedroProducts.name,
-      priority: pedroProducts.priority,
-      expectedArrival: pedroProducts.expectedArrival,
-      supplier: pedroProducts.supplier,
-      updatedAt: pedroProducts.updatedAt,
+      id: projectProducts.id,
+      name: projectProducts.name,
+      priority: projectProducts.priority,
+      expectedArrival: projectProducts.expectedArrival,
+      supplier: projectProducts.supplier,
+      updatedAt: projectProducts.updatedAt,
     })
-    .from(pedroProducts)
-    .orderBy(pedroProducts.expectedArrival);
+    .from(projectProducts)
+    .orderBy(projectProducts.expectedArrival);
 
   const allProgress = await db
     .select()

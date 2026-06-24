@@ -1455,3 +1455,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Cronograma do Pedro permanece independente (ns pedroTimeline)
 - [x] Validar no preview: contadores e analise do Pedro refletem o Projeto (16/5/1/0)
 - [ ] Checkpoint
+
+
+## Pedro Cronograma: listar produtos do Projeto com progresso independente
+- [x] Backend pedroTimelineDb.overview: usar produtos da tabela project_products (mesma lista do Projeto/Luis), mas progresso/observacoes das tabelas pedro
+- [x] Etapas do Pedro comecam vazias (nenhuma etapa padrao)
+- [x] setDone/setNote do Pedro continuam gravando em pedro_step_progress (independente)
+- [x] Validar no preview: Cronograma do Pedro lista os 16 produtos, etapas vazias, progresso 0
+- [x] tsc/vitest verdes (718) + checkpoint
