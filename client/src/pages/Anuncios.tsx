@@ -296,8 +296,14 @@ export default function Anuncios() {
     }
     if (filters.search?.trim()) parts.push(`Busca: “${filters.search.trim()}”`);
     if (filters.freeShipping === true) parts.push("Frete grátis");
+    // Enriquecemos cada item com a série diária (HOJE + 3 dias anteriores) que
+    // vive no mapa separado, para o PDF sair com as colunas de dia preenchidas.
+    const enriched = sorted.map((it) => {
+      const series = dailyVisitsMap[it.itemId];
+      return series && series.length > 0 ? { ...it, dailyVisits: series.slice(-4) } : it;
+    });
     try {
-      exportListingsPdf(sorted, {
+      exportListingsPdf(enriched, {
         visitWindow,
         filtersLabel: parts.length ? parts.join(" · ") : "Todos os anúncios",
       });

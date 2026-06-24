@@ -57,10 +57,16 @@ function isoToDayNum(iso: string): string {
   return String(dt.getUTCDate());
 }
 
-/** Colunas de dias derivadas do primeiro item que tiver série diária. */
+/** Colunas de dias derivadas do item que tiver a SÉRIE MAIS LONGA, para que
+ *  as colunas de dia sempre apareçam quando houver qualquer dado diário
+ *  (a UI coleta a quebra por dia apenas dos anúncios ativos). */
 function dayColumns(items: ListingRow[]): VisitsDayPoint[] {
-  const withDaily = items.find((i) => (i.dailyVisits?.length ?? 0) > 0);
-  return withDaily?.dailyVisits ?? [];
+  let best: VisitsDayPoint[] = [];
+  for (const it of items) {
+    const d = it.dailyVisits ?? [];
+    if (d.length > best.length) best = d;
+  }
+  return best;
 }
 
 function dayHeaderLabel(p: VisitsDayPoint, todayKey: string): string {
@@ -169,7 +175,7 @@ export function buildListingsReportHtml(items: ListingRow[], opts: ExportPdfOpts
         <th class="num">Preço</th>
         <th class="num">Estoque</th>
         <th class="num">Vendas</th>
-        <th class="num">Visitas</th>
+        <th class="num">Visitas totais</th>
         ${dayHeadCells}
         <th class="status">Status</th>
       </tr>

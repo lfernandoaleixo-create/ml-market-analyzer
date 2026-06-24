@@ -73,6 +73,30 @@ describe("buildListingsReportHtml", () => {
     expect(html).toContain('<td class="num day">—</td>');
   });
 
+  it("usa o cabeçalho 'Visitas totais' para a coluna de total", () => {
+    const html = buildListingsReportHtml([makeRow()]);
+    expect(html).toContain("Visitas totais");
+  });
+
+  it("deriva as colunas de dias do item com a série mais longa", () => {
+    const items = [
+      makeRow({ title: "Curto", dailyVisits: [{ date: "2026-06-23", visits: 1 }] }),
+      makeRow({
+        itemId: "MLB2",
+        title: "Longo",
+        dailyVisits: [
+          { date: "2026-06-21", visits: 2 },
+          { date: "2026-06-22", visits: 3 },
+          { date: "2026-06-23", visits: 4 },
+          { date: "2026-06-24", visits: 0 },
+        ],
+      }),
+    ];
+    const html = buildListingsReportHtml(items);
+    const dayHeaders = (html.match(/<th class="num day">/g) ?? []).length;
+    expect(dayHeaders).toBe(4);
+  });
+
   it("inclui o subtítulo com janela de visitas e filtros aplicados", () => {
     const html = buildListingsReportHtml([makeRow()], {
       visitWindow: 30,
