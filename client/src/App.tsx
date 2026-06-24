@@ -25,6 +25,7 @@ import Alertas from "./pages/Alertas";
 import Configuracoes from "./pages/Configuracoes";
 import Projeto from "./pages/project/Projeto";
 import LuisTimelineContainer from "./pages/luis/LuisTimelineContainer";
+import PedroTimelineContainer from "./pages/pedro/PedroTimelineContainer";
 
 function Router() {
   return (
@@ -60,6 +61,10 @@ function Router() {
         <Route path="/luis-timeline/timeline" component={LuisTimelineContainer} />
         <Route path="/luis-timeline/analise" component={LuisTimelineContainer} />
         <Route path="/luis-timeline/produto/:id" component={LuisTimelineContainer} />
+        <Route path="/pedro-timeline" component={PedroTimelineContainer} />
+        <Route path="/pedro-timeline/timeline" component={PedroTimelineContainer} />
+        <Route path="/pedro-timeline/analise" component={PedroTimelineContainer} />
+        <Route path="/pedro-timeline/produto/:id" component={PedroTimelineContainer} />
         <Route path="/configuracoes" component={Configuracoes} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

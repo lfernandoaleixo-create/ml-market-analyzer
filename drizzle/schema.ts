@@ -777,3 +777,176 @@ export const luisProductStepProgress = mysqlTable(
 
 export type LuisProductStepProgress = typeof luisProductStepProgress.$inferSelect;
 export type InsertLuisProductStepProgress = typeof luisProductStepProgress.$inferInsert;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Aba "Linha do Tempo Pedro" — Portfólio TOTALMENTE INDEPENDENTE do Projeto/Luís.
+// Espelha a estrutura de project_* + luis_* mas com tabelas próprias (pedro_*),
+// para que produtos, etapas, progresso, tarefas, documentos e comentários do
+// Pedro não compartilhem dados com nenhum outro módulo.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PEDRO_STEP_ENUM = [
+  "fornecedor",
+  "amostra",
+  "aprovacao",
+  "embalagem",
+  "pedido",
+  "producao",
+  "inspecao",
+  "embarque",
+  "chegada",
+  "lancamento",
+] as const;
+
+/** Produtos em pipeline de importação do Pedro. */
+export const pedroProducts = mysqlTable("pedro_products", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  priority: mysqlEnum("priority", ["alta", "media", "baixa"]).default("media").notNull(),
+  currentStep: mysqlEnum("currentStep", PEDRO_STEP_ENUM).default("fornecedor").notNull(),
+  supplier: varchar("supplier", { length: 255 }),
+  supplierContact: varchar("supplierContact", { length: 255 }),
+  notes: text("notes"),
+  imageUrl: text("imageUrl"),
+  expectedArrival: timestamp("expectedArrival"),
+  orderDeadline: timestamp("orderDeadline"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdBy: int("createdBy"),
+});
+
+export type PedroProduct = typeof pedroProducts.$inferSelect;
+export type InsertPedroProduct = typeof pedroProducts.$inferInsert;
+
+/** Etapas da linha do tempo (Cronograma clássico) de cada produto do Pedro. */
+export const pedroTimelineSteps = mysqlTable(
+  "pedro_timeline_steps",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    step: mysqlEnum("step", PEDRO_STEP_ENUM).notNull(),
+    status: mysqlEnum("status", ["pendente", "em_andamento", "concluido"]).default("pendente").notNull(),
+    notes: text("notes"),
+    completedAt: timestamp("completedAt"),
+    targetDate: timestamp("targetDate"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productIdx: index("pedro_timeline_product_idx").on(t.productId),
+  }),
+);
+
+export type PedroTimelineStep = typeof pedroTimelineSteps.$inferSelect;
+export type InsertPedroTimelineStep = typeof pedroTimelineSteps.$inferInsert;
+
+/** Documentos/fotos anexados a um produto do Pedro. */
+export const pedroDocuments = mysqlTable(
+  "pedro_documents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    url: text("url").notNull(),
+    fileKey: text("fileKey").notNull(),
+    type: mysqlEnum("type", ["documento", "foto"]).default("documento").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    uploadedBy: int("uploadedBy"),
+  },
+  (t) => ({
+    productIdx: index("pedro_documents_product_idx").on(t.productId),
+  }),
+);
+
+export type PedroDocument = typeof pedroDocuments.$inferSelect;
+export type InsertPedroDocument = typeof pedroDocuments.$inferInsert;
+
+/** Tarefas (to-dos) associadas a um produto do Pedro. */
+export const pedroTodos = mysqlTable(
+  "pedro_todos",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    description: text("description"),
+    completed: boolean("completed").default(false).notNull(),
+    assignedTo: int("assignedTo"),
+    dueDate: timestamp("dueDate"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdBy: int("createdBy"),
+  },
+  (t) => ({
+    productIdx: index("pedro_todos_product_idx").on(t.productId),
+  }),
+);
+
+export type PedroTodo = typeof pedroTodos.$inferSelect;
+export type InsertPedroTodo = typeof pedroTodos.$inferInsert;
+
+/** Comentários em um produto do Pedro (suporta visitante por nome). */
+export const pedroComments = mysqlTable(
+  "pedro_comments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    userId: int("userId"),
+    guestName: varchar("guestName", { length: 100 }),
+    content: text("content").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productIdx: index("pedro_comments_product_idx").on(t.productId),
+  }),
+);
+
+export type PedroComment = typeof pedroComments.$inferSelect;
+export type InsertPedroComment = typeof pedroComments.$inferInsert;
+
+// ─── Cronograma horizontal do Pedro (espelho de luis_*) ──────────────────────
+// Modelo único e editável de etapas (bolinhas) usado por TODOS os produtos do
+// Pedro na sub-aba "Cronograma". Independente do Luís e do Projeto.
+export const pedroTimelineStages = mysqlTable(
+  "pedro_timeline_stages",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    label: varchar("label", { length: 255 }).notNull(),
+    position: int("position").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    positionIdx: index("pedro_timeline_stages_position_idx").on(t.position),
+  }),
+);
+
+export type PedroTimelineStage = typeof pedroTimelineStages.$inferSelect;
+export type InsertPedroTimelineStage = typeof pedroTimelineStages.$inferInsert;
+
+// Progresso por produto + etapa do Cronograma do Pedro: concluído (tique) e
+// observação livre editável. supplierId mantido por compatibilidade (NULL).
+export const pedroProductStepProgress = mysqlTable(
+  "pedro_product_step_progress",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    supplierId: int("supplierId"),
+    stageId: int("stageId").notNull(),
+    done: boolean("done").default(false).notNull(),
+    note: text("note"),
+    completedAt: timestamp("completedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productIdx: index("pedro_progress_product_idx").on(t.productId),
+    supplierIdx: index("pedro_progress_supplier_idx").on(t.supplierId),
+    stageIdx: index("pedro_progress_stage_idx").on(t.stageId),
+  }),
+);
+
+export type PedroProductStepProgress = typeof pedroProductStepProgress.$inferSelect;
+export type InsertPedroProductStepProgress = typeof pedroProductStepProgress.$inferInsert;

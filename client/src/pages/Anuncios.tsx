@@ -1089,10 +1089,9 @@ function ListingsTable({
             <SortableTh label="Preço" k="price" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Estoque" k="availableQuantity" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Vendas" k="soldQuantity" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <SortableTh label="Visitas" k="visits" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh label="Total de Visitas" k="visits" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <DailyHeader dayLabels={dayLabels} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Conversão" k="conversion" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <SortableTh label="Saúde" k="health" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <th className="pb-2 px-3 text-center font-medium">Status</th>
           </tr>
         </thead>
@@ -1128,9 +1127,6 @@ function ListingsTable({
                   <span className="text-muted-foreground/50">—</span>
                 )}
               </td>
-              <td className="px-3 text-center tabular-nums">
-                <HealthDot health={r.health} />
-              </td>
               <td className="px-3 text-center">
                 <Badge variant="outline" className={STATUS_META[r.status]?.className}>
                   {STATUS_META[r.status]?.label ?? r.status}
@@ -1141,19 +1137,6 @@ function ListingsTable({
         </tbody>
       </table>
     </div>
-  );
-}
-
-function HealthDot({ health }: { health?: number | null }) {
-  if (health == null) return <span className="text-muted-foreground/50">—</span>;
-  const pct = Math.round(health * 100);
-  const color =
-    health >= 0.8 ? "bg-emerald-500" : health >= 0.5 ? "bg-amber-500" : "bg-rose-500";
-  return (
-    <span className="inline-flex items-center justify-end gap-1.5">
-      <span className={cn("h-2 w-2 rounded-full", color)} />
-      {pct}%
-    </span>
   );
 }
 

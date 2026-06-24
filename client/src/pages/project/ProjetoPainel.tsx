@@ -1,5 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import { useProjectApi, type PortfolioNamespace } from "@/lib/projectApi";
 import { STEP_LABELS, STEP_ORDER } from "@/lib/projectConstants";
 import { useState, useEffect } from "react";
 import { useGuestName } from "@/hooks/useGuestName";
@@ -25,7 +25,11 @@ import {
 } from "@/components/ui/dialog";
 import ProjectProductCard from "@/components/project/ProjectProductCard";
 
-export default function ProjetoPainel({ basePath = "/projeto" }: { basePath?: string } = {}) {
+export default function ProjetoPainel({
+  basePath = "/projeto",
+  ns = "project",
+}: { basePath?: string; ns?: PortfolioNamespace } = {}) {
+  const api = useProjectApi(ns);
   const { isAuthenticated } = useAuth();
   const { guestName, setGuestName } = useGuestName();
   const [, setLocation] = useLocation();
@@ -40,7 +44,7 @@ export default function ProjetoPainel({ basePath = "/projeto" }: { basePath?: st
   const [newPriority, setNewPriority] = useState<"alta" | "media" | "baixa">("media");
   const [creating, setCreating] = useState(false);
 
-  const { data: products, isLoading, refetch } = trpc.project.products.list.useQuery(
+  const { data: products, isLoading, refetch } = api.products.list.useQuery(
     {
       search: search || undefined,
       priority: priority || undefined,
@@ -49,7 +53,7 @@ export default function ProjetoPainel({ basePath = "/projeto" }: { basePath?: st
     { refetchOnWindowFocus: true },
   );
 
-  const createMutation = trpc.project.products.create.useMutation({
+  const createMutation = api.products.create.useMutation({
     onSuccess: () => {
       toast.success("Produto criado com sucesso!");
       setShowNewProduct(false);

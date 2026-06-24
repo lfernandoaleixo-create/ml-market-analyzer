@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useGuestName } from "@/hooks/useGuestName";
 import { GuestNameDialog } from "@/components/project/GuestNameDialog";
-import { trpc } from "@/lib/trpc";
+import { useProjectApi, type PortfolioNamespace } from "@/lib/projectApi";
 import { STEP_LABELS, STEP_ORDER, STEP_ICONS } from "@/lib/projectConstants";
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
@@ -42,7 +42,11 @@ const STATUS_CONFIG = {
   concluido: { label: "Concluído", color: "var(--success)", icon: CheckCircle2 },
 };
 
-export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: string } = {}) {
+export default function ProjetoProduto({
+  basePath = "/projeto",
+  ns = "project",
+}: { basePath?: string; ns?: PortfolioNamespace } = {}) {
+  const api = useProjectApi(ns);
   const { id } = useParams<{ id: string }>();
   const productId = parseInt(id ?? "0");
   const [, setLocation] = useLocation();
@@ -67,19 +71,19 @@ export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: s
     }
   };
 
-  const { data: product, isLoading: loadingProduct, refetch: refetchProduct } = trpc.project.products.byId.useQuery(
+  const { data: product, isLoading: loadingProduct, refetch: refetchProduct } = api.products.byId.useQuery(
     { id: productId },
     { enabled: !!productId },
   );
-  const { data: timeline, isLoading: loadingTimeline, refetch: refetchTimeline } = trpc.project.timeline.byProduct.useQuery(
+  const { data: timeline, isLoading: loadingTimeline, refetch: refetchTimeline } = api.timeline.byProduct.useQuery(
     { productId },
     { enabled: !!productId },
   );
-  const { data: todosData, isLoading: loadingTodos, refetch: refetchTodos } = trpc.project.todos.byProduct.useQuery(
+  const { data: todosData, isLoading: loadingTodos, refetch: refetchTodos } = api.todos.byProduct.useQuery(
     { productId },
     { enabled: !!productId },
   );
-  const { data: documents, isLoading: loadingDocs, refetch: refetchDocs } = trpc.project.documents.byProduct.useQuery(
+  const { data: documents, isLoading: loadingDocs, refetch: refetchDocs } = api.documents.byProduct.useQuery(
     { productId },
     { enabled: !!productId },
   );
@@ -111,7 +115,7 @@ export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: s
     }
   }, [product]);
 
-  const updateProductMutation = trpc.project.products.update.useMutation({
+  const updateProductMutation = api.products.update.useMutation({
     onSuccess: () => {
       toast.success("Produto atualizado!");
       setEditing(false);
@@ -119,7 +123,7 @@ export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: s
     },
     onError: () => toast.error("Erro ao atualizar produto"),
   });
-  const deleteProductMutation = trpc.project.products.delete.useMutation({
+  const deleteProductMutation = api.products.delete.useMutation({
     onSuccess: () => {
       toast.success("Produto removido");
       setLocation(basePath);
@@ -127,7 +131,7 @@ export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: s
     onError: () => toast.error("Erro ao remover produto"),
   });
 
-  const updateTimelineMutation = trpc.project.timeline.update.useMutation({
+  const updateTimelineMutation = api.timeline.update.useMutation({
     onSuccess: () => {
       toast.success("Etapa atualizada!");
       refetchTimeline();
@@ -154,7 +158,7 @@ export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: s
 
   const [showNewTodo, setShowNewTodo] = useState(false);
   const [newTodo, setNewTodo] = useState({ title: "", description: "" });
-  const createTodoMutation = trpc.project.todos.create.useMutation({
+  const createTodoMutation = api.todos.create.useMutation({
     onSuccess: () => {
       toast.success("Tarefa criada!");
       setShowNewTodo(false);
@@ -163,11 +167,11 @@ export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: s
     },
     onError: () => toast.error("Erro ao criar tarefa"),
   });
-  const updateTodoMutation = trpc.project.todos.update.useMutation({
+  const updateTodoMutation = api.todos.update.useMutation({
     onSuccess: () => refetchTodos(),
     onError: () => toast.error("Erro ao atualizar tarefa"),
   });
-  const deleteTodoMutation = trpc.project.todos.delete.useMutation({
+  const deleteTodoMutation = api.todos.delete.useMutation({
     onSuccess: () => {
       toast.success("Tarefa removida");
       refetchTodos();
@@ -178,18 +182,18 @@ export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: s
 
   const [commentText, setCommentText] = useState("");
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
-  const { data: commentsData, isLoading: loadingComments, refetch: refetchComments } = trpc.project.comments.list.useQuery(
+  const { data: commentsData, isLoading: loadingComments, refetch: refetchComments } = api.comments.list.useQuery(
     { productId },
     { enabled: !!productId, refetchInterval: 15_000, refetchOnWindowFocus: true },
   );
-  const createCommentMutation = trpc.project.comments.create.useMutation({
+  const createCommentMutation = api.comments.create.useMutation({
     onSuccess: () => {
       setCommentText("");
       refetchComments();
     },
     onError: () => toast.error("Erro ao enviar comentário"),
   });
-  const deleteCommentMutation = trpc.project.comments.delete.useMutation({
+  const deleteCommentMutation = api.comments.delete.useMutation({
     onSuccess: () => refetchComments(),
     onError: () => toast.error("Erro ao remover comentário"),
   });
@@ -207,14 +211,14 @@ export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: s
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
-  const uploadMutation = trpc.project.documents.upload.useMutation({
+  const uploadMutation = api.documents.upload.useMutation({
     onSuccess: () => {
       toast.success("Arquivo enviado!");
       refetchDocs();
     },
     onError: () => toast.error("Erro ao enviar arquivo"),
   });
-  const deleteDocMutation = trpc.project.documents.delete.useMutation({
+  const deleteDocMutation = api.documents.delete.useMutation({
     onSuccess: () => {
       toast.success("Arquivo removido");
       refetchDocs();

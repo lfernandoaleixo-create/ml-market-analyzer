@@ -71,6 +71,7 @@ const menuGroups: MenuGroup[] = [
       { icon: Calculator, label: "Calculadora de precificação", path: "/calculadora" },
       { icon: FolderKanban, label: "Projeto", path: "/projeto" },
       { icon: GitBranch, label: "Linha do Tempo Luís", path: "/luis-timeline" },
+      { icon: GitBranch, label: "Linha do Tempo Pedro", path: "/pedro-timeline" },
     ],
   },
   {
@@ -358,7 +359,8 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                       location === item.path ||
                       (item.path === "/calculadora" && location.startsWith("/calculadora")) ||
                       (item.path === "/projeto" && location.startsWith("/projeto")) ||
-                      (item.path === "/luis-timeline" && location.startsWith("/luis-timeline"));
+                      (item.path === "/luis-timeline" && location.startsWith("/luis-timeline")) ||
+                      (item.path === "/pedro-timeline" && location.startsWith("/pedro-timeline"));
                     const showBadge = item.path === "/alertas" && unread > 0;
                     return (
                       <SidebarMenuItem key={item.path}>

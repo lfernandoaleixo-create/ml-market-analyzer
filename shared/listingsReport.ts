@@ -128,7 +128,7 @@ export function buildListingsReportTable(
     "ADS",
     "Preço",
     "Vendas",
-    "Visitas",
+    "Total de Visitas",
     ...dayHeads,
     "Conversão",
   ];

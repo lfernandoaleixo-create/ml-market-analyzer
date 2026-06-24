@@ -55,7 +55,7 @@ describe("buildListingsReportTable", () => {
       "ADS",
       "Preço",
       "Vendas",
-      "Visitas",
+      "Total de Visitas",
       "Conversão",
     ]);
     expect(t.dayColCount).toBe(0);

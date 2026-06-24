@@ -9,7 +9,7 @@ import {
   TrendingUp,
   PieChart as PieChartIcon,
 } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import { useProjectApi, type PortfolioNamespace } from "@/lib/projectApi";
 import { STEP_LABELS, STEP_ORDER, STEP_ICONS } from "@/lib/projectConstants";
 import {
   PieChart,
@@ -153,12 +153,16 @@ function HoverTooltip({ data, x, y }: { data: TooltipData; x: number; y: number 
   );
 }
 
-export default function ProjetoAnalise({ basePath = "/projeto" }: { basePath?: string } = {}) {
+export default function ProjetoAnalise({
+  basePath = "/projeto",
+  ns = "project",
+}: { basePath?: string; ns?: PortfolioNamespace } = {}) {
+  const api = useProjectApi(ns);
   const [, setLocation] = useLocation();
   const [hovered, setHovered] = useState<{ data: TooltipData; x: number; y: number } | null>(null);
   const svgContainerRef = useRef<HTMLDivElement>(null);
 
-  const { data: products, isLoading } = trpc.project.products.dashboardOverview.useQuery(undefined, {
+  const { data: products, isLoading } = api.products.dashboardOverview.useQuery(undefined, {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });

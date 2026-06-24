@@ -1415,14 +1415,36 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 
 ## Pedidos 24/jun (tarde)
 - [x] Anuncios: filtro "Ativos" selecionado por padrao ao abrir a pagina
-- [ ] PDF anuncios: trocar preto solido por cor mais suave no cabecalho/tabela
-- [ ] PDF anuncios: remover colunas Estoque, Saude e Status
-- [ ] PDF anuncios: adicionar coluna Tipo de Anuncio (Premium/Classico)
-- [ ] PDF anuncios: adicionar coluna E anuncio de Catalogo (Sim/Nao)
-- [ ] PDF anuncios: adicionar coluna ADS (Sim/Nao - patrocinio)
-- [ ] PDF anuncios: destacar no cabecalho que o filtro aplicado e "Ativos"
-- [ ] PDF anuncios: centralizar e formatar todas as celulas (texto alinhado)
-- [ ] PDF anuncios: zebrado colorido (laranja suave intercalado) nas colunas de dias (dom/seg/ter/hoje)
-- [ ] Cronograma Luis: etapas sequenciais - bloquear concluir se a anterior nao estiver concluida
-- [ ] Cronograma Luis: balao de aviso "etapa anterior nao concluida" ao tentar pular
-- [ ] Cronograma Luis: ao desmarcar uma etapa, desmarcar todas as posteriores
+- [x] PDF anuncios: trocar preto solido por cor mais suave no cabecalho/tabela
+- [x] PDF anuncios: remover colunas Estoque, Saude e Status
+- [x] PDF anuncios: adicionar coluna Tipo de Anuncio (Premium/Classico)
+- [x] PDF anuncios: adicionar coluna E anuncio de Catalogo (Sim/Nao)
+- [x] PDF anuncios: adicionar coluna ADS (Sim/Nao - patrocinio)
+- [x] PDF anuncios: destacar no cabecalho que o filtro aplicado e "Ativos"
+- [x] PDF anuncios: centralizar e formatar todas as celulas (texto alinhado)
+- [x] PDF anuncios: zebrado colorido (laranja suave intercalado) nas colunas de dias (dom/seg/ter/hoje)
+- [x] Tabela on-screen anuncios: centralizar todas as colunas + zebrado laranja nas caixinhas de dias (espelha o PDF)
+- [x] Cronograma Luis: etapas sequenciais - bloquear concluir se a anterior nao estiver concluida
+- [x] Cronograma Luis: balao de aviso "etapa anterior nao concluida" ao tentar pular
+- [x] Cronograma Luis: ao desmarcar uma etapa, desmarcar todas as posteriores
+
+
+## Linha do Tempo Pedro (independente do Projeto/Luís)
+- [x] Criar tabelas pedro_* no schema (products, timeline_steps, documents, todos, comments, stages, step_progress)
+- [x] Gerar e aplicar migracao das tabelas pedro
+- [x] Criar pedroDb.ts (clone de projectDb apontando para tabelas pedro)
+- [x] Criar pedroTimelineDb.ts (clone de luisTimelineDb apontando para tabelas pedro)
+- [x] Criar router trpc.pedro (espelha project) e trpc.pedroTimeline (espelha luisTimeline)
+- [x] Tornar componentes Projeto* agnosticos ao namespace (ns prop + useProjectApi) e clonar PedroTimeline
+- [x] Criar PedroTimelineContainer com sub-abas Painel/Cronograma/Analise
+- [x] Registrar rotas /pedro-timeline/* no App.tsx
+- [x] Adicionar item "Linha do Tempo Pedro" no menu lateral (DashboardLayout)
+- [x] Validar tsc/vitest (718 testes verdes, 0 erros TS); logica sequencial coberta por luisSequential.test.ts (compartilhada)
+- [x] Validar no preview (aba, sub-abas, criar produto, cronograma independente, isolamento no DB) e salvar checkpoint
+
+
+## Ajustes Meus Anuncios (tela + PDF)
+- [x] Remover coluna Saude da tabela on-screen
+- [x] Remover coluna Saude do PDF (ja nao existia)
+- [x] Renomear "Visitas" para "Total de Visitas" na tabela on-screen
+- [x] Renomear "Visitas" para "Total de Visitas" no PDF

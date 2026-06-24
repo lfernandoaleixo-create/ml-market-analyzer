@@ -15,6 +15,8 @@ import { adsRouter } from "./routers/ads";
 import { financeRouter } from "./routers/finance";
 import { projectRouter } from "./routers/project";
 import { luisTimelineRouter } from "./routers/luisTimeline";
+import { pedroRouter } from "./routers/pedro";
+import { pedroTimelineRouter } from "./routers/pedroTimeline";
 import { pricingRouter } from "./routers/pricing";
 
 // Constant-time-ish string comparison to avoid trivially leaking length/early
@@ -104,6 +106,8 @@ export const appRouter = router({
   finance: financeRouter,
   project: projectRouter,
   luisTimeline: luisTimelineRouter,
+  pedro: pedroRouter,
+  pedroTimeline: pedroTimelineRouter,
   pricing: pricingRouter,
 });
 
