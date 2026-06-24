@@ -1402,3 +1402,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] PDF anúncios: baixar direto (doc.save via jsPDF, sem tela de impressão) — validado: meus-anuncios-2026-06-24.pdf, 7 páginas
 - [x] PDF anúncios: TODAS as colunas (Anúncio, SKU, Preço, Estoque, Vendas, Visitas, dom/seg/ter/hoje, Conversão, Saúde, Status)
 - [x] Testes + checkpoint (705 testes verdes, 0 erros TS)
+
+
+## Cronograma Luís — interação por clique e desmarcação (24/jun)
+- [x] Permitir desmarcar qualquer etapa (inclusive a 1ª "Reunião de Alinhamento")
+- [x] Mostrar nomes das etapas completos (sem abreviações/line-clamp) em cada produto
+- [x] 1 clique = abre detalhes (popover); 2 cliques (duplo) = marca/desmarca a etapa
+- [x] Corrigir bug de desmarcação travada (overview considera apenas progresso por produto, supplierId NULL)
+- [x] Limpar linhas legadas de progresso por fornecedor no banco
+- [x] Atualizar testes (706 verdes, 0 erros TS) e validar ao vivo (Matador alterna 0/6 <-> 1/6)

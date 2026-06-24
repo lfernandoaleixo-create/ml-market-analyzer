@@ -52,6 +52,7 @@ vi.mock("drizzle-orm", () => ({
   eq: (col: { __c?: string }, value: unknown) => ({ kind: "eq", col: col?.__c, value }),
   and: (...conds: unknown[]) => ({ kind: "and", conds }),
   asc: (col: { __c?: string }) => ({ kind: "asc", col: col?.__c }),
+  isNull: (col: { __c?: string }) => ({ kind: "isNull", col: col?.__c }),
 }));
 
 function tableOf(t: unknown): string {
@@ -65,6 +66,9 @@ function matchRow(row: any, cond: any): boolean {
     if (cond.col === "productId") return row.productId === cond.value;
     if (cond.col === "stageId") return row.stageId === cond.value;
     if (cond.col === "id") return row.id === cond.value;
+  }
+  if (cond.kind === "isNull") {
+    if (cond.col === "supplierId") return row.supplierId == null;
   }
   return true;
 }
@@ -302,8 +306,9 @@ describe("luisTimelineDb — overview", () => {
     expect(ids).toEqual([200, 100]);
   });
 
-  it("treats legacy supplier-scoped rows as product progress (done if any is done)", async () => {
-    // Simulate a legacy row with a supplierId set for the same product/stage.
+  it("ignores legacy supplier-scoped rows (progress is per-product, supplierId NULL only)", async () => {
+    // A legacy row with a supplierId set must NOT mark the product step as done,
+    // so unchecking the product-level step is never "stuck" by old supplier data.
     progress.push({
       id: progressSeq++,
       productId: 100,
@@ -316,7 +321,7 @@ describe("luisTimelineDb — overview", () => {
     const overview = await db.getLuisTimelineOverview();
     const matador = overview.products.find((p: any) => p.id === 100) as any;
     const step2 = matador.steps.find((s: any) => s.stageId === 2);
-    expect(step2.done).toBe(true);
-    expect(matador.completedCount).toBe(1);
+    expect(step2.done).toBe(false);
+    expect(matador.completedCount).toBe(0);
   });
 });

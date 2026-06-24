@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { luisProductStepProgress, luisTimelineStages, projectProducts } from "../drizzle/schema";
 import { getDb } from "./db";
 
@@ -151,21 +151,17 @@ export async function getLuisTimelineOverview() {
     .from(projectProducts)
     .orderBy(projectProducts.expectedArrival);
 
-  const allProgress = await db.select().from(luisProductStepProgress);
-  // Progresso indexado por (productId -> stageId). Consideramos o progresso do
-  // produto (supplierId NULL) e também toleramos linhas legadas com supplierId.
+  // Progresso é por PRODUTO: consideramos apenas as linhas do novo modelo
+  // (supplierId NULL). Linhas legadas por fornecedor (supplierId != null) são
+  // ignoradas para não "travar" uma etapa como concluída ao desmarcar.
+  const allProgress = await db
+    .select()
+    .from(luisProductStepProgress)
+    .where(isNull(luisProductStepProgress.supplierId));
   const progressByProduct = new Map<number, Map<number, { done: boolean; note: string | null }>>();
   for (const p of allProgress) {
     if (!progressByProduct.has(p.productId)) progressByProduct.set(p.productId, new Map());
-    const map = progressByProduct.get(p.productId)!;
-    const prev = map.get(p.stageId);
-    // Se houver múltiplas linhas para a mesma etapa (legado por fornecedor),
-    // a etapa conta como concluída se qualquer uma estiver concluída, e mantém
-    // a primeira observação não vazia.
-    map.set(p.stageId, {
-      done: (prev?.done ?? false) || p.done,
-      note: prev?.note ?? p.note,
-    });
+    progressByProduct.get(p.productId)!.set(p.stageId, { done: p.done, note: p.note });
   }
 
   const enriched = products.map((prod) => {

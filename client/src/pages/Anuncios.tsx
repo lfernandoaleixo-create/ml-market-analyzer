@@ -355,16 +355,40 @@ export default function Anuncios() {
         title="Meus anúncios"
         subtitle="Central analítica dos seus anúncios: cruze visitas, vendas, conversão, estoque e saúde para agir onde rende mais."
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9 gap-1.5 bg-card"
-            onClick={exportPdf}
-            disabled={isLoading || sorted.length === 0}
-            title="Baixar PDF dos anúncios filtrados (com todas as colunas)"
-          >
-            <FileText className="h-4 w-4" /> Baixar PDF
-          </Button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {!isLoading && data?.stale ? (
+              <span className="hidden items-center gap-1.5 text-xs text-amber-600 sm:inline-flex" title="O Mercado Livre estava congestionado; exibindo os últimos dados confirmados.">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                {`Dados em cache · ${data?.asOf ? `de ${new Date(data.asOf).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "recentes"}`}
+              </span>
+            ) : !isLoading && dataUpdatedAt ? (
+              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
+                <span className={cn("h-1.5 w-1.5 rounded-full", isFetching ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
+                {isFetching ? "Atualizando…" : `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+              </span>
+            ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 bg-card"
+              onClick={() => refetch()}
+              disabled={isLoading || isFetching}
+              title="Buscar os dados mais recentes agora"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+              {isFetching ? "Atualizando…" : "Atualizar agora"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 bg-card"
+              onClick={exportPdf}
+              disabled={isLoading || sorted.length === 0}
+              title="Baixar PDF dos anúncios filtrados (com todas as colunas)"
+            >
+              <FileText className="h-4 w-4" /> Baixar PDF
+            </Button>
+          </div>
         }
       />
 
@@ -610,32 +634,6 @@ export default function Anuncios() {
       <SectionCard
         title="Evolução das visitas · anúncios ativos"
         description={`Total diário de visualizações agregado entre os anúncios ativos nos últimos ${visitWindow} dias (o dia de hoje é parcial e atualiza em tempo real).`}
-        actions={
-          <div className="flex items-center gap-2.5">
-            {!isLoading && data?.stale ? (
-              <span className="hidden items-center gap-1.5 text-xs text-amber-600 sm:inline-flex" title="O Mercado Livre estava congestionado; exibindo os últimos dados confirmados.">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                {`Dados em cache · ${data?.asOf ? `de ${new Date(data.asOf).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "recentes"}`}
-              </span>
-            ) : !isLoading && dataUpdatedAt ? (
-              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
-                <span className={cn("h-1.5 w-1.5 rounded-full", isFetching ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
-                {isFetching ? "Atualizando…" : `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
-              </span>
-            ) : null}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 bg-card"
-              onClick={() => refetch()}
-              disabled={isLoading || isFetching}
-              title="Buscar as visitas mais recentes agora"
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
-              Atualizar agora
-            </Button>
-          </div>
-        }
       >
         <VisitsEvolutionChart
           series={visitsSeries}

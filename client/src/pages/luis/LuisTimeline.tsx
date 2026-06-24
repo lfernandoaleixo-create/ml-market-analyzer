@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
+  PopoverAnchor,
 } from "@/components/ui/popover";
 import {
   AlertDialog,
@@ -291,6 +291,8 @@ function TimelineDot({
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(step.note ?? "");
+  // Timer para distinguir clique simples (abre popover) de duplo-clique (alterna etapa)
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = () => utils.luisTimeline.overview.invalidate();
 
@@ -298,6 +300,30 @@ function TimelineDot({
     onSuccess: refresh,
     onError: () => toast.error("Não foi possível atualizar a etapa"),
   });
+
+  const toggleDone = () => doneMut.mutate({ productId, stageId: step.stageId, done: !step.done });
+
+  // 1 clique (com atraso): abre o popover de detalhes. 2 cliques: alterna concluída/pendente.
+  // Usamos um timer próprio (250ms) para diferenciar single de double click de forma confiável,
+  // já que o Popover é controlado por PopoverAnchor (não pelo clique do trigger).
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (clickTimer.current) {
+      // Segundo clique dentro da janela => duplo-clique: alterna a etapa
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+      setOpen(false);
+      toggleDone();
+      return;
+    }
+    // Primeiro clique: aguarda para ver se vem um segundo
+    clickTimer.current = setTimeout(() => {
+      clickTimer.current = null;
+      setNoteDraft(step.note ?? "");
+      setOpen(true);
+    }, 250);
+  };
   const noteMut = trpc.luisTimeline.progress.setNote.useMutation({
     onSuccess: () => {
       refresh();
@@ -311,7 +337,7 @@ function TimelineDot({
   return (
     <div
       className="flex flex-col items-center gap-2 shrink-0"
-      style={{ width: 96 }}
+      style={{ width: 120 }}
       onClick={(e) => e.stopPropagation()}
     >
       <Popover
@@ -321,10 +347,10 @@ function TimelineDot({
           if (o) setNoteDraft(step.note ?? "");
         }}
       >
-        <PopoverTrigger asChild>
+        <PopoverAnchor asChild>
           <button
             type="button"
-            onClick={(e) => e.stopPropagation()}
+            onClick={handleClick}
             className="relative flex items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95"
             style={{
               width: 36,
@@ -332,7 +358,7 @@ function TimelineDot({
               background: step.done ? priorityColor : "var(--muted)",
               border: step.done ? `2px solid ${priorityColor}` : "2px solid var(--border)",
             }}
-            title={step.label}
+            title={`${step.label} — 1 clique: detalhes · 2 cliques: ${step.done ? "desmarcar" : "marcar"}`}
           >
             {step.done ? (
               <svg width="16" height="16" viewBox="0 0 12 12" fill="none">
@@ -348,7 +374,7 @@ function TimelineDot({
               />
             )}
           </button>
-        </PopoverTrigger>
+        </PopoverAnchor>
         <PopoverContent className="w-72" align="center">
           <div className="space-y-3">
             <div className="flex items-start justify-between gap-2">
@@ -430,7 +456,7 @@ function TimelineDot({
       </Popover>
 
       <span
-        className="text-[11px] leading-tight text-center font-medium line-clamp-2"
+        className="text-[11px] leading-snug text-center font-medium"
         style={{ color }}
       >
         {step.label}
