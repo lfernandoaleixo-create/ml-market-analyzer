@@ -42,7 +42,7 @@ const STATUS_CONFIG = {
   concluido: { label: "Concluído", color: "var(--success)", icon: CheckCircle2 },
 };
 
-export default function ProjetoProduto() {
+export default function ProjetoProduto({ basePath = "/projeto" }: { basePath?: string } = {}) {
   const { id } = useParams<{ id: string }>();
   const productId = parseInt(id ?? "0");
   const [, setLocation] = useLocation();
@@ -122,7 +122,7 @@ export default function ProjetoProduto() {
   const deleteProductMutation = trpc.project.products.delete.useMutation({
     onSuccess: () => {
       toast.success("Produto removido");
-      setLocation("/projeto");
+      setLocation(basePath);
     },
     onError: () => toast.error("Erro ao remover produto"),
   });
@@ -256,7 +256,7 @@ export default function ProjetoProduto() {
     return (
       <div className="flex items-center justify-center py-24 flex-col gap-4">
         <p className="text-muted-foreground">Produto não encontrado</p>
-        <Button variant="outline" className="bg-card" onClick={() => setLocation("/projeto")}>
+        <Button variant="outline" className="bg-card" onClick={() => setLocation(basePath)}>
           Voltar ao painel
         </Button>
       </div>
@@ -267,7 +267,7 @@ export default function ProjetoProduto() {
     <div>
       <div className="flex items-center gap-4 mb-6">
         <button
-          onClick={() => setLocation("/projeto")}
+          onClick={() => setLocation(basePath)}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm"
         >
           <ArrowLeft className="w-4 h-4" />

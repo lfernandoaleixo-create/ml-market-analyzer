@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import ProjectProductCard from "@/components/project/ProjectProductCard";
 
-export default function ProjetoPainel() {
+export default function ProjetoPainel({ basePath = "/projeto" }: { basePath?: string } = {}) {
   const { isAuthenticated } = useAuth();
   const { guestName, setGuestName } = useGuestName();
   const [, setLocation] = useLocation();
@@ -242,7 +242,7 @@ export default function ProjetoPainel() {
               key={product.id}
               product={product}
               viewMode={viewMode}
-              onClick={() => setLocation(`/projeto/produto/${product.id}`)}
+              onClick={() => setLocation(`${basePath}/produto/${product.id}`)}
             />
           ))}
         </div>

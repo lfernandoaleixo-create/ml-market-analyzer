@@ -1,27 +1,27 @@
 import { useLocation, useRoute, Route, Switch } from "wouter";
 import { LayoutGrid, GitBranch, BarChart3 } from "lucide-react";
-import ProjetoPainel from "./ProjetoPainel";
-import ProjetoTimeline from "./ProjetoTimeline";
-import ProjetoAnalise from "./ProjetoAnalise";
-import ProjetoProduto from "./ProjetoProduto";
+import ProjetoPainel from "../project/ProjetoPainel";
+import ProjetoAnalise from "../project/ProjetoAnalise";
+import ProjetoProduto from "../project/ProjetoProduto";
+import LuisTimeline from "./LuisTimeline";
 
 const TABS = [
-  { label: "Painel", path: "/projeto", icon: LayoutGrid },
-  { label: "Cronograma", path: "/projeto/timeline", icon: GitBranch },
-  { label: "Análise", path: "/projeto/analise", icon: BarChart3 },
+  { label: "Painel", path: "/luis-timeline", icon: LayoutGrid },
+  { label: "Cronograma", path: "/luis-timeline/timeline", icon: GitBranch },
+  { label: "Análise", path: "/luis-timeline/analise", icon: BarChart3 },
 ];
 
-export default function Projeto() {
+export default function LuisTimelineContainer() {
   const [location, setLocation] = useLocation();
   // A ficha do produto ocupa a tela inteira (sem as abas de navegação).
-  const [isDetail] = useRoute("/projeto/produto/:id");
+  const [isDetail] = useRoute("/luis-timeline/produto/:id");
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-display font-semibold text-foreground">Projeto</h1>
+        <h1 className="text-2xl font-display font-semibold text-foreground">Linha do Tempo Luís</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Portfólio de importação — pipeline completo do fornecedor ao lançamento
+          Pipeline do Luís — etapas personalizáveis com status e observações por produto
         </p>
       </div>
 
@@ -49,10 +49,10 @@ export default function Projeto() {
       )}
 
       <Switch>
-        <Route path="/projeto">{() => <ProjetoPainel />}</Route>
-        <Route path="/projeto/timeline" component={ProjetoTimeline} />
-        <Route path="/projeto/analise">{() => <ProjetoAnalise />}</Route>
-        <Route path="/projeto/produto/:id">{() => <ProjetoProduto />}</Route>
+        <Route path="/luis-timeline">{() => <ProjetoPainel basePath="/luis-timeline" />}</Route>
+        <Route path="/luis-timeline/timeline" component={LuisTimeline} />
+        <Route path="/luis-timeline/analise">{() => <ProjetoAnalise basePath="/luis-timeline" />}</Route>
+        <Route path="/luis-timeline/produto/:id">{() => <ProjetoProduto basePath="/luis-timeline" />}</Route>
       </Switch>
     </div>
   );

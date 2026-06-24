@@ -46,6 +46,7 @@ import {
   Undo2,
   Award,
   FolderKanban,
+  GitBranch,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -66,6 +67,7 @@ const menuGroups: MenuGroup[] = [
       { icon: Wallet, label: "Lucratividade", path: "/lucratividade" },
       { icon: Calculator, label: "Calculadora de precificação", path: "/calculadora" },
       { icon: FolderKanban, label: "Projeto", path: "/projeto" },
+      { icon: GitBranch, label: "Linha do Tempo Luís", path: "/luis-timeline" },
     ],
   },
   {
@@ -331,7 +333,8 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                     const isActive =
                       location === item.path ||
                       (item.path === "/calculadora" && location.startsWith("/calculadora")) ||
-                      (item.path === "/projeto" && location.startsWith("/projeto"));
+                      (item.path === "/projeto" && location.startsWith("/projeto")) ||
+                      (item.path === "/luis-timeline" && location.startsWith("/luis-timeline"));
                     const showBadge = item.path === "/alertas" && unread > 0;
                     return (
                       <SidebarMenuItem key={item.path}>

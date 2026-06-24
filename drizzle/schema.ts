@@ -709,3 +709,46 @@ export const matrixSettings = mysqlTable(
 
 export type MatrixSettings = typeof matrixSettings.$inferSelect;
 export type InsertMatrixSettings = typeof matrixSettings.$inferInsert;
+
+
+// ─── Linha do Tempo Luís ──────────────────────────────────────────────────────
+// Modelo único e editável de etapas (bolinhas) usado por TODOS os produtos na
+// aba "Linha do Tempo Luís". Independente do Cronograma original do Projeto.
+export const luisTimelineStages = mysqlTable(
+  "luis_timeline_stages",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    label: varchar("label", { length: 255 }).notNull(),
+    position: int("position").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    positionIdx: index("luis_timeline_stages_position_idx").on(t.position),
+  }),
+);
+
+export type LuisTimelineStage = typeof luisTimelineStages.$inferSelect;
+export type InsertLuisTimelineStage = typeof luisTimelineStages.$inferInsert;
+
+// Progresso por produto + etapa: concluído (tique) e observação livre editável.
+export const luisProductStepProgress = mysqlTable(
+  "luis_product_step_progress",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    stageId: int("stageId").notNull(),
+    done: boolean("done").default(false).notNull(),
+    note: text("note"),
+    completedAt: timestamp("completedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productIdx: index("luis_progress_product_idx").on(t.productId),
+    stageIdx: index("luis_progress_stage_idx").on(t.stageId),
+  }),
+);
+
+export type LuisProductStepProgress = typeof luisProductStepProgress.$inferSelect;
+export type InsertLuisProductStepProgress = typeof luisProductStepProgress.$inferInsert;

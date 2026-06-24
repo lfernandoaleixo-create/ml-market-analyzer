@@ -153,7 +153,7 @@ function HoverTooltip({ data, x, y }: { data: TooltipData; x: number; y: number 
   );
 }
 
-export default function ProjetoAnalise() {
+export default function ProjetoAnalise({ basePath = "/projeto" }: { basePath?: string } = {}) {
   const [, setLocation] = useLocation();
   const [hovered, setHovered] = useState<{ data: TooltipData; x: number; y: number } | null>(null);
   const svgContainerRef = useRef<HTMLDivElement>(null);
@@ -329,7 +329,7 @@ export default function ProjetoAnalise() {
                     <g
                       key={product.id}
                       style={{ cursor: "pointer" }}
-                      onClick={() => setLocation(`/projeto/produto/${product.id}`)}
+                      onClick={() => setLocation(`${basePath}/produto/${product.id}`)}
                       onMouseMove={(e) => handleMouseMove(e, product)}
                       onMouseLeave={handleMouseLeave}
                     >
