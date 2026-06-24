@@ -731,12 +731,36 @@ export const luisTimelineStages = mysqlTable(
 export type LuisTimelineStage = typeof luisTimelineStages.$inferSelect;
 export type InsertLuisTimelineStage = typeof luisTimelineStages.$inferInsert;
 
-// Progresso por produto + etapa: concluído (tique) e observação livre editável.
+// Fornecedores de cada produto na Linha do Tempo Luís. Um produto pode ter
+// vários fornecedores, e cada fornecedor tem sua própria linha do tempo.
+export const luisSuppliers = mysqlTable(
+  "luis_suppliers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    position: int("position").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productIdx: index("luis_suppliers_product_idx").on(t.productId),
+    positionIdx: index("luis_suppliers_position_idx").on(t.position),
+  }),
+);
+
+export type LuisSupplier = typeof luisSuppliers.$inferSelect;
+export type InsertLuisSupplier = typeof luisSuppliers.$inferInsert;
+
+// Progresso por produto + fornecedor + etapa: concluído (tique) e observação
+// livre editável. supplierId permite que cada fornecedor tenha sua própria
+// linha do tempo dentro do mesmo produto.
 export const luisProductStepProgress = mysqlTable(
   "luis_product_step_progress",
   {
     id: int("id").autoincrement().primaryKey(),
     productId: int("productId").notNull(),
+    supplierId: int("supplierId"),
     stageId: int("stageId").notNull(),
     done: boolean("done").default(false).notNull(),
     note: text("note"),
@@ -746,6 +770,7 @@ export const luisProductStepProgress = mysqlTable(
   },
   (t) => ({
     productIdx: index("luis_progress_product_idx").on(t.productId),
+    supplierIdx: index("luis_progress_supplier_idx").on(t.supplierId),
     stageIdx: index("luis_progress_stage_idx").on(t.stageId),
   }),
 );

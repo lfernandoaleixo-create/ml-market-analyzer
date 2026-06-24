@@ -1372,3 +1372,25 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validar (tsc+vitest+preview): 0 erros TS, 689/690 testes (1 falha = teste live Oxylabs por timeout externo). Preview OK.
 - [x] Performance: coletar visitas por dia somente de anúncios ATIVOS (filtro no cliente), ignorando pausados/encerrados
 - [x] Testes: extrair buildListingsReportHtml para shared/ + 8 testes vitest (cabeçalho, linhas, escape HTML, "—" sem visitas, colunas de dias, subtítulo, status). Suíte completa: 694 testes verdes.
+
+
+## Fornecedores por produto na Linha do Tempo Luís (2026-06-24)
+- [x] Schema: tabela luis_suppliers (productId, name, position) + supplierId em luis_product_step_progress
+- [x] Migração SQL aplicada via webdev_execute_sql (0014_wise_vulture)
+- [ ] Backend: CRUD de fornecedores (criar/renomear/remover/reordenar) em luisTimelineDb.ts
+- [ ] Backend: overview retorna produtos -> fornecedores -> timeline (steps + progresso/observação)
+- [ ] Backend: setLuisStepDone/Note passam a usar supplierId
+- [ ] Frontend: dentro do produto, listar fornecedores; cada um com sua timeline e progresso próprio
+- [ ] Frontend: adicionar/renomear/remover fornecedor
+- [ ] Testes vitest do novo modelo + suíte completa verde
+- [ ] Checkpoint e reporte
+
+
+## Reversão fornecedores + timeline horizontal (24/jun)
+- [x] Cronograma Luís: remover UI/recurso de fornecedores (reverter)
+- [x] Cronograma Luís: progresso por produto+etapa (supplierId NULL) no backend
+- [x] Cronograma Luís: timeline HORIZONTAL de bolinhas por produto
+- [x] Cronograma Luís: observação por etapa via popover na bolinha
+- [x] Cronograma Luís: atualizar router (remover suppliers; setDone/Note por productId)
+- [x] Cronograma Luís: atualizar testes do luisTimelineDb e rodar suíte
+- [x] Cronograma Luís: corrigir clique (stopPropagation na bolinha + cabeçalho como div role=button) — marcar etapa agora persiste (validado ao vivo: Matador 2/4 · 50%)

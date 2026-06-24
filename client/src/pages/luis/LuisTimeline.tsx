@@ -23,6 +23,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -271,11 +276,21 @@ function StagesManager({ stages }: { stages: Stage[] }) {
   );
 }
 
-// ─── Bolinhas + observações de um produto ────────────────────────────────────
-function ProductStages({ product, priorityColor }: { product: Product; priorityColor: string }) {
+// ─── Uma bolinha (etapa) na linha do tempo horizontal de um produto ───────────
+function TimelineDot({
+  productId,
+  step,
+  index,
+  priorityColor,
+}: {
+  productId: number;
+  step: Step;
+  index: number;
+  priorityColor: string;
+}) {
   const utils = trpc.useUtils();
-  const [noteEditing, setNoteEditing] = useState<number | null>(null);
-  const [noteDraft, setNoteDraft] = useState("");
+  const [open, setOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(step.note ?? "");
 
   const refresh = () => utils.luisTimeline.overview.invalidate();
 
@@ -285,13 +300,147 @@ function ProductStages({ product, priorityColor }: { product: Product; priorityC
   });
   const noteMut = trpc.luisTimeline.progress.setNote.useMutation({
     onSuccess: () => {
-      setNoteEditing(null);
       refresh();
       toast.success("Observação salva");
     },
     onError: () => toast.error("Não foi possível salvar a observação"),
   });
 
+  const color = step.done ? priorityColor : "var(--muted-foreground)";
+
+  return (
+    <div
+      className="flex flex-col items-center gap-2 shrink-0"
+      style={{ width: 96 }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <Popover
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (o) setNoteDraft(step.note ?? "");
+        }}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            onClick={(e) => e.stopPropagation()}
+            className="relative flex items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95"
+            style={{
+              width: 36,
+              height: 36,
+              background: step.done ? priorityColor : "var(--muted)",
+              border: step.done ? `2px solid ${priorityColor}` : "2px solid var(--border)",
+            }}
+            title={step.label}
+          >
+            {step.done ? (
+              <svg width="16" height="16" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <span className="text-muted-foreground text-xs font-semibold">{index + 1}</span>
+            )}
+            {step.note && step.note.trim().length > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card"
+                style={{ background: "var(--primary)" }}
+              />
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72" align="center">
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground leading-tight">{step.label}</p>
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                style={{
+                  background: step.done
+                    ? "color-mix(in oklch, var(--success) 15%, transparent)"
+                    : "var(--muted)",
+                  color: step.done ? "var(--success)" : "var(--muted-foreground)",
+                }}
+              >
+                {step.done ? "Concluída" : "Pendente"}
+              </span>
+            </div>
+
+            <Button
+              size="sm"
+              variant={step.done ? "outline" : "default"}
+              className="w-full h-8"
+              disabled={doneMut.isPending}
+              onClick={() => doneMut.mutate({ productId, stageId: step.stageId, done: !step.done })}
+            >
+              {step.done ? (
+                <>
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Marcar como pendente
+                </>
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5 mr-1" />
+                  Marcar como concluída
+                </>
+              )}
+            </Button>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Observação</label>
+              <Textarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder="Ex.: Amostra a caminho / Aguardando cotação"
+                className="min-h-[64px] text-sm"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-8 flex-1"
+                  disabled={noteMut.isPending}
+                  onClick={() =>
+                    noteMut.mutate({
+                      productId,
+                      stageId: step.stageId,
+                      note: noteDraft.trim() ? noteDraft.trim() : null,
+                    })
+                  }
+                >
+                  Salvar observação
+                </Button>
+                {step.note && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-destructive hover:text-destructive"
+                    disabled={noteMut.isPending}
+                    onClick={() => {
+                      setNoteDraft("");
+                      noteMut.mutate({ productId, stageId: step.stageId, note: null });
+                    }}
+                  >
+                    Limpar
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <span
+        className="text-[11px] leading-tight text-center font-medium line-clamp-2"
+        style={{ color }}
+      >
+        {step.label}
+      </span>
+    </div>
+  );
+}
+
+// ─── Linha do tempo HORIZONTAL de um produto ─────────────────────────────────
+function HorizontalTimeline({ product, priorityColor }: { product: Product; priorityColor: string }) {
   if (product.steps.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-2">
@@ -300,104 +449,46 @@ function ProductStages({ product, priorityColor }: { product: Product; priorityC
     );
   }
 
+  // Índice da última etapa concluída para colorir a linha de conexão.
+  const lastDoneIndex = product.steps.reduce((acc, s, i) => (s.done ? i : acc), -1);
+
   return (
-    <div className="space-y-2.5 pt-1">
-      {product.steps.map((step, idx) => {
-        const isEditing = noteEditing === step.stageId;
-        return (
-          <div key={step.stageId} className="flex items-start gap-3 rounded-lg border border-border bg-background p-2.5">
-            <button
-              onClick={() => doneMut.mutate({ productId: product.id, stageId: step.stageId, done: !step.done })}
-              className="shrink-0 mt-0.5 flex items-center justify-center rounded-full transition-all"
-              style={{
-                width: "24px",
-                height: "24px",
-                background: step.done ? priorityColor : "var(--muted)",
-                border: step.done ? `2px solid ${priorityColor}` : "2px solid var(--border)",
-              }}
-              title={step.done ? "Marcar como pendente" : "Marcar como concluída"}
-            >
-              {step.done ? (
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              ) : (
-                <span className="text-muted-foreground text-[10px] font-semibold">{idx + 1}</span>
-              )}
-            </button>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-sm font-medium ${step.done ? "text-foreground" : "text-muted-foreground"}`}>
-                  {step.label}
-                </span>
-                {!isEditing && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs shrink-0"
-                    onClick={() => {
-                      setNoteEditing(step.stageId);
-                      setNoteDraft(step.note ?? "");
+    <div className="overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="flex items-start" style={{ minWidth: "min-content" }}>
+        {product.steps.map((step, idx) => {
+          const isFirst = idx === 0;
+          // Segmento de linha que liga a bolinha anterior à atual.
+          const connectorActive = idx <= lastDoneIndex;
+          return (
+            <div key={step.stageId} className="flex items-start">
+              {!isFirst && (
+                <div className="flex items-center" style={{ height: 36 }}>
+                  <div
+                    className="h-[3px] rounded-full transition-colors duration-500"
+                    style={{
+                      width: 28,
+                      background: connectorActive ? priorityColor : "var(--border)",
                     }}
-                  >
-                    <Pencil className="w-3 h-3 mr-1" />
-                    {step.note ? "Editar" : "Observação"}
-                  </Button>
-                )}
-              </div>
-
-              {isEditing ? (
-                <div className="mt-1.5 space-y-2">
-                  <Textarea
-                    value={noteDraft}
-                    onChange={(e) => setNoteDraft(e.target.value)}
-                    placeholder="Ex.: Amostra a caminho / Amostra recebida"
-                    className="min-h-[60px] text-sm"
-                    autoFocus
                   />
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      className="h-8"
-                      disabled={noteMut.isPending}
-                      onClick={() =>
-                        noteMut.mutate({
-                          productId: product.id,
-                          stageId: step.stageId,
-                          note: noteDraft.trim() === "" ? null : noteDraft.trim(),
-                        })
-                      }
-                    >
-                      Salvar
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-8" onClick={() => setNoteEditing(null)}>
-                      Cancelar
-                    </Button>
-                  </div>
                 </div>
-              ) : step.note ? (
-                <p className="text-sm text-foreground/80 mt-0.5 whitespace-pre-wrap break-words bg-muted/40 rounded-md px-2 py-1">
-                  {step.note}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground/70 italic mt-0.5">Sem observação</p>
               )}
+              <TimelineDot productId={product.id} step={step} index={idx} priorityColor={priorityColor} />
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 function ProductRow({ product, index }: { product: Product; index: number }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const pStyle = PRIORITY_STYLE[product.priority] ?? PRIORITY_STYLE.media;
   const daysLeft = getDaysLeft(product.expectedArrival);
   const urgency = URGENCY(daysLeft);
   const UrgencyIcon = urgency.icon;
   const isOverdue = daysLeft !== null && daysLeft < 0;
+
   const total = product.totalSteps || product.steps.length;
   const progressPct = total > 0 ? Math.round((product.completedCount / total) * 100) : 0;
 
@@ -405,7 +496,18 @@ function ProductRow({ product, index }: { product: Product; index: number }) {
     <div className="relative flex items-stretch gap-0 rounded-2xl overflow-hidden bg-card card-soft transition-all duration-200">
       <div className="w-1 shrink-0 rounded-l-2xl" style={{ background: pStyle.dot }} />
       <div className="flex-1 min-w-0 p-4 sm:p-5 space-y-3">
-        <button onClick={() => setExpanded((v) => !v)} className="w-full text-left">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setExpanded((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setExpanded((v) => !v);
+            }
+          }}
+          className="w-full text-left cursor-pointer"
+        >
           <div className="flex items-start gap-3">
             <span
               className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
@@ -429,7 +531,9 @@ function ProductRow({ product, index }: { product: Product; index: number }) {
                   </span>
                 )}
               </div>
-              {product.supplier && <p className="text-xs text-muted-foreground mt-0.5 truncate">{product.supplier}</p>}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {product.completedCount}/{total} etapas concluídas · {progressPct}%
+              </p>
             </div>
             <div className="shrink-0 flex flex-col items-end gap-1.5 ml-2">
               <div
@@ -449,27 +553,28 @@ function ProductRow({ product, index }: { product: Product; index: number }) {
               />
             </div>
           </div>
-        </button>
+        </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">
-            {product.completedCount} de {total} etapas concluídas
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%`, background: pStyle.dot }}
+            />
+          </div>
           <span
-            className="text-xs font-semibold"
+            className="text-xs font-semibold shrink-0"
             style={{ color: progressPct === 100 ? "var(--success)" : pStyle.dot }}
           >
             {progressPct}%
           </span>
         </div>
-        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${progressPct}%`, background: pStyle.dot }}
-          />
-        </div>
 
-        {expanded && <ProductStages product={product} priorityColor={pStyle.dot} />}
+        {expanded && (
+          <div className="pt-2 border-t border-border/60">
+            <HorizontalTimeline product={product} priorityColor={pStyle.dot} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -531,11 +636,12 @@ export default function LuisTimeline() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h2 className="text-2xl font-display font-semibold text-foreground">Cronograma do Luís</h2>
         <p className="text-muted-foreground mt-1 text-sm">
-          Etapas personalizáveis por você. Clique num produto para marcar as etapas concluídas e escrever observações.
+          Cada produto tem sua própria linha do tempo. Clique numa bolinha para marcar a etapa como concluída e
+          adicionar uma observação.
         </p>
       </div>
 

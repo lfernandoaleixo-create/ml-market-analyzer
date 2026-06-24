@@ -1,12 +1,13 @@
 import { and, asc, eq } from "drizzle-orm";
-import {
-  luisProductStepProgress,
-  luisTimelineStages,
-  projectProducts,
-} from "../drizzle/schema";
+import { luisProductStepProgress, luisTimelineStages, projectProducts } from "../drizzle/schema";
 import { getDb } from "./db";
 
 // ─── Stages (modelo único e editável de etapas do Luís) ──────────────────────
+// Uma única lista de etapas (bolinhas) vale para TODOS os produtos. Cada produto
+// tem sua própria linha do tempo horizontal: para cada etapa há um estado
+// (concluído + observação) registrado em luis_product_step_progress.
+// Observação: a coluna supplierId continua existindo no schema por compatibilidade,
+// mas neste modelo o progresso é por produto e gravamos supplierId = NULL.
 
 export async function getLuisStages() {
   const db = await getDb();
@@ -71,18 +72,10 @@ async function normalizeLuisStagePositions() {
 
 // ─── Progress (por produto + etapa) ──────────────────────────────────────────
 
-export async function getLuisProgressByProduct(productId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db
-    .select()
-    .from(luisProductStepProgress)
-    .where(eq(luisProductStepProgress.productId, productId));
-}
-
 export async function setLuisStepDone(productId: number, stageId: number, done: boolean) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+
   const existing = await db
     .select()
     .from(luisProductStepProgress)
@@ -103,13 +96,14 @@ export async function setLuisStepDone(productId: number, stageId: number, done: 
   } else {
     await db
       .insert(luisProductStepProgress)
-      .values({ productId, stageId, done, completedAt });
+      .values({ productId, supplierId: null, stageId, done, completedAt });
   }
 }
 
 export async function setLuisStepNote(productId: number, stageId: number, note: string | null) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+
   const existing = await db
     .select()
     .from(luisProductStepProgress)
@@ -127,13 +121,14 @@ export async function setLuisStepNote(productId: number, stageId: number, note: 
       .set({ note })
       .where(eq(luisProductStepProgress.id, existing[0].id));
   } else {
-    await db.insert(luisProductStepProgress).values({ productId, stageId, note });
+    await db.insert(luisProductStepProgress).values({ productId, supplierId: null, stageId, note });
   }
 }
 
 // ─── Overview para o Cronograma do Luís ──────────────────────────────────────
-// Mesma fonte de itens do Projeto (project_products), com as etapas do Luís
-// resolvidas por produto (concluído + observação).
+// Mesma fonte de itens do Projeto (project_products). Cada produto tem sua
+// própria linha do tempo horizontal: a lista de etapas com estado (done + note)
+// e o progresso agregado (quantas etapas concluídas).
 
 export async function getLuisTimelineOverview() {
   const db = await getDb();
@@ -157,10 +152,20 @@ export async function getLuisTimelineOverview() {
     .orderBy(projectProducts.expectedArrival);
 
   const allProgress = await db.select().from(luisProductStepProgress);
+  // Progresso indexado por (productId -> stageId). Consideramos o progresso do
+  // produto (supplierId NULL) e também toleramos linhas legadas com supplierId.
   const progressByProduct = new Map<number, Map<number, { done: boolean; note: string | null }>>();
   for (const p of allProgress) {
     if (!progressByProduct.has(p.productId)) progressByProduct.set(p.productId, new Map());
-    progressByProduct.get(p.productId)!.set(p.stageId, { done: p.done, note: p.note });
+    const map = progressByProduct.get(p.productId)!;
+    const prev = map.get(p.stageId);
+    // Se houver múltiplas linhas para a mesma etapa (legado por fornecedor),
+    // a etapa conta como concluída se qualquer uma estiver concluída, e mantém
+    // a primeira observação não vazia.
+    map.set(p.stageId, {
+      done: (prev?.done ?? false) || p.done,
+      note: prev?.note ?? p.note,
+    });
   }
 
   const enriched = products.map((prod) => {
@@ -175,7 +180,12 @@ export async function getLuisTimelineOverview() {
       };
     });
     const completedCount = steps.filter((s) => s.done).length;
-    return { ...prod, steps, completedCount, totalSteps: stages.length };
+    return {
+      ...prod,
+      steps,
+      completedCount,
+      totalSteps: stages.length,
+    };
   });
 
   const withDate = enriched.filter((r) => r.expectedArrival != null);

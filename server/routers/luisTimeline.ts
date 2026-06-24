@@ -3,7 +3,6 @@ import { publicProcedure, router } from "../_core/trpc";
 import {
   createLuisStage,
   deleteLuisStage,
-  getLuisProgressByProduct,
   getLuisStages,
   getLuisTimelineOverview,
   renameLuisStage,
@@ -34,15 +33,14 @@ export const luisTimelineRouter = router({
       .mutation(({ input }) => reorderLuisStages(input.orderedIds)),
   }),
 
-  // ─── Progresso por produto ──────────────────────────────────────────────────
+  // ─── Progresso por produto + etapa ───────────────────────────────────────────
   progress: router({
-    byProduct: publicProcedure
-      .input(z.object({ productId: z.number() }))
-      .query(({ input }) => getLuisProgressByProduct(input.productId)),
-
     setDone: publicProcedure
       .input(z.object({ productId: z.number(), stageId: z.number(), done: z.boolean() }))
-      .mutation(({ input }) => setLuisStepDone(input.productId, input.stageId, input.done)),
+      .mutation(async ({ input }) => {
+        await setLuisStepDone(input.productId, input.stageId, input.done);
+        return { ok: true };
+      }),
 
     setNote: publicProcedure
       .input(
@@ -52,7 +50,10 @@ export const luisTimelineRouter = router({
           note: z.string().max(2000).nullable(),
         }),
       )
-      .mutation(({ input }) => setLuisStepNote(input.productId, input.stageId, input.note)),
+      .mutation(async ({ input }) => {
+        await setLuisStepNote(input.productId, input.stageId, input.note);
+        return { ok: true };
+      }),
   }),
 
   // ─── Cronograma (overview com mesmos itens do Projeto) ──────────────────────
