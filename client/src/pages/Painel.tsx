@@ -223,14 +223,6 @@ export default function Painel() {
   return (
     <PageShell>
       <BrandHero
-        greeting={
-          <>
-            Olá{conn.data?.nickname ? ", " : ""}
-            {conn.data?.nickname && (
-              <span className="brand-text-gradient">{conn.data.nickname}</span>
-            )}
-          </>
-        }
         subtitle="Visão geral da sua loja no Mercado Livre — vendas, anúncios e reputação em tempo real."
         actions={
           <>
