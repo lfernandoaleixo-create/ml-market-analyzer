@@ -1355,3 +1355,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Tabela de anúncios: ampliar de 3 para 4 dias (hoje + 3 anteriores)
 - [x] Tabela de anúncios: layout das colunas de dia sem sobreposição (rótulo numa linha, número alinhado, larguras iguais)
 - [x] Adicionar SortKey day3 e ordenação pelo 4º dia
+
+## Meus anúncios — limpeza de layout (24/06)
+- [x] Ocultar linha de KPIs do topo (Ativos, Visitas 30d, Pausados, Sem vendas, Sem estoque)
+- [x] Ocultar bloco de cards "Anúncios ativos" (ActiveListingsCard), manter só a tabela
+- [x] Mover "Lista de anúncios" (planilha) para o topo da página

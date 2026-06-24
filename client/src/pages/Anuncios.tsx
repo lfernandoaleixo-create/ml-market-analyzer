@@ -403,56 +403,153 @@ export default function Anuncios() {
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <KpiCard
-          label="Ativos"
-          value={isLoading ? "" : `${formatNumber(s?.active ?? 0)} / ${formatNumber(s?.total ?? 0)}`}
-          loading={isLoading}
-          icon={Package}
-          accent="primary"
-        />
-        <KpiCard
-          label={`Visitas (${visitWindow}d)`}
-          value={isLoading ? "" : heroVisitsPending ? LOADING : formatNumber(heroVisitsValue ?? 0)}
-          loading={isLoading}
-          icon={Eye}
-          accent="blue"
-          sublabel={
-            heroVisitsPending
-              ? "carregando do Mercado Livre…"
-              : seriesPending
-                ? "atualizando…"
-                : undefined
-          }
-          trend={heroVisitsPending ? undefined : { pct: visitsTrendPct, label: "vs. período anterior" }}
-        />
-        <KpiCard
-          label="Pausados"
-          value={isLoading ? "" : formatNumber(s?.paused ?? 0)}
-          loading={isLoading}
-          icon={PauseCircle}
-          accent="amber"
-        />
-        <KpiCard
-          label="Sem vendas"
-          value={isLoading ? "" : formatNumber(s?.stagnant ?? 0)}
-          loading={isLoading}
-          icon={AlertCircle}
-          accent="rose"
-          sublabel="com estoque parado"
-        />
-        <KpiCard
-          label="Sem estoque"
-          value={isLoading ? "" : formatNumber(s?.outOfStock ?? 0)}
-          loading={isLoading}
-          icon={Boxes}
-          accent="orange"
-        />
-      </div>
+      {/* KPIs do topo ocultados a pedido do usuário (23/06) */}
 
-      {/* Card dedicado: somente anúncios ATIVOS (grid de cartões) */}
-      <ActiveListingsCard items={items} loading={isLoading} visitWindow={visitWindow} />
+      {/* Card de anúncios ATIVOS (grid de cartões) ocultado a pedido do usuário (23/06) — manter apenas a Lista em planilha */}
+
+            {/* List + filters — movida para o topo a pedido do usuário (23/06) */}
+      <SectionCard
+        collapsible
+        defaultOpen
+        title="Lista de anúncios"
+        description={
+          isLoading
+            ? undefined
+            : `${formatNumber(filtered.length)} de ${formatNumber(items.length)} anúncios`
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="relative w-44 md:w-64">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={filters.search ?? ""}
+                onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
+                placeholder="Buscar por nome ou ID..."
+                className="h-9 pl-9 pr-8"
+              />
+              {filters.search && (
+                <button
+                  onClick={() => setFilters((p) => ({ ...p, search: "" }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        }
+      >
+        {/* Filter chips */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {STATUS_FILTERS.map((f) => (
+            <FilterChip
+              key={f.key}
+              active={(filters.statuses ?? []).includes(f.key)}
+              onClick={() => toggleArrayFilter("statuses", f.key)}
+            >
+              {f.label}
+            </FilterChip>
+          ))}
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          {availableTypes.map((t) => (
+            <FilterChip
+              key={t}
+              active={(filters.listingTypes ?? []).includes(t)}
+              onClick={() => toggleArrayFilter("listingTypes", t)}
+            >
+              {typeLabel(t)}
+            </FilterChip>
+          ))}
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          <FilterChip
+            active={filters.freeShipping === true}
+            onClick={() =>
+              setFilters((p) => ({ ...p, freeShipping: p.freeShipping === true ? null : true }))
+            }
+          >
+            Frete grátis
+          </FilterChip>
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Visualizações</span>
+            <Select
+              value={(filters.visitBucketIds && filters.visitBucketIds[0]) ?? "all"}
+              onValueChange={(v) =>
+                setFilters((p) => ({ ...p, visitBucketIds: v === "all" ? [] : [v] }))
+              }
+            >
+              <SelectTrigger className="h-8 w-[150px] px-2.5 text-xs">
+                <SelectValue placeholder="Todas as faixas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as faixas</SelectItem>
+                {VISIT_BUCKETS.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Preço</span>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={filters.priceMin ?? ""}
+              onChange={(e) =>
+                setFilters((p) => ({ ...p, priceMin: e.target.value === "" ? null : Number(e.target.value) }))
+              }
+              placeholder="mín"
+              className="h-8 w-20 px-2.5 text-xs"
+            />
+            <span className="text-xs text-muted-foreground">–</span>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={filters.priceMax ?? ""}
+              onChange={(e) =>
+                setFilters((p) => ({ ...p, priceMax: e.target.value === "" ? null : Number(e.target.value) }))
+              }
+              placeholder="máx"
+              className="h-8 w-20 px-2.5 text-xs"
+            />
+          </div>
+          {activeFilterCount > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 px-2.5 text-xs text-muted-foreground"
+              onClick={() => setFilters((p) => ({ ...emptyFilters, search: p.search }))}
+            >
+              <X className="h-3.5 w-3.5" /> Limpar filtros ({activeFilterCount})
+            </Button>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-14 w-full" />
+            ))}
+          </div>
+        ) : sorted.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-center">
+            <Filter className="h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">
+              Nenhum anúncio corresponde aos filtros atuais.
+            </p>
+          </div>
+        ) : (
+          <ListingsTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} dailyVisits={dailyVisitsMap} />
+        )}
+        {isFetching && !isLoading && (
+          <p className="mt-3 text-center text-xs text-muted-foreground">Atualizando janela de {visitWindow} dias…</p>
+        )}
+      </SectionCard>
+
 
       {/* Visits broken down by listing status */}
       <SectionCard
@@ -643,148 +740,6 @@ export default function Anuncios() {
         accent="blue"
       />
 
-      {/* List + filters */}
-      <SectionCard
-        collapsible
-        defaultOpen
-        title="Lista de anúncios"
-        description={
-          isLoading
-            ? undefined
-            : `${formatNumber(filtered.length)} de ${formatNumber(items.length)} anúncios`
-        }
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="relative w-44 md:w-64">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={filters.search ?? ""}
-                onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
-                placeholder="Buscar por nome ou ID..."
-                className="h-9 pl-9 pr-8"
-              />
-              {filters.search && (
-                <button
-                  onClick={() => setFilters((p) => ({ ...p, search: "" }))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label="Limpar busca"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        }
-      >
-        {/* Filter chips */}
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {STATUS_FILTERS.map((f) => (
-            <FilterChip
-              key={f.key}
-              active={(filters.statuses ?? []).includes(f.key)}
-              onClick={() => toggleArrayFilter("statuses", f.key)}
-            >
-              {f.label}
-            </FilterChip>
-          ))}
-          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          {availableTypes.map((t) => (
-            <FilterChip
-              key={t}
-              active={(filters.listingTypes ?? []).includes(t)}
-              onClick={() => toggleArrayFilter("listingTypes", t)}
-            >
-              {typeLabel(t)}
-            </FilterChip>
-          ))}
-          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          <FilterChip
-            active={filters.freeShipping === true}
-            onClick={() =>
-              setFilters((p) => ({ ...p, freeShipping: p.freeShipping === true ? null : true }))
-            }
-          >
-            Frete grátis
-          </FilterChip>
-          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Visualizações</span>
-            <Select
-              value={(filters.visitBucketIds && filters.visitBucketIds[0]) ?? "all"}
-              onValueChange={(v) =>
-                setFilters((p) => ({ ...p, visitBucketIds: v === "all" ? [] : [v] }))
-              }
-            >
-              <SelectTrigger className="h-8 w-[150px] px-2.5 text-xs">
-                <SelectValue placeholder="Todas as faixas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as faixas</SelectItem>
-                {VISIT_BUCKETS.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Preço</span>
-            <Input
-              type="number"
-              inputMode="decimal"
-              value={filters.priceMin ?? ""}
-              onChange={(e) =>
-                setFilters((p) => ({ ...p, priceMin: e.target.value === "" ? null : Number(e.target.value) }))
-              }
-              placeholder="mín"
-              className="h-8 w-20 px-2.5 text-xs"
-            />
-            <span className="text-xs text-muted-foreground">–</span>
-            <Input
-              type="number"
-              inputMode="decimal"
-              value={filters.priceMax ?? ""}
-              onChange={(e) =>
-                setFilters((p) => ({ ...p, priceMax: e.target.value === "" ? null : Number(e.target.value) }))
-              }
-              placeholder="máx"
-              className="h-8 w-20 px-2.5 text-xs"
-            />
-          </div>
-          {activeFilterCount > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 gap-1 px-2.5 text-xs text-muted-foreground"
-              onClick={() => setFilters((p) => ({ ...emptyFilters, search: p.search }))}
-            >
-              <X className="h-3.5 w-3.5" /> Limpar filtros ({activeFilterCount})
-            </Button>
-          )}
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 w-full" />
-            ))}
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-12 text-center">
-            <Filter className="h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">
-              Nenhum anúncio corresponde aos filtros atuais.
-            </p>
-          </div>
-        ) : (
-          <ListingsTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} dailyVisits={dailyVisitsMap} />
-        )}
-        {isFetching && !isLoading && (
-          <p className="mt-3 text-center text-xs text-muted-foreground">Atualizando janela de {visitWindow} dias…</p>
-        )}
-      </SectionCard>
     </PageShell>
   );
 }
