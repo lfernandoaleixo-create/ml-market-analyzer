@@ -48,6 +48,8 @@ import {
   FolderKanban,
   GitBranch,
   GripVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -314,13 +316,30 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
       <div className="relative" ref={sidebarRef}>
         <Sidebar collapsible="icon" className="border-r" disableTransition={isResizing}>
           <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
-            <div className="flex items-center px-1.5 w-full">
+            <div className="flex items-center gap-2 px-1.5 w-full">
               {!isCollapsed ? (
-                <Wordmark />
+                <>
+                  <Wordmark />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleSidebar}
+                    className="ml-auto h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                    aria-label="Recolher menu"
+                    title="Recolher menu"
+                  >
+                    <PanelLeftClose className="h-4.5 w-4.5" />
+                  </Button>
+                </>
               ) : (
-                <div className="flex h-8 w-8 mx-auto items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <TrendingUp className="h-4 w-4" strokeWidth={2.5} />
-                </div>
+                <button
+                  onClick={toggleSidebar}
+                  aria-label="Expandir menu"
+                  title="Expandir menu"
+                  className="group flex h-8 w-8 mx-auto items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  <PanelLeftOpen className="h-4.5 w-4.5" />
+                </button>
               )}
             </div>
           </SidebarHeader>
