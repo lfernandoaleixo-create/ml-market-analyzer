@@ -15,12 +15,15 @@ export function ProductCell({
   permalink,
   imgClassName = "h-9 w-9",
   titleClassName = "max-w-[260px]",
+  clampTitle = true,
 }: {
   title: string;
   thumbnail?: string | null;
   permalink?: string | null;
   imgClassName?: string;
   titleClassName?: string;
+  /** When false, the title is shown in full (no line-clamp). Defaults to true. */
+  clampTitle?: boolean;
 }) {
   const inner = (
     <>
@@ -31,7 +34,8 @@ export function ProductCell({
       />
       <span
         className={cn(
-          "line-clamp-2 text-sm font-medium leading-tight",
+          "text-sm font-medium leading-tight",
+          clampTitle && "line-clamp-2",
           titleClassName,
         )}
       >

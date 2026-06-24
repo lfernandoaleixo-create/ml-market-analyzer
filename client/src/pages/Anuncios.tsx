@@ -27,6 +27,8 @@ import {
   isoToDayNum,
 } from "@/lib/format";
 import { computeVisitsTrendPct } from "@shared/visitsTrend";
+import { exportListingsPdf } from "@/lib/exportListingsPdf";
+import { toast } from "sonner";
 import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
 import { VisitsEvolutionChart } from "@/components/charts/VisitsEvolutionChart";
 import { DayVisitsBreakdownDialog } from "@/components/charts/DayVisitsBreakdownDialog";
@@ -72,6 +74,7 @@ import {
   AlertCircle,
   Boxes,
   Download,
+  FileText,
   Search as SearchIcon,
   ArrowUpDown,
   ArrowUp,
@@ -82,7 +85,6 @@ import {
   RefreshCw,
   Flame,
   Filter,
-  TrendingUp,
 } from "lucide-react";
 
 const STATUS_META: Record<ListingStatus, { label: string; className: string }> = {
@@ -186,8 +188,12 @@ export default function Anuncios() {
   // Visitas DIÁRIAS por anúncio (hoje + 3 dias atrás) — endpoint dedicado e
   // não-bloqueante. Envia os itemIds da conta e devolve a série de 4 dias por
   // anúncio; faz poll enquanto o ML ainda está sendo coletado em background.
+  // PERFORMANCE: a coleta de visitas no ML custa 1 requisição POR anúncio. O
+  // usuário só se interessa pelas visitas dos anúncios ATIVOS, então coletamos
+  // apenas esses — isso reduz bastante o volume de chamadas e acelera o
+  // carregamento (pausados/encerrados são ignorados na coleta diária).
   const dailyItemIds = useMemo(
-    () => items.map((i) => i.itemId).filter(Boolean),
+    () => items.filter((i) => i.status === "active").map((i) => i.itemId).filter(Boolean),
     [items],
   );
   const visitsDaily = trpc.account.visitsDaily.useQuery(
@@ -281,6 +287,27 @@ export default function Anuncios() {
     URL.revokeObjectURL(url);
   }
 
+  function exportPdf() {
+    // Monta um rótulo curto descrevendo os filtros aplicados, para o relatório.
+    const parts: string[] = [];
+    if (filters.statuses?.length) {
+      const map: Record<string, string> = { active: "Ativos", paused: "Pausados", closed: "Encerrados" };
+      parts.push(filters.statuses.map((s) => map[s] ?? s).join(", "));
+    }
+    if (filters.search?.trim()) parts.push(`Busca: “${filters.search.trim()}”`);
+    if (filters.freeShipping === true) parts.push("Frete grátis");
+    try {
+      exportListingsPdf(sorted, {
+        visitWindow,
+        filtersLabel: parts.length ? parts.join(" · ") : "Todos os anúncios",
+      });
+    } catch (e) {
+      toast.error(
+        "Não foi possível abrir a janela de impressão. Verifique se o navegador está bloqueando pop-ups para este site.",
+      );
+    }
+  }
+
   const activeFilterCount =
     (filters.statuses?.length ?? 0) +
     (filters.listingTypes?.length ?? 0) +
@@ -362,6 +389,16 @@ export default function Anuncios() {
               disabled={isLoading || sorted.length === 0}
             >
               <Download className="h-4 w-4" /> CSV
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 bg-card"
+              onClick={exportPdf}
+              disabled={isLoading || sorted.length === 0}
+              title="Gerar PDF dos anúncios filtrados (com visitas)"
+            >
+              <FileText className="h-4 w-4" /> PDF
             </Button>
           </div>
         }
@@ -934,20 +971,10 @@ function DailyVisitsCell({ series }: { series?: VisitsDayPoint[] }) {
   }
   // Exibe os 4 últimos dias (hoje + 3 anteriores).
   const visible = series.slice(-4);
-  const today = visible[visible.length - 1];
-  const yest = visible.length >= 2 ? visible[visible.length - 2] : null;
-  // Variação hoje vs. ontem (indicativo — hoje é parcial).
-  let delta: number | null = null;
-  if (yest) {
-    if (yest.visits === 0) delta = today.visits > 0 ? 100 : 0;
-    else delta = ((today.visits - yest.visits) / yest.visits) * 100;
-  }
-  const up = delta != null && delta > 0;
-  const down = delta != null && delta < 0;
   const todayKey = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   return (
-    <div className="flex items-center justify-center gap-2">
+    <div className="flex items-center justify-center">
       <div className="flex items-stretch gap-1">
         {visible.map((p) => {
           const isToday = p.date === todayKey;
@@ -980,18 +1007,6 @@ function DailyVisitsCell({ series }: { series?: VisitsDayPoint[] }) {
           );
         })}
       </div>
-      {delta != null && (up || down) && (
-        <span
-          className={cn(
-            "inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-            up ? "bg-emerald-500/12 text-emerald-700" : "bg-rose-500/12 text-rose-700",
-          )}
-          title="Variação de hoje (parcial) em relação a ontem"
-        >
-          {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-          {Math.abs(delta).toFixed(0)}%
-        </span>
-      )}
     </div>
   );
 }
@@ -1055,7 +1070,7 @@ function ListingsTable({
           {rows.map((r) => (
             <tr key={r.itemId} className="group">
               <td className="py-3 pr-3">
-                <ProductCell title={r.title} thumbnail={r.thumbnail} permalink={r.permalink} titleClassName="max-w-[240px]" />
+                <ProductCell title={r.title} thumbnail={r.thumbnail} permalink={r.permalink} titleClassName="min-w-[220px]" clampTitle={false} />
               </td>
               <td className="px-3 text-right tabular-nums">{formatBRL(r.price)}</td>
               <td className="px-3 text-right tabular-nums">

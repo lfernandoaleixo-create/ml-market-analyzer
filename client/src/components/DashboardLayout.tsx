@@ -103,12 +103,16 @@ const MAX_WIDTH = 360;
 function Wordmark() {
   return (
     <div className="flex items-center gap-2.5 min-w-0">
-      <div className="brand-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary-foreground shadow-md">
-        <TrendingUp className="h-4.5 w-4.5" strokeWidth={2.6} />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#0b0b0d] shadow-md ring-1 ring-black/10">
+        <img
+          src="/manus-storage/toujours-logo_6a1debf8.webp"
+          alt="TOUJOURS"
+          className="h-full w-full object-cover"
+        />
       </div>
       <div className="flex flex-col min-w-0 leading-none">
         <span className="font-display text-lg font-bold tracking-tight truncate">
-          Mercato
+          TOUJOURS
         </span>
         <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate">
           Market Intelligence

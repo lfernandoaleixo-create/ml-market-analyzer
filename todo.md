@@ -1360,3 +1360,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Ocultar linha de KPIs do topo (Ativos, Visitas 30d, Pausados, Sem vendas, Sem estoque)
 - [x] Ocultar bloco de cards "Anúncios ativos" (ActiveListingsCard), manter só a tabela
 - [x] Mover "Lista de anúncios" (planilha) para o topo da página
+
+
+## Melhorias solicitadas (2026-06-24)
+- [x] Lista de anúncios: mostrar nome completo do anúncio (remover truncamento/reticências)
+- [x] Colunas de visitas por dia: remover o selo de tendência -100%/+100% (desalinha os dias) e manter dias sempre alinhados
+- [x] Remover as 3 abas: Ponto de Equilíbrio, Referência de preço, Anúncios ativos
+- [x] Home: redesenhar com a logo TOUJOURS (moderno, sofisticado, profissional) + wordmark da sidebar
+- [x] Meus Anúncios: botão Exportar PDF da seleção (anúncios + visitas)
+- [x] Carrinhos abandonados por anúncio: DISPENSADO pelo usuário (ML não expõe via API pública).
+- [x] Validar (tsc+vitest+preview): 0 erros TS, 689/690 testes (1 falha = teste live Oxylabs por timeout externo). Preview OK.
+- [x] Performance: coletar visitas por dia somente de anúncios ATIVOS (filtro no cliente), ignorando pausados/encerrados
+- [x] Testes: extrair buildListingsReportHtml para shared/ + 8 testes vitest (cabeçalho, linhas, escape HTML, "—" sem visitas, colunas de dias, subtítulo, status). Suíte completa: 694 testes verdes.

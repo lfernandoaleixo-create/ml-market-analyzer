@@ -3,11 +3,11 @@ import { trpc } from "@/lib/trpc";
 import { ProductCell } from "@/components/account/ProductCell";
 import {
   PageShell,
-  PageHeader,
   KpiSkeletonRow,
   SectionCard,
   NotConnected,
 } from "@/components/account/AccountUI";
+import { BrandHero } from "@/components/account/BrandHero";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -222,8 +222,8 @@ export default function Painel() {
 
   return (
     <PageShell>
-      <PageHeader
-        title={
+      <BrandHero
+        greeting={
           <>
             Olá{conn.data?.nickname ? ", " : ""}
             {conn.data?.nickname && (

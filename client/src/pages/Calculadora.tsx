@@ -2,20 +2,14 @@ import { PageShell, PageHeader } from "@/components/account/AccountUI";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { Calculator, Scale, Tag, ListChecks, Globe, ArrowLeft, ArrowRight } from "lucide-react";
+import { Calculator, Globe, ArrowLeft, ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import PrecificacaoCalc from "@/components/calculadora/PrecificacaoCalc";
-import PontoEquilibrioCalc from "@/components/calculadora/PontoEquilibrioCalc";
-import ReferenciaPreco from "@/components/calculadora/ReferenciaPreco";
-import AnunciosAtivos from "@/components/calculadora/AnunciosAtivos";
 import CustoAlvoCalc from "@/components/calculadora/CustoAlvoCalc";
 
 type ModelKey =
   | "precificacao"
-  | "custo-alvo"
-  | "ponto-equilibrio"
-  | "referencia-preco"
-  | "anuncios-ativos";
+  | "custo-alvo";
 
 type Model = {
   key: ModelKey;
@@ -59,51 +53,6 @@ const MODELS: Model[] = [
     icon: Globe,
     accent: "bg-rose-500/12 text-rose-600",
   },
-  {
-    key: "ponto-equilibrio",
-    path: "/calculadora/ponto-equilibrio",
-    title: "Ponto de Equilíbrio",
-    tagline: "Quanto vender para não ter prejuízo",
-    description:
-      "Calcule a receita e o número de unidades que você precisa vender no mês para cobrir todos os custos fixos e variáveis. Veja a margem de contribuição, o lucro atual e cenários de venda.",
-    bullets: [
-      "Margem de contribuição (R$ e %)",
-      "Ponto de equilíbrio em R$ e em unidades",
-      "Cenários: atual, −10% e +10%",
-    ],
-    icon: Scale,
-    accent: "bg-emerald-500/12 text-emerald-600",
-  },
-  {
-    key: "referencia-preco",
-    path: "/calculadora/referencia-preco",
-    title: "Referência de preço",
-    tagline: "Preço de referência de mercado",
-    description:
-      "Defina um preço de referência com base no mercado. Em preparação — as regras serão definidas em seguida.",
-    bullets: [
-      "Referência de preço de mercado",
-      "Apoio à decisão de precificação",
-      "Em preparação",
-    ],
-    icon: Tag,
-    accent: "bg-amber-500/12 text-amber-600",
-  },
-  {
-    key: "anuncios-ativos",
-    path: "/calculadora/anuncios-ativos",
-    title: "Anúncios ativos",
-    tagline: "Seus anúncios ativos do ML",
-    description:
-      "Somente anúncios com status ativo, enriquecidos com o custo vindo do Baselinker. Veja o lucro e a margem real de cada anúncio e simule o preço para atingir margens-alvo.",
-    bullets: [
-      "Custo automático via Baselinker (por SKU)",
-      "Lucro e margem real por anúncio",
-      "3 colunas de simulação de margem + seletor de colunas",
-    ],
-    icon: ListChecks,
-    accent: "bg-sky-500/12 text-sky-600",
-  },
 ];
 
 /** Renderiza o componente do modelo ativo. */
@@ -111,12 +60,6 @@ function ModelView({ modelKey }: { modelKey: ModelKey }) {
   switch (modelKey) {
     case "precificacao":
       return <PrecificacaoCalc />;
-    case "ponto-equilibrio":
-      return <PontoEquilibrioCalc />;
-    case "referencia-preco":
-      return <ReferenciaPreco />;
-    case "anuncios-ativos":
-      return <AnunciosAtivos />;
     case "custo-alvo":
       return <CustoAlvoCalc />;
     default:
