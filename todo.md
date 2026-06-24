@@ -1448,3 +1448,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Remover coluna Saude do PDF (ja nao existia)
 - [x] Renomear "Visitas" para "Total de Visitas" na tabela on-screen
 - [x] Renomear "Visitas" para "Total de Visitas" no PDF
+
+
+## Pedro: Painel e Analise leem dados do Projeto (Opcao A)
+- [x] PedroTimelineContainer: Painel e Analise usam ns="project"; produto tambem ns="project"
+- [x] Cronograma do Pedro permanece independente (ns pedroTimeline)
+- [x] Validar no preview: contadores e analise do Pedro refletem o Projeto (16/5/1/0)
+- [ ] Checkpoint

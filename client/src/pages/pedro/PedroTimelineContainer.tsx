@@ -49,10 +49,12 @@ export default function PedroTimelineContainer() {
       )}
 
       <Switch>
-        <Route path="/pedro-timeline">{() => <ProjetoPainel basePath="/pedro-timeline" ns="pedro" />}</Route>
+        {/* Painel, Analise e Ficha do Produto leem os dados da aba Projeto (compartilhados). */}
+        <Route path="/pedro-timeline">{() => <ProjetoPainel basePath="/pedro-timeline" ns="project" />}</Route>
+        {/* Apenas o Cronograma do Pedro e independente. */}
         <Route path="/pedro-timeline/timeline" component={PedroTimeline} />
-        <Route path="/pedro-timeline/analise">{() => <ProjetoAnalise basePath="/pedro-timeline" ns="pedro" />}</Route>
-        <Route path="/pedro-timeline/produto/:id">{() => <ProjetoProduto basePath="/pedro-timeline" ns="pedro" />}</Route>
+        <Route path="/pedro-timeline/analise">{() => <ProjetoAnalise basePath="/pedro-timeline" ns="project" />}</Route>
+        <Route path="/pedro-timeline/produto/:id">{() => <ProjetoProduto basePath="/pedro-timeline" ns="project" />}</Route>
       </Switch>
     </div>
   );
