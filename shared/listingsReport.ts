@@ -8,17 +8,30 @@ import type { ListingRow, VisitsDayPoint } from "./account";
 
 export const REPORT_LOGO_URL = "/manus-storage/toujours-logo_6a1debf8.webp";
 
-const STATUS_LABEL: Record<string, string> = {
-  active: "Ativo",
-  paused: "Pausado",
-  closed: "Encerrado",
+/** Rótulo amigável do tipo de anúncio do Mercado Livre. */
+export const LISTING_TYPE_LABEL: Record<string, string> = {
+  gold_pro: "Clássico",
+  gold_special: "Premium",
+  gold_premium: "Premium",
+  gold: "Clássico",
+  silver: "Clássico",
+  bronze: "Grátis",
+  free: "Grátis",
 };
+
+/** Mapeia o listingType cru do ML para um rótulo curto (Premium/Clássico/…). */
+export function listingTypeLabel(listingType: string | null | undefined): string {
+  if (!listingType) return "—";
+  return LISTING_TYPE_LABEL[listingType] ?? listingType;
+}
 
 export type ExportPdfOpts = {
   /** Texto curto descrevendo os filtros aplicados (ex.: "Ativos · Premium"). */
   filtersLabel?: string;
   /** Janela de visitas selecionada (7/30/90), para o subtítulo. */
   visitWindow?: number;
+  /** Conjunto de itemIds que possuem anúncio patrocinado (Mercado Ads). */
+  adsItemIds?: Set<string>;
 };
 
 function fmtBRL(value: number | null | undefined): string {
@@ -35,12 +48,6 @@ function fmtNum(value: number | null | undefined): string {
 function fmtPct(value: number | null | undefined): string {
   if (value == null) return "—";
   return `${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value * 100)}%`;
-}
-
-/** Saúde (0..1) -> "85%"; null -> "—". */
-function fmtHealth(value: number | null | undefined): string {
-  if (value == null) return "—";
-  return `${Math.round(value * 100)}%`;
 }
 
 function isoToUtcDate(iso: string): Date | null {
@@ -84,16 +91,20 @@ export interface ListingsReportTable {
   rows: string[][];
   /** Quantos cabeçalhos finais são colunas de dia (para alinhamento numérico). */
   dayColCount: number;
+  /** Índice (0-based) da primeira coluna de dia, para o zebrado laranja. */
+  dayColStart: number;
   /** Subtítulo (filtros + janela). */
   subtitle: string;
+  /** Rótulo do filtro ativo (ex.: "Ativos"), para destaque no cabeçalho. */
+  filtersLabel?: string;
   /** Total de itens. */
   count: number;
 }
 
 /**
- * Função PURA: monta o cabeçalho + linhas (strings formatadas) com TODAS as
- * colunas da lista de anúncios: Anúncio, SKU, Preço, Estoque, Vendas, Visitas,
- * (dias da semana), Conversão, Saúde e Status.
+ * Função PURA: monta o cabeçalho + linhas (strings formatadas) com as colunas:
+ * Anúncio, SKU, Tipo de Anúncio, Catálogo, ADS, Preço, Vendas, Visitas,
+ * (dias da semana) e Conversão.
  */
 export function buildListingsReportTable(
   items: ListingRow[],
@@ -101,20 +112,25 @@ export function buildListingsReportTable(
 ): ListingsReportTable {
   const todayKey = new Date().toISOString().slice(0, 10);
   const cols = dayColumns(items);
+  const adsSet = opts.adsItemIds ?? new Set<string>();
 
   const dayHeads = cols.map((p) => dayHeaderLabel(p, todayKey));
+
+  // Anúncio, SKU, Tipo, Catálogo, ADS, Preço, Vendas, Visitas → 8 colunas fixas
+  // antes das colunas de dia.
+  const dayColStart = 8;
 
   const head = [
     "Anúncio",
     "SKU",
+    "Tipo de Anúncio",
+    "Catálogo",
+    "ADS",
     "Preço",
-    "Estoque",
     "Vendas",
     "Visitas",
     ...dayHeads,
     "Conversão",
-    "Saúde",
-    "Status",
   ];
 
   const rows = items.map((it) => {
@@ -128,14 +144,14 @@ export function buildListingsReportTable(
     return [
       it.title,
       it.sku && it.sku.trim() ? it.sku.trim() : "—",
+      listingTypeLabel(it.listingType),
+      it.catalogListing ? "Sim" : "Não",
+      adsSet.has(String(it.itemId)) ? "Sim" : "Não",
       fmtBRL(it.price),
-      fmtNum(it.availableQuantity),
       fmtNum(it.soldQuantity),
       visitsCell,
       ...dayCells,
       conversionCell,
-      fmtHealth(it.health),
-      STATUS_LABEL[it.status] ?? it.status,
     ];
   });
 
@@ -147,7 +163,9 @@ export function buildListingsReportTable(
     head,
     rows,
     dayColCount: dayHeads.length,
+    dayColStart,
     subtitle: subtitleParts.join(" · "),
+    filtersLabel: opts.filtersLabel,
     count: items.length,
   };
 }

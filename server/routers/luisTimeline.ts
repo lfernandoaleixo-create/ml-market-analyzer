@@ -8,6 +8,7 @@ import {
   renameLuisStage,
   reorderLuisStages,
   setLuisStepDone,
+  setLuisStepDoneSequential,
   setLuisStepNote,
 } from "../luisTimelineDb";
 
@@ -41,6 +42,14 @@ export const luisTimelineRouter = router({
         await setLuisStepDone(input.productId, input.stageId, input.done);
         return { ok: true };
       }),
+
+    // Versão sequencial: valida a ordem das etapas (bloqueia marcar fora de
+    // ordem) e desmarca em cascata as etapas posteriores.
+    setDoneSequential: publicProcedure
+      .input(z.object({ productId: z.number(), stageId: z.number(), done: z.boolean() }))
+      .mutation(({ input }) =>
+        setLuisStepDoneSequential(input.productId, input.stageId, input.done),
+      ),
 
     setNote: publicProcedure
       .input(

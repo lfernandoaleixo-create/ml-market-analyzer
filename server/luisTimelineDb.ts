@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { luisProductStepProgress, luisTimelineStages, projectProducts } from "../drizzle/schema";
 import { getDb } from "./db";
+import { decideSequentialToggle } from "../shared/luisSequential";
 
 // ─── Stages (modelo único e editável de etapas do Luís) ──────────────────────
 // Uma única lista de etapas (bolinhas) vale para TODOS os produtos. Cada produto
@@ -98,6 +99,61 @@ export async function setLuisStepDone(productId: number, stageId: number, done: 
       .insert(luisProductStepProgress)
       .values({ productId, supplierId: null, stageId, done, completedAt });
   }
+}
+
+/**
+ * Marca/desmarca uma etapa RESPEITANDO a ordem sequencial das etapas do Luís:
+ *  - Para CONCLUIR a etapa N, todas as etapas anteriores (posições < N) devem
+ *    estar concluídas; caso contrário rejeita com `blocked: "previous"`.
+ *  - Ao DESMARCAR a etapa N, todas as etapas posteriores (posições > N) também
+ *    são desmarcadas em cascata (não faz sentido manter etapas seguintes
+ *    concluídas se uma anterior voltou a ficar pendente).
+ * Retorna o resultado da operação para o client reagir (toast/balão).
+ */
+export async function setLuisStepDoneSequential(
+  productId: number,
+  stageId: number,
+  done: boolean,
+): Promise<{ ok: boolean; blocked?: "previous"; cascaded: number[] }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  // Ordem canônica das etapas.
+  const stages = await db
+    .select()
+    .from(luisTimelineStages)
+    .orderBy(asc(luisTimelineStages.position));
+  const targetIdx = stages.findIndex((s) => s.id === stageId);
+  if (targetIdx === -1) throw new Error("Stage not found");
+
+  // Estado atual de progresso do produto (modelo novo: supplierId NULL).
+  const progress = await db
+    .select()
+    .from(luisProductStepProgress)
+    .where(
+      and(
+        eq(luisProductStepProgress.productId, productId),
+        isNull(luisProductStepProgress.supplierId),
+      ),
+    );
+  const doneByStage = new Map<number, boolean>();
+  for (const p of progress) doneByStage.set(p.stageId, p.done);
+  const doneFlags = stages.map((s) => doneByStage.get(s.id) === true);
+
+  // Decisão pura (compartilhada/testada): valida ordem e calcula a cascata.
+  const decision = decideSequentialToggle(doneFlags, targetIdx, done);
+  if (!decision.ok) {
+    return { ok: false, blocked: decision.blocked, cascaded: [] };
+  }
+
+  await setLuisStepDone(productId, stageId, done);
+  const cascaded: number[] = [];
+  for (const idx of decision.cascadeIdx) {
+    const s = stages[idx];
+    await setLuisStepDone(productId, s.id, false);
+    cascaded.push(s.id);
+  }
+  return { ok: true, cascaded };
 }
 
 export async function setLuisStepNote(productId: number, stageId: number, note: string | null) {

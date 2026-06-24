@@ -18,6 +18,7 @@ import {
   ChevronDown,
   X,
   Check,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -280,28 +281,57 @@ function StagesManager({ stages }: { stages: Stage[] }) {
 function TimelineDot({
   productId,
   step,
+  steps,
   index,
   priorityColor,
 }: {
   productId: number;
   step: Step;
+  /** Todas as etapas do produto, na ordem — para validar a sequência. */
+  steps: Step[];
   index: number;
   priorityColor: string;
 }) {
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(step.note ?? "");
+  // Balãozinho transitório quando a etapa está bloqueada pela ordem sequencial.
+  const [blockedHint, setBlockedHint] = useState(false);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timer para distinguir clique simples (abre popover) de duplo-clique (alterna etapa)
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = () => utils.luisTimeline.overview.invalidate();
 
-  const doneMut = trpc.luisTimeline.progress.setDone.useMutation({
-    onSuccess: refresh,
+  // Regra sequencial (espelha o backend, para feedback imediato):
+  //  - só pode concluir a etapa se todas as anteriores estiverem concluídas.
+  const previousAllDone = steps.slice(0, index).every((s) => s.done);
+  const isLocked = !step.done && !previousAllDone;
+
+  const showBlockedHint = () => {
+    setBlockedHint(true);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setBlockedHint(false), 2200);
+  };
+
+  const doneMut = trpc.luisTimeline.progress.setDoneSequential.useMutation({
+    onSuccess: (res) => {
+      refresh();
+      if (res && res.ok === false && res.blocked === "previous") {
+        showBlockedHint();
+      }
+    },
     onError: () => toast.error("Não foi possível atualizar a etapa"),
   });
 
-  const toggleDone = () => doneMut.mutate({ productId, stageId: step.stageId, done: !step.done });
+  const toggleDone = () => {
+    // Marcar fora de ordem: não chama o backend, apenas mostra o balão.
+    if (isLocked) {
+      showBlockedHint();
+      return;
+    }
+    doneMut.mutate({ productId, stageId: step.stageId, done: !step.done });
+  };
 
   // 1 clique (com atraso): abre o popover de detalhes. 2 cliques: alterna concluída/pendente.
   // Usamos um timer próprio (250ms) para diferenciar single de double click de forma confiável,
@@ -340,6 +370,14 @@ function TimelineDot({
       style={{ width: 120 }}
       onClick={(e) => e.stopPropagation()}
     >
+      {/* Balãozinho de bloqueio (etapa anterior não concluída) */}
+      <div className="relative">
+        {blockedHint && (
+          <div className="absolute -top-11 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap rounded-md bg-foreground px-2.5 py-1.5 text-[11px] font-medium text-background shadow-lg">
+            Conclua a etapa anterior primeiro
+            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-2 w-2 rotate-45 bg-foreground" />
+          </div>
+        )}
       <Popover
         open={open}
         onOpenChange={(o) => {
@@ -351,19 +389,25 @@ function TimelineDot({
           <button
             type="button"
             onClick={handleClick}
-            className="relative flex items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95"
+            className={`relative flex items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95 ${isLocked ? "opacity-60" : ""}`}
             style={{
               width: 36,
               height: 36,
               background: step.done ? priorityColor : "var(--muted)",
               border: step.done ? `2px solid ${priorityColor}` : "2px solid var(--border)",
             }}
-            title={`${step.label} — 1 clique: detalhes · 2 cliques: ${step.done ? "desmarcar" : "marcar"}`}
+            title={
+              isLocked
+                ? `${step.label} — conclua a etapa anterior primeiro`
+                : `${step.label} — 1 clique: detalhes · 2 cliques: ${step.done ? "desmarcar" : "marcar"}`
+            }
           >
             {step.done ? (
               <svg width="16" height="16" viewBox="0 0 12 12" fill="none">
                 <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
+            ) : isLocked ? (
+              <Lock className="w-3.5 h-3.5 text-muted-foreground" />
             ) : (
               <span className="text-muted-foreground text-xs font-semibold">{index + 1}</span>
             )}
@@ -392,12 +436,19 @@ function TimelineDot({
               </span>
             </div>
 
+            {isLocked && (
+              <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                <Lock className="w-3 h-3" />
+                Conclua a etapa anterior para liberar esta.
+              </p>
+            )}
+
             <Button
               size="sm"
               variant={step.done ? "outline" : "default"}
               className="w-full h-8"
-              disabled={doneMut.isPending}
-              onClick={() => doneMut.mutate({ productId, stageId: step.stageId, done: !step.done })}
+              disabled={doneMut.isPending || isLocked}
+              onClick={toggleDone}
             >
               {step.done ? (
                 <>
@@ -454,6 +505,7 @@ function TimelineDot({
           </div>
         </PopoverContent>
       </Popover>
+      </div>
 
       <span
         className="text-[11px] leading-snug text-center font-medium"
@@ -498,7 +550,13 @@ function HorizontalTimeline({ product, priorityColor }: { product: Product; prio
                   />
                 </div>
               )}
-              <TimelineDot productId={product.id} step={step} index={idx} priorityColor={priorityColor} />
+              <TimelineDot
+                productId={product.id}
+                step={step}
+                steps={product.steps}
+                index={idx}
+                priorityColor={priorityColor}
+              />
             </div>
           );
         })}

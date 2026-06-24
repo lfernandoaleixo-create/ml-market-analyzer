@@ -1411,3 +1411,18 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Corrigir bug de desmarcação travada (overview considera apenas progresso por produto, supplierId NULL)
 - [x] Limpar linhas legadas de progresso por fornecedor no banco
 - [x] Atualizar testes (706 verdes, 0 erros TS) e validar ao vivo (Matador alterna 0/6 <-> 1/6)
+
+
+## Pedidos 24/jun (tarde)
+- [x] Anuncios: filtro "Ativos" selecionado por padrao ao abrir a pagina
+- [ ] PDF anuncios: trocar preto solido por cor mais suave no cabecalho/tabela
+- [ ] PDF anuncios: remover colunas Estoque, Saude e Status
+- [ ] PDF anuncios: adicionar coluna Tipo de Anuncio (Premium/Classico)
+- [ ] PDF anuncios: adicionar coluna E anuncio de Catalogo (Sim/Nao)
+- [ ] PDF anuncios: adicionar coluna ADS (Sim/Nao - patrocinio)
+- [ ] PDF anuncios: destacar no cabecalho que o filtro aplicado e "Ativos"
+- [ ] PDF anuncios: centralizar e formatar todas as celulas (texto alinhado)
+- [ ] PDF anuncios: zebrado colorido (laranja suave intercalado) nas colunas de dias (dom/seg/ter/hoje)
+- [ ] Cronograma Luis: etapas sequenciais - bloquear concluir se a anterior nao estiver concluida
+- [ ] Cronograma Luis: balao de aviso "etapa anterior nao concluida" ao tentar pular
+- [ ] Cronograma Luis: ao desmarcar uma etapa, desmarcar todas as posteriores

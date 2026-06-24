@@ -141,11 +141,24 @@ const emptyFilters: ListingFilters = {
   insightId: null,
 };
 
+// Default filters applied when the page first opens: "Ativos" pre-selected.
+const defaultFilters: ListingFilters = {
+  search: "",
+  statuses: ["active"],
+  listingTypes: [],
+  visitBucketIds: [],
+  stockBucketIds: [],
+  conversionBucketIds: [],
+  healthBucketIds: [],
+  freeShipping: null,
+  insightId: null,
+};
+
 export default function Anuncios() {
   // Visits window in days. The Visits card reflects REAL visits over this
   // period (via ML's dated time_window endpoint, one item per request).
   const [visitWindow, setVisitWindow] = useState<7 | 30 | 90>(30);
-  const [filters, setFilters] = useState<ListingFilters>(emptyFilters);
+  const [filters, setFilters] = useState<ListingFilters>(defaultFilters);
   const [sortKey, setSortKey] = useState<SortKey>("visits");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   // Day picked on the VISITS chart -> opens the per-listing breakdown modal.
@@ -206,6 +219,17 @@ export default function Anuncios() {
   const dailyVisitsMap = useMemo<Record<string, VisitsDayPoint[]>>(
     () => visitsDaily.data?.items ?? {},
     [visitsDaily.data],
+  );
+
+  // ADS (Mercado Ads): conjunto de itemIds com anúncio patrocinado, para a
+  // coluna "ADS" do PDF. Consulta leve, cacheada no backend (15 min).
+  const adsQuery = trpc.ads.ads.useQuery(
+    { days: 30 },
+    { enabled: conn.data?.connected === true, refetchOnWindowFocus: false },
+  );
+  const adsItemIds = useMemo(
+    () => new Set((adsQuery.data ?? []).map((a) => String(a.itemId))),
+    [adsQuery.data],
   );
 
   const insights = useMemo(() => computeInsights(items), [items]);
@@ -291,6 +315,7 @@ export default function Anuncios() {
       exportListingsPdf(enriched, {
         visitWindow,
         filtersLabel: parts.length ? parts.join(" · ") : "Todos os anúncios",
+        adsItemIds,
       });
     } catch (e) {
       toast.error("Não foi possível gerar o PDF. Tente novamente.");
@@ -307,6 +332,20 @@ export default function Anuncios() {
     (filters.freeShipping != null ? 1 : 0) +
     (filters.priceMin != null || filters.priceMax != null ? 1 : 0) +
     (filters.insightId ? 1 : 0);
+
+  // Rótulos legíveis dos filtros ativos, exibidos na faixa-resumo acima dos
+  // chips para deixar claro o que está sendo filtrado (ex.: "Ativos").
+  const activeFilterSummary = useMemo<string[]>(() => {
+    const labels: string[] = [];
+    const statusMap: Record<string, string> = { active: "Ativos", paused: "Pausados", closed: "Encerrados" };
+    (filters.statuses ?? []).forEach((s) => labels.push(statusMap[s] ?? s));
+    (filters.listingTypes ?? []).forEach((t) => labels.push(typeLabel(t)));
+    if (filters.freeShipping === true) labels.push("Frete grátis");
+    if (filters.search?.trim()) labels.push(`Busca: “${filters.search.trim()}”`);
+    if (filters.priceMin != null || filters.priceMax != null) labels.push("Faixa de preço");
+    if ((filters.visitBucketIds ?? []).length) labels.push("Faixa de visitas");
+    return labels;
+  }, [filters]);
 
   if (conn.isLoading && conn.data === undefined) {
     return (
@@ -465,6 +504,29 @@ export default function Anuncios() {
           </div>
         }
       >
+        {/* Faixa-resumo dos filtros ativos */}
+        {activeFilterSummary.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+            <Filter className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-medium text-foreground">Filtrando por:</span>
+            {activeFilterSummary.map((label) => (
+              <Badge
+                key={label}
+                variant="outline"
+                className="border-primary/30 bg-primary/10 text-primary"
+              >
+                {label}
+              </Badge>
+            ))}
+            <button
+              onClick={() => setFilters(emptyFilters)}
+              className="ml-1 text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Limpar filtros
+            </button>
+          </div>
+        )}
+
         {/* Filter chips */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {STATUS_FILTERS.map((f) => (
@@ -842,7 +904,7 @@ function SortableTh({
   sortDir,
   onSort,
   className,
-  align = "right",
+  align = "center",
 }: {
   label: string;
   k: SortKey;
@@ -850,17 +912,19 @@ function SortableTh({
   sortDir: SortDir;
   onSort: (k: SortKey) => void;
   className?: string;
-  align?: "left" | "right";
+  align?: "left" | "right" | "center";
 }) {
   const active = sortKey === k;
   const Icon = active ? (sortDir === "desc" ? ArrowDown : ArrowUp) : ArrowUpDown;
+  const thAlign = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
   return (
-    <th className={cn("pb-2 px-3 font-medium", align === "right" ? "text-right" : "text-left", className)}>
+    <th className={cn("pb-2 px-3 font-medium", thAlign, className)}>
       <button
         onClick={() => onSort(k)}
         className={cn(
           "inline-flex items-center gap-1 transition-colors hover:text-foreground",
           align === "right" && "flex-row-reverse",
+          align === "center" && "justify-center",
           active && "text-foreground",
         )}
       >
@@ -922,7 +986,11 @@ function DailyHeader({
  * (mais antigo -> hoje); usamos os 3 últimos na exibição e o 4º só daria contexto.
  * Hoje ainda é PARCIAL, por isso a variação é apenas um indicativo.
  */
-function DailyVisitsCell({ series }: { series?: VisitsDayPoint[] }) {
+function DailyVisitsCell({ series, rowIndex = 0 }: { series?: VisitsDayPoint[]; rowIndex?: number }) {
+  // Zebrado laranja alternado por LINHA (suave, sem prejudicar a leitura dos números):
+  // linhas pares -> laranja bem fraco; linhas ímpares -> laranja um pouco mais forte.
+  // Aplica-se apenas às caixinhas dos dias anteriores; "Hoje" mantém o realce próprio.
+  const zebra = rowIndex % 2 === 0 ? "bg-orange-50" : "bg-orange-100";
   // Ainda coletando do ML (ou item sem dados): mostra placeholder discreto.
   if (!series || series.length === 0) {
     return (
@@ -945,7 +1013,7 @@ function DailyVisitsCell({ series }: { series?: VisitsDayPoint[] }) {
               key={p.date}
               className={cn(
                 "flex w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-md py-1",
-                isToday && "bg-primary/5",
+                isToday ? "bg-primary/5" : zebra,
               )}
               title={`${isoToWeekdayLong(p.date)}${isToday ? " (hoje, parcial)" : ""}: ${formatNumber(p.visits)} visitas`}
             >
@@ -1025,25 +1093,25 @@ function ListingsTable({
             <DailyHeader dayLabels={dayLabels} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Conversão" k="conversion" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Saúde" k="health" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <th className="pb-2 pl-3 font-medium">Status</th>
+            <th className="pb-2 px-3 text-center font-medium">Status</th>
           </tr>
         </thead>
         <tbody className="divide-y">
-          {rows.map((r) => (
+          {rows.map((r, rowIndex) => (
             <tr key={r.itemId} className="group">
               <td className="py-3 pr-3">
                 <ProductCell title={r.title} thumbnail={r.thumbnail} permalink={r.permalink} titleClassName="min-w-[220px]" clampTitle={false} />
               </td>
-              <td className="px-3 text-right tabular-nums">{formatBRL(r.price)}</td>
-              <td className="px-3 text-right tabular-nums">
+              <td className="px-3 text-center tabular-nums">{formatBRL(r.price)}</td>
+              <td className="px-3 text-center tabular-nums">
                 {r.availableQuantity === 0 ? (
                   <span className="text-rose-600 font-medium">0</span>
                 ) : (
                   formatNumber(r.availableQuantity)
                 )}
               </td>
-              <td className="px-3 text-right tabular-nums">{formatNumber(r.soldQuantity)}</td>
-              <td className="px-3 text-right tabular-nums">
+              <td className="px-3 text-center tabular-nums">{formatNumber(r.soldQuantity)}</td>
+              <td className="px-3 text-center tabular-nums">
                 {r.visitsAvailable ? (
                   formatNumber(r.visits)
                 ) : (
@@ -1051,19 +1119,19 @@ function ListingsTable({
                 )}
               </td>
               <td className="px-3">
-                <DailyVisitsCell series={dailyVisits[r.itemId]} />
+                <DailyVisitsCell series={dailyVisits[r.itemId]} rowIndex={rowIndex} />
               </td>
-              <td className="px-3 text-right tabular-nums">
+              <td className="px-3 text-center tabular-nums">
                 {r.visitsAvailable ? (
                   formatRatePct(r.conversion)
                 ) : (
                   <span className="text-muted-foreground/50">—</span>
                 )}
               </td>
-              <td className="px-3 text-right tabular-nums">
+              <td className="px-3 text-center tabular-nums">
                 <HealthDot health={r.health} />
               </td>
-              <td className="pl-3">
+              <td className="px-3 text-center">
                 <Badge variant="outline" className={STATUS_META[r.status]?.className}>
                   {STATUS_META[r.status]?.label ?? r.status}
                 </Badge>
