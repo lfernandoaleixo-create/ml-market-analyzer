@@ -38,9 +38,12 @@ const PRIORITY_CONFIG = {
 export default function ProjetoProduto({
   basePath = "/projeto",
   ns = "project",
-}: { basePath?: string; ns?: PortfolioNamespace } = {}) {
+  timelineNs,
+}: { basePath?: string; ns?: PortfolioNamespace; timelineNs?: PortfolioNamespace } = {}) {
   const api = useProjectApi(ns);
-  const timelineApi = useTimelineApi(ns);
+  // A linha do tempo pode usar um namespace diferente dos produtos.
+  // Ex.: produtos compartilhados (project) mas etapas proprias do Pedro.
+  const timelineApi = useTimelineApi(timelineNs ?? ns);
   const { id } = useParams<{ id: string }>();
   const productId = parseInt(id ?? "0");
   const [, setLocation] = useLocation();

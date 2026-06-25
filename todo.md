@@ -1567,3 +1567,5 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Dialog de etapa: toggle "Etapa concluida" (done) + Observacoes (note), salva via progress.setDone + progress.setNote
 - [x] Remover STEP_ORDER/STEP_LABELS/STEP_ICONS/STATUS_CONFIG/updateTimelineMutation/setEditingStep e query timeline antiga
 - [x] Validar preview (concluir etapa 1 -> ✓ verde + nota + Atual avanca + 17%) + tsc 0 erros + vitest 720 + checkpoint
+
+- [x] Pedro: ficha do produto puxava a linha do tempo do Luis (ns=project). Corrigido: ProjetoProduto agora aceita prop timelineNs; PedroTimelineContainer passa ns="project" (produtos compartilhados) + timelineNs="pedro" (etapas proprias). Luis continua com etapas do Luis.
