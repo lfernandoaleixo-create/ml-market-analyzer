@@ -771,32 +771,11 @@ function ChecklistEditor({
     );
   };
 
-  // Renderiza o corpo de um grupo separando Checkboxes e Perguntas com subtitulos,
-  // mostrando cada subtitulo apenas quando houver itens do tipo correspondente.
-  const renderGroupBody = (items: ChecklistItem[]) => {
-    const checkboxes = items.filter((i) => i.type === "checkbox");
-    const questions = items.filter((i) => i.type === "text");
-    return (
-      <div className="space-y-3">
-        {checkboxes.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              Checkboxes
-            </p>
-            <div className="space-y-2">{checkboxes.map(renderItem)}</div>
-          </div>
-        )}
-        {questions.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              Perguntas
-            </p>
-            <div className="space-y-2">{questions.map(renderItem)}</div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Renderiza apenas os itens de um grupo (a separacao Checkboxes/Perguntas
+  // agora e feita pelos titulos de secao maiores no nivel acima).
+  const renderGroupBody = (items: ChecklistItem[]) => (
+    <div className="space-y-2">{items.map(renderItem)}</div>
+  );
 
   return (
     <div className="mt-2 rounded-xl border border-border/70 bg-muted/30 p-3 space-y-2.5">
@@ -829,21 +808,29 @@ function ChecklistEditor({
         </p>
       )}
 
-      {/* Bloco de itens SEM grupo (ex.: checkboxes novos) — sempre no topo, largura total. */}
+      {/* Secao de CHECKBOXES (itens sem grupo) — titulo grande no topo, largura total. */}
       {hasGroups && ungroupedGroups.length > 0 && (
-        <div className="rounded-xl border border-border/70 bg-card p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-1.5 h-4 rounded-full bg-slate-400" />
-            <h5 className="text-sm font-bold text-slate-600">Geral</h5>
+        <div className="space-y-2">
+          <h4 className="flex items-center gap-2 text-base font-extrabold text-slate-700">
+            <span className="inline-block w-1.5 h-5 rounded-full bg-slate-400" />
+            Checkboxes
+          </h4>
+          <div className="rounded-xl border border-border/70 bg-card p-3">
+            {renderGroupBody(ungroupedGroups.flatMap((g) => g.items))}
           </div>
-          {renderGroupBody(ungroupedGroups.flatMap((g) => g.items))}
         </div>
       )}
 
-      {/* Itens agrupados (cartões por grupo, como no print do Kickoff). */}
+      {/* Secao de PERGUNTAS — titulo unico, grande e fixo acima da grade de cards. */}
       {hasGroups ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-          {namedGroups.map((g) => (
+        namedGroups.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="flex items-center gap-2 text-base font-extrabold text-slate-700">
+              <span className="inline-block w-1.5 h-5 rounded-full bg-primary" />
+              Perguntas
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+              {namedGroups.map((g) => (
             <div
               key={g.key}
               className="rounded-xl border border-border/70 bg-card p-3 space-y-2"
@@ -860,10 +847,12 @@ function ChecklistEditor({
                   {g.name}
                 </h5>
               </div>
-              {renderGroupBody(g.items)}
+                {renderGroupBody(g.items)}
+              </div>
+            ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )
       ) : (
         renderGroupBody(step.items)
       )}
