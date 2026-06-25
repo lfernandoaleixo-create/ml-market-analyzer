@@ -1527,3 +1527,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] BUG: texto da resposta no card respondido quebra uma letra por linha -> card reestruturado: resposta em linha propria de largura total com break-words/whitespace-pre-wrap e botao Editar abaixo
 - [x] Limpeza de dados de teste do Matador de Mosquito (volta a herdar 23 perguntas padrao)
 - [ ] Checkpoint dos ajustes acima
+
+## Pedro Checklist: subtitulos Checkboxes / Perguntas dentro dos grupos
+- [x] Dentro de cada bloco (Geral e grupos coloridos), separar Checkboxes e Perguntas com subtitulos
+- [x] Subtitulo so aparece quando o grupo tem ambos os tipos (helper renderGroupBody)
+- [x] Aplicar no bloco Geral, nos grupos nomeados e no fallback sem grupos
+- [x] Validar tsc + vitest 718 + checkpoint

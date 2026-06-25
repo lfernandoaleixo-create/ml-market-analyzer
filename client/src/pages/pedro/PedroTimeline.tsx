@@ -771,6 +771,38 @@ function ChecklistEditor({
     );
   };
 
+  // Renderiza o corpo de um grupo separando Checkboxes e Perguntas com subtitulos,
+  // mostrando cada subtitulo apenas quando houver itens do tipo correspondente.
+  const renderGroupBody = (items: ChecklistItem[]) => {
+    const checkboxes = items.filter((i) => i.type === "checkbox");
+    const questions = items.filter((i) => i.type === "text");
+    const showHeadings = checkboxes.length > 0 && questions.length > 0;
+    return (
+      <div className="space-y-3">
+        {checkboxes.length > 0 && (
+          <div className="space-y-2">
+            {showHeadings && (
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                Checkboxes
+              </p>
+            )}
+            <div className="space-y-2">{checkboxes.map(renderItem)}</div>
+          </div>
+        )}
+        {questions.length > 0 && (
+          <div className="space-y-2">
+            {showHeadings && (
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                Perguntas
+              </p>
+            )}
+            <div className="space-y-2">{questions.map(renderItem)}</div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="mt-2 rounded-xl border border-border/70 bg-muted/30 p-3 space-y-2.5">
       <div className="flex items-center justify-between gap-2">
@@ -809,9 +841,7 @@ function ChecklistEditor({
             <span className="inline-block w-1.5 h-4 rounded-full bg-slate-400" />
             <h5 className="text-sm font-bold text-slate-600">Geral</h5>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-            {ungroupedGroups.flatMap((g) => g.items).map(renderItem)}
-          </div>
+          {renderGroupBody(ungroupedGroups.flatMap((g) => g.items))}
         </div>
       )}
 
@@ -835,12 +865,12 @@ function ChecklistEditor({
                   {g.name}
                 </h5>
               </div>
-              <div className="space-y-2">{g.items.map(renderItem)}</div>
+              {renderGroupBody(g.items)}
             </div>
           ))}
         </div>
       ) : (
-        <div className="space-y-2">{step.items.map(renderItem)}</div>
+        renderGroupBody(step.items)
       )}
 
       {/* Barra de ações: adicionar pergunta / checkbox e restaurar. */}
