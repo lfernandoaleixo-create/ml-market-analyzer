@@ -18,6 +18,7 @@ import {
   getEffectivePedroItems,
   startPedroProductOverride,
   createPedroProductStageItem,
+  reorderPedroProductStageItems,
   updatePedroProductStageItem,
   deletePedroProductStageItem,
   resetPedroProductOverride,
@@ -185,6 +186,18 @@ export const pedroTimelineRouter = router({
     reset: publicProcedure
       .input(z.object({ productId: z.number(), stageId: z.number() }))
       .mutation(({ input }) => resetPedroProductOverride(input.productId, input.stageId)),
+
+    reorder: publicProcedure
+      .input(
+        z.object({
+          productId: z.number(),
+          stageId: z.number(),
+          orderedIds: z.array(z.number()),
+        }),
+      )
+      .mutation(({ input }) =>
+        reorderPedroProductStageItems(input.productId, input.stageId, input.orderedIds),
+      ),
   }),
 
   // ─── Respostas por produto (auto-conclui a bolinha) ─────────────────────────

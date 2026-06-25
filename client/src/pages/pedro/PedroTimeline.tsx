@@ -435,8 +435,10 @@ function ChecklistEditor({
   const utils = trpc.useUtils();
   const refresh = () => utils.pedroTimeline.overview.invalidate();
 
-  // Rascunhos locais para os campos de texto (salva no blur).
+  // Rascunhos locais para os campos de texto.
   const [textDrafts, setTextDrafts] = useState<Record<number, string>>({});
+  // Itens de texto atualmente em modo de edição (chave = item.id).
+  const [editingItems, setEditingItems] = useState<Record<number, boolean>>({});
   const [editMode, setEditMode] = useState(false);
   const [newType, setNewType] = useState<"checkbox" | "text">("checkbox");
   const [newLabel, setNewLabel] = useState("");
@@ -472,6 +474,48 @@ function ChecklistEditor({
     },
     onError: (e) => toast.error(e.message || "Erro ao restaurar"),
   });
+  const reorderMut = trpc.pedroTimeline.productItems.reorder.useMutation({
+    onSuccess: refresh,
+    onError: (e) => toast.error(e.message || "Erro ao reordenar"),
+  });
+
+  // Move um item para cima/baixo DENTRO do seu grupo (a ordem geral respeita grupos).
+  const moveItem = (item: ChecklistItem, dir: -1 | 1) => {
+    // Ordem atual completa (por grupo, depois posição).
+    const ordered = [...step.items].sort(
+      (a, b) => a.groupPosition - b.groupPosition || a.position - b.position,
+    );
+    // Vizinhos do mesmo grupo.
+    const sameGroup = ordered.filter(
+      (i) => (i.groupName ?? "__none__") === (item.groupName ?? "__none__"),
+    );
+    const idx = sameGroup.findIndex((i) => i.id === item.id);
+    const swapIdx = idx + dir;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= sameGroup.length) return;
+    // Troca dentro do grupo.
+    const reorderedGroup = [...sameGroup];
+    [reorderedGroup[idx], reorderedGroup[swapIdx]] = [
+      reorderedGroup[swapIdx],
+      reorderedGroup[idx],
+    ];
+    // Reconstrói a lista geral preservando a ordem dos demais grupos.
+    const seen = new Set<number>();
+    const finalIds: number[] = [];
+    for (const i of ordered) {
+      if ((i.groupName ?? "__none__") === (item.groupName ?? "__none__")) {
+        for (const g of reorderedGroup) {
+          if (!seen.has(g.id)) {
+            finalIds.push(g.id);
+            seen.add(g.id);
+          }
+        }
+      } else if (!seen.has(i.id)) {
+        finalIds.push(i.id);
+        seen.add(i.id);
+      }
+    }
+    reorderMut.mutate({ productId, stageId: step.stageId, orderedIds: finalIds });
+  };
 
   const toggleCheck = (item: ChecklistItem) => {
     answerMut.mutate({
@@ -483,14 +527,28 @@ function ChecklistEditor({
     });
   };
   const saveText = (item: ChecklistItem, value: string) => {
-    if ((item.textValue ?? "") === value) return;
-    answerMut.mutate({
-      productId,
-      stageId: step.stageId,
-      itemSource: item.source,
-      itemId: item.id,
-      textValue: value,
-    });
+    const v = value.trim();
+    // Sai do modo edição ao salvar.
+    setEditingItems((m) => ({ ...m, [item.id]: false }));
+    if ((item.textValue ?? "") === v) return;
+    answerMut.mutate(
+      {
+        productId,
+        stageId: step.stageId,
+        itemSource: item.source,
+        itemId: item.id,
+        textValue: v,
+      },
+      { onSuccess: () => v.length > 0 && toast.success("Resposta salva") },
+    );
+  };
+  const startEditingItem = (item: ChecklistItem) => {
+    setTextDrafts((d) => ({ ...d, [item.id]: item.textValue ?? "" }));
+    setEditingItems((m) => ({ ...m, [item.id]: true }));
+  };
+  const cancelEditingItem = (item: ChecklistItem) => {
+    setTextDrafts((d) => ({ ...d, [item.id]: item.textValue ?? "" }));
+    setEditingItems((m) => ({ ...m, [item.id]: false }));
   };
 
   const handleEditClick = () => {
@@ -540,53 +598,171 @@ function ChecklistEditor({
   }
   const hasGroups = groups.some((g) => g.name);
 
+  // Setas de reordenar (visiveis no modo "Editar itens").
+  const reorderControls = (item: ChecklistItem) => (
+    <div className="mt-0.5 shrink-0 flex flex-col -my-0.5">
+      <button
+        type="button"
+        onClick={() => moveItem(item, -1)}
+        className="text-slate-400 hover:text-foreground transition-colors"
+        title="Mover para cima"
+      >
+        <ArrowUp className="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => moveItem(item, 1)}
+        className="text-slate-400 hover:text-foreground transition-colors"
+        title="Mover para baixo"
+      >
+        <ArrowDown className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+
   const renderItem = (item: ChecklistItem) => {
     const answered =
       item.type === "text" ? (item.textValue ?? "").trim().length > 0 : item.checked;
-    return (
-      <div
-        key={`${item.source}:${item.id}`}
-        className={`rounded-lg border p-2.5 transition-colors ${answered ? "border-green-500/50 bg-green-50/60" : "border-border/70 bg-background"}`}
-      >
-        <div className="flex items-start gap-2">
-          {item.type === "checkbox" ? (
+
+    if (item.type === "checkbox") {
+      return (
+        <div
+          key={`${item.source}:${item.id}`}
+          className={`group rounded-xl border p-3 shadow-sm transition-all ${
+            answered
+              ? "border-green-500 bg-green-50 ring-1 ring-green-500/30"
+              : "border-red-200 bg-red-50/60 hover:border-red-300"
+          }`}
+        >
+          <div className="flex items-start gap-2.5">
             <button
               type="button"
               onClick={() => toggleCheck(item)}
-              className={`mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${item.checked ? "bg-green-600 border-green-600" : "bg-transparent border-border"}`}
+              className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                item.checked
+                  ? "bg-green-600 border-green-600"
+                  : "bg-white border-red-300 hover:border-green-500"
+              }`}
               aria-pressed={item.checked}
             >
-              {item.checked && <Check className="w-3 h-3 text-white" />}
+              {item.checked && <Check className="w-3.5 h-3.5 text-white" />}
             </button>
-          ) : answered ? (
-            <Check className="mt-0.5 shrink-0 w-4 h-4 text-green-600" />
-          ) : (
-            <TypeIcon className="mt-0.5 shrink-0 w-3.5 h-3.5 text-muted-foreground" />
-          )}
-          <div className="flex-1 min-w-0">
             <span
-              className={`text-sm ${item.type === "checkbox" && item.checked ? "line-through text-muted-foreground" : "text-foreground font-medium"}`}
+              className={`flex-1 min-w-0 text-sm font-semibold leading-snug ${
+                item.checked ? "text-green-800" : "text-red-900/80"
+              }`}
             >
               {item.label}
             </span>
-            {item.type === "text" && (
-              <Textarea
-                value={textDrafts[item.id] ?? item.textValue ?? ""}
-                onChange={(e) => setTextDrafts((d) => ({ ...d, [item.id]: e.target.value }))}
-                onBlur={(e) => saveText(item, e.target.value.trim())}
-                placeholder="Escreva a resposta e clique fora para salvar…"
-                className="mt-1.5 min-h-[52px] text-sm resize-y bg-background"
-              />
+            {editMode && reorderControls(item)}
+            {editMode && (
+              <button
+                type="button"
+                onClick={() => deleteItemMut.mutate({ id: item.id })}
+                className="mt-0.5 shrink-0 text-slate-400 hover:text-destructive transition-colors"
+                title="Remover item"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             )}
           </div>
+        </div>
+      );
+    }
+
+    // Pergunta (texto)
+    const isEditing = editingItems[item.id] || !answered;
+    const draft = textDrafts[item.id] ?? item.textValue ?? "";
+    return (
+      <div
+        key={`${item.source}:${item.id}`}
+        className={`group rounded-xl border p-3 shadow-sm transition-all ${
+          answered
+            ? "border-green-500 bg-green-50 ring-1 ring-green-500/30"
+            : "border-red-200 bg-red-50/60 hover:border-red-300"
+        }`}
+      >
+        <div className="flex items-start gap-2.5">
+          <span
+            className={`mt-0.5 shrink-0 w-5 h-5 rounded-md flex items-center justify-center ${
+              answered ? "bg-green-600" : "bg-red-100"
+            }`}
+          >
+            {answered ? (
+              <Check className="w-3.5 h-3.5 text-white" />
+            ) : (
+              <TypeIcon className="w-3 h-3 text-red-400" />
+            )}
+          </span>
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm font-semibold leading-snug ${
+                answered ? "text-green-800" : "text-red-900/80"
+              }`}
+            >
+              {item.label}
+            </p>
+
+            {isEditing ? (
+              <>
+                <Textarea
+                  value={draft}
+                  autoFocus={!!editingItems[item.id]}
+                  onChange={(e) =>
+                    setTextDrafts((d) => ({ ...d, [item.id]: e.target.value }))
+                  }
+                  placeholder="Escreva a resposta…"
+                  className="mt-2 min-h-[60px] text-sm resize-y bg-white border-slate-200"
+                />
+                <div className="mt-2 flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => saveText(item, draft)}
+                  >
+                    <Check className="w-3.5 h-3.5 mr-1" /> Salvar
+                  </Button>
+                  {answered && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-slate-500"
+                      onClick={() => cancelEditingItem(item)}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="mt-1.5 flex items-start justify-between gap-2">
+                <p className="flex-1 min-w-0 whitespace-pre-wrap break-words text-sm text-slate-700">
+                  {item.textValue}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-100"
+                  onClick={() => startEditingItem(item)}
+                >
+                  <Pencil className="w-3.5 h-3.5 mr-1" /> Editar
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {editMode && reorderControls(item)}
           {editMode && (
             <button
               type="button"
               onClick={() => deleteItemMut.mutate({ id: item.id })}
-              className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+              className="mt-0.5 shrink-0 text-slate-400 hover:text-destructive transition-colors"
               title="Remover item"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>

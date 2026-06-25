@@ -373,9 +373,37 @@ export async function createPedroProductStageItem(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const existing = await getPedroProductStageItems(productId, stageId);
+  let existing = await getPedroProductStageItems(productId, stageId);
+  // Se a etapa ainda NAO foi personalizada (sem override) mas possui itens-padrao,
+  // copia os padroes primeiro para que o novo item COEXISTA com eles
+  // (evita que adicionar 1 checkbox "esconda" as perguntas-padrao).
+  if (existing.length === 0) {
+    const defaults = await getPedroStageItems(stageId);
+    if (defaults.length > 0) {
+      await db.insert(pedroProductStageItems).values(
+        defaults.map((d) => ({
+          productId,
+          stageId,
+          type: d.type,
+          label: d.label,
+          position: d.position,
+          groupName: d.groupName ?? null,
+          groupColor: d.groupColor ?? null,
+          groupPosition: d.groupPosition ?? 0,
+        })),
+      );
+      existing = await getPedroProductStageItems(productId, stageId);
+    }
+  }
   const nextPosition =
     existing.length === 0 ? 0 : Math.max(...existing.map((e) => e.position)) + 1;
+  // Novo item sem grupo herda o ultimo grupo existente (assim aparece junto, nao em um card vazio).
+  const lastGroup = existing.length > 0 ? existing[existing.length - 1] : null;
+  const resolvedGroup = {
+    name: group?.name ?? lastGroup?.groupName ?? null,
+    color: group?.color ?? lastGroup?.groupColor ?? null,
+    position: group?.position ?? lastGroup?.groupPosition ?? 0,
+  };
   await db
     .insert(pedroProductStageItems)
     .values({
@@ -384,11 +412,34 @@ export async function createPedroProductStageItem(
       type,
       label: label.trim(),
       position: nextPosition,
-      groupName: group?.name ?? null,
-      groupColor: group?.color ?? null,
-      groupPosition: group?.position ?? 0,
+      groupName: resolvedGroup.name,
+      groupColor: resolvedGroup.color,
+      groupPosition: resolvedGroup.position,
     });
   await recomputePedroStageDone(productId, stageId);
+  return getPedroProductStageItems(productId, stageId);
+}
+
+// Reordena os itens de override de um produto+etapa conforme a lista de IDs.
+export async function reorderPedroProductStageItems(
+  productId: number,
+  stageId: number,
+  orderedIds: number[],
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  // So reordena itens que sao override deste produto+etapa.
+  const existing = await getPedroProductStageItems(productId, stageId);
+  const validIds = new Set(existing.map((e) => e.id));
+  let pos = 0;
+  for (const id of orderedIds) {
+    if (!validIds.has(id)) continue;
+    await db
+      .update(pedroProductStageItems)
+      .set({ position: pos })
+      .where(eq(pedroProductStageItems.id, id));
+    pos++;
+  }
   return getPedroProductStageItems(productId, stageId);
 }
 

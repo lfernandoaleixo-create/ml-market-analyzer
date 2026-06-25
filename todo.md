@@ -1502,3 +1502,19 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend: auto-conclusao da bolinha quando tudo respondido (Regra A para etapa vazia)
 - [x] Validar (vitest 718 + tsc + preview no Kickoff: 6 grupos, resposta 1/23 persistida)
 - [ ] Checkpoint da timeline com grupos/perguntas
+
+
+## Pedro Checklist: refino visual dos cards de pergunta
+- [x] Card de pergunta mais bonito/profissional: fundo claro, borda suave, cantos arredondados, sombra leve, melhor espacamento
+- [x] Cada card de pergunta com botoes Salvar e Editar dentro do proprio card
+- [x] Modo leitura apos salvar (texto exibido) + botao Editar para voltar a editar
+- [x] Estado respondido com VERDE mais forte (borda+fundo+check destacados)
+- [x] Validar no preview (responder/editar/salvar) + tsc + vitest 718
+
+
+## Pedro Checklist: corrigir add checkbox, reordenar itens e estado vermelho
+- [x] BUG: ao adicionar checkbox, as perguntas somem — checkbox e perguntas devem coexistir
+- [x] Permitir reordenar itens (perguntas e checkboxes) dentro da etapa de cada produto (subir/descer)
+- [x] Backend: procedure de reorder (atualiza position dos itens override do produto)
+- [x] Visual: perguntas NAO respondidas em tom de vermelho (falta responder)
+- [x] Validar no preview (add checkbox sem sumir perguntas, reordenar com setas, vermelho/verde) + tsc + vitest 718
