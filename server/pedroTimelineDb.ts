@@ -397,12 +397,12 @@ export async function createPedroProductStageItem(
   }
   const nextPosition =
     existing.length === 0 ? 0 : Math.max(...existing.map((e) => e.position)) + 1;
-  // Novo item sem grupo herda o ultimo grupo existente (assim aparece junto, nao em um card vazio).
-  const lastGroup = existing.length > 0 ? existing[existing.length - 1] : null;
+  // Novo item SEM grupo aparece em um bloco proprio no TOPO (antes dos cartoes de grupo):
+  // groupName=null e groupPosition=-1 garantem que ele fique acima de todos os grupos.
   const resolvedGroup = {
-    name: group?.name ?? lastGroup?.groupName ?? null,
-    color: group?.color ?? lastGroup?.groupColor ?? null,
-    position: group?.position ?? lastGroup?.groupPosition ?? 0,
+    name: group?.name ?? null,
+    color: group?.color ?? null,
+    position: group?.position ?? (group?.name ? 0 : -1),
   };
   await db
     .insert(pedroProductStageItems)

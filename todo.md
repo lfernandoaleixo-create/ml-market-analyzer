@@ -1518,3 +1518,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Backend: procedure de reorder (atualiza position dos itens override do produto)
 - [x] Visual: perguntas NAO respondidas em tom de vermelho (falta responder)
 - [x] Validar no preview (add checkbox sem sumir perguntas, reordenar com setas, vermelho/verde) + tsc + vitest 718
+
+
+## Pedro Checklist: posicionamento de itens sem grupo
+- [x] Checkbox/item SEM grupo deve aparecer em bloco proprio no TOPO (bloco "Geral" renderizado antes dos cartoes de grupo)
+- [x] Novo checkbox recebe posicao que o coloca antes das perguntas (backend: groupPosition=-1 para itens sem grupo)
+- [x] Validar no preview (resposta verde em largura total; limpeza do override do Matador) + tsc + vitest 718
+- [x] BUG: texto da resposta no card respondido quebra uma letra por linha -> card reestruturado: resposta em linha propria de largura total com break-words/whitespace-pre-wrap e botao Editar abaixo
+- [x] Limpeza de dados de teste do Matador de Mosquito (volta a herdar 23 perguntas padrao)
+- [ ] Checkpoint dos ajustes acima

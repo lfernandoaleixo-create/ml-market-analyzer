@@ -597,6 +597,8 @@ function ChecklistEditor({
     groups[groupIndex.get(key)!].items.push(it);
   }
   const hasGroups = groups.some((g) => g.name);
+  const ungroupedGroups = groups.filter((g) => !g.name);
+  const namedGroups = groups.filter((g) => g.name);
 
   // Setas de reordenar (visiveis no modo "Editar itens").
   const reorderControls = (item: ChecklistItem) => (
@@ -648,7 +650,7 @@ function ChecklistEditor({
               {item.checked && <Check className="w-3.5 h-3.5 text-white" />}
             </button>
             <span
-              className={`flex-1 min-w-0 text-sm font-semibold leading-snug ${
+              className={`flex-1 min-w-0 break-words text-sm font-semibold leading-snug ${
                 item.checked ? "text-green-800" : "text-red-900/80"
               }`}
             >
@@ -682,6 +684,7 @@ function ChecklistEditor({
             : "border-red-200 bg-red-50/60 hover:border-red-300"
         }`}
       >
+        {/* Linha 1: ícone + título + controles de edição */}
         <div className="flex items-start gap-2.5">
           <span
             className={`mt-0.5 shrink-0 w-5 h-5 rounded-md flex items-center justify-center ${
@@ -694,66 +697,13 @@ function ChecklistEditor({
               <TypeIcon className="w-3 h-3 text-red-400" />
             )}
           </span>
-          <div className="flex-1 min-w-0">
-            <p
-              className={`text-sm font-semibold leading-snug ${
-                answered ? "text-green-800" : "text-red-900/80"
-              }`}
-            >
-              {item.label}
-            </p>
-
-            {isEditing ? (
-              <>
-                <Textarea
-                  value={draft}
-                  autoFocus={!!editingItems[item.id]}
-                  onChange={(e) =>
-                    setTextDrafts((d) => ({ ...d, [item.id]: e.target.value }))
-                  }
-                  placeholder="Escreva a resposta…"
-                  className="mt-2 min-h-[60px] text-sm resize-y bg-white border-slate-200"
-                />
-                <div className="mt-2 flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => saveText(item, draft)}
-                  >
-                    <Check className="w-3.5 h-3.5 mr-1" /> Salvar
-                  </Button>
-                  {answered && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs text-slate-500"
-                      onClick={() => cancelEditingItem(item)}
-                    >
-                      Cancelar
-                    </Button>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="mt-1.5 flex items-start justify-between gap-2">
-                <p className="flex-1 min-w-0 whitespace-pre-wrap break-words text-sm text-slate-700">
-                  {item.textValue}
-                </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-100"
-                  onClick={() => startEditingItem(item)}
-                >
-                  <Pencil className="w-3.5 h-3.5 mr-1" /> Editar
-                </Button>
-              </div>
-            )}
-          </div>
-
+          <p
+            className={`flex-1 min-w-0 break-words text-sm font-semibold leading-snug ${
+              answered ? "text-green-800" : "text-red-900/80"
+            }`}
+          >
+            {item.label}
+          </p>
           {editMode && reorderControls(item)}
           {editMode && (
             <button
@@ -766,6 +716,57 @@ function ChecklistEditor({
             </button>
           )}
         </div>
+
+        {/* Linha 2: resposta em largura total */}
+        {isEditing ? (
+          <div className="mt-2">
+            <Textarea
+              value={draft}
+              autoFocus={!!editingItems[item.id]}
+              onChange={(e) =>
+                setTextDrafts((d) => ({ ...d, [item.id]: e.target.value }))
+              }
+              placeholder="Escreva a resposta…"
+              className="min-h-[60px] w-full text-sm resize-y bg-white border-slate-200"
+            />
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => saveText(item, draft)}
+              >
+                <Check className="w-3.5 h-3.5 mr-1" /> Salvar
+              </Button>
+              {answered && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-slate-500"
+                  onClick={() => cancelEditingItem(item)}
+                >
+                  Cancelar
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2 rounded-lg bg-white/70 border border-green-200 p-2.5">
+            <p className="w-full whitespace-pre-wrap break-words text-sm text-slate-700">
+              {item.textValue}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="mt-1.5 h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-100"
+              onClick={() => startEditingItem(item)}
+            >
+              <Pencil className="w-3.5 h-3.5 mr-1" /> Editar
+            </Button>
+          </div>
+        )}
       </div>
     );
   };
@@ -801,28 +802,39 @@ function ChecklistEditor({
         </p>
       )}
 
+      {/* Bloco de itens SEM grupo (ex.: checkboxes novos) — sempre no topo, largura total. */}
+      {hasGroups && ungroupedGroups.length > 0 && (
+        <div className="rounded-xl border border-border/70 bg-card p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-1.5 h-4 rounded-full bg-slate-400" />
+            <h5 className="text-sm font-bold text-slate-600">Geral</h5>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+            {ungroupedGroups.flatMap((g) => g.items).map(renderItem)}
+          </div>
+        </div>
+      )}
+
       {/* Itens agrupados (cartões por grupo, como no print do Kickoff). */}
       {hasGroups ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-          {groups.map((g) => (
+          {namedGroups.map((g) => (
             <div
               key={g.key}
               className="rounded-xl border border-border/70 bg-card p-3 space-y-2"
             >
-              {g.name && (
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block w-1.5 h-4 rounded-full"
-                    style={{ background: g.color ?? "var(--primary)" }}
-                  />
-                  <h5
-                    className="text-sm font-bold"
-                    style={{ color: g.color ?? "var(--foreground)" }}
-                  >
-                    {g.name}
-                  </h5>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block w-1.5 h-4 rounded-full"
+                  style={{ background: g.color ?? "var(--primary)" }}
+                />
+                <h5
+                  className="text-sm font-bold"
+                  style={{ color: g.color ?? "var(--foreground)" }}
+                >
+                  {g.name}
+                </h5>
+              </div>
               <div className="space-y-2">{g.items.map(renderItem)}</div>
             </div>
           ))}
