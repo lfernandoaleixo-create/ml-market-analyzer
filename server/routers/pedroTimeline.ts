@@ -7,6 +7,7 @@ import {
   getPedroTimelineOverview,
   renamePedroStage,
   reorderPedroStages,
+  updatePedroStageMeta,
   setPedroStepDone,
   setPedroStepDoneSequential,
   setPedroStepNote,
@@ -24,6 +25,23 @@ export const pedroTimelineRouter = router({
     rename: publicProcedure
       .input(z.object({ id: z.number(), label: z.string().min(1).max(255) }))
       .mutation(({ input }) => renamePedroStage(input.id, input.label)),
+
+    updateMeta: publicProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          label: z.string().min(1).max(255).optional(),
+          category: z.string().max(64).nullable().optional(),
+          details: z.string().max(5000).nullable().optional(),
+        }),
+      )
+      .mutation(({ input }) =>
+        updatePedroStageMeta(input.id, {
+          label: input.label,
+          category: input.category,
+          details: input.details,
+        }),
+      ),
 
     delete: publicProcedure
       .input(z.object({ id: z.number() }))

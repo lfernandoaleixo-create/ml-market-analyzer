@@ -1463,3 +1463,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] setDone/setNote do Pedro continuam gravando em pedro_step_progress (independente)
 - [x] Validar no preview: Cronograma do Pedro lista os 16 produtos, etapas vazias, progresso 0
 - [x] tsc/vitest verdes (718) + checkpoint
+
+
+## Pedro Cronograma: 10 etapas fixas (opcao B)
+- [ ] Criar/seed das 10 etapas do Pedro na ordem definida (pedro_timeline_stages)
+- [ ] Cada etapa com categoria/cor (Origem, Briefing, Analise, Financeiro, Fiscal, Conteudo, Gate, Cadastro, Go-live, Continuo)
+- [ ] UI: etiqueta colorida a direita de cada etapa + secao "Ver detalhes" expansivel (vazia por enquanto)
+- [ ] Validar no preview (10 etapas na vertical, etiquetas, expandir) + tsc/vitest + checkpoint

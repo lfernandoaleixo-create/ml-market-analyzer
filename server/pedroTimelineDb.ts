@@ -33,6 +33,22 @@ export async function renamePedroStage(id: number, label: string) {
   return getPedroStages();
 }
 
+export async function updatePedroStageMeta(
+  id: number,
+  fields: { label?: string; category?: string | null; details?: string | null },
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const patch: Record<string, unknown> = {};
+  if (fields.label !== undefined) patch.label = fields.label.trim();
+  if (fields.category !== undefined) patch.category = fields.category;
+  if (fields.details !== undefined) patch.details = fields.details;
+  if (Object.keys(patch).length > 0) {
+    await db.update(pedroTimelineStages).set(patch).where(eq(pedroTimelineStages.id, id));
+  }
+  return getPedroStages();
+}
+
 export async function deletePedroStage(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -211,6 +227,8 @@ export async function getPedroTimelineOverview() {
       return {
         stageId: s.id,
         label: s.label,
+        category: s.category ?? null,
+        details: s.details ?? null,
         done: pr?.done ?? false,
         note: pr?.note ?? null,
       };

@@ -914,6 +914,8 @@ export const pedroTimelineStages = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     label: varchar("label", { length: 255 }).notNull(),
+    category: varchar("category", { length: 64 }),
+    details: text("details"),
     position: int("position").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

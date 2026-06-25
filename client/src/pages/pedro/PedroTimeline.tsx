@@ -39,8 +39,44 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type Stage = { id: number; label: string; position: number };
-type Step = { stageId: number; label: string; done: boolean; note: string | null };
+type Stage = { id: number; label: string; category: string | null; details: string | null; position: number };
+type Step = { stageId: number; label: string; category: string | null; details: string | null; done: boolean; note: string | null };
+
+// Paleta de cores por categoria das etapas do Pedro (etiqueta à direita).
+const CATEGORY_COLOR: Record<string, string> = {
+  "Origem": "var(--muted-foreground)",
+  "Briefing": "#6366f1", // indigo
+  "Análise": "#0ea5e9", // sky
+  "Financeiro": "#16a34a", // green
+  "Fiscal": "#ca8a04", // amber
+  "Conteúdo": "#db2777", // pink
+  "Gate": "#9333ea", // purple
+  "Cadastro": "#64748b", // slate
+  "Go-live": "#ea580c", // orange
+  "Contínuo": "#0d9488", // teal
+};
+
+function categoryColor(cat: string | null | undefined): string {
+  if (!cat) return "var(--muted-foreground)";
+  return CATEGORY_COLOR[cat] ?? "var(--muted-foreground)";
+}
+
+function CategoryTag({ category }: { category: string | null | undefined }) {
+  if (!category) return null;
+  const c = categoryColor(category);
+  return (
+    <span
+      className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+      style={{
+        color: c,
+        background: `color-mix(in oklch, ${c} 14%, transparent)`,
+        border: `1px solid color-mix(in oklch, ${c} 35%, transparent)`,
+      }}
+    >
+      {category}
+    </span>
+  );
+}
 type Product = {
   id: number;
   name: string;
@@ -102,6 +138,8 @@ function StagesManager({ stages }: { stages: Stage[] }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [expandedDetailsId, setExpandedDetailsId] = useState<number | null>(null);
+  const [detailsDraft, setDetailsDraft] = useState("");
 
   const refresh = () => {
     utils.pedroTimeline.stages.list.invalidate();
@@ -135,6 +173,14 @@ function StagesManager({ stages }: { stages: Stage[] }) {
   const reorderMut = trpc.pedroTimeline.stages.reorder.useMutation({
     onSuccess: refresh,
     onError: () => toast.error("Não foi possível reordenar"),
+  });
+  const metaMut = trpc.pedroTimeline.stages.updateMeta.useMutation({
+    onSuccess: () => {
+      setExpandedDetailsId(null);
+      refresh();
+      toast.success("Detalhes salvos");
+    },
+    onError: () => toast.error("Não foi possível salvar os detalhes"),
   });
 
   const move = (index: number, dir: -1 | 1) => {
@@ -171,65 +217,115 @@ function StagesManager({ stages }: { stages: Stage[] }) {
           </p>
 
           <div className="space-y-2">
-            {stages.map((stage, idx) => (
-              <div key={stage.id} className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
-                <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-primary/12 text-primary">
-                  {idx + 1}
-                </span>
-                {editingId === stage.id ? (
-                  <div className="flex-1 flex items-center gap-1.5">
-                    <Input
-                      value={editLabel}
-                      onChange={(e) => setEditLabel(e.target.value)}
-                      className="h-8"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && editLabel.trim()) renameMut.mutate({ id: stage.id, label: editLabel.trim() });
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                    />
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 shrink-0"
-                      disabled={!editLabel.trim() || busy}
-                      onClick={() => renameMut.mutate({ id: stage.id, label: editLabel.trim() })}
-                    >
-                      <Check className="w-4 h-4 text-primary" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setEditingId(null)}>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <span className="flex-1 text-sm text-foreground truncate">{stage.label}</span>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" disabled={idx === 0 || busy} onClick={() => move(idx, -1)}>
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" disabled={idx === stages.length - 1 || busy} onClick={() => move(idx, 1)}>
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </Button>
+            {stages.map((stage, idx) => {
+              const detailsOpen = expandedDetailsId === stage.id;
+              const hasDetails = !!(stage.details && stage.details.trim().length > 0);
+              return (
+              <div key={stage.id} className="rounded-lg border border-border bg-background">
+                <div className="flex items-center gap-2 px-2.5 py-1.5">
+                  <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-primary/12 text-primary">
+                    {idx + 1}
+                  </span>
+                  {editingId === stage.id ? (
+                    <div className="flex-1 flex items-center gap-1.5">
+                      <Input
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        className="h-8"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && editLabel.trim()) renameMut.mutate({ id: stage.id, label: editLabel.trim() });
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                      />
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7"
-                        onClick={() => {
-                          setEditingId(stage.id);
-                          setEditLabel(stage.label);
-                        }}
+                        className="h-8 w-8 shrink-0"
+                        disabled={!editLabel.trim() || busy}
+                        onClick={() => renameMut.mutate({ id: stage.id, label: editLabel.trim() })}
                       >
-                        <Pencil className="w-3.5 h-3.5" />
+                        <Check className="w-4 h-4 text-primary" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(stage.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setEditingId(null)}>
+                        <X className="w-4 h-4" />
                       </Button>
                     </div>
-                  </>
+                  ) : (
+                    <>
+                      <span className="text-sm text-foreground truncate">{stage.label}</span>
+                      <CategoryTag category={stage.category} />
+                      <div className="flex-1" />
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={`h-7 px-2 text-xs ${hasDetails ? "text-primary" : "text-muted-foreground"}`}
+                          onClick={() => {
+                            if (detailsOpen) {
+                              setExpandedDetailsId(null);
+                            } else {
+                              setExpandedDetailsId(stage.id);
+                              setDetailsDraft(stage.details ?? "");
+                            }
+                          }}
+                        >
+                          <ChevronDown className={`w-3.5 h-3.5 mr-1 transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
+                          Ver detalhes
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" disabled={idx === 0 || busy} onClick={() => move(idx, -1)}>
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" disabled={idx === stages.length - 1 || busy} onClick={() => move(idx, 1)}>
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            setEditingId(stage.id);
+                            setEditLabel(stage.label);
+                          }}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(stage.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                {detailsOpen && editingId !== stage.id && (
+                  <div className="px-2.5 pb-2.5 pt-1 space-y-2 border-t border-border/60">
+                    <label className="text-xs font-medium text-muted-foreground">Detalhes desta etapa</label>
+                    <Textarea
+                      value={detailsDraft}
+                      onChange={(e) => setDetailsDraft(e.target.value)}
+                      placeholder="Descreva o que deve acontecer nesta etapa (cheguei para preencher depois)."
+                      className="min-h-[80px] text-sm"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="h-8"
+                        disabled={metaMut.isPending}
+                        onClick={() =>
+                          metaMut.mutate({ id: stage.id, details: detailsDraft.trim() ? detailsDraft.trim() : null })
+                        }
+                      >
+                        Salvar detalhes
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8" onClick={() => setExpandedDetailsId(null)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
-            ))}
+              );
+            })}
             {stages.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-3">Nenhuma etapa ainda. Adicione a primeira abaixo.</p>
             )}
@@ -422,7 +518,10 @@ function TimelineDot({
         <PopoverContent className="w-72" align="center">
           <div className="space-y-3">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground leading-tight">{step.label}</p>
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-sm font-semibold text-foreground leading-tight">{step.label}</p>
+                <CategoryTag category={step.category} />
+              </div>
               <span
                 className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
                 style={{
@@ -435,6 +534,13 @@ function TimelineDot({
                 {step.done ? "Concluída" : "Pendente"}
               </span>
             </div>
+
+            {step.details && step.details.trim().length > 0 && (
+              <div className="rounded-lg bg-muted/60 px-2.5 py-2 space-y-1">
+                <p className="text-[11px] font-semibold text-muted-foreground">Sobre esta etapa</p>
+                <p className="text-xs text-foreground leading-snug whitespace-pre-wrap">{step.details}</p>
+              </div>
+            )}
 
             {isLocked && (
               <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
