@@ -285,9 +285,16 @@ export function sortListings(
   const sign = dir === "asc" ? 1 : -1;
   const copy = items.slice();
   const dayOffset: Record<string, number> = { day0: 0, day1: 1, day2: 2, day3: 3 };
+  // Desempate estável: quando o valor da chave ativa for igual (ou nulo durante o
+  // carregamento), ordena sempre por itemId na mesma direção. Isso impede que a
+  // lista "pule" de lugar a cada re-render (ex.: quando o mapa de visitas diárias
+  // chega de forma assíncrona). A ordem só muda se um número de fato ultrapassar o outro.
+  const tieBreak = (a: ListingRow, b: ListingRow) =>
+    normalize(a.itemId).localeCompare(normalize(b.itemId));
   copy.sort((a, b) => {
     if (key === "title") {
-      return sign * normalize(a.title).localeCompare(normalize(b.title));
+      const cmp = normalize(a.title).localeCompare(normalize(b.title));
+      return cmp !== 0 ? sign * cmp : tieBreak(a, b);
     }
     let av: number | null;
     let bv: number | null;
@@ -299,9 +306,10 @@ export function sortListings(
       av = a[key as keyof ListingRow] as number | null;
       bv = b[key as keyof ListingRow] as number | null;
     }
-    if (av == null && bv == null) return 0;
+    if (av == null && bv == null) return tieBreak(a, b);
     if (av == null) return 1; // nulls last regardless of dir
     if (bv == null) return -1;
+    if (av === bv) return tieBreak(a, b);
     return sign * (av - bv);
   });
   return copy;

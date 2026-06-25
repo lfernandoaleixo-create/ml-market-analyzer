@@ -1550,3 +1550,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] UI: botao "+" dentro de cada card colorido para adicionar item daquele tipo no grupo
 - [x] Botoes Adicionar pergunta/checkbox gerais (item vai pro card "Geral" sem grupo)
 - [x] Validado no preview (#04 com 5 cards) + tsc 0 erros + vitest 718 + checkpoint
+
+
+## Meus Anuncios: ranking estavel (CONCLUIDO)
+- [x] BUG: lista de anuncios trocava de lugar mesmo sem o numero de visitas mudar (sort instavel em empates/null)
+- [x] sortListings: desempate determinístico por itemId quando o valor da chave ativa empata ou esta nulo (durante carregamento)
+- [x] Ordem so muda quando um numero realmente ultrapassa outro (atualizacao em tempo real)
+- [x] Testes de estabilidade adicionados (empate por itemId + mapa de visitas diarias ainda carregando) + vitest 23 + tsc 0 erros

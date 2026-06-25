@@ -136,6 +136,37 @@ describe("sortListings", () => {
     expect(sortListings(items, "conversion", "desc").map((r) => r.itemId)).toEqual(["A", "C", "B"]);
     expect(sortListings(items, "conversion", "asc").map((r) => r.itemId)).toEqual(["C", "A", "B"]);
   });
+
+  it("é estável quando há empate: desempata por itemId e não muda de lugar entre re-renders", () => {
+    // Três anúncios com EXATAMENTE o mesmo número de visitas, em ordem de entrada
+    // embaralhada — simula re-renders com a fonte vindo em ordens diferentes.
+    const tied = [
+      row({ itemId: "MLB30", visits: 50 }),
+      row({ itemId: "MLB10", visits: 50 }),
+      row({ itemId: "MLB20", visits: 50 }),
+    ];
+    const shuffled = [
+      row({ itemId: "MLB20", visits: 50 }),
+      row({ itemId: "MLB30", visits: 50 }),
+      row({ itemId: "MLB10", visits: 50 }),
+    ];
+    const out1 = sortListings(tied, "visits", "desc").map((r) => r.itemId);
+    const out2 = sortListings(shuffled, "visits", "desc").map((r) => r.itemId);
+    // Mesma ordem determinística independente da ordem de entrada.
+    expect(out1).toEqual(["MLB10", "MLB20", "MLB30"]);
+    expect(out1).toEqual(out2);
+  });
+
+  it("itens sem visitas diárias (mapa ainda carregando) mantêm ordem estável por itemId", () => {
+    // Antes do dailyVisitsMap chegar, todos ficam empatados (null) — não pode embaralhar.
+    const rows = [
+      row({ itemId: "MLB3" }),
+      row({ itemId: "MLB1" }),
+      row({ itemId: "MLB2" }),
+    ];
+    const out = sortListings(rows, "day0", "desc", {}).map((r) => r.itemId);
+    expect(out).toEqual(["MLB1", "MLB2", "MLB3"]);
+  });
 });
 
 describe("listingsToCsv", () => {
