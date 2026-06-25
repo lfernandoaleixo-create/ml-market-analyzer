@@ -11,7 +11,20 @@ import {
   setPedroStepDone,
   setPedroStepDoneSequential,
   setPedroStepNote,
+  getPedroStageItems,
+  createPedroStageItem,
+  updatePedroStageItem,
+  deletePedroStageItem,
+  getEffectivePedroItems,
+  startPedroProductOverride,
+  createPedroProductStageItem,
+  updatePedroProductStageItem,
+  deletePedroProductStageItem,
+  resetPedroProductOverride,
+  setPedroItemAnswer,
 } from "../pedroTimelineDb";
+
+const itemTypeSchema = z.enum(["checkbox", "text"]);
 
 export const pedroTimelineRouter = router({
   // ─── Etapas (modelo único e editável) ──────────────────────────────────────
@@ -77,6 +90,107 @@ export const pedroTimelineRouter = router({
       )
       .mutation(async ({ input }) => {
         await setPedroStepNote(input.productId, input.stageId, input.note);
+        return { ok: true };
+      }),
+  }),
+
+  // ─── Itens-PADRÃO de checklist/pergunta por etapa (Etapas do Pedro) ──────────
+  items: router({
+    listDefault: publicProcedure
+      .input(z.object({ stageId: z.number() }))
+      .query(({ input }) => getPedroStageItems(input.stageId)),
+
+    createDefault: publicProcedure
+      .input(
+        z.object({
+          stageId: z.number(),
+          type: itemTypeSchema,
+          label: z.string().min(1).max(500),
+        }),
+      )
+      .mutation(({ input }) =>
+        createPedroStageItem(input.stageId, input.type, input.label),
+      ),
+
+    updateDefault: publicProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          type: itemTypeSchema.optional(),
+          label: z.string().min(1).max(500).optional(),
+        }),
+      )
+      .mutation(({ input }) =>
+        updatePedroStageItem(input.id, { type: input.type, label: input.label }),
+      ),
+
+    deleteDefault: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ input }) => deletePedroStageItem(input.id)),
+  }),
+
+  // ─── Override de itens por PRODUTO+etapa (lápis dentro do produto) ───────────
+  productItems: router({
+    effective: publicProcedure
+      .input(z.object({ productId: z.number(), stageId: z.number() }))
+      .query(({ input }) => getEffectivePedroItems(input.productId, input.stageId)),
+
+    startOverride: publicProcedure
+      .input(z.object({ productId: z.number(), stageId: z.number() }))
+      .mutation(({ input }) => startPedroProductOverride(input.productId, input.stageId)),
+
+    create: publicProcedure
+      .input(
+        z.object({
+          productId: z.number(),
+          stageId: z.number(),
+          type: itemTypeSchema,
+          label: z.string().min(1).max(500),
+        }),
+      )
+      .mutation(({ input }) =>
+        createPedroProductStageItem(input.productId, input.stageId, input.type, input.label),
+      ),
+
+    update: publicProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          type: itemTypeSchema.optional(),
+          label: z.string().min(1).max(500).optional(),
+        }),
+      )
+      .mutation(({ input }) =>
+        updatePedroProductStageItem(input.id, { type: input.type, label: input.label }),
+      ),
+
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ input }) => deletePedroProductStageItem(input.id)),
+
+    reset: publicProcedure
+      .input(z.object({ productId: z.number(), stageId: z.number() }))
+      .mutation(({ input }) => resetPedroProductOverride(input.productId, input.stageId)),
+  }),
+
+  // ─── Respostas por produto (auto-conclui a bolinha) ─────────────────────────
+  answers: router({
+    set: publicProcedure
+      .input(
+        z.object({
+          productId: z.number(),
+          stageId: z.number(),
+          itemSource: z.enum(["default", "product"]),
+          itemId: z.number(),
+          checked: z.boolean().optional(),
+          textValue: z.string().max(2000).nullable().optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        await setPedroItemAnswer(input.productId, input.stageId, input.itemSource, input.itemId, {
+          checked: input.checked,
+          textValue: input.textValue,
+        });
         return { ok: true };
       }),
   }),

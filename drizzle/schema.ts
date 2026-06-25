@@ -952,3 +952,79 @@ export const pedroProductStepProgress = mysqlTable(
 
 export type PedroProductStepProgress = typeof pedroProductStepProgress.$inferSelect;
 export type InsertPedroProductStepProgress = typeof pedroProductStepProgress.$inferInsert;
+
+// ─── Checklist / perguntas por etapa do Cronograma do Pedro ─────────────────
+// Itens-PADRÃO de cada etapa (valem para todos os produtos por padrão).
+// type: "checkbox" (só marcar) | "text" (pergunta com resposta livre).
+export const pedroStageItems = mysqlTable(
+  "pedro_stage_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    stageId: int("stageId").notNull(),
+    type: varchar("type", { length: 16 }).notNull().default("checkbox"),
+    label: varchar("label", { length: 500 }).notNull(),
+    position: int("position").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    stageIdx: index("pedro_stage_items_stage_idx").on(t.stageId),
+    positionIdx: index("pedro_stage_items_position_idx").on(t.position),
+  }),
+);
+
+export type PedroStageItem = typeof pedroStageItems.$inferSelect;
+export type InsertPedroStageItem = typeof pedroStageItems.$inferInsert;
+
+// Override de itens por PRODUTO+etapa. Quando existe ao menos 1 linha para
+// (productId, stageId), esse conjunto SUBSTITUI o padrão naquele produto.
+// hidden=true permite "esvaziar" uma etapa em um produto específico.
+export const pedroProductStageItems = mysqlTable(
+  "pedro_product_stage_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    stageId: int("stageId").notNull(),
+    type: varchar("type", { length: 16 }).notNull().default("checkbox"),
+    label: varchar("label", { length: 500 }).notNull(),
+    position: int("position").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productStageIdx: index("pedro_pstage_items_product_stage_idx").on(t.productId, t.stageId),
+  }),
+);
+
+export type PedroProductStageItem = typeof pedroProductStageItems.$inferSelect;
+export type InsertPedroProductStageItem = typeof pedroProductStageItems.$inferInsert;
+
+// Respostas por PRODUTO de cada item de checklist/pergunta.
+// itemSource: "default" (refere pedro_stage_items.id) | "product" (refere
+// pedro_product_stage_items.id) — para não colidir ids entre as duas origens.
+export const pedroItemAnswers = mysqlTable(
+  "pedro_item_answers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("productId").notNull(),
+    stageId: int("stageId").notNull(),
+    itemSource: varchar("itemSource", { length: 16 }).notNull().default("default"),
+    itemId: int("itemId").notNull(),
+    checked: boolean("checked").default(false).notNull(),
+    textValue: text("textValue"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    productStageIdx: index("pedro_item_answers_product_stage_idx").on(t.productId, t.stageId),
+    lookupIdx: index("pedro_item_answers_lookup_idx").on(
+      t.productId,
+      t.stageId,
+      t.itemSource,
+      t.itemId,
+    ),
+  }),
+);
+
+export type PedroItemAnswer = typeof pedroItemAnswers.$inferSelect;
+export type InsertPedroItemAnswer = typeof pedroItemAnswers.$inferInsert;

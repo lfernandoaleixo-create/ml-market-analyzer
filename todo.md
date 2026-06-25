@@ -1454,7 +1454,7 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] PedroTimelineContainer: Painel e Analise usam ns="project"; produto tambem ns="project"
 - [x] Cronograma do Pedro permanece independente (ns pedroTimeline)
 - [x] Validar no preview: contadores e analise do Pedro refletem o Projeto (16/5/1/0)
-- [ ] Checkpoint
+- [x] Checkpoint
 
 
 ## Pedro Cronograma: listar produtos do Projeto com progresso independente
@@ -1466,7 +1466,24 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 
 
 ## Pedro Cronograma: 10 etapas fixas (opcao B)
-- [ ] Criar/seed das 10 etapas do Pedro na ordem definida (pedro_timeline_stages)
-- [ ] Cada etapa com categoria/cor (Origem, Briefing, Analise, Financeiro, Fiscal, Conteudo, Gate, Cadastro, Go-live, Continuo)
-- [ ] UI: etiqueta colorida a direita de cada etapa + secao "Ver detalhes" expansivel (vazia por enquanto)
-- [ ] Validar no preview (10 etapas na vertical, etiquetas, expandir) + tsc/vitest + checkpoint
+- [x] Criar/seed das 10 etapas do Pedro na ordem definida (pedro_timeline_stages)
+- [x] Cada etapa com categoria/cor (Origem, Briefing, Analise, Financeiro, Fiscal, Conteudo, Gate, Cadastro, Go-live, Continuo)
+- [x] UI: etiqueta colorida a direita de cada etapa + secao "Ver detalhes" expansivel (editavel + persistida via stages.updateMeta; popover da bolinha mostra etiqueta + detalhes)
+- [x] Validar no preview (10 etapas na vertical, etiquetas, expandir, salvar detalhe) + tsc/vitest (718) + checkpoint 8228393c
+
+
+## Pedro Cronograma: timeline VERTICAL por produto + checklist/perguntas por etapa
+- [x] Backend: tabela de itens-padrao por etapa (pedro_stage_items): tipo (checkbox|text), label, ordem
+- [x] Backend: tabela de override de itens por produto (pedro_product_stage_items) — quando existe, substitui o padrao naquele produto
+- [x] Backend: tabela de respostas por produto (pedro_item_answers): productId, stageId, itemId, checked/textValue
+- [x] Backend: helper getEffectivePedroItems(productId, stageId) = override do produto OU padrao
+- [x] Backend: setItemAnswer; ao salvar, recalcular se TODOS os itens estao respondidos -> auto-concluir bolinha; se faltar algum -> done=false
+- [x] Backend: Regra A — etapa SEM itens fica pendente (nunca conta como concluida)
+- [x] Backend: overview retorna, por produto/etapa, os itens efetivos + respostas + done calculado
+- [x] Backend: CRUD de itens-padrao por etapa e CRUD de override por produto (lapis dentro do produto)
+- [x] Frontend: layout vertical (trilha de icones coloridos por categoria + cartoes #00, titulo, etiqueta categoria, Ver detalhes) dentro de cada produto
+- [x] Frontend: expandir etapa mostra checklist/perguntas; marcar/responder salva e auto-tica a bolinha
+- [x] Frontend: lapis (Personalizar) por produto para personalizar itens daquela etapa so naquele produto (+ Restaurar padrao)
+- [x] Validar (vitest 718 + tsc + preview: criar item, auto-conclusao 10%, restaurar, Regra A)
+- [ ] Editor de itens-padrao em "Etapas do Pedro" (definir as perguntas/checkboxes globais) — aguardando lista de perguntas do usuario
+- [ ] Checkpoint da timeline vertical + checklist
