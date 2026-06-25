@@ -1,4 +1,4 @@
-import { STEP_LABELS, STEP_ORDER, PRIORITY_LABELS } from "@/lib/projectConstants";
+import { PRIORITY_LABELS } from "@/lib/projectConstants";
 import { ChevronRight, Clock, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,12 @@ interface ProductCardProps {
   product: Product;
   viewMode: "grid" | "list";
   onClick: () => void;
+  // Overrides vindos do overview dinamico (espelho do Cronograma).
+  // Quando presentes, tem prioridade sobre os campos do produto.
+  completedCount?: number;
+  totalSteps?: number;
+  progressPct?: number;
+  currentStageLabel?: string | null;
 }
 
 // Cores por prioridade mapeadas para os tokens do Mercato.
@@ -43,13 +49,25 @@ const PRIORITY_CONFIG: Record<
   },
 };
 
-export default function ProjectProductCard({ product, viewMode, onClick }: ProductCardProps) {
+export default function ProjectProductCard({
+  product,
+  viewMode,
+  onClick,
+  completedCount: completedOverride,
+  totalSteps: totalOverride,
+  progressPct: progressOverride,
+  currentStageLabel,
+}: ProductCardProps) {
   const pConfig = PRIORITY_CONFIG[product.priority] ?? PRIORITY_CONFIG.media;
-  // Régua única: progresso = etapas concluídas / total (coerente com Cronograma e Análise).
-  const completedCount = product.completedCount ?? 0;
-  const progress = product.progressPct ?? (completedCount / STEP_ORDER.length) * 100;
-  const isLaunched = completedCount >= STEP_ORDER.length || product.currentStep === "lancamento";
+  // ESPELHO DO CRONOGRAMA: usa as etapas dinamicas quando disponiveis.
+  const completedCount = completedOverride ?? product.completedCount ?? 0;
+  const totalSteps = totalOverride ?? 0;
+  const progress =
+    progressOverride ?? (totalSteps > 0 ? (completedCount / totalSteps) * 100 : 0);
+  const isLaunched = totalSteps > 0 && completedCount >= totalSteps;
   const accent = isLaunched ? "var(--success)" : "var(--primary)";
+  // Etapa atual: primeira pendente do Cronograma (fallback para o campo antigo).
+  const stepLabel = currentStageLabel ?? product.currentStep;
 
   if (viewMode === "list") {
     return (
@@ -72,7 +90,7 @@ export default function ProjectProductCard({ product, viewMode, onClick }: Produ
             {pConfig.label}
           </span>
           <span className="shrink-0 text-xs text-muted-foreground hidden md:block w-40 text-right">
-            {STEP_LABELS[product.currentStep] ?? product.currentStep}
+            {stepLabel}
           </span>
           <div className="shrink-0 w-24 hidden lg:block">
             <div className="flex items-center justify-between mb-1">
@@ -128,7 +146,7 @@ export default function ProjectProductCard({ product, viewMode, onClick }: Produ
       <div className="flex items-center gap-2">
         <div className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} />
         <span className="text-xs text-muted-foreground">
-          {STEP_LABELS[product.currentStep] ?? product.currentStep}
+          {stepLabel}
         </span>
       </div>
 
@@ -145,17 +163,19 @@ export default function ProjectProductCard({ product, viewMode, onClick }: Produ
             style={{ width: `${progress}%`, background: accent }}
           />
         </div>
-        <div className="flex gap-0.5 mt-2">
-          {STEP_ORDER.map((step, i) => (
-            <div
-              key={step}
-              className="flex-1 h-0.5 rounded-full transition-all duration-300"
-              style={{
-                background: i < completedCount ? "var(--primary)" : "var(--muted)",
-              }}
-            />
-          ))}
-        </div>
+        {totalSteps > 0 && (
+          <div className="flex gap-0.5 mt-2">
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 h-0.5 rounded-full transition-all duration-300"
+                style={{
+                  background: i < completedCount ? "var(--primary)" : "var(--muted)",
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {product.expectedArrival && (

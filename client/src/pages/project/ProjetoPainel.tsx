@@ -1,7 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useProjectApi, type PortfolioNamespace } from "@/lib/projectApi";
-import { STEP_LABELS, STEP_ORDER } from "@/lib/projectConstants";
-import { useState, useEffect } from "react";
+import { useProjectApi, useTimelineApi, type PortfolioNamespace } from "@/lib/projectApi";
+import { useState, useEffect, useMemo } from "react";
 import { useGuestName } from "@/hooks/useGuestName";
 import { GuestNameDialog } from "@/components/project/GuestNameDialog";
 import { useLocation } from "wouter";
@@ -28,7 +27,10 @@ import ProjectProductCard from "@/components/project/ProjectProductCard";
 export default function ProjetoPainel({
   basePath = "/projeto",
   ns = "project",
-}: { basePath?: string; ns?: PortfolioNamespace } = {}) {
+  // O eixo de timeline pode diferir do eixo de produtos (ex.: Pedro compartilha
+  // produtos do Projeto, mas tem linha do tempo propria). Default = ns.
+  timelineNs,
+}: { basePath?: string; ns?: PortfolioNamespace; timelineNs?: PortfolioNamespace } = {}) {
   const api = useProjectApi(ns);
   const { isAuthenticated } = useAuth();
   const { guestName, setGuestName } = useGuestName();
@@ -48,10 +50,44 @@ export default function ProjetoPainel({
     {
       search: search || undefined,
       priority: priority || undefined,
-      currentStep: currentStep || undefined,
+      // O filtro de etapa atual e aplicado no cliente (etapas dinamicas), entao
+      // nao enviamos currentStep ao backend (modelo antigo de status).
     },
     { refetchOnWindowFocus: true },
   );
+
+  // ESPELHO DO CRONOGRAMA: as etapas/progresso vem do mesmo overview dinamico.
+  // Adicionar/remover/concluir etapas no Cronograma reflete aqui automaticamente.
+  const timelineApi = useTimelineApi(timelineNs ?? ns);
+  const { data: overview } = timelineApi.overview.useQuery(undefined, {
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
+    staleTime: 0,
+  });
+
+  // Lista de etapas reais (para o filtro "Etapa atual").
+  const dynamicStages = overview?.stages ?? [];
+
+  // Mapa productId -> progresso derivado das etapas dinamicas.
+  const timelineByProduct = useMemo(() => {
+    const m = new Map<
+      number,
+      { completedCount: number; totalSteps: number; progressPct: number; currentStageLabel: string | null }
+    >();
+    for (const p of overview?.products ?? []) {
+      const steps = p.steps ?? [];
+      const totalSteps = steps.length;
+      const completedCount = steps.filter((s) => s.done).length;
+      const current = steps.find((s) => !s.done) ?? null;
+      m.set(p.id, {
+        completedCount,
+        totalSteps,
+        progressPct: totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0,
+        currentStageLabel: current ? current.label : null,
+      });
+    }
+    return m;
+  }, [overview]);
 
   const createMutation = api.products.create.useMutation({
     onSuccess: () => {
@@ -91,17 +127,25 @@ export default function ProjetoPainel({
     }
   };
 
-  const totalProducts = products?.length ?? 0;
-  const altaCount = products?.filter((p) => p.priority === "alta").length ?? 0;
-  // Coerente com a régua de etapas concluídas: em andamento = 1..9 concluídas; lançado = 10/10.
-  const totalSteps = STEP_ORDER.length;
-  const launchedCount =
-    products?.filter((p) => (p.completedCount ?? 0) >= totalSteps).length ?? 0;
-  const inProgressCount =
-    products?.filter((p) => {
-      const c = p.completedCount ?? 0;
-      return c > 0 && c < totalSteps;
-    }).length ?? 0;
+  // Produtos com etapa atual aplicada no cliente (etapas dinamicas do Cronograma).
+  const visibleProducts = useMemo(() => {
+    const list = products ?? [];
+    if (currentStep === "todos") return list;
+    return list.filter((p) => timelineByProduct.get(p.id)?.currentStageLabel === currentStep);
+  }, [products, currentStep, timelineByProduct]);
+
+  const totalProducts = visibleProducts.length;
+  const altaCount = visibleProducts.filter((p) => p.priority === "alta").length;
+  // KPIs derivados das etapas dinamicas (espelho do Cronograma):
+  // lancado = todas as etapas concluidas (e existe ao menos 1 etapa); em andamento = 1..n-1 concluidas.
+  const launchedCount = visibleProducts.filter((p) => {
+    const t = timelineByProduct.get(p.id);
+    return !!t && t.totalSteps > 0 && t.completedCount >= t.totalSteps;
+  }).length;
+  const inProgressCount = visibleProducts.filter((p) => {
+    const t = timelineByProduct.get(p.id);
+    return !!t && t.completedCount > 0 && t.completedCount < t.totalSteps;
+  }).length;
 
   const stats = [
     { label: "Total de Produtos", value: totalProducts, accent: "text-primary" },
@@ -180,9 +224,9 @@ export default function ProjetoPainel({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todas as etapas</SelectItem>
-            {STEP_ORDER.map((step) => (
-              <SelectItem key={step} value={step}>
-                {STEP_LABELS[step]}
+            {dynamicStages.map((stage) => (
+              <SelectItem key={stage.id} value={stage.label}>
+                {stage.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -233,7 +277,7 @@ export default function ProjetoPainel({
             <div key={i} className="rounded-xl h-48 bg-muted animate-pulse" />
           ))}
         </div>
-      ) : products && products.length > 0 ? (
+      ) : visibleProducts.length > 0 ? (
         <div
           className={
             viewMode === "grid"
@@ -241,14 +285,21 @@ export default function ProjetoPainel({
               : "flex flex-col gap-3"
           }
         >
-          {products.map((product) => (
-            <ProjectProductCard
-              key={product.id}
-              product={product}
-              viewMode={viewMode}
-              onClick={() => setLocation(`${basePath}/produto/${product.id}`)}
-            />
-          ))}
+          {visibleProducts.map((product) => {
+            const t = timelineByProduct.get(product.id);
+            return (
+              <ProjectProductCard
+                key={product.id}
+                product={product}
+                viewMode={viewMode}
+                completedCount={t?.completedCount}
+                totalSteps={t?.totalSteps}
+                progressPct={t?.progressPct}
+                currentStageLabel={t?.currentStageLabel}
+                onClick={() => setLocation(`${basePath}/produto/${product.id}`)}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">

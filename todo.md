@@ -1569,3 +1569,21 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validar preview (concluir etapa 1 -> ✓ verde + nota + Atual avanca + 17%) + tsc 0 erros + vitest 720 + checkpoint
 
 - [x] Pedro: ficha do produto puxava a linha do tempo do Luis (ns=project). Corrigido: ProjetoProduto agora aceita prop timelineNs; PedroTimelineContainer passa ns="project" (produtos compartilhados) + timelineNs="pedro" (etapas proprias). Luis continua com etapas do Luis.
+
+## Painel como espelho do Cronograma (25/06)
+- [ ] Painel deve ser ESPELHO do Cronograma (Luis e Pedro): etapas, % e KPIs derivados do overview dinamico, nao de STEP_ORDER fixo
+- [ ] ProjetoPainel: usar timelineApi.overview para total/concluidas/% por produto + KPIs Em Andamento/Lancados
+- [ ] ProjectProductCard: progresso e bolinhas de etapas baseados nas etapas dinamicas (totalSteps/completed do overview)
+- [ ] Filtro "Etapa atual" do Painel usar etapas dinamicas do overview (nao STEP_ORDER)
+- [ ] Sync automatico (refetch ao focar + intervalo) no Painel e ficha, para Luis e Pedro
+- [ ] Validar no preview: concluir/adicionar/remover etapa no Cronograma reflete no Painel; tsc 0; vitest; checkpoint
+
+## Painel = espelho do Cronograma (sync automatico) — 25/06/2026
+- [x] ProjetoPainel: KPIs/% e cards derivam do overview dinamico (etapas reais), nao mais STEP_ORDER fixo
+- [x] ProjectProductCard: bolinhas/progresso/etapa atual vem por props do overview (totalSteps dinamico)
+- [x] ProjetoPainel: nova prop timelineNs (eixo de timeline separado do eixo de produtos)
+- [x] PedroTimelineContainer: Painel usa ns="project" (produtos) + timelineNs="pedro" (linha do tempo)
+- [x] Sync automatico: refetchOnWindowFocus + refetchInterval 15s no overview do Painel
+- [x] Validado preview: concluir etapa no Cronograma do Pedro reflete no Painel (Kickoff 10%, Em Andamento 1); Luis independente
+- [x] tsc 0 erros + 720 testes passando
+- [ ] FUTURO: Analise (grafico) ainda usa STEP_ORDER fixo — migrar para etapas dinamicas em proxima iteracao

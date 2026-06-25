@@ -86,7 +86,14 @@ export default function ProjetoProduto({
     data: overview,
     isLoading: loadingDynamic,
     refetch: refetchDynamic,
-  } = timelineApi.overview.useQuery(undefined, { enabled: !!productId });
+  } = timelineApi.overview.useQuery(undefined, {
+    enabled: !!productId,
+    // Sincroniza automaticamente com a aba Cronograma (adicionar/remover etapas):
+    // re-busca ao focar a janela e periodicamente, sem precisar recarregar a pagina.
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
+    staleTime: 0,
+  });
   const dynamicProduct = overview?.products.find((p) => p.id === productId);
   const dynamicSteps = dynamicProduct?.steps ?? [];
 
