@@ -106,10 +106,17 @@ export const pedroTimelineRouter = router({
           stageId: z.number(),
           type: itemTypeSchema,
           label: z.string().min(1).max(500),
+          groupName: z.string().max(120).nullish(),
+          groupColor: z.string().max(24).nullish(),
+          groupPosition: z.number().optional(),
         }),
       )
       .mutation(({ input }) =>
-        createPedroStageItem(input.stageId, input.type, input.label),
+        createPedroStageItem(input.stageId, input.type, input.label, {
+          name: input.groupName ?? null,
+          color: input.groupColor ?? null,
+          position: input.groupPosition ?? 0,
+        }),
       ),
 
     updateDefault: publicProcedure
@@ -146,10 +153,17 @@ export const pedroTimelineRouter = router({
           stageId: z.number(),
           type: itemTypeSchema,
           label: z.string().min(1).max(500),
+          groupName: z.string().max(120).nullish(),
+          groupColor: z.string().max(24).nullish(),
+          groupPosition: z.number().optional(),
         }),
       )
       .mutation(({ input }) =>
-        createPedroProductStageItem(input.productId, input.stageId, input.type, input.label),
+        createPedroProductStageItem(input.productId, input.stageId, input.type, input.label, {
+          name: input.groupName ?? null,
+          color: input.groupColor ?? null,
+          position: input.groupPosition ?? 0,
+        }),
       ),
 
     update: publicProcedure

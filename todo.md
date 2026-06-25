@@ -1487,3 +1487,18 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validar (vitest 718 + tsc + preview: criar item, auto-conclusao 10%, restaurar, Regra A)
 - [ ] Editor de itens-padrao em "Etapas do Pedro" (definir as perguntas/checkboxes globais) — aguardando lista de perguntas do usuario
 - [ ] Checkpoint da timeline vertical + checklist
+
+
+## Pedro Checklist: grupos coloridos + perguntas com resposta verde + add pergunta/checkbox/lixeira
+- [x] Backend: adicionar groupName + groupColor (e ordem de grupo) aos itens (pedro_stage_items e pedro_product_stage_items)
+- [x] Backend: migração drizzle + apply SQL
+- [x] Backend: seed das 23 perguntas do Kickoff (stage #01) em 6 grupos: Estrategia(navy), Compra(roxo), Mercado(verde), Operacao(amarelo), Fiscal(vermelho), Viabilidade(azul)
+- [x] Backend: overview/effective items retornam group; create item aceita type(checkbox|text)+group
+- [x] Frontend: Ver detalhes do Kickoff em cartoes por grupo (titulo colorido) com as perguntas
+- [x] Frontend: cada pergunta = campo de resposta + salva no blur; ao salvar com texto fica VERDE (respondida)
+- [x] Frontend: checkbox fica verde quando marcado
+- [x] Frontend: botao "Adicionar pergunta" e "Adicionar checkbox" em TODAS as etapas
+- [x] Frontend: lixeira (Editar itens) para excluir pergunta/checkbox em todas as etapas
+- [x] Frontend: auto-conclusao da bolinha quando tudo respondido (Regra A para etapa vazia)
+- [x] Validar (vitest 718 + tsc + preview no Kickoff: 6 grupos, resposta 1/23 persistida)
+- [ ] Checkpoint da timeline com grupos/perguntas

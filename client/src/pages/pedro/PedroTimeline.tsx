@@ -56,6 +56,9 @@ type ChecklistItem = {
   position: number;
   checked: boolean;
   textValue: string | null;
+  groupName: string | null;
+  groupColor: string | null;
+  groupPosition: number;
 };
 type Step = {
   stageId: number;
@@ -505,11 +508,90 @@ function ChecklistEditor({
     }
   };
 
+  const addItem = (type: "checkbox" | "text", label: string, group?: { name: string | null; color: string | null; position: number }) => {
+    const l = label.trim();
+    if (!l) return;
+    createItemMut.mutate({
+      productId,
+      stageId: step.stageId,
+      type,
+      label: l,
+      groupName: group?.name ?? null,
+      groupColor: group?.color ?? null,
+      groupPosition: group?.position ?? 0,
+    });
+  };
   const handleAddItem = () => {
-    const label = newLabel.trim();
-    if (!label) return;
-    // create já cria a linha de override (passa a ter hasOverride=true).
-    createItemMut.mutate({ productId, stageId: step.stageId, type: newType, label });
+    addItem(newType, newLabel);
+  };
+
+  // Agrupa os itens por grupo (mantendo a ordem por groupPosition e position).
+  const groups: { key: string; name: string | null; color: string | null; items: ChecklistItem[] }[] = [];
+  const groupIndex = new Map<string, number>();
+  for (const it of [...step.items].sort(
+    (a, b) => a.groupPosition - b.groupPosition || a.position - b.position,
+  )) {
+    const key = it.groupName ?? "__none__";
+    if (!groupIndex.has(key)) {
+      groupIndex.set(key, groups.length);
+      groups.push({ key, name: it.groupName, color: it.groupColor, items: [] });
+    }
+    groups[groupIndex.get(key)!].items.push(it);
+  }
+  const hasGroups = groups.some((g) => g.name);
+
+  const renderItem = (item: ChecklistItem) => {
+    const answered =
+      item.type === "text" ? (item.textValue ?? "").trim().length > 0 : item.checked;
+    return (
+      <div
+        key={`${item.source}:${item.id}`}
+        className={`rounded-lg border p-2.5 transition-colors ${answered ? "border-green-500/50 bg-green-50/60" : "border-border/70 bg-background"}`}
+      >
+        <div className="flex items-start gap-2">
+          {item.type === "checkbox" ? (
+            <button
+              type="button"
+              onClick={() => toggleCheck(item)}
+              className={`mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${item.checked ? "bg-green-600 border-green-600" : "bg-transparent border-border"}`}
+              aria-pressed={item.checked}
+            >
+              {item.checked && <Check className="w-3 h-3 text-white" />}
+            </button>
+          ) : answered ? (
+            <Check className="mt-0.5 shrink-0 w-4 h-4 text-green-600" />
+          ) : (
+            <TypeIcon className="mt-0.5 shrink-0 w-3.5 h-3.5 text-muted-foreground" />
+          )}
+          <div className="flex-1 min-w-0">
+            <span
+              className={`text-sm ${item.type === "checkbox" && item.checked ? "line-through text-muted-foreground" : "text-foreground font-medium"}`}
+            >
+              {item.label}
+            </span>
+            {item.type === "text" && (
+              <Textarea
+                value={textDrafts[item.id] ?? item.textValue ?? ""}
+                onChange={(e) => setTextDrafts((d) => ({ ...d, [item.id]: e.target.value }))}
+                onBlur={(e) => saveText(item, e.target.value.trim())}
+                placeholder="Escreva a resposta e clique fora para salvar…"
+                className="mt-1.5 min-h-[52px] text-sm resize-y bg-background"
+              />
+            )}
+          </div>
+          {editMode && (
+            <button
+              type="button"
+              onClick={() => deleteItemMut.mutate({ id: item.id })}
+              className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+              title="Remover item"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -539,107 +621,124 @@ function ChecklistEditor({
 
       {step.items.length === 0 && (
         <p className="text-xs text-muted-foreground py-1">
-          Nenhum item ainda. {step.hasOverride ? "Adicione abaixo." : "Defina os itens-padrão em “Etapas do Pedro” (ou personalize aqui)."}
+          Nenhum item ainda. {step.hasOverride ? "Adicione abaixo." : "Use os botões abaixo para adicionar perguntas ou checkboxes."}
         </p>
       )}
 
-      <div className="space-y-1.5">
-        {step.items.map((item) => (
-          <div key={`${item.source}:${item.id}`} className="flex items-start gap-2">
-            {item.type === "checkbox" ? (
-              <button
-                type="button"
-                onClick={() => toggleCheck(item)}
-                className="mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors"
-                style={{
-                  background: item.checked ? "var(--success)" : "transparent",
-                  borderColor: item.checked ? "var(--success)" : "var(--border)",
-                }}
-                aria-pressed={item.checked}
-              >
-                {item.checked && <Check className="w-3 h-3 text-white" />}
-              </button>
-            ) : (
-              <TypeIcon className="mt-1 shrink-0 w-3.5 h-3.5 text-muted-foreground" />
-            )}
-            <div className="flex-1 min-w-0">
-              <span
-                className={`text-sm ${item.type === "checkbox" && item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}
-              >
-                {item.label}
-              </span>
-              {item.type === "text" && (
-                <Textarea
-                  value={textDrafts[item.id] ?? item.textValue ?? ""}
-                  onChange={(e) =>
-                    setTextDrafts((d) => ({ ...d, [item.id]: e.target.value }))
-                  }
-                  onBlur={(e) => saveText(item, e.target.value.trim())}
-                  placeholder="Escreva a resposta…"
-                  className="mt-1 min-h-[56px] text-sm resize-y"
-                />
+      {/* Itens agrupados (cartões por grupo, como no print do Kickoff). */}
+      {hasGroups ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+          {groups.map((g) => (
+            <div
+              key={g.key}
+              className="rounded-xl border border-border/70 bg-card p-3 space-y-2"
+            >
+              {g.name && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block w-1.5 h-4 rounded-full"
+                    style={{ background: g.color ?? "var(--primary)" }}
+                  />
+                  <h5
+                    className="text-sm font-bold"
+                    style={{ color: g.color ?? "var(--foreground)" }}
+                  >
+                    {g.name}
+                  </h5>
+                </div>
               )}
+              <div className="space-y-2">{g.items.map(renderItem)}</div>
             </div>
-            {editMode && (
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">{step.items.map(renderItem)}</div>
+      )}
+
+      {/* Barra de ações: adicionar pergunta / checkbox e restaurar. */}
+      <div className="pt-2 border-t border-border/60 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 bg-background"
+            onClick={() => {
+              setNewType("text");
+              setEditMode(true);
+            }}
+          >
+            <Plus className="w-3.5 h-3.5" /> Adicionar pergunta
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 bg-background"
+            onClick={() => {
+              setNewType("checkbox");
+              setEditMode(true);
+            }}
+          >
+            <Plus className="w-3.5 h-3.5" /> Adicionar checkbox
+          </Button>
+          <button
+            type="button"
+            onClick={handleEditClick}
+            disabled={startOverrideMut.isPending}
+            className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors ml-auto"
+            title="Mostrar/ocultar lixeiras para excluir itens"
+          >
+            <Pencil className="w-3 h-3" />
+            {editMode ? "Concluir edição" : "Editar itens"}
+          </button>
+        </div>
+
+        {editMode && (
+          <div className="rounded-lg border border-dashed border-border bg-background p-2.5 space-y-2">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => deleteItemMut.mutate({ id: item.id })}
-                className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
-                title="Remover item"
+                onClick={() => setNewType("checkbox")}
+                className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${newType === "checkbox" ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Square className="w-3 h-3" /> Checkbox
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewType("text")}
+                className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${newType === "text" ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
+              >
+                <TypeIcon className="w-3 h-3" /> Pergunta
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddItem();
+                  }
+                }}
+                placeholder={newType === "checkbox" ? "Novo checkbox (ex.: Foto pronta?)" : "Nova pergunta (ex.: Qual a fonte da ideia?)"}
+                className="h-8 text-sm"
+              />
+              <Button size="sm" className="h-8" onClick={handleAddItem} disabled={createItemMut.isPending}>
+                <Plus className="w-3.5 h-3.5" /> Adicionar
+              </Button>
+            </div>
+            {step.hasOverride && (
+              <button
+                type="button"
+                onClick={() => resetMut.mutate({ productId, stageId: step.stageId })}
+                className="text-[11px] text-muted-foreground hover:text-destructive transition-colors"
+              >
+                Restaurar itens-padrão (remove personalização deste produto)
               </button>
             )}
           </div>
-        ))}
+        )}
       </div>
-
-      {editMode && (
-        <div className="pt-2 border-t border-border/60 space-y-2">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setNewType("checkbox")}
-              className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${newType === "checkbox" ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
-            >
-              <Square className="w-3 h-3" /> Checkbox
-            </button>
-            <button
-              type="button"
-              onClick={() => setNewType("text")}
-              className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${newType === "text" ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
-            >
-              <TypeIcon className="w-3 h-3" /> Pergunta
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddItem();
-                }
-              }}
-              placeholder={newType === "checkbox" ? "Novo item (ex.: Foto pronta?)" : "Nova pergunta (ex.: Qual a fonte da ideia?)"}
-              className="h-8 text-sm"
-            />
-            <Button size="sm" className="h-8" onClick={handleAddItem} disabled={createItemMut.isPending}>
-              <Plus className="w-3.5 h-3.5" /> Adicionar
-            </Button>
-          </div>
-          {step.hasOverride && (
-            <button
-              type="button"
-              onClick={() => resetMut.mutate({ productId, stageId: step.stageId })}
-              className="text-[11px] text-muted-foreground hover:text-destructive transition-colors"
-            >
-              Restaurar itens-padrão (remove personalização deste produto)
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

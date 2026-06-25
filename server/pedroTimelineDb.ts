@@ -200,6 +200,9 @@ export type PedroEffectiveItem = {
   type: "checkbox" | "text";
   label: string;
   position: number;
+  groupName: string | null;
+  groupColor: string | null;
+  groupPosition: number;
 };
 
 // Itens-PADRÃO de uma etapa (valem para todos os produtos).
@@ -217,6 +220,7 @@ export async function createPedroStageItem(
   stageId: number,
   type: "checkbox" | "text",
   label: string,
+  group?: { name?: string | null; color?: string | null; position?: number },
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -228,7 +232,15 @@ export async function createPedroStageItem(
     existing.length === 0 ? 0 : Math.max(...existing.map((e) => e.position)) + 1;
   await db
     .insert(pedroStageItems)
-    .values({ stageId, type, label: label.trim(), position: nextPosition });
+    .values({
+      stageId,
+      type,
+      label: label.trim(),
+      position: nextPosition,
+      groupName: group?.name ?? null,
+      groupColor: group?.color ?? null,
+      groupPosition: group?.position ?? 0,
+    });
   return getPedroStageItems(stageId);
 }
 
@@ -304,6 +316,9 @@ export async function getEffectivePedroItems(
         type: (o.type as "checkbox" | "text") ?? "checkbox",
         label: o.label,
         position: o.position,
+        groupName: o.groupName ?? null,
+        groupColor: o.groupColor ?? null,
+        groupPosition: o.groupPosition ?? 0,
       })),
     };
   }
@@ -316,6 +331,9 @@ export async function getEffectivePedroItems(
       type: (d.type as "checkbox" | "text") ?? "checkbox",
       label: d.label,
       position: d.position,
+      groupName: d.groupName ?? null,
+      groupColor: d.groupColor ?? null,
+      groupPosition: d.groupPosition ?? 0,
     })),
   };
 }
@@ -336,6 +354,9 @@ export async function startPedroProductOverride(productId: number, stageId: numb
           type: d.type,
           label: d.label,
           position: d.position,
+          groupName: d.groupName ?? null,
+          groupColor: d.groupColor ?? null,
+          groupPosition: d.groupPosition ?? 0,
         })),
       );
     }
@@ -348,6 +369,7 @@ export async function createPedroProductStageItem(
   stageId: number,
   type: "checkbox" | "text",
   label: string,
+  group?: { name?: string | null; color?: string | null; position?: number },
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -356,7 +378,16 @@ export async function createPedroProductStageItem(
     existing.length === 0 ? 0 : Math.max(...existing.map((e) => e.position)) + 1;
   await db
     .insert(pedroProductStageItems)
-    .values({ productId, stageId, type, label: label.trim(), position: nextPosition });
+    .values({
+      productId,
+      stageId,
+      type,
+      label: label.trim(),
+      position: nextPosition,
+      groupName: group?.name ?? null,
+      groupColor: group?.color ?? null,
+      groupPosition: group?.position ?? 0,
+    });
   await recomputePedroStageDone(productId, stageId);
   return getPedroProductStageItems(productId, stageId);
 }
@@ -603,6 +634,9 @@ export async function getPedroTimelineOverview() {
           position: it.position,
           checked: ans?.checked ?? false,
           textValue: ans?.textValue ?? null,
+          groupName: it.groupName ?? null,
+          groupColor: it.groupColor ?? null,
+          groupPosition: it.groupPosition ?? 0,
         };
       });
       const answeredCount = items.filter((it) =>
