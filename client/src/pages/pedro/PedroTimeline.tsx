@@ -1240,7 +1240,8 @@ function VerticalTimeline({ product }: { product: Product }) {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 
 function ProductRow({ product, index }: { product: Product; index: number }) {
-  const [expanded, setExpanded] = useState(true);
+  // Inicia recolhido: ao abrir o Cronograma, todos os produtos comecam fechados.
+  const [expanded, setExpanded] = useState(false);
   const pStyle = PRIORITY_STYLE[product.priority] ?? PRIORITY_STYLE.media;
   const daysLeft = getDaysLeft(product.expectedArrival);
   const urgency = URGENCY(daysLeft);
