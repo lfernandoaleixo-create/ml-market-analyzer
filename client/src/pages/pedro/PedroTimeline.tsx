@@ -1295,18 +1295,20 @@ function ProductRow({ product, index }: { product: Product; index: number }) {
               </p>
             </div>
             <div className="shrink-0 flex flex-col items-end gap-1.5 ml-2">
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
-                style={{
-                  background: `color-mix(in oklch, ${urgency.color} 15%, transparent)`,
-                  border: `1px solid color-mix(in oklch, ${urgency.color} 40%, transparent)`,
-                }}
-              >
-                <UrgencyIcon className="w-3.5 h-3.5 shrink-0" style={{ color: urgency.color }} />
-                <span className="text-xs font-bold" style={{ color: urgency.color }}>
-                  {urgency.label}
-                </span>
-              </div>
+              {daysLeft !== null && (
+                <div
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
+                  style={{
+                    background: `color-mix(in oklch, ${urgency.color} 15%, transparent)`,
+                    border: `1px solid color-mix(in oklch, ${urgency.color} 40%, transparent)`,
+                  }}
+                >
+                  <UrgencyIcon className="w-3.5 h-3.5 shrink-0" style={{ color: urgency.color }} />
+                  <span className="text-xs font-bold" style={{ color: urgency.color }}>
+                    {urgency.label}
+                  </span>
+                </div>
+              )}
               <ChevronDown
                 className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
               />

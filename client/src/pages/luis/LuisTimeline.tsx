@@ -626,6 +626,7 @@ function ProductRow({ product, index }: { product: Product; index: number }) {
                 style={{
                   background: `color-mix(in oklch, ${urgency.color} 15%, transparent)`,
                   border: `1px solid color-mix(in oklch, ${urgency.color} 40%, transparent)`,
+                  display: daysLeft === null ? "none" : undefined,
                 }}
               >
                 <UrgencyIcon className="w-3.5 h-3.5 shrink-0" style={{ color: urgency.color }} />

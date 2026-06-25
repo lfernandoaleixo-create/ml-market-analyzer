@@ -1557,3 +1557,13 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] sortListings: desempate determinístico por itemId quando o valor da chave ativa empata ou esta nulo (durante carregamento)
 - [x] Ordem so muda quando um numero realmente ultrapassa outro (atualizacao em tempo real)
 - [x] Testes de estabilidade adicionados (empate por itemId + mapa de visitas diarias ainda carregando) + vitest 23 + tsc 0 erros
+
+
+## Painel: badge data + linha do tempo dinamica
+- [x] Remover badge "Sem data" do card de produto (Pedro) quando nao ha data
+- [x] Remover badge "Sem data" do card de produto (Luis) quando nao ha data
+- [x] Painel > clicar no produto > Linha do Tempo deve usar etapas dinamicas (Pedro/Luis) em vez do template fixo antigo (Fornecedor/Amostra/...)
+- [x] ProjetoProduto: render dinamico (dynamicSteps), badge "Atual" na 1a pendente, contador answeredCount/itemCount opcional, nota como preview
+- [x] Dialog de etapa: toggle "Etapa concluida" (done) + Observacoes (note), salva via progress.setDone + progress.setNote
+- [x] Remover STEP_ORDER/STEP_LABELS/STEP_ICONS/STATUS_CONFIG/updateTimelineMutation/setEditingStep e query timeline antiga
+- [x] Validar preview (concluir etapa 1 -> ✓ verde + nota + Atual avanca + 17%) + tsc 0 erros + vitest 720 + checkpoint

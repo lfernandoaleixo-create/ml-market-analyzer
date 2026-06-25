@@ -1,8 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useGuestName } from "@/hooks/useGuestName";
 import { GuestNameDialog } from "@/components/project/GuestNameDialog";
-import { useProjectApi, type PortfolioNamespace } from "@/lib/projectApi";
-import { STEP_LABELS, STEP_ORDER, STEP_ICONS } from "@/lib/projectConstants";
+import { useProjectApi, useTimelineApi, type PortfolioNamespace } from "@/lib/projectApi";
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
@@ -36,17 +35,12 @@ const PRIORITY_CONFIG = {
   baixa: { label: "Baixa", className: "bg-primary/10 text-primary border-primary/30" },
 };
 
-const STATUS_CONFIG = {
-  pendente: { label: "Pendente", color: "var(--muted-foreground)", icon: Circle },
-  em_andamento: { label: "Em Andamento", color: "var(--primary)", icon: Clock },
-  concluido: { label: "Concluído", color: "var(--success)", icon: CheckCircle2 },
-};
-
 export default function ProjetoProduto({
   basePath = "/projeto",
   ns = "project",
 }: { basePath?: string; ns?: PortfolioNamespace } = {}) {
   const api = useProjectApi(ns);
+  const timelineApi = useTimelineApi(ns);
   const { id } = useParams<{ id: string }>();
   const productId = parseInt(id ?? "0");
   const [, setLocation] = useLocation();
@@ -75,10 +69,6 @@ export default function ProjetoProduto({
     { id: productId },
     { enabled: !!productId },
   );
-  const { data: timeline, isLoading: loadingTimeline, refetch: refetchTimeline } = api.timeline.byProduct.useQuery(
-    { productId },
-    { enabled: !!productId },
-  );
   const { data: todosData, isLoading: loadingTodos, refetch: refetchTodos } = api.todos.byProduct.useQuery(
     { productId },
     { enabled: !!productId },
@@ -87,6 +77,15 @@ export default function ProjetoProduto({
     { productId },
     { enabled: !!productId },
   );
+
+  // Etapas DINÂMICAS (mesmas do Cronograma do Pedro/Luís), em vez do template fixo.
+  const {
+    data: overview,
+    isLoading: loadingDynamic,
+    refetch: refetchDynamic,
+  } = timelineApi.overview.useQuery(undefined, { enabled: !!productId });
+  const dynamicProduct = overview?.products.find((p) => p.id === productId);
+  const dynamicSteps = dynamicProduct?.steps ?? [];
 
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -131,29 +130,31 @@ export default function ProjetoProduto({
     onError: () => toast.error("Erro ao remover produto"),
   });
 
-  const updateTimelineMutation = api.timeline.update.useMutation({
-    onSuccess: () => {
-      toast.success("Etapa atualizada!");
-      refetchTimeline();
-      refetchProduct();
-    },
+  const setDoneMutation = timelineApi.progress.setDone.useMutation({
     onError: () => toast.error("Erro ao atualizar etapa"),
   });
-  const [editingStep, setEditingStep] = useState<string | null>(null);
-  const [stepForm, setStepForm] = useState({ status: "pendente" as "pendente" | "em_andamento" | "concluido", notes: "" });
-  const openStepEdit = (step: any) => {
-    setEditingStep(step.step);
-    setStepForm({ status: step.status, notes: step.notes ?? "" });
+  const setNoteMutation = timelineApi.progress.setNote.useMutation({
+    onError: () => toast.error("Erro ao salvar observação"),
+  });
+  // Etapa em edição (modelo dinâmico): guarda o stageId selecionado.
+  const [editingStageId, setEditingStageId] = useState<number | null>(null);
+  const editingStage = dynamicSteps.find((s) => s.stageId === editingStageId) ?? null;
+  const [stepForm, setStepForm] = useState({ done: false, notes: "" });
+  const openStepEdit = (step: { stageId: number; done: boolean; note: string | null }) => {
+    setEditingStageId(step.stageId);
+    setStepForm({ done: step.done, notes: step.note ?? "" });
   };
-  const saveStep = () => {
-    if (!editingStep) return;
-    updateTimelineMutation.mutate({
-      productId,
-      step: editingStep as any,
-      status: stepForm.status,
-      notes: stepForm.notes || null,
-    });
-    setEditingStep(null);
+  const saveStep = async () => {
+    if (editingStageId == null) return;
+    try {
+      await setDoneMutation.mutateAsync({ productId, stageId: editingStageId, done: stepForm.done });
+      await setNoteMutation.mutateAsync({ productId, stageId: editingStageId, note: stepForm.notes.trim() || null });
+      toast.success("Etapa atualizada!");
+      refetchDynamic();
+      refetchProduct();
+    } finally {
+      setEditingStageId(null);
+    }
   };
 
   const [showNewTodo, setShowNewTodo] = useState(false);
@@ -246,7 +247,10 @@ export default function ProjetoProduto({
 
   const completedTodos = todosData?.filter((t) => t.completed).length ?? 0;
   const totalTodos = todosData?.length ?? 0;
-  const completedSteps = timeline?.filter((s) => s.status === "concluido").length ?? 0;
+  const completedSteps = dynamicSteps.filter((s) => s.done).length;
+  const totalSteps = dynamicSteps.length;
+  // Primeira etapa não concluída = "Atual".
+  const currentStageId = dynamicSteps.find((s) => !s.done)?.stageId ?? null;
   const pConfig = PRIORITY_CONFIG[(product?.priority ?? "media") as keyof typeof PRIORITY_CONFIG];
 
   if (loadingProduct) {
@@ -413,32 +417,32 @@ export default function ProjetoProduto({
               <div>
                 <h2 className="font-display font-semibold text-lg text-foreground">Linha do Tempo</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {completedSteps} de {STEP_ORDER.length} etapas concluídas
+                  {completedSteps} de {totalSteps} etapas concluídas
                 </p>
               </div>
               <span className="text-2xl font-display font-semibold text-primary">
-                {Math.round((completedSteps / STEP_ORDER.length) * 100)}%
+                {totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0}%
               </span>
             </div>
 
-            {loadingTimeline ? (
+            {loadingDynamic ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
                 ))}
               </div>
+            ) : totalSteps === 0 ? (
+              <div className="text-sm text-muted-foreground py-8 text-center">
+                Nenhuma etapa configurada ainda. Defina as etapas na aba "Etapas".
+              </div>
             ) : (
               <div className="space-y-2">
-                {STEP_ORDER.map((stepKey, index) => {
-                  const stepData = timeline?.find((s) => s.step === stepKey);
-                  const status = stepData?.status ?? "pendente";
-                  const sConfig = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
-                  const StatusIcon = sConfig.icon;
-                  const isCurrentStep = product.currentStep === stepKey;
+                {dynamicSteps.map((step, index) => {
+                  const isCurrentStep = step.stageId === currentStageId;
                   return (
                     <button
-                      key={stepKey}
-                      onClick={() => requireGuestName(() => openStepEdit(stepData ?? { step: stepKey, status: "pendente", notes: null }))}
+                      key={step.stageId}
+                      onClick={() => requireGuestName(() => openStepEdit(step))}
                       className={`w-full text-left rounded-xl p-4 transition-all duration-200 hover:bg-accent group ${isCurrentStep ? "ring-1 ring-primary/30 bg-primary/5" : ""}`}
                     >
                       <div className="flex items-center gap-4">
@@ -446,50 +450,56 @@ export default function ProjetoProduto({
                           <div
                             className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold"
                             style={{
-                              background:
-                                status === "concluido"
-                                  ? "color-mix(in oklch, var(--success) 20%, transparent)"
-                                  : status === "em_andamento"
-                                    ? "color-mix(in oklch, var(--primary) 20%, transparent)"
-                                    : "var(--muted)",
-                              color:
-                                status === "concluido" ? "var(--success)" : status === "em_andamento" ? "var(--primary)" : "var(--muted-foreground)",
+                              background: step.done
+                                ? "color-mix(in oklch, var(--success) 20%, transparent)"
+                                : isCurrentStep
+                                  ? "color-mix(in oklch, var(--primary) 20%, transparent)"
+                                  : "var(--muted)",
+                              color: step.done ? "var(--success)" : isCurrentStep ? "var(--primary)" : "var(--muted-foreground)",
                               border: `1px solid ${
-                                status === "concluido"
+                                step.done
                                   ? "color-mix(in oklch, var(--success) 40%, transparent)"
-                                  : status === "em_andamento"
+                                  : isCurrentStep
                                     ? "color-mix(in oklch, var(--primary) 40%, transparent)"
                                     : "var(--border)"
                               }`,
                             }}
                           >
-                            {status === "concluido" ? "✓" : index + 1}
+                            {step.done ? "✓" : index + 1}
                           </div>
-                          {index < STEP_ORDER.length - 1 && (
+                          {index < dynamicSteps.length - 1 && (
                             <div
                               className="w-px h-3 mt-1"
-                              style={{ background: status === "concluido" ? "color-mix(in oklch, var(--success) 40%, transparent)" : "var(--border)" }}
+                              style={{ background: step.done ? "color-mix(in oklch, var(--success) 40%, transparent)" : "var(--border)" }}
                             />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{STEP_ICONS[stepKey]}</span>
-                            <span className="font-medium text-foreground text-sm">{STEP_LABELS[stepKey]}</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-foreground text-sm">{step.label}</span>
                             {isCurrentStep && <span className="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary">Atual</span>}
+                            {(() => {
+                              const counts = step as unknown as { itemCount?: number; answeredCount?: number };
+                              return counts.itemCount != null && counts.itemCount > 0 ? (
+                                <span className="text-xs text-muted-foreground">
+                                  {counts.answeredCount ?? 0}/{counts.itemCount}
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
-                          {stepData?.notes && <p className="text-xs text-muted-foreground mt-0.5 truncate">{stepData.notes}</p>}
-                          {stepData?.targetDate && (
-                            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(stepData.targetDate).toLocaleDateString("pt-BR")}
-                            </p>
-                          )}
+                          {step.note && <p className="text-xs text-muted-foreground mt-0.5 truncate">{step.note}</p>}
                         </div>
                         <div className="shrink-0 flex items-center gap-1.5">
-                          <StatusIcon className="w-4 h-4" style={{ color: sConfig.color }} />
-                          <span className="text-xs hidden sm:block" style={{ color: sConfig.color }}>
-                            {sConfig.label}
+                          {step.done ? (
+                            <CheckCircle2 className="w-4 h-4" style={{ color: "var(--success)" }} />
+                          ) : (
+                            <Circle className="w-4 h-4 text-muted-foreground" />
+                          )}
+                          <span
+                            className="text-xs hidden sm:block"
+                            style={{ color: step.done ? "var(--success)" : "var(--muted-foreground)" }}
+                          >
+                            {step.done ? "Concluída" : "Pendente"}
                           </span>
                           <Edit2 className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
                         </div>
@@ -510,12 +520,14 @@ export default function ProjetoProduto({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Etapa atual</span>
-                <span className="text-sm font-medium text-foreground">{STEP_LABELS[product.currentStep]}</span>
+                <span className="text-sm font-medium text-foreground">
+                  {dynamicSteps.find((s) => s.stageId === currentStageId)?.label ?? "Concluído"}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Progresso</span>
                 <span className="text-sm font-medium text-primary">
-                  {completedSteps}/{STEP_ORDER.length} etapas
+                  {completedSteps}/{totalSteps} etapas
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -723,39 +735,40 @@ export default function ProjetoProduto({
       </div>
 
       {/* Dialog: editar etapa */}
-      <Dialog open={!!editingStep} onOpenChange={(open) => !open && setEditingStep(null)}>
+      <Dialog open={editingStageId != null} onOpenChange={(open) => !open && setEditingStageId(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2">
-              <span>{STEP_ICONS[editingStep ?? ""] ?? ""}</span>
-              {STEP_LABELS[editingStep ?? ""] ?? "Etapa"}
-            </DialogTitle>
+            <DialogTitle className="font-display">{editingStage?.label ?? "Etapa"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Status</label>
-              <Select value={stepForm.status} onValueChange={(v) => setStepForm({ ...stepForm, status: v as any })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pendente">⬜ Pendente</SelectItem>
-                  <SelectItem value="em_andamento">🟡 Em Andamento</SelectItem>
-                  <SelectItem value="concluido">✅ Concluído</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <button
+              type="button"
+              onClick={() => setStepForm({ ...stepForm, done: !stepForm.done })}
+              className="w-full flex items-center justify-between rounded-xl border border-border p-3 transition-colors hover:bg-accent"
+            >
+              <span className="text-sm font-medium text-foreground">Etapa concluída</span>
+              <span
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full"
+                style={{
+                  background: stepForm.done ? "color-mix(in oklch, var(--success) 20%, transparent)" : "var(--muted)",
+                  color: stepForm.done ? "var(--success)" : "var(--muted-foreground)",
+                  border: `1px solid ${stepForm.done ? "color-mix(in oklch, var(--success) 40%, transparent)" : "var(--border)"}`,
+                }}
+              >
+                {stepForm.done ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+              </span>
+            </button>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Observações</label>
               <Textarea value={stepForm.notes} onChange={(e) => setStepForm({ ...stepForm, notes: e.target.value })} placeholder="Notas sobre esta etapa..." rows={3} className="resize-none" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="bg-card" onClick={() => setEditingStep(null)}>
+            <Button variant="outline" className="bg-card" onClick={() => setEditingStageId(null)}>
               Cancelar
             </Button>
-            <Button onClick={saveStep} disabled={updateTimelineMutation.isPending}>
-              {updateTimelineMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
+            <Button onClick={saveStep} disabled={setDoneMutation.isPending || setNoteMutation.isPending}>
+              {setDoneMutation.isPending || setNoteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>
