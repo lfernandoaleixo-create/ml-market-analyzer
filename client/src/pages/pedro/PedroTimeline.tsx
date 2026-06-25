@@ -776,26 +776,21 @@ function ChecklistEditor({
   const renderGroupBody = (items: ChecklistItem[]) => {
     const checkboxes = items.filter((i) => i.type === "checkbox");
     const questions = items.filter((i) => i.type === "text");
-    const showHeadings = checkboxes.length > 0 && questions.length > 0;
     return (
       <div className="space-y-3">
         {checkboxes.length > 0 && (
           <div className="space-y-2">
-            {showHeadings && (
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                Checkboxes
-              </p>
-            )}
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              Checkboxes
+            </p>
             <div className="space-y-2">{checkboxes.map(renderItem)}</div>
           </div>
         )}
         {questions.length > 0 && (
           <div className="space-y-2">
-            {showHeadings && (
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                Perguntas
-              </p>
-            )}
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              Perguntas
+            </p>
             <div className="space-y-2">{questions.map(renderItem)}</div>
           </div>
         )}
