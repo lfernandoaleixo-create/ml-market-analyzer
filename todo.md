@@ -1533,3 +1533,20 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Subtitulo so aparece quando o grupo tem ambos os tipos (helper renderGroupBody)
 - [x] Aplicar no bloco Geral, nos grupos nomeados e no fallback sem grupos
 - [x] Validar tsc + vitest 718 + checkpoint
+
+## Pedro Checklist: etapa #04 + grupos coloridos arbitrarios
+- [ ] Popular etapa #04 (Validacao Tecnica e Fiscal) com 5 grupos coloridos de CHECKBOXES: Cadastro(9), Conteudo(5), Imagens(5), Logistica(5), Pos-publicacao(5)
+- [ ] Separacao visual por TIPO de item (Checkboxes vs Perguntas), cada secao podendo ter varios cards coloridos
+- [ ] UI: criar novos grupos/cards coloridos (nome + cor) na edicao
+- [ ] UI: botoes Adicionar pergunta/checkbox dentro de cada card colorido (alem dos gerais fora)
+- [ ] Permitir escolher o grupo de destino ao adicionar item (geral ou um card existente)
+- [ ] Validar no preview + tsc + vitest + checkpoint
+
+
+## Pedro Checklist: etapa #04 + grupos coloridos arbitrarios (CONCLUIDO)
+- [x] Popular etapa #04 (Validacao Tecnica e Fiscal, stageId=5) com 5 grupos coloridos de CHECKBOXES: Cadastro(9), Conteudo(5), Imagens(5), Logistica(5), Pos-publicacao(5) = 29 itens
+- [x] Separacao visual por TIPO de item (Checkboxes vs Perguntas), cada secao com varios cards coloridos em grade
+- [x] UI: criar novos grupos/cards coloridos (nome + tipo + cor com paleta) na edicao ("Novo card colorido")
+- [x] UI: botao "+" dentro de cada card colorido para adicionar item daquele tipo no grupo
+- [x] Botoes Adicionar pergunta/checkbox gerais (item vai pro card "Geral" sem grupo)
+- [x] Validado no preview (#04 com 5 cards) + tsc 0 erros + vitest 718 + checkpoint

@@ -442,6 +442,13 @@ function ChecklistEditor({
   const [editMode, setEditMode] = useState(false);
   const [newType, setNewType] = useState<"checkbox" | "text">("checkbox");
   const [newLabel, setNewLabel] = useState("");
+  // Rascunho para adicionar item DENTRO de um card especifico (chave = `${tipo}|${grupo}`).
+  const [groupDrafts, setGroupDrafts] = useState<Record<string, string>>({});
+  // Formulario de NOVO grupo colorido.
+  const [showNewGroup, setShowNewGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupType, setNewGroupType] = useState<"checkbox" | "text">("checkbox");
+  const [newGroupColor, setNewGroupColor] = useState("#2563eb");
 
   const answerMut = trpc.pedroTimeline.answers.set.useMutation({
     onSuccess: refresh,
@@ -583,22 +590,73 @@ function ChecklistEditor({
     addItem(newType, newLabel);
   };
 
-  // Agrupa os itens por grupo (mantendo a ordem por groupPosition e position).
-  const groups: { key: string; name: string | null; color: string | null; items: ChecklistItem[] }[] = [];
-  const groupIndex = new Map<string, number>();
-  for (const it of [...step.items].sort(
-    (a, b) => a.groupPosition - b.groupPosition || a.position - b.position,
-  )) {
-    const key = it.groupName ?? "__none__";
-    if (!groupIndex.has(key)) {
-      groupIndex.set(key, groups.length);
-      groups.push({ key, name: it.groupName, color: it.groupColor, items: [] });
+  // Proxima groupPosition livre (para criar um novo card colorido no fim).
+  const nextGroupPosition = () => {
+    const positions = step.items.filter((i) => i.groupName).map((i) => i.groupPosition);
+    return positions.length === 0 ? 0 : Math.max(...positions) + 1;
+  };
+
+  // Cria um novo grupo colorido ja inserindo seu primeiro item.
+  const handleCreateGroup = () => {
+    const name = newGroupName.trim();
+    if (!name) {
+      toast.error("Dê um nome ao card");
+      return;
     }
-    groups[groupIndex.get(key)!].items.push(it);
-  }
-  const hasGroups = groups.some((g) => g.name);
-  const ungroupedGroups = groups.filter((g) => !g.name);
-  const namedGroups = groups.filter((g) => g.name);
+    addItem(newGroupType, newGroupType === "checkbox" ? "Novo item" : "Nova pergunta", {
+      name,
+      color: newGroupColor,
+      position: nextGroupPosition(),
+    });
+    setNewGroupName("");
+    setShowNewGroup(false);
+  };
+
+  // Adiciona um item DENTRO de um card existente (mesmo tipo/nome/cor/posicao).
+  const addItemToGroup = (
+    type: "checkbox" | "text",
+    group: { name: string | null; color: string | null; position: number },
+  ) => {
+    const draftKey = `${type}|${group.name ?? "__none__"}`;
+    const label = (groupDrafts[draftKey] ?? "").trim();
+    if (!label) return;
+    addItem(type, label, group);
+    setGroupDrafts((d) => ({ ...d, [draftKey]: "" }));
+  };
+
+  // ── Agrupa os itens por (TIPO + grupo): a separacao visual de topo e por TIPO
+  // (Checkboxes vs Perguntas); dentro de cada secao ha 1+ cards coloridos. ──
+  type GroupCard = {
+    key: string;
+    name: string | null;
+    color: string | null;
+    position: number;
+    items: ChecklistItem[];
+  };
+  const buildCards = (type: "checkbox" | "text"): GroupCard[] => {
+    const cards: GroupCard[] = [];
+    const idx = new Map<string, number>();
+    const sorted = [...step.items]
+      .filter((i) => i.type === type)
+      .sort((a, b) => a.groupPosition - b.groupPosition || a.position - b.position);
+    for (const it of sorted) {
+      const key = it.groupName ?? "__none__";
+      if (!idx.has(key)) {
+        idx.set(key, cards.length);
+        cards.push({
+          key,
+          name: it.groupName,
+          color: it.groupColor,
+          position: it.groupPosition,
+          items: [],
+        });
+      }
+      cards[idx.get(key)!].items.push(it);
+    }
+    return cards;
+  };
+  const checkboxCards = buildCards("checkbox");
+  const questionCards = buildCards("text");
 
   // Setas de reordenar (visiveis no modo "Editar itens").
   const reorderControls = (item: ChecklistItem) => (
@@ -771,11 +829,86 @@ function ChecklistEditor({
     );
   };
 
-  // Renderiza apenas os itens de um grupo (a separacao Checkboxes/Perguntas
-  // agora e feita pelos titulos de secao maiores no nivel acima).
+  // Renderiza apenas os itens de um grupo.
   const renderGroupBody = (items: ChecklistItem[]) => (
     <div className="space-y-2">{items.map(renderItem)}</div>
   );
+
+  // Mini-formulario "+ adicionar" DENTRO de um card (so no modo edicao).
+  const renderAddInCard = (
+    type: "checkbox" | "text",
+    group: { name: string | null; color: string | null; position: number },
+  ) => {
+    const draftKey = `${type}|${group.name ?? "__none__"}`;
+    return (
+      <div className="mt-1 flex items-center gap-1.5">
+        <Input
+          value={groupDrafts[draftKey] ?? ""}
+          onChange={(e) => setGroupDrafts((d) => ({ ...d, [draftKey]: e.target.value }))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addItemToGroup(type, group);
+            }
+          }}
+          placeholder={type === "checkbox" ? "Novo item…" : "Nova pergunta…"}
+          className="h-7 text-xs"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 bg-background shrink-0"
+          onClick={() => addItemToGroup(type, group)}
+          disabled={createItemMut.isPending}
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    );
+  };
+
+  // Renderiza um card colorido (grupo nomeado) ou o card "Geral" (sem grupo).
+  const renderCard = (card: GroupCard, type: "checkbox" | "text") => {
+    const isNamed = !!card.name;
+    const accent = card.color ?? (isNamed ? "var(--primary)" : "#94a3b8");
+    return (
+      <div
+        key={`${type}:${card.key}`}
+        className="rounded-xl border border-border/70 bg-card p-3 space-y-2"
+      >
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-1.5 h-4 rounded-full" style={{ background: accent }} />
+          <h5 className="text-sm font-bold" style={{ color: isNamed ? accent : "var(--foreground)" }}>
+            {card.name ?? "Geral"}
+          </h5>
+        </div>
+        {renderGroupBody(card.items)}
+        {editMode &&
+          renderAddInCard(type, { name: card.name, color: card.color, position: card.position })}
+      </div>
+    );
+  };
+
+  // Renderiza uma SECAO por tipo (Checkboxes ou Perguntas) com seus cards.
+  const renderSection = (
+    title: string,
+    cards: GroupCard[],
+    type: "checkbox" | "text",
+    barColor: string,
+  ) => {
+    if (cards.length === 0) return null;
+    return (
+      <div className="space-y-2">
+        <h4 className="flex items-center gap-2 text-base font-extrabold text-slate-700">
+          <span className="inline-block w-1.5 h-5 rounded-full" style={{ background: barColor }} />
+          {title}
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+          {cards.map((c) => renderCard(c, type))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="mt-2 rounded-xl border border-border/70 bg-muted/30 p-3 space-y-2.5">
@@ -808,54 +941,11 @@ function ChecklistEditor({
         </p>
       )}
 
-      {/* Secao de CHECKBOXES (itens sem grupo) — titulo grande no topo, largura total. */}
-      {hasGroups && ungroupedGroups.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="flex items-center gap-2 text-base font-extrabold text-slate-700">
-            <span className="inline-block w-1.5 h-5 rounded-full bg-slate-400" />
-            Checkboxes
-          </h4>
-          <div className="rounded-xl border border-border/70 bg-card p-3">
-            {renderGroupBody(ungroupedGroups.flatMap((g) => g.items))}
-          </div>
-        </div>
-      )}
+      {/* Secao CHECKBOXES: todos os cards de checkboxes (coloridos + "Geral"). */}
+      {renderSection("Checkboxes", checkboxCards, "checkbox", "#94a3b8")}
 
-      {/* Secao de PERGUNTAS — titulo unico, grande e fixo acima da grade de cards. */}
-      {hasGroups ? (
-        namedGroups.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="flex items-center gap-2 text-base font-extrabold text-slate-700">
-              <span className="inline-block w-1.5 h-5 rounded-full bg-primary" />
-              Perguntas
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-              {namedGroups.map((g) => (
-            <div
-              key={g.key}
-              className="rounded-xl border border-border/70 bg-card p-3 space-y-2"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-block w-1.5 h-4 rounded-full"
-                  style={{ background: g.color ?? "var(--primary)" }}
-                />
-                <h5
-                  className="text-sm font-bold"
-                  style={{ color: g.color ?? "var(--foreground)" }}
-                >
-                  {g.name}
-                </h5>
-              </div>
-                {renderGroupBody(g.items)}
-              </div>
-            ))}
-            </div>
-          </div>
-        )
-      ) : (
-        renderGroupBody(step.items)
-      )}
+      {/* Secao PERGUNTAS: todos os cards de perguntas (coloridos + "Geral"). */}
+      {renderSection("Perguntas", questionCards, "text", "var(--primary)")}
 
       {/* Barra de ações: adicionar pergunta / checkbox e restaurar. */}
       <div className="pt-2 border-t border-border/60 space-y-2">
@@ -881,6 +971,17 @@ function ChecklistEditor({
             }}
           >
             <Plus className="w-3.5 h-3.5" /> Adicionar checkbox
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 bg-background"
+            onClick={() => {
+              setEditMode(true);
+              setShowNewGroup(true);
+            }}
+          >
+            <Plus className="w-3.5 h-3.5" /> Novo card colorido
           </Button>
           <button
             type="button"
@@ -929,11 +1030,101 @@ function ChecklistEditor({
                 <Plus className="w-3.5 h-3.5" /> Adicionar
               </Button>
             </div>
+            <p className="text-[10px] text-muted-foreground">
+              Itens adicionados aqui ficam no card “Geral” (sem grupo). Para colocar dentro de um
+              card colorido, use o botão “+” dentro do próprio card.
+            </p>
+
+            {/* Criar NOVO card colorido (nome + tipo + cor). */}
+            {showNewGroup ? (
+              <div className="rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Novo card colorido
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewGroup(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setNewGroupType("checkbox")}
+                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${newGroupType === "checkbox" ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
+                  >
+                    <Square className="w-3 h-3" /> Checkboxes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewGroupType("text")}
+                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${newGroupType === "text" ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
+                  >
+                    <TypeIcon className="w-3 h-3" /> Perguntas
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={newGroupColor}
+                    onChange={(e) => setNewGroupColor(e.target.value)}
+                    className="h-8 w-9 rounded-md border border-border bg-background p-0.5 cursor-pointer shrink-0"
+                    title="Cor do card"
+                  />
+                  <Input
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleCreateGroup();
+                      }
+                    }}
+                    placeholder="Nome do card (ex.: Cadastro, Imagens…)"
+                    className="h-8 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={handleCreateGroup}
+                    disabled={createItemMut.isPending}
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Criar
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {["#2563eb", "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#0ea5e9"].map(
+                    (c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setNewGroupColor(c)}
+                        className={`w-5 h-5 rounded-full border-2 transition-transform ${newGroupColor === c ? "border-foreground scale-110" : "border-transparent"}`}
+                        style={{ background: c }}
+                        title={c}
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowNewGroup(true)}
+                className="flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                <Plus className="w-3 h-3" /> Criar novo card colorido
+              </button>
+            )}
+
             {step.hasOverride && (
               <button
                 type="button"
                 onClick={() => resetMut.mutate({ productId, stageId: step.stageId })}
-                className="text-[11px] text-muted-foreground hover:text-destructive transition-colors"
+                className="block text-[11px] text-muted-foreground hover:text-destructive transition-colors"
               >
                 Restaurar itens-padrão (remove personalização deste produto)
               </button>
