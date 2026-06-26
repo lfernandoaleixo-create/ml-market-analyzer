@@ -11,9 +11,21 @@ import {
   Search,
   Palette,
   Check,
+  Pencil,
+  Columns3,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
@@ -66,7 +78,25 @@ type SkuRow = {
   embPeso: string;
   caracteristicas: string | null;
   rowColor: string;
+  customValues: string | null;
 };
+
+type CustomColumn = {
+  id: number;
+  name: string;
+  position: number;
+};
+
+/** Lê o JSON de valores personalizados de uma linha com segurança. */
+function parseCustomValues(raw: string | null | undefined): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 const CADASTRADO_STYLE: Record<string, { bg: string; text: string; border: string }> = {
   ATIVO: { bg: "color-mix(in oklch, #16a34a 14%, transparent)", text: "#15803d", border: "color-mix(in oklch, #16a34a 38%, transparent)" },
@@ -98,8 +128,14 @@ export default function SkuSheet() {
     refetchOnWindowFocus: true,
   });
   const { data: categories } = trpc.skuSheet.categories.useQuery();
+  const { data: customColumns } = trpc.skuSheet.listCustomColumns.useQuery();
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  // Modal de edição da linha inteira.
+  const [editRowId, setEditRowId] = useState<number | null>(null);
+  // Painel de gerenciamento das colunas personalizadas.
+  const [manageColumns, setManageColumns] = useState(false);
+  const [deleteColumnId, setDeleteColumnId] = useState<number | null>(null);
 
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -122,6 +158,49 @@ export default function SkuSheet() {
     },
     onError: () => toast.error("Não foi possível excluir"),
   });
+
+  // --- Mutations das colunas personalizadas ---
+  const createColMut = trpc.skuSheet.createCustomColumn.useMutation({
+    onSuccess: () => {
+      utils.skuSheet.listCustomColumns.invalidate();
+      toast.success("Coluna criada");
+    },
+    onError: () => toast.error("Não foi possível criar a coluna"),
+  });
+  const renameColMut = trpc.skuSheet.renameCustomColumn.useMutation({
+    onSuccess: () => utils.skuSheet.listCustomColumns.invalidate(),
+    onError: () => toast.error("Não foi possível renomear a coluna"),
+  });
+  const deleteColMut = trpc.skuSheet.deleteCustomColumn.useMutation({
+    onSuccess: () => {
+      utils.skuSheet.listCustomColumns.invalidate();
+      utils.skuSheet.list.invalidate();
+      setDeleteColumnId(null);
+      toast.success("Coluna excluída");
+    },
+    onError: () => toast.error("Não foi possível excluir a coluna"),
+  });
+  const setCustomValueMut = trpc.skuSheet.setCustomValue.useMutation({
+    onSuccess: () => utils.skuSheet.list.invalidate(),
+    onError: () => toast.error("Não foi possível salvar o valor"),
+  });
+
+  const cols: CustomColumn[] = customColumns ?? [];
+  const editingRow = (rows ?? []).find((r) => r.id === editRowId) ?? null;
+  const deletingColumn = cols.find((c) => c.id === deleteColumnId) ?? null;
+
+  // Salva (debounce) o valor de uma coluna personalizada por linha.
+  const customSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const saveCustomValue = useCallback(
+    (rowId: number, columnId: number, value: string, delay = 600) => {
+      const key = `${rowId}:c${columnId}`;
+      if (customSaveTimers.current[key]) clearTimeout(customSaveTimers.current[key]);
+      customSaveTimers.current[key] = setTimeout(() => {
+        setCustomValueMut.mutate({ rowId, columnId, value });
+      }, delay);
+    },
+    [setCustomValueMut],
+  );
 
   const scheduleSave = useCallback(
     (id: number, patch: Partial<SkuRow>, key: string, delay = 600) => {
@@ -206,6 +285,10 @@ export default function SkuSheet() {
               className="h-9 pl-8 w-60"
             />
           </div>
+          <Button size="sm" variant="outline" className="h-9 bg-card" onClick={() => setManageColumns(true)}>
+            <Columns3 className="w-4 h-4 mr-1.5" />
+            Colunas
+          </Button>
           <Button size="sm" className="h-9" onClick={handleAdd} disabled={createMut.isPending}>
             <Plus className="w-4 h-4 mr-1.5" />
             Nova linha
@@ -243,7 +326,12 @@ export default function SkuSheet() {
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[80px]">Emb. Alt.</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">Peso (kg)</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[220px]">Características</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="w-20 text-center sticky right-0 z-20">Ações</Th>
+                {cols.map((c) => (
+                  <Th key={c.id} style={{ background: "var(--sku-head)" }} className="min-w-[160px]">
+                    {c.name || "(sem nome)"}
+                  </Th>
+                ))}
+                <Th style={{ background: "var(--sku-head)" }} className="w-24 text-center sticky right-0 z-20">Ações</Th>
               </tr>
             </thead>
             <tbody>
@@ -254,14 +342,17 @@ export default function SkuSheet() {
                   index={idx}
                   categories={categories ?? []}
                   allRows={(rows ?? []) as SkuRow[]}
+                  customColumns={cols}
                   onField={scheduleSave}
                   onFieldNow={saveNow}
                   onDelete={() => setDeleteId(row.id)}
+                  onEdit={() => setEditRowId(row.id)}
+                  onCustomValue={saveCustomValue}
                 />
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={25} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={25 + cols.length} className="text-center py-12 text-muted-foreground">
                     {search ? "Nenhum item encontrado para a busca." : "Nenhum item ainda. Clique em “Nova linha”."}
                   </td>
                 </tr>
@@ -287,6 +378,50 @@ export default function SkuSheet() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteId && deleteMut.mutate({ id: deleteId })}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal: gerenciar colunas personalizadas */}
+      <ManageColumnsDialog
+        open={manageColumns}
+        onOpenChange={setManageColumns}
+        columns={cols}
+        onCreate={(name) => createColMut.mutate({ name })}
+        onRename={(id, name) => renameColMut.mutate({ id, name })}
+        onAskDelete={(id) => setDeleteColumnId(id)}
+        creating={createColMut.isPending}
+      />
+
+      {/* Modal: editar linha inteira */}
+      <EditRowDialog
+        key={editingRow?.id ?? "none"}
+        row={editingRow}
+        categories={categories ?? []}
+        allRows={(rows ?? []) as SkuRow[]}
+        customColumns={cols}
+        onClose={() => setEditRowId(null)}
+        onSave={(id, patch) => saveNow(id, patch)}
+        onSaveCustom={(rowId, columnId, value) => setCustomValueMut.mutate({ rowId, columnId, value })}
+      />
+
+      {/* Confirmação: excluir coluna personalizada */}
+      <AlertDialog open={deleteColumnId !== null} onOpenChange={(o) => !o && setDeleteColumnId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir coluna?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A coluna “{deletingColumn?.name || "(sem nome)"}” e todos os valores preenchidos nela serão removidos de todas as linhas. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteColumnId && deleteColMut.mutate({ id: deleteColumnId })}
             >
               Excluir
             </AlertDialogAction>
@@ -322,12 +457,15 @@ type RowEditorProps = {
   index: number;
   categories: { id: string; name: string; children: { id: string; name: string }[] }[];
   allRows: SkuRow[];
+  customColumns: CustomColumn[];
   onField: (id: number, patch: Partial<SkuRow>, key: string, delay?: number) => void;
   onFieldNow: (id: number, patch: Partial<SkuRow>) => void;
   onDelete: () => void;
+  onEdit: () => void;
+  onCustomValue: (rowId: number, columnId: number, value: string, delay?: number) => void;
 };
 
-function SkuRowEditor({ row, index, categories, allRows, onField, onFieldNow, onDelete }: RowEditorProps) {
+function SkuRowEditor({ row, index, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
 
   const rowRef = useRef(row);
@@ -338,6 +476,14 @@ function SkuRowEditor({ row, index, categories, allRows, onField, onFieldNow, on
   }
 
   const set = (patch: Partial<SkuRow>) => setLocal((p) => ({ ...p, ...patch }));
+
+  // Valores das colunas personalizadas desta linha (estado local p/ digitar sem travar).
+  const [customVals, setCustomVals] = useState<Record<string, string>>(() => parseCustomValues(row.customValues));
+  const customRef = useRef(row.customValues);
+  if (customRef.current !== row.customValues) {
+    customRef.current = row.customValues;
+    setCustomVals(parseCustomValues(row.customValues));
+  }
 
   // Recalcula SKU e SKU Kit a partir do estado resultante (após aplicar o patch).
   // Os campos SKU e SKU Kit são DERIVADOS automaticamente da regra:
@@ -604,9 +750,30 @@ function SkuRowEditor({ row, index, categories, allRows, onField, onFieldNow, on
       {/* Características (texto completo) */}
       <td className="px-1 py-2">{area("caracteristicas")}</td>
 
-      {/* Ações: cor da linha + excluir */}
+      {/* Colunas personalizadas (texto livre) */}
+      {customColumns.map((c) => (
+        <td key={c.id} className="px-1 py-2">
+          <textarea
+            rows={1}
+            value={customVals[String(c.id)] ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              setCustomVals((p) => ({ ...p, [String(c.id)]: v }));
+              onCustomValue(row.id, c.id, v);
+              autoGrow(e.target);
+            }}
+            ref={(el) => { if (el) autoGrow(el); }}
+            className="w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm resize-none leading-snug break-words whitespace-pre-wrap overflow-hidden"
+          />
+        </td>
+      ))}
+
+      {/* Ações: editar + cor da linha + excluir */}
       <td className="px-2 py-2 sticky right-0 z-10" style={{ background: local.rowColor ? colorBg : "var(--card)" }}>
         <div className="flex items-center justify-center gap-0.5">
+          <Button size="icon" variant="ghost" className="h-8 w-8" title="Editar linha" onClick={onEdit}>
+            <Pencil className="w-4 h-4" />
+          </Button>
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -658,4 +825,379 @@ function SkuRowEditor({ row, index, categories, allRows, onField, onFieldNow, on
 function autoGrow(el: HTMLTextAreaElement) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;
+}
+
+// ─── Modal: gerenciar colunas personalizadas ────────────────────────────────
+type ManageColumnsDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  columns: CustomColumn[];
+  onCreate: (name: string) => void;
+  onRename: (id: number, name: string) => void;
+  onAskDelete: (id: number) => void;
+  creating: boolean;
+};
+
+function ManageColumnsDialog({ open, onOpenChange, columns, onCreate, onRename, onAskDelete, creating }: ManageColumnsDialogProps) {
+  const [newName, setNewName] = useState("");
+
+  const handleCreate = () => {
+    const name = newName.trim();
+    if (!name) return;
+    onCreate(name);
+    setNewName("");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-display">Colunas personalizadas</DialogTitle>
+          <DialogDescription>
+            Crie colunas extras de texto livre. Elas aparecem para todas as linhas da planilha.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {/* Criar nova coluna */}
+          <div className="flex items-center gap-2">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
+              placeholder="Nome da nova coluna (ex.: Fornecedor)"
+              className="flex-1"
+            />
+            <Button onClick={handleCreate} disabled={!newName.trim() || creating}>
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4 mr-1.5" />Criar</>}
+            </Button>
+          </div>
+
+          {/* Lista de colunas existentes */}
+          {columns.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Nenhuma coluna personalizada ainda.
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+              {columns.map((c) => (
+                <ColumnRow key={c.id} column={c} onRename={onRename} onAskDelete={onAskDelete} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" className="bg-card" onClick={() => onOpenChange(false)}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ColumnRow({ column, onRename, onAskDelete }: { column: CustomColumn; onRename: (id: number, name: string) => void; onAskDelete: (id: number) => void; }) {
+  const [name, setName] = useState(column.name);
+  const nameRef = useRef(column.name);
+  if (nameRef.current !== column.name) {
+    nameRef.current = column.name;
+    setName(column.name);
+  }
+
+  const commit = () => {
+    const trimmed = name.trim();
+    if (trimmed && trimmed !== column.name) onRename(column.id, trimmed);
+  };
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border p-2 bg-card">
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        className="flex-1 h-9"
+      />
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-9 w-9 text-destructive hover:text-destructive"
+        title="Excluir coluna"
+        onClick={() => onAskDelete(column.id)}
+      >
+        <Trash2 className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+}
+
+// ─── Modal: editar linha inteira ────────────────────────────────────────────
+type EditRowDialogProps = {
+  row: SkuRow | null;
+  categories: { id: string; name: string; children: { id: string; name: string }[] }[];
+  allRows: SkuRow[];
+  customColumns: CustomColumn[];
+  onClose: () => void;
+  onSave: (id: number, patch: Partial<SkuRow>) => void;
+  onSaveCustom: (rowId: number, columnId: number, value: string) => void;
+};
+
+function EditRowDialog({ row, categories, allRows, customColumns, onClose, onSave, onSaveCustom }: EditRowDialogProps) {
+  const [draft, setDraft] = useState<SkuRow | null>(row);
+  const [customDraft, setCustomDraft] = useState<Record<string, string>>(() => parseCustomValues(row?.customValues));
+
+  // Sincroniza quando abrir uma linha diferente (key no pai já remonta, mas garantimos).
+  const idRef = useRef(row?.id ?? null);
+  if (idRef.current !== (row?.id ?? null)) {
+    idRef.current = row?.id ?? null;
+    setDraft(row);
+    setCustomDraft(parseCustomValues(row?.customValues));
+  }
+
+  if (!draft) return null;
+
+  const upd = (patch: Partial<SkuRow>) => {
+    setDraft((p) => {
+      if (!p) return p;
+      const next = { ...p, ...patch };
+      // Recalcula SKU/SKU Kit derivados.
+      const sku = buildSku({
+        tipoSku: next.tipoSku,
+        categoryName: next.categoryName,
+        productNumber: next.productNumber,
+        variantNumber: next.variantNumber,
+      });
+      return { ...next, sku, skuKit: buildSkuKit(sku, next.gerarSkuKit) };
+    });
+  };
+
+  // Resolve o Nº do produto pelo nome (mesma regra da tabela).
+  const onProductNameBlur = (produto: string) => {
+    const num = resolveProductNumber(
+      allRows.map((r) => ({ id: r.id, produto: r.produto, productNumber: r.productNumber })),
+      draft.id,
+      produto,
+    );
+    upd({ produto, productNumber: num });
+  };
+
+  const handleSave = () => {
+    const patch: Partial<SkuRow> = {
+      cadastradoMl: draft.cadastradoMl,
+      tipoSku: draft.tipoSku,
+      categoryId: draft.categoryId,
+      categoryName: draft.categoryName,
+      subCategoryId: draft.subCategoryId,
+      subCategoryName: draft.subCategoryName,
+      produto: draft.produto,
+      productNumber: draft.productNumber,
+      variante: draft.variante,
+      variantNumber: draft.variantNumber,
+      sku: draft.sku,
+      gerarSkuKit: draft.gerarSkuKit,
+      skuKit: draft.skuKit,
+      eanGtin: draft.eanGtin,
+      ncm: draft.ncm,
+      gpc: draft.gpc,
+      cest: draft.cest,
+      precoClassico: draft.precoClassico,
+      precoPremium: draft.precoPremium,
+      precoAtacado: draft.precoAtacado,
+      embProfundidade: draft.embProfundidade,
+      embLargura: draft.embLargura,
+      embAltura: draft.embAltura,
+      embPeso: draft.embPeso,
+      caracteristicas: draft.caracteristicas,
+    };
+    onSave(draft.id, patch);
+    // Salva valores das colunas personalizadas alterados.
+    const original = parseCustomValues(row?.customValues);
+    for (const c of customColumns) {
+      const key = String(c.id);
+      const val = customDraft[key] ?? "";
+      if (val !== (original[key] ?? "")) onSaveCustom(draft.id, c.id, val);
+    }
+    toast.success("Linha salva");
+    onClose();
+  };
+
+  const subcats = categories.find((c) => c.id === draft.categoryId)?.children ?? [];
+
+  const fieldText = (label: string, field: keyof SkuRow, opts?: { placeholder?: string; mono?: boolean }) => (
+    <div>
+      <label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label>
+      <Input
+        value={(draft[field] as string) ?? ""}
+        onChange={(e) => upd({ [field]: e.target.value } as Partial<SkuRow>)}
+        placeholder={opts?.placeholder}
+        className={opts?.mono ? "font-mono" : undefined}
+      />
+    </div>
+  );
+
+  return (
+    <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-3xl max-h-[88vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display">Editar linha</DialogTitle>
+          <DialogDescription>
+            Os campos SKU, SKU Kit e Nº do produto são gerados automaticamente.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-1">
+          {/* Cadastrado ML */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Cadastrado ML</label>
+            <select
+              value={draft.cadastradoMl}
+              onChange={(e) => upd({ cadastradoMl: e.target.value })}
+              className="w-full rounded-md px-2 py-2 text-sm border border-border bg-background outline-none focus:ring-1 focus:ring-primary/40"
+            >
+              <option value="">—</option>
+              {CADASTRADO_ML_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {/* Tipo SKU */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo SKU</label>
+            <select
+              value={draft.tipoSku}
+              onChange={(e) => upd({ tipoSku: e.target.value })}
+              className="w-full rounded-md px-2 py-2 text-sm border border-border bg-background outline-none focus:ring-1 focus:ring-primary/40"
+            >
+              <option value="">—</option>
+              {TIPO_SKU_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {/* Categoria */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Categoria</label>
+            <select
+              value={draft.categoryId ?? ""}
+              onChange={(e) => {
+                const cat = categories.find((c) => c.id === e.target.value);
+                upd({ categoryId: cat?.id ?? null, categoryName: cat?.name ?? null, subCategoryId: null, subCategoryName: null });
+              }}
+              className="w-full rounded-md px-2 py-2 text-sm border border-border bg-background outline-none focus:ring-1 focus:ring-primary/40"
+            >
+              <option value="">— selecionar —</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          {/* Subcategoria */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Subcategoria</label>
+            <select
+              value={draft.subCategoryId ?? ""}
+              disabled={!draft.categoryId}
+              onChange={(e) => {
+                const sub = subcats.find((s) => s.id === e.target.value);
+                upd({ subCategoryId: sub?.id ?? null, subCategoryName: sub?.name ?? null });
+              }}
+              className="w-full rounded-md px-2 py-2 text-sm border border-border bg-background outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50"
+            >
+              <option value="">{draft.categoryId ? "— selecionar —" : "escolha a categoria"}</option>
+              {subcats.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          {/* Produto (nome) */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Produto (nome)</label>
+            <Input
+              value={draft.produto}
+              onChange={(e) => upd({ produto: e.target.value })}
+              onBlur={(e) => onProductNameBlur(e.target.value)}
+              placeholder="Nome do produto"
+            />
+          </div>
+          {/* Variante */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Variante</label>
+            <Input value={draft.variante} onChange={(e) => upd({ variante: e.target.value })} placeholder="Ex.: 12,5 CM - 100 UN" />
+          </div>
+          {/* Nº variante (editável) */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nº da variante</label>
+            <Input
+              value={draft.variantNumber ?? ""}
+              onChange={(e) => upd({ variantNumber: e.target.value === "" ? null : Number(e.target.value.replace(/\D/g, "")) })}
+              inputMode="numeric"
+            />
+          </div>
+          {/* Gerar Kit */}
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={draft.gerarSkuKit}
+                onChange={(e) => upd({ gerarSkuKit: e.target.checked })}
+                className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
+              />
+              Gerar SKU Kit?
+            </label>
+          </div>
+
+          {/* Derivados (somente leitura) */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nº do produto (auto)</label>
+            <div className="w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-bold text-primary">{draft.productNumber ?? "—"}</div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">SKU (auto)</label>
+            <div className="w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-mono font-semibold">{draft.sku || "auto"}</div>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">SKU Kit (auto)</label>
+            <div className="w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-mono font-semibold whitespace-nowrap overflow-x-auto">{draft.skuKit || "auto"}</div>
+          </div>
+
+          {fieldText("EAN/GTIN", "eanGtin", { mono: true })}
+          {fieldText("NCM", "ncm", { mono: true })}
+          {fieldText("GPC", "gpc", { mono: true })}
+          {fieldText("CEST", "cest", { mono: true })}
+          {fieldText("Preço Clássico", "precoClassico", { placeholder: "R$" })}
+          {fieldText("Preço Premium", "precoPremium", { placeholder: "R$" })}
+          {fieldText("Preço Atacado", "precoAtacado", { placeholder: "R$" })}
+          {fieldText("Emb. Profundidade", "embProfundidade")}
+          {fieldText("Emb. Largura", "embLargura")}
+          {fieldText("Emb. Altura", "embAltura")}
+          {fieldText("Peso (kg)", "embPeso")}
+
+          {/* Características */}
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Características</label>
+            <Textarea
+              value={draft.caracteristicas ?? ""}
+              onChange={(e) => upd({ caracteristicas: e.target.value })}
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+
+          {/* Colunas personalizadas */}
+          {customColumns.length > 0 && (
+            <div className="sm:col-span-2 border-t border-border pt-3 mt-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Colunas personalizadas</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {customColumns.map((c) => (
+                  <div key={c.id}>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">{c.name || "(sem nome)"}</label>
+                    <Input
+                      value={customDraft[String(c.id)] ?? ""}
+                      onChange={(e) => setCustomDraft((p) => ({ ...p, [String(c.id)]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" className="bg-card" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave}>Salvar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

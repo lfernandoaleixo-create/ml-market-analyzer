@@ -4,6 +4,8 @@ import {
   InsertSkuSheetRow,
   SkuSheetRow,
   skuSheetRows,
+  SkuSheetCustomColumn,
+  skuSheetCustomColumns,
 } from "../drizzle/schema";
 
 /** Lista todas as linhas da planilha, ordenadas por posição. */
@@ -60,4 +62,125 @@ export async function deleteSkuRow(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("DB indisponível");
   await db.delete(skuSheetRows).where(eq(skuSheetRows.id, id));
+}
+
+// ---------------------------------------------------------------------------
+// Colunas personalizadas (criadas pelo usuário)
+// ---------------------------------------------------------------------------
+
+/** Lista as colunas personalizadas, ordenadas por posição. */
+export async function listCustomColumns(): Promise<SkuSheetCustomColumn[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(skuSheetCustomColumns)
+    .orderBy(asc(skuSheetCustomColumns.position), asc(skuSheetCustomColumns.id));
+}
+
+/** Cria uma nova coluna personalizada no fim da lista. */
+export async function createCustomColumn(name: string): Promise<SkuSheetCustomColumn> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+  const rows = await db
+    .select({ max: sql<number>`COALESCE(MAX(${skuSheetCustomColumns.position}), 0)` })
+    .from(skuSheetCustomColumns);
+  const position = (rows[0]?.max ?? 0) + 1;
+  await db.insert(skuSheetCustomColumns).values({ name: name.trim() || "Nova coluna", position });
+  const created = await db
+    .select()
+    .from(skuSheetCustomColumns)
+    .orderBy(sql`${skuSheetCustomColumns.id} DESC`)
+    .limit(1);
+  return created[0];
+}
+
+/** Renomeia uma coluna personalizada. */
+export async function renameCustomColumn(
+  id: number,
+  name: string,
+): Promise<SkuSheetCustomColumn | null> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+  await db
+    .update(skuSheetCustomColumns)
+    .set({ name: name.trim() })
+    .where(eq(skuSheetCustomColumns.id, id));
+  const rows = await db
+    .select()
+    .from(skuSheetCustomColumns)
+    .where(eq(skuSheetCustomColumns.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Exclui uma coluna personalizada e remove seus valores de todas as linhas
+ * (limpa a chave correspondente no JSON customValues).
+ */
+export async function deleteCustomColumn(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+  await db.delete(skuSheetCustomColumns).where(eq(skuSheetCustomColumns.id, id));
+
+  // Remove a chave desta coluna dos valores de cada linha que a contenha.
+  const key = String(id);
+  const rows = await db
+    .select({ id: skuSheetRows.id, customValues: skuSheetRows.customValues })
+    .from(skuSheetRows);
+  for (const r of rows) {
+    if (!r.customValues) continue;
+    let parsed: Record<string, string> = {};
+    try {
+      parsed = JSON.parse(r.customValues) as Record<string, string>;
+    } catch {
+      continue;
+    }
+    if (key in parsed) {
+      delete parsed[key];
+      await db
+        .update(skuSheetRows)
+        .set({ customValues: JSON.stringify(parsed) })
+        .where(eq(skuSheetRows.id, r.id));
+    }
+  }
+}
+
+/**
+ * Define o valor de uma coluna personalizada para uma linha específica.
+ * Faz merge no JSON customValues (preserva os demais valores).
+ */
+export async function setCustomValue(
+  rowId: number,
+  columnId: number,
+  value: string,
+): Promise<SkuSheetRow | null> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+  const rows = await db
+    .select({ customValues: skuSheetRows.customValues })
+    .from(skuSheetRows)
+    .where(eq(skuSheetRows.id, rowId))
+    .limit(1);
+  if (rows.length === 0) return null;
+
+  let parsed: Record<string, string> = {};
+  if (rows[0].customValues) {
+    try {
+      parsed = JSON.parse(rows[0].customValues) as Record<string, string>;
+    } catch {
+      parsed = {};
+    }
+  }
+  parsed[String(columnId)] = value;
+  await db
+    .update(skuSheetRows)
+    .set({ customValues: JSON.stringify(parsed) })
+    .where(eq(skuSheetRows.id, rowId));
+  const updated = await db
+    .select()
+    .from(skuSheetRows)
+    .where(eq(skuSheetRows.id, rowId))
+    .limit(1);
+  return updated[0] ?? null;
 }

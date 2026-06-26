@@ -1627,3 +1627,14 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Nº da variante permanece editavel manualmente (sem mudanca)
 - [x] Nº do produto virou somente leitura (derivado do nome); helper resolveProductNumber em shared/skuSheet.ts
 - [x] tsc 0 erros + vitest 732 (12 novos) + checkpoint
+
+## Planilha SKU — Edicao por modal + Colunas personalizadas (26/06/2026)
+- [x] DB: tabela sku_sheet_custom_columns (id, name, position, createdAt)
+- [x] DB: armazenamento de valores das colunas custom por linha (JSON customValues em sku_sheet_rows)
+- [x] Backend: procedures CRUD de colunas custom (listar, criar, renomear, excluir)
+- [x] Backend: procedure para salvar valores custom por linha (setCustomValue com merge)
+- [x] Frontend: modal "Editar linha" com todos os campos (SKU, SKU Kit, No produto somente leitura)
+- [x] Frontend: botao de editar (icone) em cada linha abre o modal
+- [x] Frontend: render dinamico das colunas custom na tabela (cabecalho + celula editavel por linha)
+- [x] Frontend: UI para criar/renomear/excluir colunas custom
+- [x] Testes vitest (8 novos: CRUD colunas + merge/limpeza JSON) + tsc 0 erros + validado no preview + checkpoint

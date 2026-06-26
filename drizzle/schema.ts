@@ -1097,6 +1097,13 @@ export const skuSheetRows = mysqlTable(
     /** Cor de fundo da linha (estilo Excel). Vazio = sem cor. */
     rowColor: varchar("rowColor", { length: 20 }).default("").notNull(),
 
+    /**
+     * Valores das COLUNAS PERSONALIZADAS desta linha.
+     * JSON no formato { [customColumnId: string]: string }.
+     * Mantido como texto para flexibilidade (colunas livres criadas pelo usuário).
+     */
+    customValues: text("customValues"),
+
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -1108,3 +1115,27 @@ export const skuSheetRows = mysqlTable(
 
 export type SkuSheetRow = typeof skuSheetRows.$inferSelect;
 export type InsertSkuSheetRow = typeof skuSheetRows.$inferInsert;
+
+/**
+ * Colunas PERSONALIZADAS criadas pelo usuário na Planilha SKU.
+ * São colunas de texto livre que aparecem para todas as linhas.
+ * Os valores ficam em sku_sheet_rows.customValues (JSON por id de coluna).
+ */
+export const skuSheetCustomColumns = mysqlTable(
+  "sku_sheet_custom_columns",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Nome exibido no cabeçalho da coluna. */
+    name: varchar("name", { length: 120 }).default("").notNull(),
+    /** Ordem de exibição entre as colunas personalizadas. */
+    position: int("position").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    positionIdx: index("sku_sheet_custom_col_position_idx").on(t.position),
+  }),
+);
+
+export type SkuSheetCustomColumn = typeof skuSheetCustomColumns.$inferSelect;
+export type InsertSkuSheetCustomColumn = typeof skuSheetCustomColumns.$inferInsert;

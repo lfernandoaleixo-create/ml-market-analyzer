@@ -5,6 +5,11 @@ import {
   deleteSkuRow,
   listSkuRows,
   updateSkuRow,
+  listCustomColumns,
+  createCustomColumn,
+  renameCustomColumn,
+  deleteCustomColumn,
+  setCustomValue,
 } from "../skuSheetDb";
 import mlCategoriesJson from "../../shared/mlCategories.json";
 import type { MlCategoryTree } from "../../shared/skuSheet";
@@ -40,6 +45,7 @@ const rowFields = z.object({
   embPeso: z.string().max(40).optional(),
   caracteristicas: z.string().nullable().optional(),
   rowColor: z.string().max(20).optional(),
+  customValues: z.string().nullable().optional(),
 });
 
 export const skuSheetRouter = router({
@@ -69,4 +75,38 @@ export const skuSheetRouter = router({
       await deleteSkuRow(input.id);
       return { ok: true };
     }),
+
+  // --- Colunas personalizadas ---
+
+  /** Lista as colunas personalizadas. */
+  listCustomColumns: publicProcedure.query(() => listCustomColumns()),
+
+  /** Cria uma coluna personalizada. */
+  createCustomColumn: publicProcedure
+    .input(z.object({ name: z.string().max(120).optional() }))
+    .mutation(({ input }) => createCustomColumn(input.name ?? "")),
+
+  /** Renomeia uma coluna personalizada. */
+  renameCustomColumn: publicProcedure
+    .input(z.object({ id: z.number().int(), name: z.string().max(120) }))
+    .mutation(({ input }) => renameCustomColumn(input.id, input.name)),
+
+  /** Exclui uma coluna personalizada (e limpa seus valores). */
+  deleteCustomColumn: publicProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ input }) => {
+      await deleteCustomColumn(input.id);
+      return { ok: true };
+    }),
+
+  /** Define o valor de uma coluna personalizada em uma linha. */
+  setCustomValue: publicProcedure
+    .input(
+      z.object({
+        rowId: z.number().int(),
+        columnId: z.number().int(),
+        value: z.string().max(2000),
+      }),
+    )
+    .mutation(({ input }) => setCustomValue(input.rowId, input.columnId, input.value)),
 });
