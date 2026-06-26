@@ -18,6 +18,7 @@ import { luisTimelineRouter } from "./routers/luisTimeline";
 import { pedroRouter } from "./routers/pedro";
 import { pedroTimelineRouter } from "./routers/pedroTimeline";
 import { pricingRouter } from "./routers/pricing";
+import { skuSheetRouter } from "./routers/skuSheet";
 
 // Constant-time-ish string comparison to avoid trivially leaking length/early
 // mismatch timing. Not security-critical here (single shared password), but
@@ -109,6 +110,7 @@ export const appRouter = router({
   pedro: pedroRouter,
   pedroTimeline: pedroTimelineRouter,
   pricing: pricingRouter,
+  skuSheet: skuSheetRouter,
 });
 
 export type AppRouter = typeof appRouter;

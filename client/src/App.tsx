@@ -65,6 +65,7 @@ function Router() {
         <Route path="/pedro-timeline/timeline" component={PedroTimelineContainer} />
         <Route path="/pedro-timeline/analise" component={PedroTimelineContainer} />
         <Route path="/pedro-timeline/produto/:id" component={PedroTimelineContainer} />
+        <Route path="/pedro-timeline/planilha-sku" component={PedroTimelineContainer} />
         <Route path="/configuracoes" component={Configuracoes} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

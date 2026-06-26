@@ -1034,3 +1034,74 @@ export const pedroItemAnswers = mysqlTable(
 
 export type PedroItemAnswer = typeof pedroItemAnswers.$inferSelect;
 export type InsertPedroItemAnswer = typeof pedroItemAnswers.$inferInsert;
+
+
+// ============================================================================
+// PLANILHA SKU (Cronograma do Pedro) — planilha ÚNICA, editável.
+// Cada linha é um SKU/variante. Categoria/subcategoria referenciam a árvore
+// oficial do Mercado Livre (shared/mlCategories.json). Os seletores de
+// CADASTRADO ML e TIPO SKU são fixos (ver shared/skuSheet.ts).
+// ============================================================================
+export const skuSheetRows = mysqlTable(
+  "sku_sheet_rows",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Ordem de exibição/edição na planilha (drag opcional no futuro). */
+    position: int("position").default(0).notNull(),
+    /** Número sequencial do PRODUTO (mesmo nome => mesmo número). */
+    productNumber: int("productNumber"),
+    /** Número sequencial da VARIANTE dentro do produto. */
+    variantNumber: int("variantNumber"),
+
+    /** CADASTRADO ML: ATIVO | PENDENTE | PAUSADO | EXCLUIDO | "" (vazio). */
+    cadastradoMl: varchar("cadastradoMl", { length: 16 }).default("").notNull(),
+    /** TIPO SKU: "1" INSUMO | "2" PRODUTO | "3" KIT | "4" CATALOGO | "". */
+    tipoSku: varchar("tipoSku", { length: 4 }).default("").notNull(),
+
+    /** Categoria ML (id + nome desnormalizado para exibição estável). */
+    categoryId: varchar("categoryId", { length: 24 }),
+    categoryName: varchar("categoryName", { length: 160 }),
+    /** Subcategoria ML (id + nome). */
+    subCategoryId: varchar("subCategoryId", { length: 24 }),
+    subCategoryName: varchar("subCategoryName", { length: 160 }),
+
+    /** PRODUTO (nome) e VARIANTE. */
+    produto: varchar("produto", { length: 300 }).default("").notNull(),
+    variante: varchar("variante", { length: 300 }).default("").notNull(),
+
+    /** SKU e geração de SKU KIT. */
+    sku: varchar("sku", { length: 120 }).default("").notNull(),
+    gerarSkuKit: boolean("gerarSkuKit").default(false).notNull(),
+    skuKit: varchar("skuKit", { length: 120 }).default("").notNull(),
+
+    /** Códigos fiscais/identificação. */
+    eanGtin: varchar("eanGtin", { length: 60 }).default("").notNull(),
+    ncm: varchar("ncm", { length: 20 }).default("").notNull(),
+    gpc: varchar("gpc", { length: 30 }).default("").notNull(),
+    cest: varchar("cest", { length: 20 }).default("").notNull(),
+
+    /** Preços (texto livre para preservar formatação R$ / vazio). */
+    precoClassico: varchar("precoClassico", { length: 40 }).default("").notNull(),
+    precoPremium: varchar("precoPremium", { length: 40 }).default("").notNull(),
+    precoAtacado: varchar("precoAtacado", { length: 40 }).default("").notNull(),
+
+    /** Embalagem (dimensões + peso). Texto livre para aceitar cm/kg/"?"/"x". */
+    embProfundidade: varchar("embProfundidade", { length: 40 }).default("").notNull(),
+    embLargura: varchar("embLargura", { length: 40 }).default("").notNull(),
+    embAltura: varchar("embAltura", { length: 40 }).default("").notNull(),
+    embPeso: varchar("embPeso", { length: 40 }).default("").notNull(),
+
+    /** Características do produto líquido (medidas internas/qualitativas). */
+    caracteristicas: text("caracteristicas"),
+
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    positionIdx: index("sku_sheet_position_idx").on(t.position),
+    productNumberIdx: index("sku_sheet_product_number_idx").on(t.productNumber),
+  }),
+);
+
+export type SkuSheetRow = typeof skuSheetRows.$inferSelect;
+export type InsertSkuSheetRow = typeof skuSheetRows.$inferInsert;

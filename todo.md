@@ -1587,3 +1587,17 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validado preview: concluir etapa no Cronograma do Pedro reflete no Painel (Kickoff 10%, Em Andamento 1); Luis independente
 - [x] tsc 0 erros + 720 testes passando
 - [ ] FUTURO: Analise (grafico) ainda usa STEP_ORDER fixo — migrar para etapas dinamicas em proxima iteracao
+
+## Planilha SKU (Cronograma do Pedro) — 26/06/2026
+- [x] Botao "Planilha SKU" no topo do Cronograma do Pedro (acima da lista de produtos)
+- [x] Planilha UNICA (nao por produto), editavel: adicionar/editar/excluir linhas, persistida no banco (tabela sku_sheet_rows)
+- [x] Colunas: CADASTRADO ML, TIPO SKU, CATEGORIA, SUB CATEGORIA, PRODUTO, VARIANTE, SKU, GERAR SKU KIT?, SKU KIT DO PRODUTO, EAN/GTIN, NCM, GPC, CEST, PRECO CLASSICO, PRECO PREMIUM, PRECO ATACADO, EMBALAGEM (profundidade/largura/altura/kg), CARACTERISTICAS LIQUIDO
+- [x] TIPO SKU = seletor com 4 opcoes: 1 (INSUMO), 2 (PRODUTO), 3 (KIT), 4 (CATALOGO)
+- [x] CADASTRADO ML = seletor: ATIVO (verde), PENDENTE (amarelo), PAUSADO (azul), EXCLUIDO (vermelho)
+- [x] CATEGORIA + SUB CATEGORIA = seletores em cascata com TODAS as categorias/subcategorias do ML (32 raiz + 444 sub), subcategoria limitada pela categoria
+- [x] Baixar arvore COMPLETA de categorias do ML (raiz + children) como asset estatico (shared/mlCategories.json)
+- [x] Coluna N (numero do produto, sequencial por nome) a esquerda do PRODUTO; coluna N (numero da variante, sequencial) a esquerda da VARIANTE
+- [x] Importar/seed dos itens atuais da planilha do Google Drive como dados iniciais (58 linhas, 23 produtos)
+- [ ] Logica de cada coluna a ser ensinada pelo usuario (validacoes, geracao automatica de SKU/SKU KIT) -- PENDENTE: usuario vai ensinar regra do SKU
+- [x] Design profissional/sofisticado (tabela editavel estilo planilha, sticky header, busca, status coloridos)
+- [x] Validar preview (cascata ML funcionando) + tsc 0 erros + vitest 720 + checkpoint

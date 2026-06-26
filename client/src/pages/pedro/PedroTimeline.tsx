@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useLocation } from "wouter";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -31,6 +32,7 @@ import {
   Circle,
   Square,
   Type as TypeIcon,
+  Table2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -1355,6 +1357,7 @@ function MonthHeader({ label, count }: { label: string; count: number }) {
 }
 
 export default function PedroTimeline() {
+  const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.pedroTimeline.overview.useQuery(undefined, {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
@@ -1398,12 +1401,22 @@ export default function PedroTimeline() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-2xl font-display font-semibold text-foreground">Cronograma do Pedro</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Cada produto tem sua própria linha do tempo. Clique numa bolinha para marcar a etapa como concluída e
-          adicionar uma observação.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-display font-semibold text-foreground">Cronograma do Pedro</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Cada produto tem sua própria linha do tempo. Clique numa bolinha para marcar a etapa como concluída e
+            adicionar uma observação.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          className="shrink-0 gap-2 bg-primary/8 border-primary/30 text-primary hover:bg-primary/15 hover:text-primary"
+          onClick={() => setLocation("/pedro-timeline/planilha-sku")}
+        >
+          <Table2 className="w-4 h-4" />
+          Planilha SKU
+        </Button>
       </div>
 
       <StagesManager stages={stages} />

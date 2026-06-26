@@ -1,0 +1,35 @@
+CREATE TABLE `sku_sheet_rows` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`position` int NOT NULL DEFAULT 0,
+	`productNumber` int,
+	`variantNumber` int,
+	`cadastradoMl` varchar(16) NOT NULL DEFAULT '',
+	`tipoSku` varchar(4) NOT NULL DEFAULT '',
+	`categoryId` varchar(24),
+	`categoryName` varchar(160),
+	`subCategoryId` varchar(24),
+	`subCategoryName` varchar(160),
+	`produto` varchar(300) NOT NULL DEFAULT '',
+	`variante` varchar(300) NOT NULL DEFAULT '',
+	`sku` varchar(120) NOT NULL DEFAULT '',
+	`gerarSkuKit` boolean NOT NULL DEFAULT false,
+	`skuKit` varchar(120) NOT NULL DEFAULT '',
+	`eanGtin` varchar(60) NOT NULL DEFAULT '',
+	`ncm` varchar(20) NOT NULL DEFAULT '',
+	`gpc` varchar(30) NOT NULL DEFAULT '',
+	`cest` varchar(20) NOT NULL DEFAULT '',
+	`precoClassico` varchar(40) NOT NULL DEFAULT '',
+	`precoPremium` varchar(40) NOT NULL DEFAULT '',
+	`precoAtacado` varchar(40) NOT NULL DEFAULT '',
+	`embProfundidade` varchar(40) NOT NULL DEFAULT '',
+	`embLargura` varchar(40) NOT NULL DEFAULT '',
+	`embAltura` varchar(40) NOT NULL DEFAULT '',
+	`embPeso` varchar(40) NOT NULL DEFAULT '',
+	`caracteristicas` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `sku_sheet_rows_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE INDEX `sku_sheet_position_idx` ON `sku_sheet_rows` (`position`);--> statement-breakpoint
+CREATE INDEX `sku_sheet_product_number_idx` ON `sku_sheet_rows` (`productNumber`);

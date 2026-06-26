@@ -4,6 +4,7 @@ import ProjetoPainel from "../project/ProjetoPainel";
 import ProjetoAnalise from "../project/ProjetoAnalise";
 import ProjetoProduto from "../project/ProjetoProduto";
 import PedroTimeline from "./PedroTimeline";
+import SkuSheet from "./SkuSheet";
 
 const TABS = [
   { label: "Painel", path: "/pedro-timeline", icon: LayoutGrid },
@@ -13,8 +14,10 @@ const TABS = [
 
 export default function PedroTimelineContainer() {
   const [location, setLocation] = useLocation();
-  // A ficha do produto ocupa a tela inteira (sem as abas de navegação).
+  // A ficha do produto e a Planilha SKU ocupam a tela inteira (sem as abas de navegação).
   const [isDetail] = useRoute("/pedro-timeline/produto/:id");
+  const [isSheet] = useRoute("/pedro-timeline/planilha-sku");
+  const fullWidth = isDetail || isSheet;
 
   return (
     <div>
@@ -25,7 +28,7 @@ export default function PedroTimelineContainer() {
         </p>
       </div>
 
-      {!isDetail && (
+      {!fullWidth && (
         <div className="flex items-center gap-1 mb-6 border-b border-border">
           {TABS.map((tab) => {
             const active = location === tab.path;
@@ -58,6 +61,7 @@ export default function PedroTimelineContainer() {
         <Route path="/pedro-timeline/timeline" component={PedroTimeline} />
         <Route path="/pedro-timeline/analise">{() => <ProjetoAnalise basePath="/pedro-timeline" ns="project" />}</Route>
         <Route path="/pedro-timeline/produto/:id">{() => <ProjetoProduto basePath="/pedro-timeline" ns="project" timelineNs="pedro" />}</Route>
+        <Route path="/pedro-timeline/planilha-sku" component={SkuSheet} />
       </Switch>
     </div>
   );
