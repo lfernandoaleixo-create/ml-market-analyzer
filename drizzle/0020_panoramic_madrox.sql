@@ -1,0 +1,1 @@
+ALTER TABLE `sku_sheet_rows` ADD `rowColor` varchar(20) DEFAULT '' NOT NULL;

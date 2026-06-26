@@ -1094,6 +1094,9 @@ export const skuSheetRows = mysqlTable(
     /** Características do produto líquido (medidas internas/qualitativas). */
     caracteristicas: text("caracteristicas"),
 
+    /** Cor de fundo da linha (estilo Excel). Vazio = sem cor. */
+    rowColor: varchar("rowColor", { length: 20 }).default("").notNull(),
+
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

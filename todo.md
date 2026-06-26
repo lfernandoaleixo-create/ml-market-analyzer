@@ -1601,3 +1601,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [ ] Logica de cada coluna a ser ensinada pelo usuario (validacoes, geracao automatica de SKU/SKU KIT) -- PENDENTE: usuario vai ensinar regra do SKU
 - [x] Design profissional/sofisticado (tabela editavel estilo planilha, sticky header, busca, status coloridos)
 - [x] Validar preview (cascata ML funcionando) + tsc 0 erros + vitest 720 + checkpoint
+
+## Planilha SKU — melhorias UX (26/06/2026)
+- [ ] Texto completo (nao cortar): Produto, Variante, NCM e demais colunas — quebra de linha / largura adequada
+- [ ] Conteudo justificado/alinhado e tipografia legivel
+- [ ] Incrementar cores (cabecalho, zebra, status) e visual sofisticado
+- [ ] Estilo Excel: colorir LINHAS (escolher cor de fundo por linha) — persistir cor no banco (coluna row_color)
+- [ ] Adicionar coluna row_color em sku_sheet_rows + migracao + backend update
+- [ ] tsc 0 erros + vitest + checkpoint

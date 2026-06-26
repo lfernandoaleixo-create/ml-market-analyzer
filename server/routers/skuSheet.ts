@@ -39,6 +39,7 @@ const rowFields = z.object({
   embAltura: z.string().max(40).optional(),
   embPeso: z.string().max(40).optional(),
   caracteristicas: z.string().nullable().optional(),
+  rowColor: z.string().max(20).optional(),
 });
 
 export const skuSheetRouter = router({
