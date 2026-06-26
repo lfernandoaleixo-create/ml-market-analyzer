@@ -1598,14 +1598,24 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Baixar arvore COMPLETA de categorias do ML (raiz + children) como asset estatico (shared/mlCategories.json)
 - [x] Coluna N (numero do produto, sequencial por nome) a esquerda do PRODUTO; coluna N (numero da variante, sequencial) a esquerda da VARIANTE
 - [x] Importar/seed dos itens atuais da planilha do Google Drive como dados iniciais (58 linhas, 23 produtos)
-- [ ] Logica de cada coluna a ser ensinada pelo usuario (validacoes, geracao automatica de SKU/SKU KIT) -- PENDENTE: usuario vai ensinar regra do SKU
+- [x] Logica de cada coluna ensinada pelo usuario + geracao automatica de SKU/SKU KIT implementada
 - [x] Design profissional/sofisticado (tabela editavel estilo planilha, sticky header, busca, status coloridos)
 - [x] Validar preview (cascata ML funcionando) + tsc 0 erros + vitest 720 + checkpoint
 
 ## Planilha SKU — melhorias UX (26/06/2026)
-- [ ] Texto completo (nao cortar): Produto, Variante, NCM e demais colunas — quebra de linha / largura adequada
-- [ ] Conteudo justificado/alinhado e tipografia legivel
-- [ ] Incrementar cores (cabecalho, zebra, status) e visual sofisticado
-- [ ] Estilo Excel: colorir LINHAS (escolher cor de fundo por linha) — persistir cor no banco (coluna row_color)
-- [ ] Adicionar coluna row_color em sku_sheet_rows + migracao + backend update
-- [ ] tsc 0 erros + vitest + checkpoint
+- [x] Texto completo (nao cortar): Produto, Variante, NCM e demais colunas — quebra de linha / largura adequada
+- [x] Conteudo justificado/alinhado e tipografia legivel
+- [x] Incrementar cores (cabecalho, zebra, status) e visual sofisticado
+- [x] Estilo Excel: colorir LINHAS (escolher cor de fundo por linha) — persistir cor no banco (coluna row_color)
+- [x] Adicionar coluna row_color em sku_sheet_rows + migracao + backend update
+- [x] tsc 0 erros + vitest + checkpoint
+
+## Planilha SKU — geracao automatica de SKU (26/06/2026, concluido)
+- [x] Regra SKU = [No TIPO]-[CATEGORIA abreviada]-[No produto]-[No variante]
+- [x] SKU KIT = SKU + "-KITINS" quando checkbox "Gerar Kit?" marcado
+- [x] 32 abreviacoes de categoria aprovadas (palavra-chave central, maiusc., sem acento) em shared/skuSheet.ts
+- [x] Recalculo automatico ao mudar Tipo / Categoria / No produto / No variante / checkbox Kit
+- [x] Campos SKU e SKU Kit derivados (somente leitura, exibem "auto" quando incompletos)
+- [x] Validado no preview: Casa + Tipo 2 + prod 1 + var 1 => 2-CASA-1-1 / 2-CASA-1-1-KITINS
+- [x] tsc 0 erros + vitest 720 + checkpoint
+- [ ] FUTURO (opcional): integracao de escrita de volta no Google Sheets do Drive (requer OAuth Google)

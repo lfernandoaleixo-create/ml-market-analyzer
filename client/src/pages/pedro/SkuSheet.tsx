@@ -32,6 +32,8 @@ import {
 import {
   TIPO_SKU_OPTIONS,
   CADASTRADO_ML_OPTIONS,
+  buildSku,
+  buildSkuKit,
 } from "../../../../shared/skuSheet";
 
 type SkuRow = {
@@ -334,6 +336,24 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
 
   const set = (patch: Partial<SkuRow>) => setLocal((p) => ({ ...p, ...patch }));
 
+  // Recalcula SKU e SKU Kit a partir do estado resultante (após aplicar o patch).
+  // Os campos SKU e SKU Kit são DERIVADOS automaticamente da regra:
+  // SKU = [Nº TIPO]-[CATEGORIA abreviada]-[Nº produto]-[Nº variante]
+  // SKU Kit = SKU + "-KITINS" (somente quando "Gerar Kit?" estiver marcado).
+  const applyDerived = (patch: Partial<SkuRow>) => {
+    const next = { ...local, ...patch };
+    const sku = buildSku({
+      tipoSku: next.tipoSku,
+      categoryName: next.categoryName,
+      productNumber: next.productNumber,
+      variantNumber: next.variantNumber,
+    });
+    const skuKit = buildSkuKit(sku, next.gerarSkuKit);
+    const full: Partial<SkuRow> = { ...patch, sku, skuKit };
+    set(full);
+    onFieldNow(row.id, full);
+  };
+
   // Campo de texto multilinha (cresce conforme o conteúdo, sem cortar).
   const area = (
     field: keyof SkuRow,
@@ -367,13 +387,27 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
     />
   );
 
+  // Campo derivado (somente leitura): exibe valor calculado automaticamente.
+  const derived = (field: "sku" | "skuKit") => {
+    const val = (local[field] as string) ?? "";
+    return (
+      <div
+        className={`w-full px-2 py-1.5 rounded-md font-mono text-xs select-all ${
+          val ? "text-foreground font-semibold" : "text-muted-foreground/50 italic"
+        }`}
+        title={val ? "Gerado automaticamente" : "Preencha Tipo, Categoria e números"}
+      >
+        {val || "auto"}
+      </div>
+    );
+  };
+
   const numField = (field: "productNumber" | "variantNumber") => (
     <input
       value={(local[field] ?? "") as number | string}
       onChange={(e) => {
         const v = e.target.value === "" ? null : Number(e.target.value.replace(/\D/g, ""));
-        set({ [field]: v } as Partial<SkuRow>);
-        onField(row.id, { [field]: v } as Partial<SkuRow>, String(field));
+        applyDerived({ [field]: v } as Partial<SkuRow>);
       }}
       className="w-9 text-center bg-transparent px-1 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm font-bold text-primary"
     />
@@ -421,8 +455,7 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
         <select
           value={local.tipoSku}
           onChange={(e) => {
-            set({ tipoSku: e.target.value });
-            onFieldNow(row.id, { tipoSku: e.target.value });
+            applyDerived({ tipoSku: e.target.value });
           }}
           className="w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer border border-border bg-background"
         >
@@ -445,8 +478,7 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
               subCategoryId: null,
               subCategoryName: null,
             };
-            set(patch);
-            onFieldNow(row.id, patch);
+            applyDerived(patch);
           }}
           className="w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer border border-border bg-background"
         >
@@ -489,8 +521,8 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
       {/* Variante (texto completo) */}
       <td className="px-1 py-2">{area("variante")}</td>
 
-      {/* SKU */}
-      <td className="px-1 py-2">{text("sku", { className: "font-mono text-xs" })}</td>
+      {/* SKU (derivado automaticamente) */}
+      <td className="px-1 py-2">{derived("sku")}</td>
 
       {/* Gerar SKU Kit? */}
       <td className="px-2 py-2 text-center">
@@ -498,14 +530,13 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
           type="checkbox"
           checked={local.gerarSkuKit}
           onChange={(e) => {
-            set({ gerarSkuKit: e.target.checked });
-            onFieldNow(row.id, { gerarSkuKit: e.target.checked });
+            applyDerived({ gerarSkuKit: e.target.checked });
           }}
           className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
         />
       </td>
-      {/* SKU Kit */}
-      <td className="px-1 py-2">{text("skuKit", { className: "font-mono text-xs" })}</td>
+      {/* SKU Kit (derivado automaticamente) */}
+      <td className="px-1 py-2">{derived("skuKit")}</td>
 
       {/* EAN/GTIN */}
       <td className="px-1 py-2">{text("eanGtin", { className: "font-mono text-xs" })}</td>
