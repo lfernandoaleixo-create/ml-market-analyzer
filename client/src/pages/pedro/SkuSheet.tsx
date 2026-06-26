@@ -229,7 +229,7 @@ export default function SkuSheet() {
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[240px]">Variante</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">SKU</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="text-center">Gerar Kit?</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">SKU Kit</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[140px]">EAN/GTIN</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">NCM</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">GPC</Th>
@@ -392,7 +392,7 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
     const val = (local[field] as string) ?? "";
     return (
       <div
-        className={`w-full px-2 py-1.5 rounded-md font-mono text-xs select-all ${
+        className={`w-full px-2 py-1.5 rounded-md font-mono text-xs select-all whitespace-nowrap ${
           val ? "text-foreground font-semibold" : "text-muted-foreground/50 italic"
         }`}
         title={val ? "Gerado automaticamente" : "Preencha Tipo, Categoria e números"}
