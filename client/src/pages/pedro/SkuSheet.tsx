@@ -34,6 +34,7 @@ import {
   CADASTRADO_ML_OPTIONS,
   buildSku,
   buildSkuKit,
+  resolveProductNumber,
 } from "../../../../shared/skuSheet";
 
 type SkuRow = {
@@ -252,6 +253,7 @@ export default function SkuSheet() {
                   row={row as SkuRow}
                   index={idx}
                   categories={categories ?? []}
+                  allRows={(rows ?? []) as SkuRow[]}
                   onField={scheduleSave}
                   onFieldNow={saveNow}
                   onDelete={() => setDeleteId(row.id)}
@@ -319,12 +321,13 @@ type RowEditorProps = {
   row: SkuRow;
   index: number;
   categories: { id: string; name: string; children: { id: string; name: string }[] }[];
+  allRows: SkuRow[];
   onField: (id: number, patch: Partial<SkuRow>, key: string, delay?: number) => void;
   onFieldNow: (id: number, patch: Partial<SkuRow>) => void;
   onDelete: () => void;
 };
 
-function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }: RowEditorProps) {
+function SkuRowEditor({ row, index, categories, allRows, onField, onFieldNow, onDelete }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
 
   const rowRef = useRef(row);
@@ -374,6 +377,34 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
     />
   );
 
+  // Campo do NOME do produto: ao terminar de digitar (blur) resolve o Nº do
+  // produto automaticamente — reaproveita o Nº de um produto de mesmo nome ou
+  // atribui o próximo da sequência. Em seguida recalcula o SKU.
+  const resolveAndApplyProductNumber = (produto: string) => {
+    const num = resolveProductNumber(
+      allRows.map((r) => ({ id: r.id, produto: r.produto, productNumber: r.productNumber })),
+      row.id,
+      produto,
+    );
+    applyDerived({ produto, productNumber: num });
+  };
+
+  const productNameField = () => (
+    <textarea
+      rows={1}
+      value={local.produto ?? ""}
+      onChange={(e) => {
+        set({ produto: e.target.value });
+        onField(row.id, { produto: e.target.value }, "produto");
+        autoGrow(e.target);
+      }}
+      onBlur={(e) => resolveAndApplyProductNumber(e.target.value)}
+      ref={(el) => { if (el) autoGrow(el); }}
+      placeholder="Nome do produto"
+      className="w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm resize-none leading-snug break-words whitespace-pre-wrap overflow-hidden font-semibold text-foreground"
+    />
+  );
+
   // Campo de texto curto (1 linha, mas largura total da célula).
   const text = (field: keyof SkuRow, opts?: { className?: string; placeholder?: string }) => (
     <input
@@ -411,6 +442,18 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
       }}
       className="w-9 text-center bg-transparent px-1 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm font-bold text-primary"
     />
+  );
+
+  // Nº do produto: derivado automaticamente do nome (somente leitura).
+  const productNumberDisplay = () => (
+    <div
+      className={`w-9 mx-auto text-center px-1 py-1.5 text-sm font-bold ${
+        local.productNumber != null ? "text-primary" : "text-muted-foreground/40 italic"
+      }`}
+      title="Definido automaticamente pelo nome do produto"
+    >
+      {local.productNumber ?? "—"}
+    </div>
   );
 
   const subcats = categories.find((c) => c.id === local.categoryId)?.children ?? [];
@@ -512,10 +555,10 @@ function SkuRowEditor({ row, index, categories, onField, onFieldNow, onDelete }:
         </select>
       </td>
 
-      {/* Nº produto */}
-      <td className="px-1 py-2 text-center">{numField("productNumber")}</td>
-      {/* Produto (texto completo) */}
-      <td className="px-1 py-2">{area("produto", { className: "font-semibold text-foreground" })}</td>
+      {/* Nº produto (derivado automaticamente do nome) */}
+      <td className="px-1 py-2 text-center">{productNumberDisplay()}</td>
+      {/* Produto (nome -> resolve Nº do produto no blur) */}
+      <td className="px-1 py-2">{productNameField()}</td>
       {/* Nº variante */}
       <td className="px-1 py-2 text-center">{numField("variantNumber")}</td>
       {/* Variante (texto completo) */}

@@ -157,3 +157,59 @@ export function buildSkuKit(baseSku: string, gerarSkuKit: boolean): string {
   if (!baseSku) return "";
   return `${baseSku}-${SKU_KIT_SUFFIX}`;
 }
+
+// ---------------------------------------------------------------------------
+// Numeração automática do PRODUTO pelo nome
+// Regra: ao digitar o nome do produto, se já existir outra linha com o mesmo
+// nome (ignorando maiúsculas/minúsculas e espaços), reaproveita o mesmo Nº.
+// Caso contrário, recebe o próximo número da sequência (maior Nº existente + 1).
+// A numeração da VARIANTE não é afetada por esta regra.
+// ---------------------------------------------------------------------------
+
+/** Normaliza o nome do produto para comparação (trim + minúsculas + espaços colapsados). */
+export function normalizeProductName(name: string | null | undefined): string {
+  return (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Linha mínima usada para resolver o Nº do produto. */
+export interface ProductNumberRow {
+  id: number;
+  produto: string;
+  productNumber: number | null;
+}
+
+/**
+ * Resolve o Nº do produto para uma linha com base no nome digitado.
+ * - `rows`: todas as linhas atuais da planilha.
+ * - `currentRowId`: id da linha que está sendo editada (ignorada na busca por nome).
+ * - `productName`: nome digitado.
+ *
+ * Retorna:
+ * - o Nº já usado por outra linha com o mesmo nome (reaproveitamento), ou
+ * - o próximo Nº da sequência (max + 1) quando o nome é novo, ou
+ * - null quando o nome está vazio.
+ */
+export function resolveProductNumber(
+  rows: ProductNumberRow[],
+  currentRowId: number,
+  productName: string,
+): number | null {
+  const key = normalizeProductName(productName);
+  if (!key) return null;
+
+  // 1) Procura outra linha (diferente da atual) com o mesmo nome e Nº já definido.
+  for (const r of rows) {
+    if (r.id === currentRowId) continue;
+    if (r.productNumber == null) continue;
+    if (normalizeProductName(r.produto) === key) {
+      return r.productNumber;
+    }
+  }
+
+  // 2) Nome novo: próximo número da sequência (considera todas as linhas).
+  let max = 0;
+  for (const r of rows) {
+    if (r.productNumber != null && r.productNumber > max) max = r.productNumber;
+  }
+  return max + 1;
+}

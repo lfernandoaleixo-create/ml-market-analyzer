@@ -1619,3 +1619,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validado no preview: Casa + Tipo 2 + prod 1 + var 1 => 2-CASA-1-1 / 2-CASA-1-1-KITINS
 - [x] tsc 0 erros + vitest 720 + checkpoint
 - [ ] FUTURO (opcional): integracao de escrita de volta no Google Sheets do Drive (requer OAuth Google)
+
+## Planilha SKU — Nº do produto automatico pelo nome (26/06/2026)
+- [x] Ao digitar/alterar o NOME do produto, se ja existir produto com mesmo nome (case-insensitive, trim), reaproveitar o mesmo Nº do produto
+- [x] Se o nome for novo, atribuir o proximo Nº da sequencia (max + 1)
+- [x] Recalcular SKU/SKU Kit apos definir o Nº do produto
+- [x] Nº da variante permanece editavel manualmente (sem mudanca)
+- [x] Nº do produto virou somente leitura (derivado do nome); helper resolveProductNumber em shared/skuSheet.ts
+- [x] tsc 0 erros + vitest 732 (12 novos) + checkpoint
