@@ -1638,3 +1638,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend: render dinamico das colunas custom na tabela (cabecalho + celula editavel por linha)
 - [x] Frontend: UI para criar/renomear/excluir colunas custom
 - [x] Testes vitest (8 novos: CRUD colunas + merge/limpeza JSON) + tsc 0 erros + validado no preview + checkpoint
+
+
+## Bug: Gráfico de Evolução das visitas "parando na quinta" (28/06/2026)
+- [x] Causa: cache SWR serve snapshot stale e recoleta em background morre no serverless (min-instances=0)
+- [x] Correção: visitsSeries agora coleta de forma BLOQUEANTE quando não há valor fresco (cachedAccountResilient), devolvendo série até hoje
+- [x] Mantido caminho rápido apenas quando o cache está realmente fresco (TTL)
+- [x] Reduzido TTL de frescor da série de visitas para refletir o dia atual com frequência
+- [x] Blindado parsing da data das visitas (helper visitBucketBrtKey aceita UTC "Z" e offsets) ancorando eixo em BRT
+- [x] Testes vitest (5 novos visitBucketBrtKey) 745 passando + tsc 0 erros + validado no preview (gráfico vai até 28/dom) + checkpoint

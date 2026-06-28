@@ -331,37 +331,55 @@ export const accountRouter = router({
     }),
 
   /**
-   * Daily visits series for the evolution chart — served via a NON-BLOCKING
-   * stale-while-revalidate cache. The collection (hundreds of ML calls) runs in
-   * the background; this endpoint returns in milliseconds with either the cached
-   * series (fresh/stale) or a "loading" signal on a cold start. The client polls
-   * it every minute and the chart fills in as soon as the background job lands.
-   * This is what removes the ~5-min "Carregando as visitas" freeze.
+   * Daily visits series for the evolution chart.
+   *
+   * IMPORTANT — why this is NOT the non-blocking SWR pattern anymore:
+   * The chart used to be served by `swrAccount`, which returns the cached series
+   * instantly and refreshes in a DETACHED background task. That works on a
+   * long-lived server, but our production runtime is Autoscale/Cloud Run with
+   * `min-instances=0`: the instance is frozen/killed as soon as the HTTP
+   * response is flushed, so the background refresh never finishes. The cache
+   * then stayed pinned to whatever snapshot existed when the instance last went
+   * cold — which is exactly the "o gráfico parou na quinta-feira" the user saw.
+   *
+   * Fix: collect in the REQUEST when there is no fresh value. `cachedAccountResilient`
+   *   - serves a fresh cached series immediately (within TTL),
+   *   - otherwise AWAITS the collection (a few seconds) and returns the series
+   *     updated through today,
+   *   - and only on a transient ML failure falls back to the last known-good
+   *     snapshot (clearly labelled `stale`) instead of crashing the page.
+   * The collection is light (active item ids + their dated visits) and finishes
+   * well within the 180s request budget for a real store.
    */
   visitsSeries: protectedProcedure
     .input(z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional() }).optional())
     .query(async ({ ctx, input }) => {
-    const days = input?.days ?? 30;
-    // Window anchored to BRT inside the provider.
-    const result = swrAccount(
-      ctx.user.id,
-      `visitsSeries:${days}`,
-      async () => {
-        const account = await resolveAccount(ctx.user.id);
-        return account.getVisitsSeriesOnly(days);
-      },
-      // Keep a collected series "fresh" for 10 min before a background refresh.
-      10 * 60 * 1000,
-    );
-    const agg = result.value;
-    return {
-      series: agg?.series ?? [],
-      // Cold start with no data yet → tell the UI to show "carregando" (honest),
-      // never a false "sem visitas".
-      pending: result.status === "loading",
-      status: result.status,
-      asOf: result.asOf,
-    };
+      const days = input?.days ?? 30;
+      // Window anchored to BRT inside the provider. Keep a collected series
+      // "fresh" for only 3 min so TODAY's partial bar updates frequently, but
+      // repeated opens within that window still hit the cache (no ML burst).
+      const { value, stale, asOf } = await cachedAccountResilient(
+        ctx.user.id,
+        `visitsSeries:${days}`,
+        async () => {
+          const account = await resolveAccount(ctx.user.id);
+          return account.getVisitsSeriesOnly(days);
+        },
+        3 * 60 * 1000,
+      ).catch((err) => {
+        if (err instanceof MLRateLimitError) throw err;
+        // No cache and the collection failed: surface an empty series rather than
+        // a hard error so the chart shows its honest "sem dados ainda" state.
+        return { value: { series: [], attempted: 0, resolved: 0 }, stale: false, asOf: 0 };
+      });
+      return {
+        series: value?.series ?? [],
+        // We now always return real data (or an explicit empty series); there is
+        // no "cold start with nothing" anymore, so pending stays false.
+        pending: false,
+        status: stale ? ("stale" as const) : ("fresh" as const),
+        asOf,
+      };
     }),
 
   /**

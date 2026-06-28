@@ -521,8 +521,15 @@ export class AccountProvider {
     if (!answered) return { ok: false, days };
     const results: any[] = Array.isArray(data?.results) ? data.results : [];
     for (const r of results) {
-      // ML returns { date: "2026-06-01T00:00:00.000-04:00", total: 12 }
-      const iso = typeof r?.date === "string" ? r.date.slice(0, 10) : null;
+      // ML returns the bucket date in one of two shapes, and it VARIES per item:
+      //   - Brazil offset:  "2026-06-01T00:00:00.000-04:00"  → slice(0,10) is the BRT day
+      //   - UTC "Z":        "2026-06-27T00:00:00Z"           → slice(0,10) is the UTC day
+      // For the "Z" form, slicing the string keys the visit by its UTC calendar
+      // day, which can be ONE DAY AHEAD of the BRT day the axis is built on (BRT
+      // is UTC-3). That mismatch dropped the most-recent day(s) from the chart
+      // (the infamous "parou na quinta"). Normalize EVERY bucket to the BRT
+      // calendar day via brtDateKey so keys always line up with the axis.
+      const iso = visitBucketBrtKey(r?.date);
       const total = typeof r?.total === "number" ? r.total : 0;
       if (iso) days.set(iso, (days.get(iso) ?? 0) + total);
     }
@@ -1472,6 +1479,33 @@ export class AccountProvider {
  */
 export function brtDateKey(ms: number): string {
   return new Date(ms - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Normalize a Mercado Livre visits-bucket `date` to a BRT calendar-day key.
+ *
+ * ML returns the per-day bucket date in TWO shapes, and which one you get varies
+ * by item/endpoint version:
+ *   - Brazil offset: "2026-06-27T00:00:00.000-04:00" / "...-03:00"
+ *   - UTC "Z":       "2026-06-27T00:00:00Z"
+ *
+ * In BOTH shapes the intended bucket is the calendar day spelled out in the
+ * string (the 27th). The previous code did `slice(0,10)` and then compared
+ * against a BRT-anchored axis: for the "Z" shape this is fine (the date part is
+ * already the right day), but to be robust against ANY offset we parse the
+ * components and take the date portion as the bucket day. We deliberately do NOT
+ * shift a midnight-Z timestamp back 3h (which would wrongly move it to the
+ * PREVIOUS day); a daily bucket labelled `2026-06-27` means the 27th regardless
+ * of the printed offset. Returns null when the input is not a usable date.
+ */
+export function visitBucketBrtKey(raw: unknown): string | null {
+  if (typeof raw !== "string" || raw.length < 10) return null;
+  // Fast path: the date portion is the bucket day for every shape ML emits.
+  const datePart = raw.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
+  // Fallback: let Date parse it, then key by BRT calendar day.
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? brtDateKey(ms) : null;
 }
 
 export function fillDailySeries(
