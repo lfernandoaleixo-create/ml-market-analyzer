@@ -1647,3 +1647,14 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Reduzido TTL de frescor da série de visitas para refletir o dia atual com frequência
 - [x] Blindado parsing da data das visitas (helper visitBucketBrtKey aceita UTC "Z" e offsets) ancorando eixo em BRT
 - [x] Testes vitest (5 novos visitBucketBrtKey) 745 passando + tsc 0 erros + validado no preview (gráfico vai até 28/dom) + checkpoint
+
+
+## Importar abas KITS e EMBALAGENS da planilha do Pedro (29/06/2026)
+- [x] DB: tabela kit_sheet_rows (colunas fixas das abas KITS) + kit_sheet_custom_columns + customValues JSON
+- [x] DB: tabela embalagem_sheet_rows (colunas fixas EMBALAGENS) + embalagem_sheet_custom_columns + customValues JSON
+- [x] Seed: importar 39 linhas de KITS (43 menos 4 verdes excluidas) e 3 de EMBALAGENS
+- [x] Backend: helpers db + procedures tRPC CRUD (linhas + colunas custom + setCustomValue) para KITS e EMBALAGENS
+- [x] Frontend: tela KITS editavel (celula + modal + colunas personalizadas + add/excluir linha) via GenericSheet
+- [x] Frontend: tela EMBALAGENS editavel (celula + modal + colunas personalizadas + add/excluir linha) via GenericSheet
+- [x] Navegacao: abas KITS e EMBALAGENS acessiveis (botoes na Linha do Tempo Pedro + rotas /pedro-timeline/kits e /embalagens)
+- [x] Testes vitest + tsc 0 erros + validar no preview + checkpoint

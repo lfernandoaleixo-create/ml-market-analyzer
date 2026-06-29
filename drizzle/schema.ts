@@ -1139,3 +1139,153 @@ export const skuSheetCustomColumns = mysqlTable(
 
 export type SkuSheetCustomColumn = typeof skuSheetCustomColumns.$inferSelect;
 export type InsertSkuSheetCustomColumn = typeof skuSheetCustomColumns.$inferInsert;
+
+// ============================================================================
+// PLANILHA KITS (aba "KITS" da planilha do Pedro) — planilha ÚNICA, editável.
+// Cada linha é um kit (composto por SKUs). Colunas fixas da aba original +
+// colunas personalizadas (mesma mecânica da Planilha SKU).
+// ============================================================================
+export const kitSheetRows = mysqlTable(
+  "kit_sheet_rows",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Ordem de exibição/edição na planilha. */
+    position: int("position").default(0).notNull(),
+
+    /** CADASTRADO ML (texto livre / marcação da planilha). */
+    cadastradoMl: varchar("cadastradoMl", { length: 60 }).default("").notNull(),
+    /** KIT (nome do kit). */
+    kit: varchar("kit", { length: 400 }).default("").notNull(),
+    /** EAN/GTIN. */
+    eanGtin: varchar("eanGtin", { length: 60 }).default("").notNull(),
+    /** SKU (digitado manualmente, padrão próprio). */
+    sku: varchar("sku", { length: 120 }).default("").notNull(),
+    /** EMBALAGEM (na planilha traz "ESTOQUE: X" etc.). */
+    embalagem: varchar("embalagem", { length: 200 }).default("").notNull(),
+    /** NCM. */
+    ncm: varchar("ncm", { length: 20 }).default("").notNull(),
+
+    /** PREÇO > CLÁSSICO / PREMIUM (texto livre p/ preservar R$). */
+    precoClassico: varchar("precoClassico", { length: 40 }).default("").notNull(),
+    precoPremium: varchar("precoPremium", { length: 40 }).default("").notNull(),
+
+    /** CARACTERÍSTICAS > PROFUNDIDADE / LARGURA / ALTURA-COMPRIMENTO / KG. */
+    profundidade: varchar("profundidade", { length: 40 }).default("").notNull(),
+    largura: varchar("largura", { length: 40 }).default("").notNull(),
+    alturaComprimento: varchar("alturaComprimento", { length: 40 }).default("").notNull(),
+    kg: varchar("kg", { length: 40 }).default("").notNull(),
+
+    /** CATEGORIA (BAMBU/MADEIRA/FIBRA...). */
+    categoria: varchar("categoria", { length: 120 }).default("").notNull(),
+
+    /** Flags V/F da planilha. */
+    dimensoesGs1: varchar("dimensoesGs1", { length: 12 }).default("").notNull(),
+    baseAjustado: varchar("baseAjustado", { length: 12 }).default("").notNull(),
+    mlAjustado: varchar("mlAjustado", { length: 12 }).default("").notNull(),
+
+    /** FORMADO POR: (composição do kit, ex.: "2 pct com 300 - EAN"). */
+    formadoPor: varchar("formadoPor", { length: 300 }).default("").notNull(),
+    /** OBSERVAÇÃO. */
+    observacao: text("observacao"),
+
+    /** Cor de fundo da linha (estilo Excel). Vazio = sem cor. */
+    rowColor: varchar("rowColor", { length: 20 }).default("").notNull(),
+
+    /** Valores das COLUNAS PERSONALIZADAS (JSON { [customColumnId]: string }). */
+    customValues: text("customValues"),
+
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    positionIdx: index("kit_sheet_position_idx").on(t.position),
+  }),
+);
+
+export type KitSheetRow = typeof kitSheetRows.$inferSelect;
+export type InsertKitSheetRow = typeof kitSheetRows.$inferInsert;
+
+export const kitSheetCustomColumns = mysqlTable(
+  "kit_sheet_custom_columns",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 120 }).default("").notNull(),
+    position: int("position").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    positionIdx: index("kit_sheet_custom_col_position_idx").on(t.position),
+  }),
+);
+
+export type KitSheetCustomColumn = typeof kitSheetCustomColumns.$inferSelect;
+export type InsertKitSheetCustomColumn = typeof kitSheetCustomColumns.$inferInsert;
+
+// ============================================================================
+// PLANILHA EMBALAGENS (aba "EMBALAGENS" da planilha do Pedro) — editável.
+// ============================================================================
+export const embalagemSheetRows = mysqlTable(
+  "embalagem_sheet_rows",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    position: int("position").default(0).notNull(),
+
+    /** PRODUTO (nome da embalagem). */
+    produto: varchar("produto", { length: 400 }).default("").notNull(),
+    /** EAN/GTIN. */
+    eanGtin: varchar("eanGtin", { length: 60 }).default("").notNull(),
+    /** SKU (digitado manualmente). */
+    sku: varchar("sku", { length: 120 }).default("").notNull(),
+    /** EMBALAGEM. */
+    embalagem: varchar("embalagem", { length: 200 }).default("").notNull(),
+    /** NCM / GPC / CEST. */
+    ncm: varchar("ncm", { length: 20 }).default("").notNull(),
+    gpc: varchar("gpc", { length: 30 }).default("").notNull(),
+    cest: varchar("cest", { length: 20 }).default("").notNull(),
+
+    /** PREÇO > CLÁSSICO / PREMIUM. */
+    precoClassico: varchar("precoClassico", { length: 40 }).default("").notNull(),
+    precoPremium: varchar("precoPremium", { length: 40 }).default("").notNull(),
+
+    /** CARACTERÍSTICAS LÍQUIDO > ALTURA / LARGURA / COMPRIMENTO / KG. */
+    altura: varchar("altura", { length: 40 }).default("").notNull(),
+    largura: varchar("largura", { length: 40 }).default("").notNull(),
+    comprimento: varchar("comprimento", { length: 40 }).default("").notNull(),
+    kg: varchar("kg", { length: 40 }).default("").notNull(),
+
+    /** CATEGORIA. */
+    categoria: varchar("categoria", { length: 120 }).default("").notNull(),
+    /** OBSERVAÇÃO. */
+    observacao: text("observacao"),
+
+    rowColor: varchar("rowColor", { length: 20 }).default("").notNull(),
+    customValues: text("customValues"),
+
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    positionIdx: index("embalagem_sheet_position_idx").on(t.position),
+  }),
+);
+
+export type EmbalagemSheetRow = typeof embalagemSheetRows.$inferSelect;
+export type InsertEmbalagemSheetRow = typeof embalagemSheetRows.$inferInsert;
+
+export const embalagemSheetCustomColumns = mysqlTable(
+  "embalagem_sheet_custom_columns",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 120 }).default("").notNull(),
+    position: int("position").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    positionIdx: index("embalagem_sheet_custom_col_position_idx").on(t.position),
+  }),
+);
+
+export type EmbalagemSheetCustomColumn = typeof embalagemSheetCustomColumns.$inferSelect;
+export type InsertEmbalagemSheetCustomColumn = typeof embalagemSheetCustomColumns.$inferInsert;

@@ -5,6 +5,8 @@ import ProjetoAnalise from "../project/ProjetoAnalise";
 import ProjetoProduto from "../project/ProjetoProduto";
 import PedroTimeline from "./PedroTimeline";
 import SkuSheet from "./SkuSheet";
+import KitSheet from "./KitSheet";
+import EmbalagemSheet from "./EmbalagemSheet";
 
 const TABS = [
   { label: "Painel", path: "/pedro-timeline", icon: LayoutGrid },
@@ -17,7 +19,9 @@ export default function PedroTimelineContainer() {
   // A ficha do produto e a Planilha SKU ocupam a tela inteira (sem as abas de navegação).
   const [isDetail] = useRoute("/pedro-timeline/produto/:id");
   const [isSheet] = useRoute("/pedro-timeline/planilha-sku");
-  const fullWidth = isDetail || isSheet;
+  const [isKits] = useRoute("/pedro-timeline/kits");
+  const [isEmbalagens] = useRoute("/pedro-timeline/embalagens");
+  const fullWidth = isDetail || isSheet || isKits || isEmbalagens;
 
   return (
     <div>
@@ -62,6 +66,8 @@ export default function PedroTimelineContainer() {
         <Route path="/pedro-timeline/analise">{() => <ProjetoAnalise basePath="/pedro-timeline" ns="project" />}</Route>
         <Route path="/pedro-timeline/produto/:id">{() => <ProjetoProduto basePath="/pedro-timeline" ns="project" timelineNs="pedro" />}</Route>
         <Route path="/pedro-timeline/planilha-sku" component={SkuSheet} />
+        <Route path="/pedro-timeline/kits" component={KitSheet} />
+        <Route path="/pedro-timeline/embalagens" component={EmbalagemSheet} />
       </Switch>
     </div>
   );
