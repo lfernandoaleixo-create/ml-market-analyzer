@@ -38,4 +38,11 @@ export const ENV = {
   // server issues a session for the owner user, so all data shown belongs to the
   // connected store. Empty string disables the password gate.
   accessPassword: process.env.ACCESS_PASSWORD ?? "",
+  // Google OAuth app (Web) credentials used by the Google Drive backup feature.
+  // Scope is restricted to drive.file (the app only sees files it creates).
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  // Canonical public origin used to build the Google OAuth redirect_uri. MUST
+  // match exactly the redirect URI registered in Google Cloud.
+  publicOrigin: process.env.ML_PUBLIC_ORIGIN ?? "https://mlmarketanl-kcmkt5tl.manus.space",
 };

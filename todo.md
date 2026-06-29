@@ -1702,3 +1702,20 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Removida a migracao de "todos de uma vez" sem selecao (botao do header virou so Historico)
 - [x] Testes migrationDb atualizados (SKU computado, fallbacks, sem categoria) + tsc 0 erros
 - [x] Validado no preview (checkbox marca, barra aparece "Migrar 1 para SKU")
+
+
+## Backup diario das planilhas no Google Drive (concluido)
+
+- [x] Schema: tabela drive_backup_config (refresh token, conta, pasta, agendamento, status do ultimo backup)
+- [x] ENV: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ML_PUBLIC_ORIGIN expostos no server/_core/env.ts
+- [x] Credenciais Google validadas (formato .apps.googleusercontent.com / GOCSPX- + aceitas pelo endpoint oficial)
+- [x] Backend: geracao do XLSX das 3 planilhas (server/backup/sheetsXlsx.ts)
+- [x] Backend: integracao Google Drive OAuth + upload (server/backup/googleDrive.ts)
+- [x] Backend: orquestrador runDriveBackup (gera XLSX, renova token, garante pasta, faz upload, grava status)
+- [x] Rotas OAuth /api/oauth/gdrive/connect e /callback (retorno padronizado: ?gdrive=conectado|erro|sem-credenciais)
+- [x] Router tRPC driveBackup: status, backupNow, setSchedule (Heartbeat), disconnect
+- [x] Handler agendado /api/scheduled/driveBackup (cron-only) para o backup diario
+- [x] Frontend: card "Backup no Google Drive" em Configuracoes (conectar, backup agora, ligar diario, escolher horario)
+- [x] Recriacao apos reversao de checkpoint: todos os arquivos do backup restaurados
+- [x] Testes: 776 passando, tsc 0 erros, card validado no preview
+- [ ] PENDENTE DO USUARIO: publicar, clicar em "Conectar Google Drive" no site publicado, autorizar conta e testar "Backup agora"

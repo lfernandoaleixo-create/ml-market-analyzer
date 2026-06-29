@@ -1363,3 +1363,37 @@ export const migrationHistory = mysqlTable(
 
 export type MigrationHistory = typeof migrationHistory.$inferSelect;
 export type InsertMigrationHistory = typeof migrationHistory.$inferInsert;
+
+/**
+ * Configuração (linha única, id = 1) do backup automático para o Google Drive.
+ * Guarda o refresh_token de longa duração (nunca exposto ao frontend), a pasta
+ * de destino e o estado do último backup. Escopo OAuth: drive.file.
+ */
+export const driveBackupConfig = mysqlTable("drive_backup_config", {
+  id: int("id").primaryKey(),
+  /** refresh_token do Google (longa duração) — usado para renovar o acesso. */
+  refreshToken: text("refreshToken"),
+  /** E-mail da conta conectada (apenas exibição no painel). */
+  accountEmail: varchar("accountEmail", { length: 200 }).default("").notNull(),
+  /** id da pasta criada pelo app no Drive (reusada nos próximos backups). */
+  folderId: varchar("folderId", { length: 120 }).default("").notNull(),
+  /** nome da pasta de destino. */
+  folderName: varchar("folderName", { length: 200 }).default("").notNull(),
+  /** se o backup diário automático está ligado. */
+  enabled: boolean("enabled").default(false).notNull(),
+  /** uid da tarefa agendada (Heartbeat) ativa. */
+  scheduleCronTaskUid: varchar("schedule_cron_task_uid", { length: 65 }),
+  /** hora do dia (UTC) em que o backup diário roda. */
+  scheduleHourUtc: int("scheduleHourUtc").default(9).notNull(),
+  /** quando ocorreu o último backup (Unix ms). */
+  lastBackupAt: bigint("lastBackupAt", { mode: "number" }),
+  /** "ok" | "error" | "". */
+  lastStatus: varchar("lastStatus", { length: 16 }).default("").notNull(),
+  lastError: text("lastError"),
+  lastFileId: varchar("lastFileId", { length: 120 }).default("").notNull(),
+  lastFileName: varchar("lastFileName", { length: 200 }).default("").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DriveBackupConfig = typeof driveBackupConfig.$inferSelect;
+export type InsertDriveBackupConfig = typeof driveBackupConfig.$inferInsert;

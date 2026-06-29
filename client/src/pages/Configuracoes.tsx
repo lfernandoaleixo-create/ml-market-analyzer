@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import DriveBackupCard from "./DriveBackupCard";
 
 const CRON_PRESETS = [
   { label: "A cada 6 horas", value: "0 0 */6 * * *" },
@@ -46,6 +47,7 @@ export default function Configuracoes() {
       <div className="grid gap-6 lg:grid-cols-2">
         <CredentialsCard />
         <ScheduleCard />
+        <DriveBackupCard />
         <ThresholdsCard />
         <MethodologyCard />
       </div>

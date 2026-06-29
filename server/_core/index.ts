@@ -14,6 +14,8 @@ import { radarSweepScheduledHandler } from "../scheduled/radarSweep";
 import { adsSnapshotScheduledHandler } from "../scheduled/adsSnapshot";
 import { profitSnapshotScheduledHandler } from "../scheduled/profitSnapshot";
 import { refreshActiveListingsScheduledHandler } from "../scheduled/refreshActiveListings";
+import { registerGdriveOAuthRoutes } from "../backup/oauthGdrive";
+import { driveBackupScheduledHandler } from "../scheduled/driveBackup";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -43,12 +45,14 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerMlOAuthRoutes(app);
+  registerGdriveOAuthRoutes(app);
   // Scheduled (Heartbeat cron) callbacks — must be registered before Vite/static fallthrough.
   app.post("/api/scheduled/monitor", monitorScheduledHandler);
   app.post("/api/scheduled/radarSweep", radarSweepScheduledHandler);
   app.post("/api/scheduled/adsSnapshot", adsSnapshotScheduledHandler);
   app.post("/api/scheduled/profitSnapshot", profitSnapshotScheduledHandler);
   app.post("/api/scheduled/refreshActiveListings", refreshActiveListingsScheduledHandler);
+  app.post("/api/scheduled/driveBackup", driveBackupScheduledHandler);
   // tRPC API
   app.use(
     "/api/trpc",
