@@ -127,6 +127,17 @@ export type SkuStyleSheetProps = {
   exportTitle: string;
   /** Ações extras no cabeçalho (ex.: botão Migrar para SKU). */
   headerExtra?: ReactNode;
+  /**
+   * Quando definido, exibe uma coluna de checkboxes (1ª coluna) para seleção
+   * de linhas. Usado pela aba Kits para migrar itens individualmente ou em
+   * conjunto.
+   */
+  selection?: {
+    selectedIds: number[];
+    onToggle: (id: number) => void;
+    onToggleAll: (ids: number[], checked: boolean) => void;
+    renderBar?: (selectedIds: number[]) => ReactNode;
+  };
 };
 
 /** Lê o JSON de valores personalizados de uma linha com segurança. */
@@ -163,7 +174,7 @@ const ROW_COLORS: { value: string; label: string; swatch: string; bg: string }[]
 
 const ROW_COLOR_MAP = Object.fromEntries(ROW_COLORS.map((c) => [c.value, c]));
 
-export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, headerExtra }: SkuStyleSheetProps) {
+export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, headerExtra, selection }: SkuStyleSheetProps) {
   const [, setLocation] = useLocation();
   const rows = binding.rows;
   const isLoading = binding.isLoading;
@@ -370,6 +381,17 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
         </div>
       </div>
 
+      {/* Barra de seleção (somente quando há itens marcados) */}
+      {selection && selection.renderBar && selection.selectedIds.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <span className="text-sm font-medium text-foreground">
+            {selection.selectedIds.length}{" "}
+            {selection.selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
+          </span>
+          <div className="flex items-center gap-2">{selection.renderBar(selection.selectedIds)}</div>
+        </div>
+      )}
+
       {/* Tabela */}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
         {/* zoom levemente reduzido p/ caber mais colunas e deixar as linhas mais baixas */}
@@ -377,7 +399,25 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-white">
-                <Th className="sticky left-0 z-20 w-12 text-center" style={{ background: "var(--sku-head)" }}>#</Th>
+                {selection && (
+                  <Th className="sticky left-0 z-20 w-10 text-center" style={{ background: "var(--sku-head)" }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todos"
+                      className="h-4 w-4 cursor-pointer accent-primary align-middle"
+                      checked={filtered.length > 0 && filtered.every((r) => selection.selectedIds.includes(r.id))}
+                      ref={(el) => {
+                        if (el) {
+                          const some = filtered.some((r) => selection.selectedIds.includes(r.id));
+                          const all = filtered.length > 0 && filtered.every((r) => selection.selectedIds.includes(r.id));
+                          el.indeterminate = some && !all;
+                        }
+                      }}
+                      onChange={(e) => selection.onToggleAll(filtered.map((r) => r.id), e.target.checked)}
+                    />
+                  </Th>
+                )}
+                <Th className={`sticky ${selection ? "left-10" : "left-0"} z-20 w-12 text-center`} style={{ background: "var(--sku-head)" }}>#</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[140px]">Cadastrado ML</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">Tipo SKU</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">Categoria</Th>
@@ -423,11 +463,12 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                   onDelete={() => setDeleteId(row.id)}
                   onEdit={() => setEditRowId(row.id)}
                   onCustomValue={saveCustomValue}
+                  selection={selection}
                 />
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={25 + cols.length} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={(selection ? 26 : 25) + cols.length} className="text-center py-12 text-muted-foreground">
                     {search ? "Nenhum item encontrado para a busca." : "Nenhum item ainda. Clique em “Nova linha”."}
                   </td>
                 </tr>
@@ -538,9 +579,15 @@ type RowEditorProps = {
   onDelete: () => void;
   onEdit: () => void;
   onCustomValue: (rowId: number, columnId: number, value: string, delay?: number) => void;
+  selection?: {
+    selectedIds: number[];
+    onToggle: (id: number) => void;
+    onToggleAll: (ids: number[], checked: boolean) => void;
+    renderBar?: (selectedIds: number[]) => ReactNode;
+  };
 };
 
-function SkuRowEditor({ row, index, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue }: RowEditorProps) {
+function SkuRowEditor({ row, index, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, selection }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
 
   const rowRef = useRef(row);
@@ -685,8 +732,22 @@ function SkuRowEditor({ row, index, categories, allRows, customColumns, onField,
 
   return (
     <tr className="border-b border-border/60 align-top transition-colors" style={{ background: zebra }}>
+      {selection && (
+        <td
+          className="sticky left-0 z-10 px-2 py-2 border-r border-border/40 text-center"
+          style={{ background: local.rowColor ? colorBg : "var(--card)" }}
+        >
+          <input
+            type="checkbox"
+            aria-label={`Selecionar linha ${index + 1}`}
+            className="h-4 w-4 cursor-pointer accent-primary align-middle"
+            checked={selection.selectedIds.includes(row.id)}
+            onChange={() => selection.onToggle(row.id)}
+          />
+        </td>
+      )}
       <td
-        className="sticky left-0 z-10 px-3 py-2 text-xs text-muted-foreground font-semibold border-r border-border/40 text-center"
+        className={`sticky ${selection ? "left-10" : "left-0"} z-10 px-3 py-2 text-xs text-muted-foreground font-semibold border-r border-border/40 text-center`}
         style={{ background: local.rowColor ? colorBg : "var(--card)" }}
       >
         {index + 1}

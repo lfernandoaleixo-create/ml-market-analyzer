@@ -49,8 +49,10 @@ describe("mapKitRowToSkuInsert", () => {
   it("copia todas as colunas do formato SKU preservando os valores", () => {
     const out = mapKitRowToSkuInsert(makeKit());
     expect(out.produto).toBe("KIT VELA");
-    expect(out.sku).toBe("KITVELA-12");
-    expect(out.skuKit).toBe("KITVELA-12-KIT");
+    // SKU e SKU Kit são recalculados pela regra padrão (Tipo-Categoria-Nprod-Nvar),
+    // ignorando o valor antigo armazenado no kit.
+    expect(out.sku).toBe("3-FESTAS-10-2");
+    expect(out.skuKit).toBe("3-FESTAS-10-2-KITINS");
     expect(out.cadastradoMl).toBe("ATIVO");
     expect(out.tipoSku).toBe("3");
     expect(out.categoryName).toBe("Festas e Lembrancinhas");
@@ -86,9 +88,23 @@ describe("mapKitRowToSkuInsert", () => {
     );
     expect(out.cadastradoMl).toBe("");
     expect(out.produto).toBe("");
-    expect(out.sku).toBe("");
     expect(out.gerarSkuKit).toBe(false);
     expect(out.rowColor).toBe("");
     expect(out.caracteristicas).toBeNull();
+  });
+
+  it("gera SKU vazio quando faltam componentes essenciais (sem categoria)", () => {
+    const out = mapKitRowToSkuInsert(
+      makeKit({ categoryName: null, categoryId: null }),
+    );
+    expect(out.sku).toBe("");
+    // Sem SKU base, o SKU Kit também fica vazio mesmo com gerarSkuKit=true.
+    expect(out.skuKit).toBe("");
+  });
+
+  it("recalcula SKU mesmo quando o campo sku do kit está vazio", () => {
+    const out = mapKitRowToSkuInsert(makeKit({ sku: "", skuKit: "" }));
+    expect(out.sku).toBe("3-FESTAS-10-2");
+    expect(out.skuKit).toBe("3-FESTAS-10-2-KITINS");
   });
 });

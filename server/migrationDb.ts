@@ -8,6 +8,7 @@ import {
   InsertSkuSheetRow,
   KitSheetRow,
 } from "../drizzle/schema";
+import { buildSku, buildSkuKit } from "../shared/skuSheet";
 
 /**
  * Mapeia uma linha de KIT (que agora já está no formato SKU) para os valores
@@ -16,6 +17,16 @@ import {
  * createdAt nem position (a posição é recalculada no destino).
  */
 export function mapKitRowToSkuInsert(row: KitSheetRow): Partial<InsertSkuSheetRow> {
+  // SKU e SKU Kit são SEMPRE recalculados pela mesma regra da Planilha SKU,
+  // a partir de Tipo + Categoria + Nº produto + Nº variante. Assim a migração
+  // já leva o SKU correto, mesmo que o campo armazenado esteja vazio.
+  const computedSku = buildSku({
+    tipoSku: row.tipoSku ?? "",
+    categoryName: row.categoryName ?? null,
+    productNumber: row.productNumber ?? null,
+    variantNumber: row.variantNumber ?? null,
+  });
+  const computedSkuKit = buildSkuKit(computedSku, row.gerarSkuKit ?? false);
   return {
     productNumber: row.productNumber ?? null,
     variantNumber: row.variantNumber ?? null,
@@ -27,9 +38,9 @@ export function mapKitRowToSkuInsert(row: KitSheetRow): Partial<InsertSkuSheetRo
     subCategoryName: row.subCategoryName ?? null,
     produto: row.produto ?? "",
     variante: row.variante ?? "",
-    sku: row.sku ?? "",
+    sku: computedSku,
     gerarSkuKit: row.gerarSkuKit ?? false,
-    skuKit: row.skuKit ?? "",
+    skuKit: computedSkuKit,
     eanGtin: row.eanGtin ?? "",
     ncm: row.ncm ?? "",
     gpc: row.gpc ?? "",
@@ -97,7 +108,8 @@ export async function migrateKitsToSku(params: {
   let position = await nextSkuPosition();
 
   for (const kit of toMigrate) {
-    const insertValues = { ...mapKitRowToSkuInsert(kit), position };
+    const mapped = mapKitRowToSkuInsert(kit);
+    const insertValues = { ...mapped, position };
     position += 1;
 
     // 1) Insere na Planilha SKU.
@@ -119,7 +131,7 @@ export async function migrateKitsToSku(params: {
       sourceKitRowId: kit.id,
       targetSkuRowId: targetSkuRowId ?? undefined,
       label: label.slice(0, 400),
-      sku: (kit.sku ?? "").slice(0, 120),
+      sku: (mapped.sku ?? "").slice(0, 120),
       snapshot: JSON.stringify(kit),
       migratedByOpenId: params.migratedByOpenId ?? undefined,
       migratedByName: params.migratedByName ?? undefined,

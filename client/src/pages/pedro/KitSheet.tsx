@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ArrowRightLeft, History, Loader2 } from "lucide-react";
@@ -18,8 +18,9 @@ import MigrationHistoryDialog from "./MigrationHistoryDialog";
 
 /**
  * Planilha de Kits: mesmo formato/colunas da Planilha SKU, ligada ao router
- * `kitSheet`. Inclui o botão "Migrar para SKU" (move TODAS as linhas de Kits
- * para a Planilha SKU) e acesso ao Histórico de Migração.
+ * `kitSheet`. A migração para a Planilha SKU é feita por SELEÇÃO: o usuário
+ * marca uma ou mais linhas (checkbox) e move apenas os itens selecionados.
+ * Também há acesso ao Histórico de Migração.
  */
 export default function KitSheet() {
   const utils = trpc.useUtils();
@@ -30,8 +31,11 @@ export default function KitSheet() {
   const { data: categories } = trpc.skuSheet.categories.useQuery();
   const { data: customColumns } = trpc.kitSheet.listCustomColumns.useQuery();
 
-  const [confirmMigrate, setConfirmMigrate] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Seleção de linhas para migração (individual ou em conjunto).
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  // Quando > 0, abre o diálogo de confirmação para migrar os selecionados.
+  const [confirmIds, setConfirmIds] = useState<number[] | null>(null);
 
   const updateMut = trpc.kitSheet.update.useMutation({
     onSuccess: () => utils.kitSheet.list.invalidate(),
@@ -80,7 +84,8 @@ export default function KitSheet() {
       utils.kitSheet.list.invalidate();
       utils.skuSheet.list.invalidate();
       utils.kitSheet.migrationHistory.invalidate();
-      setConfirmMigrate(false);
+      setConfirmIds(null);
+      setSelectedIds([]);
       toast.success(
         `${res.migratedCount} ${res.migratedCount === 1 ? "linha movida" : "linhas movidas"} para a Planilha SKU.`,
       );
@@ -103,34 +108,31 @@ export default function KitSheet() {
     createPending: createMut.isPending,
   };
 
-  const rowCount = rows?.length ?? 0;
+  // --- Seleção ---
+  const toggle = useCallback((id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+  const toggleAll = useCallback((ids: number[], checked: boolean) => {
+    setSelectedIds((prev) => {
+      if (checked) return Array.from(new Set([...prev, ...ids]));
+      const remove = new Set(ids);
+      return prev.filter((x) => !remove.has(x));
+    });
+  }, []);
 
+  const confirmCount = confirmIds?.length ?? 0;
+
+  // Botão de histórico no cabeçalho (a migração agora vive na barra de seleção).
   const headerExtra = (
-    <>
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-9 bg-card"
-        onClick={() => setHistoryOpen(true)}
-      >
-        <History className="w-4 h-4 mr-1.5" />
-        Histórico
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-9 bg-card text-primary border-primary/40 hover:bg-primary/5"
-        onClick={() => setConfirmMigrate(true)}
-        disabled={migrateMut.isPending || rowCount === 0}
-      >
-        {migrateMut.isPending ? (
-          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-        ) : (
-          <ArrowRightLeft className="w-4 h-4 mr-1.5" />
-        )}
-        Migrar para SKU
-      </Button>
-    </>
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-9 bg-card"
+      onClick={() => setHistoryOpen(true)}
+    >
+      <History className="w-4 h-4 mr-1.5" />
+      Histórico
+    </Button>
   );
 
   return (
@@ -141,24 +143,55 @@ export default function KitSheet() {
         subtitle="composições de produtos"
         exportTitle="Kits"
         headerExtra={headerExtra}
+        selection={{
+          selectedIds,
+          onToggle: toggle,
+          onToggleAll: toggleAll,
+          renderBar: (ids) => (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8"
+                onClick={() => setSelectedIds([])}
+              >
+                Limpar seleção
+              </Button>
+              <Button
+                size="sm"
+                className="h-8"
+                onClick={() => setConfirmIds(ids)}
+                disabled={migrateMut.isPending || ids.length === 0}
+              >
+                {migrateMut.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <ArrowRightLeft className="w-4 h-4 mr-1.5" />
+                )}
+                Migrar {ids.length} para SKU
+              </Button>
+            </>
+          ),
+        }}
       />
 
-      {/* Confirmação da migração (MOVE todas as linhas) */}
-      <AlertDialog open={confirmMigrate} onOpenChange={(o) => !o && setConfirmMigrate(false)}>
+      {/* Confirmação da migração (MOVE somente os selecionados) */}
+      <AlertDialog open={confirmIds !== null} onOpenChange={(o) => !o && setConfirmIds(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Migrar Kits para a Planilha SKU?</AlertDialogTitle>
+            <AlertDialogTitle>Migrar para a Planilha SKU?</AlertDialogTitle>
             <AlertDialogDescription>
-              {rowCount} {rowCount === 1 ? "linha será movida" : "linhas serão movidas"} desta aba
-              Kits para a Planilha SKU, com todo o preenchimento e formatação. As linhas
-              <strong> saem da aba Kits</strong> e passam a viver na Planilha SKU. Cada movimentação
-              fica registrada no Histórico de Migração. Esta ação não pode ser desfeita
-              automaticamente.
+              {confirmCount} {confirmCount === 1 ? "linha selecionada será movida" : "linhas selecionadas serão movidas"} desta
+              aba Kits para a Planilha SKU, com todo o preenchimento, SKU gerado e formatação. As linhas
+              <strong> saem da aba Kits</strong> e passam a viver na Planilha SKU. Cada movimentação fica
+              registrada no Histórico de Migração. Esta ação não pode ser desfeita automaticamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => migrateMut.mutate({})}>
+            <AlertDialogAction
+              onClick={() => confirmIds && migrateMut.mutate({ ids: confirmIds })}
+            >
               Migrar agora
             </AlertDialogAction>
           </AlertDialogFooter>

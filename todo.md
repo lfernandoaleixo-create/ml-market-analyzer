@@ -1690,3 +1690,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend: dialog "Histórico de Migração" (o que saiu do Kit e foi pro SKU, com data)
 - [x] Testes vitest (migrationDb.test: mapeamento preserva dados, descarta id/position) — 772 testes passando
 - [x] Validar no preview (Kits no formato SKU + botões Histórico/Migrar) + tsc 0 erros + checkpoint
+
+
+## Kits: SKU automatico + migracao por selecao (concluido)
+
+- [x] Limpar valores antigos de SKU e skuKit na tabela de Kits (UPDATE no banco)
+- [x] Migracao gera SKU automaticamente pela regra padrao (buildSku/buildSkuKit) em migrationDb
+- [x] Historico registra o SKU computado (nao mais o campo vazio)
+- [x] Checkbox por linha + "selecionar todos" no SkuStyleSheet (prop selection)
+- [x] Barra de selecao com "Migrar N para SKU" (so itens marcados) + "Limpar selecao"
+- [x] Removida a migracao de "todos de uma vez" sem selecao (botao do header virou so Historico)
+- [x] Testes migrationDb atualizados (SKU computado, fallbacks, sem categoria) + tsc 0 erros
+- [x] Validado no preview (checkbox marca, barra aparece "Migrar 1 para SKU")
