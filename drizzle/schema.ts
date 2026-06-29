@@ -1152,40 +1152,77 @@ export const kitSheetRows = mysqlTable(
     /** Ordem de exibição/edição na planilha. */
     position: int("position").default(0).notNull(),
 
-    /** CADASTRADO ML (texto livre / marcação da planilha). */
+    // ===================================================================
+    // FORMATO SKU — a aba Kits agora usa as MESMAS colunas da Planilha SKU.
+    // As colunas legadas (kit, embalagem, profundidade, etc.) permanecem
+    // abaixo para preservar 100% dos dados originais (zero perda).
+    // ===================================================================
+    /** Número sequencial do PRODUTO (formato SKU). */
+    productNumber: int("productNumber"),
+    /** Número sequencial da VARIANTE dentro do produto (formato SKU). */
+    variantNumber: int("variantNumber"),
+    /** CADASTRADO ML: ATIVO | PENDENTE | PAUSADO | EXCLUIDO | "". */
     cadastradoMl: varchar("cadastradoMl", { length: 60 }).default("").notNull(),
-    /** KIT (nome do kit). */
-    kit: varchar("kit", { length: 400 }).default("").notNull(),
+    /** TIPO SKU: "1" INSUMO | "2" PRODUTO | "3" KIT | "4" CATALOGO | "". */
+    tipoSku: varchar("tipoSku", { length: 4 }).default("").notNull(),
+    /** Categoria ML (id + nome). */
+    categoryId: varchar("categoryId", { length: 24 }),
+    categoryName: varchar("categoryName", { length: 160 }),
+    /** Subcategoria ML (id + nome). */
+    subCategoryId: varchar("subCategoryId", { length: 24 }),
+    subCategoryName: varchar("subCategoryName", { length: 160 }),
+    /** PRODUTO (nome) e VARIANTE (formato SKU). */
+    produto: varchar("produto", { length: 300 }).default("").notNull(),
+    variante: varchar("variante", { length: 300 }).default("").notNull(),
     /** EAN/GTIN. */
     eanGtin: varchar("eanGtin", { length: 60 }).default("").notNull(),
     /** SKU (digitado manualmente, padrão próprio). */
     sku: varchar("sku", { length: 120 }).default("").notNull(),
-    /** EMBALAGEM (na planilha traz "ESTOQUE: X" etc.). */
-    embalagem: varchar("embalagem", { length: 200 }).default("").notNull(),
+    /** Geração de SKU KIT (formato SKU). */
+    gerarSkuKit: boolean("gerarSkuKit").default(false).notNull(),
+    skuKit: varchar("skuKit", { length: 120 }).default("").notNull(),
     /** NCM. */
     ncm: varchar("ncm", { length: 20 }).default("").notNull(),
-
-    /** PREÇO > CLÁSSICO / PREMIUM (texto livre p/ preservar R$). */
+    /** GPC / CEST (formato SKU). */
+    gpc: varchar("gpc", { length: 30 }).default("").notNull(),
+    cest: varchar("cest", { length: 20 }).default("").notNull(),
+    /** PREÇO > CLÁSSICO / PREMIUM / ATACADO (texto livre p/ preservar R$). */
     precoClassico: varchar("precoClassico", { length: 40 }).default("").notNull(),
     precoPremium: varchar("precoPremium", { length: 40 }).default("").notNull(),
+    precoAtacado: varchar("precoAtacado", { length: 40 }).default("").notNull(),
+    /** Embalagem do formato SKU (dimensões + peso). */
+    embProfundidade: varchar("embProfundidade", { length: 40 }).default("").notNull(),
+    embLargura: varchar("embLargura", { length: 40 }).default("").notNull(),
+    embAltura: varchar("embAltura", { length: 40 }).default("").notNull(),
+    embPeso: varchar("embPeso", { length: 40 }).default("").notNull(),
+    /** Características do produto líquido (formato SKU). */
+    caracteristicas: text("caracteristicas"),
 
-    /** CARACTERÍSTICAS > PROFUNDIDADE / LARGURA / ALTURA-COMPRIMENTO / KG. */
+    // ===================================================================
+    // COLUNAS LEGADAS (planilha de Kits original) — preservadas p/ não
+    // perder nada. Não são mais exibidas na grade, mas continuam no banco.
+    // ===================================================================
+    /** [LEGADO] KIT (nome do kit). Migrado para `produto`. */
+    kit: varchar("kit", { length: 400 }).default("").notNull(),
+    /** [LEGADO] EMBALAGEM ("ESTOQUE: X" etc.). */
+    embalagem: varchar("embalagem", { length: 200 }).default("").notNull(),
+    /** [LEGADO] PROFUNDIDADE. Migrado para `embProfundidade`. */
     profundidade: varchar("profundidade", { length: 40 }).default("").notNull(),
+    /** [LEGADO] LARGURA. Migrado para `embLargura`. */
     largura: varchar("largura", { length: 40 }).default("").notNull(),
+    /** [LEGADO] ALTURA-COMPRIMENTO. Migrado para `embAltura`. */
     alturaComprimento: varchar("alturaComprimento", { length: 40 }).default("").notNull(),
+    /** [LEGADO] KG. Migrado para `embPeso`. */
     kg: varchar("kg", { length: 40 }).default("").notNull(),
-
-    /** CATEGORIA (BAMBU/MADEIRA/FIBRA...). */
+    /** [LEGADO] CATEGORIA (BAMBU/MADEIRA/FIBRA...). */
     categoria: varchar("categoria", { length: 120 }).default("").notNull(),
-
-    /** Flags V/F da planilha. */
+    /** [LEGADO] Flags V/F da planilha. */
     dimensoesGs1: varchar("dimensoesGs1", { length: 12 }).default("").notNull(),
     baseAjustado: varchar("baseAjustado", { length: 12 }).default("").notNull(),
     mlAjustado: varchar("mlAjustado", { length: 12 }).default("").notNull(),
-
-    /** FORMADO POR: (composição do kit, ex.: "2 pct com 300 - EAN"). */
+    /** [LEGADO] FORMADO POR (composição do kit). */
     formadoPor: varchar("formadoPor", { length: 300 }).default("").notNull(),
-    /** OBSERVAÇÃO. */
+    /** [LEGADO] OBSERVAÇÃO. */
     observacao: text("observacao"),
 
     /** Cor de fundo da linha (estilo Excel). Vazio = sem cor. */
@@ -1289,3 +1326,40 @@ export const embalagemSheetCustomColumns = mysqlTable(
 
 export type EmbalagemSheetCustomColumn = typeof embalagemSheetCustomColumns.$inferSelect;
 export type InsertEmbalagemSheetCustomColumn = typeof embalagemSheetCustomColumns.$inferInsert;
+
+// ============================================================================
+// HISTÓRICO DE MIGRAÇÃO (Kits -> Planilha SKU). Cada linha registra UMA linha
+// de kit que foi MOVIDA para a Planilha SKU: guarda o snapshot completo dos
+// dados migrados (JSON), o id de origem (kit) e o id de destino (sku criado),
+// além de quem migrou e quando. É um log somente-acréscimo (append-only).
+// ============================================================================
+export const migrationHistory = mysqlTable(
+  "migration_history",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Tipo de migração. Por ora: "kit_to_sku". */
+    kind: varchar("kind", { length: 32 }).default("kit_to_sku").notNull(),
+    /** id da linha original na planilha de Kits (antes de ser removida). */
+    sourceKitRowId: int("sourceKitRowId"),
+    /** id da linha criada na Planilha SKU (destino). */
+    targetSkuRowId: int("targetSkuRowId"),
+    /** Nome/identificação amigável da linha migrada (produto/kit + SKU). */
+    label: varchar("label", { length: 400 }).default("").notNull(),
+    sku: varchar("sku", { length: 120 }).default("").notNull(),
+    /** Snapshot completo (JSON) dos dados migrados, para auditoria/restauração. */
+    snapshot: text("snapshot"),
+    /** Quem executou a migração. */
+    migratedByOpenId: varchar("migratedByOpenId", { length: 64 }),
+    migratedByName: varchar("migratedByName", { length: 200 }),
+    /** Quando ocorreu (Unix ms). */
+    migratedAt: bigint("migratedAt", { mode: "number" }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    kindIdx: index("migration_history_kind_idx").on(t.kind),
+    migratedAtIdx: index("migration_history_migrated_at_idx").on(t.migratedAt),
+  }),
+);
+
+export type MigrationHistory = typeof migrationHistory.$inferSelect;
+export type InsertMigrationHistory = typeof migrationHistory.$inferInsert;

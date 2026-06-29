@@ -1675,3 +1675,18 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Botoes Exportar Excel/PDF no GenericSheet (Kits e Embalagens)
 - [x] Respeitar colunas (fixas + personalizadas) + busca ativa (linhas filtradas)
 - [x] Validar no preview (baixados: xlsx 59x25, pdf 5 paginas A4) + tsc 0 erros + checkpoint
+
+
+## Kits no formato SKU + Migração Kits→SKU + Histórico (29/06/2026)
+- [x] BACKUP: tabelas _backup criadas no banco + dumps JSON em scripts/ antes de alterar
+- [x] Schema: adicionadas à kit_sheet_rows todas as colunas do formato SKU
+- [x] Schema: nova tabela migration_history (origem kit, destino sku, snapshot JSON da linha, data, usuário)
+- [x] Migração de dados: novas colunas dos kits preenchidas a partir das colunas antigas (sem perda)
+- [x] Backend: kitSheetDb + router kit atualizados para o formato SKU (mesmas colunas)
+- [x] Backend: procedure migrateToSku (MOVE: insere na sku_sheet_rows, registra no histórico, deleta do kit)
+- [x] Backend: procedure migrationHistory (listar)
+- [x] Frontend: componente compartilhado SkuStyleSheet — Kits com layout idêntico ao SKU
+- [x] Frontend: botão "Migrar para SKU" (move todas as linhas) com confirmação
+- [x] Frontend: dialog "Histórico de Migração" (o que saiu do Kit e foi pro SKU, com data)
+- [x] Testes vitest (migrationDb.test: mapeamento preserva dados, descarta id/position) — 772 testes passando
+- [x] Validar no preview (Kits no formato SKU + botões Histórico/Migrar) + tsc 0 erros + checkpoint
