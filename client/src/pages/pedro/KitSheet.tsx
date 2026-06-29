@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import GenericSheet, { type ColumnDef, type GenericRow, type SheetApi } from "./GenericSheet";
+import SheetTabs from "./SheetTabs";
 
 const COLUMNS: ColumnDef[] = [
   { field: "cadastradoMl", label: "Cadastrado ML", kind: "text", minWidth: "min-w-[120px]" },
@@ -78,6 +79,7 @@ export default function KitSheet() {
       columns={COLUMNS}
       searchFields={SEARCH_FIELDS}
       backTo="/pedro-timeline"
+      tabsSlot={<SheetTabs />}
       api={api}
     />
   );

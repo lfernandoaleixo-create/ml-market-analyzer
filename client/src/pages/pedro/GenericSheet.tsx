@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useRef, useState, useCallback, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -99,6 +99,8 @@ export type GenericSheetProps = {
   searchFields: string[];
   /** Rota de retorno do botão Voltar. */
   backTo: string;
+  /** Conteúdo opcional exibido no topo (ex.: abas internas Produtos | Kits | Embalagens). */
+  tabsSlot?: ReactNode;
   api: SheetApi;
 };
 
@@ -140,6 +142,7 @@ export default function GenericSheet({
   columns,
   searchFields,
   backTo,
+  tabsSlot,
   api,
 }: GenericSheetProps) {
   const [, setLocation] = useLocation();
@@ -205,6 +208,7 @@ export default function GenericSheet({
 
   return (
     <div className="space-y-5">
+      {tabsSlot}
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">

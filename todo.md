@@ -1658,3 +1658,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend: tela EMBALAGENS editavel (celula + modal + colunas personalizadas + add/excluir linha) via GenericSheet
 - [x] Navegacao: abas KITS e EMBALAGENS acessiveis (botoes na Linha do Tempo Pedro + rotas /pedro-timeline/kits e /embalagens)
 - [x] Testes vitest + tsc 0 erros + validar no preview + checkpoint
+
+
+## Unificar Kits e Embalagens DENTRO da Planilha SKU (29/06/2026)
+- [x] Planilha SKU passa a ter abas internas no topo: Produtos | Kits | Embalagens (componente SheetTabs compartilhado)
+- [x] Remover os botões separados Kits e Embalagens da tela Linha do Tempo Pedro (sobra apenas Planilha SKU)
+- [x] Manter rotas /pedro-timeline/kits e /embalagens funcionando (abas navegam entre si, aba ativa destacada)
+- [x] Validar no preview (trocar entre as 3 abas, edição preservada) + tsc 0 erros + checkpoint

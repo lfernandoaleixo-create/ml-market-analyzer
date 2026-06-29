@@ -1418,22 +1418,6 @@ export default function PedroTimeline() {
             <Table2 className="w-4 h-4" />
             Planilha SKU
           </Button>
-          <Button
-            variant="outline"
-            className="gap-2 bg-primary/8 border-primary/30 text-primary hover:bg-primary/15 hover:text-primary"
-            onClick={() => setLocation("/pedro-timeline/kits")}
-          >
-            <Table2 className="w-4 h-4" />
-            Kits
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2 bg-primary/8 border-primary/30 text-primary hover:bg-primary/15 hover:text-primary"
-            onClick={() => setLocation("/pedro-timeline/embalagens")}
-          >
-            <Table2 className="w-4 h-4" />
-            Embalagens
-          </Button>
         </div>
       </div>
 
