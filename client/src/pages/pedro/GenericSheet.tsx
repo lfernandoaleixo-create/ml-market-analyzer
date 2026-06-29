@@ -12,6 +12,9 @@ import {
   Check,
   Pencil,
   Columns3,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +32,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { exportToExcel, exportToPdf, type ExportColumn } from "./sheetExport";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,6 +208,33 @@ export default function GenericSheet({
 
   const handleAdd = () => api.create({});
 
+  // Colunas de exportação: # + colunas fixas + colunas personalizadas
+  const buildExportColumns = useCallback((): ExportColumn[] => {
+    const out: ExportColumn[] = [
+      { label: "#", value: (_r, i) => String(i + 1) },
+    ];
+    for (const c of columns) {
+      out.push({ label: c.label, value: (r) => String(r[c.field] ?? "") });
+    }
+    for (const cc of cols) {
+      out.push({
+        label: cc.name || "(sem nome)",
+        value: (r) => parseCustomValues(r.customValues as string | null)[String(cc.id)] ?? "",
+      });
+    }
+    return out;
+  }, [columns, cols]);
+
+  const handleExportExcel = useCallback(() => {
+    exportToExcel(title, buildExportColumns(), filtered as Record<string, unknown>[]);
+    toast.success("Excel exportado.");
+  }, [title, buildExportColumns, filtered]);
+
+  const handleExportPdf = useCallback(() => {
+    exportToPdf(title, buildExportColumns(), filtered as Record<string, unknown>[]);
+    toast.success("PDF exportado.");
+  }, [title, buildExportColumns, filtered]);
+
   if (api.isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -242,6 +279,24 @@ export default function GenericSheet({
             <Columns3 className="w-4 h-4 mr-1.5" />
             Colunas
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="h-9 bg-card">
+                <Download className="w-4 h-4 mr-1.5" />
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" />
+                Exportar Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdf}>
+                <FileText className="w-4 h-4 mr-2 text-red-600" />
+                Exportar PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" className="h-9" onClick={handleAdd}>
             <Plus className="w-4 h-4 mr-1.5" />
             Nova linha

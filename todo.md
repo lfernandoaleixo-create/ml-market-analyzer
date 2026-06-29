@@ -1665,3 +1665,13 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Remover os botões separados Kits e Embalagens da tela Linha do Tempo Pedro (sobra apenas Planilha SKU)
 - [x] Manter rotas /pedro-timeline/kits e /embalagens funcionando (abas navegam entre si, aba ativa destacada)
 - [x] Validar no preview (trocar entre as 3 abas, edição preservada) + tsc 0 erros + checkpoint
+
+
+## Exportar Excel e PDF nas planilhas (29/06/2026)
+- [x] Instalar libs de exportacao (xlsx para Excel, jspdf + jspdf-autotable para PDF)
+- [x] Criar util de exportacao compartilhado (sheetExport.ts: exportToExcel + exportToPdf)
+- [x] Botao Exportar Excel no SkuSheet (Produtos) — menu dropdown
+- [x] Botao Exportar PDF no SkuSheet (Produtos) — menu dropdown
+- [x] Botoes Exportar Excel/PDF no GenericSheet (Kits e Embalagens)
+- [x] Respeitar colunas (fixas + personalizadas) + busca ativa (linhas filtradas)
+- [x] Validar no preview (baixados: xlsx 59x25, pdf 5 paginas A4) + tsc 0 erros + checkpoint

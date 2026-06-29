@@ -14,6 +14,9 @@ import {
   Pencil,
   Columns3,
   X,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +34,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { exportToExcel, exportToPdf, type ExportColumn } from "./sheetExport";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -240,6 +250,57 @@ export default function SkuSheet() {
     createMut.mutate({ productNumber: maxProduct + 1, variantNumber: 1, tipoSku: "2" });
   };
 
+  // Monta as colunas de exportação do SKU (fixas + personalizadas).
+  const buildExportColumns = useCallback((): ExportColumn[] => {
+    const tipoLabel = (v: string) =>
+      TIPO_SKU_OPTIONS.find((o) => o.value === v)?.label ?? v ?? "";
+    const cadLabel = (v: string) =>
+      CADASTRADO_ML_OPTIONS.find((o) => o.value === v)?.label ?? v ?? "";
+    const out: ExportColumn[] = [
+      { label: "#", value: (_r, i) => String(i + 1) },
+      { label: "Cadastrado ML", value: (r) => cadLabel(String(r.cadastradoMl ?? "")) },
+      { label: "Tipo SKU", value: (r) => tipoLabel(String(r.tipoSku ?? "")) },
+      { label: "Categoria", value: (r) => String(r.categoryName ?? "") },
+      { label: "Subcategoria", value: (r) => String(r.subCategoryName ?? "") },
+      { label: "Nº Produto", value: (r) => (r.productNumber == null ? "" : String(r.productNumber)) },
+      { label: "Produto", value: (r) => String(r.produto ?? "") },
+      { label: "Nº Variante", value: (r) => (r.variantNumber == null ? "" : String(r.variantNumber)) },
+      { label: "Variante", value: (r) => String(r.variante ?? "") },
+      { label: "SKU", value: (r) => String(r.sku ?? "") },
+      { label: "Gerar Kit?", value: (r) => (r.gerarSkuKit ? "Sim" : "Não") },
+      { label: "SKU Kit", value: (r) => String(r.skuKit ?? "") },
+      { label: "EAN/GTIN", value: (r) => String(r.eanGtin ?? "") },
+      { label: "NCM", value: (r) => String(r.ncm ?? "") },
+      { label: "GPC", value: (r) => String(r.gpc ?? "") },
+      { label: "CEST", value: (r) => String(r.cest ?? "") },
+      { label: "Preço Clássico", value: (r) => String(r.precoClassico ?? "") },
+      { label: "Preço Premium", value: (r) => String(r.precoPremium ?? "") },
+      { label: "Preço Atacado", value: (r) => String(r.precoAtacado ?? "") },
+      { label: "Emb. Prof.", value: (r) => String(r.embProfundidade ?? "") },
+      { label: "Emb. Larg.", value: (r) => String(r.embLargura ?? "") },
+      { label: "Emb. Alt.", value: (r) => String(r.embAltura ?? "") },
+      { label: "Peso (kg)", value: (r) => String(r.embPeso ?? "") },
+      { label: "Características", value: (r) => String(r.caracteristicas ?? "") },
+    ];
+    for (const cc of cols) {
+      out.push({
+        label: cc.name || "(sem nome)",
+        value: (r) => parseCustomValues(r.customValues as string | null)[String(cc.id)] ?? "",
+      });
+    }
+    return out;
+  }, [cols]);
+
+  const handleExportExcel = useCallback(() => {
+    exportToExcel("Planilha SKU", buildExportColumns(), filtered as unknown as Record<string, unknown>[]);
+    toast.success("Excel exportado.");
+  }, [buildExportColumns, filtered]);
+
+  const handleExportPdf = useCallback(() => {
+    exportToPdf("Planilha SKU", buildExportColumns(), filtered as unknown as Record<string, unknown>[]);
+    toast.success("PDF exportado.");
+  }, [buildExportColumns, filtered]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -291,6 +352,24 @@ export default function SkuSheet() {
             <Columns3 className="w-4 h-4 mr-1.5" />
             Colunas
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="h-9 bg-card">
+                <Download className="w-4 h-4 mr-1.5" />
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" />
+                Exportar Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdf}>
+                <FileText className="w-4 h-4 mr-2 text-red-600" />
+                Exportar PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" className="h-9" onClick={handleAdd} disabled={createMut.isPending}>
             <Plus className="w-4 h-4 mr-1.5" />
             Nova linha
