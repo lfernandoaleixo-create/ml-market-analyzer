@@ -372,7 +372,8 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
 
       {/* Tabela */}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        {/* zoom levemente reduzido p/ caber mais colunas e deixar as linhas mais baixas */}
+        <div className="overflow-x-auto" style={{ zoom: 0.85 } as React.CSSProperties}>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-white">
@@ -895,10 +896,15 @@ function SkuRowEditor({ row, index, categories, allRows, customColumns, onField,
   );
 }
 
-// Ajusta a altura do textarea ao conteúdo (sem cortar texto).
+// Ajusta a altura do textarea ao conteúdo, com um teto para manter as linhas
+// compactas. Acima do teto, o campo ganha rolagem interna (o texto não é
+// cortado — basta rolar ou abrir o modal de edição da linha).
+const AUTO_GROW_MAX = 64; // px
 function autoGrow(el: HTMLTextAreaElement) {
   el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
+  const next = Math.min(el.scrollHeight, AUTO_GROW_MAX);
+  el.style.height = `${next}px`;
+  el.style.overflowY = el.scrollHeight > AUTO_GROW_MAX ? "auto" : "hidden";
 }
 
 // ─── Modal: gerenciar colunas personalizadas ────────────────────────────────
