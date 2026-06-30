@@ -100,6 +100,9 @@ export async function ensureFolder(
       if (data.id && !data.trashed) return data.id;
     }
   }
+  // Com escopo drive.file o app só enxerga itens que ele mesmo criou; a busca
+  // pode não achar a pasta mesmo existindo. Tentamos buscar, mas o caminho
+  // principal é simplesmente criar a pasta.
   const q = encodeURIComponent(
     `mimeType='application/vnd.google-apps.folder' and name='${folderName.replace(/'/g, "\\'")}' and trashed=false`,
   );
@@ -109,6 +112,9 @@ export async function ensureFolder(
   if (search.ok) {
     const data = (await search.json()) as { files?: Array<{ id: string }> };
     if (data.files && data.files.length > 0) return data.files[0].id;
+  } else {
+    const errText = await search.text().catch(() => "");
+    console.warn(`[gdrive] busca de pasta falhou (${search.status}): ${errText}`);
   }
   const create = await fetch(`${DRIVE_FILES}?fields=id`, {
     method: "POST",
@@ -121,8 +127,17 @@ export async function ensureFolder(
       mimeType: "application/vnd.google-apps.folder",
     }),
   });
+  if (!create.ok) {
+    const errText = await create.text().catch(() => "");
+    console.error(`[gdrive] criar pasta falhou (${create.status}): ${errText}`);
+    throw new Error(
+      `Não foi possível criar a pasta no Google Drive (HTTP ${create.status}): ${errText.slice(0, 300)}`,
+    );
+  }
   const created = (await create.json()) as { id?: string };
-  if (!created.id) throw new Error("Não foi possível criar a pasta no Google Drive");
+  if (!created.id) {
+    throw new Error("Não foi possível criar a pasta no Google Drive (resposta sem id)");
+  }
   return created.id;
 }
 
