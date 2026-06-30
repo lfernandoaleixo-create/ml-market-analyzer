@@ -1719,3 +1719,4 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Recriacao apos reversao de checkpoint: todos os arquivos do backup restaurados
 - [x] Testes: 776 passando, tsc 0 erros, card validado no preview
 - [ ] PENDENTE DO USUARIO: publicar, clicar em "Conectar Google Drive" no site publicado, autorizar conta e testar "Backup agora"
+- [ ] BUG: apos autorizar no Google, card continua "Nao conectado" (drive_backup_config sem refreshToken). Logs adicionados no callback para diagnostico; precisa republicar e reconectar.

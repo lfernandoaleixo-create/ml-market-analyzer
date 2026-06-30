@@ -45,28 +45,54 @@ export function registerGdriveOAuthRoutes(app: Express): void {
     }
 
     if (!code) {
+      console.error("[gdrive/callback] sem code na query");
       res.redirect(`${returnPath}?gdrive=erro&reason=no_code`);
       return;
     }
 
     try {
       const tokens = await exchangeCodeForTokens(code);
-      if (!tokens.refresh_token) {
-        // Sem refresh_token (provavelmente já autorizado antes sem prompt=consent).
-        res.redirect(`${returnPath}?gdrive=erro&reason=no_refresh_token`);
+      console.log(
+        "[gdrive/callback] token exchange:",
+        JSON.stringify({
+          hasAccess: !!tokens.access_token,
+          hasRefresh: !!tokens.refresh_token,
+          error: tokens.error,
+          error_description: tokens.error_description,
+        }),
+      );
+      if (tokens.error || !tokens.access_token) {
+        const reason = encodeURIComponent(
+          `${tokens.error ?? "exchange_failed"}: ${tokens.error_description ?? ""}`.trim(),
+        );
+        res.redirect(`${returnPath}?gdrive=erro&reason=${reason}`);
         return;
       }
       let email = "";
       if (tokens.access_token) {
         email = await getAccountEmail(tokens.access_token);
       }
-      await updateDriveBackupConfig({
-        refreshToken: tokens.refresh_token,
+      // O Google só reenvia refresh_token quando força consentimento. Se não vier
+      // um novo (re-autorização), preservamos o que já estava salvo, se houver.
+      const patch: {
+        accountEmail: string;
+        folderName: string;
+        refreshToken?: string;
+      } = {
         accountEmail: email,
         folderName: "Backups Planilha SKU",
-      });
+      };
+      if (tokens.refresh_token) {
+        patch.refreshToken = tokens.refresh_token;
+      }
+      await updateDriveBackupConfig(patch);
+      console.log(
+        "[gdrive/callback] config salva:",
+        JSON.stringify({ email, savedRefresh: !!tokens.refresh_token }),
+      );
       res.redirect(`${returnPath}?gdrive=conectado`);
     } catch (err) {
+      console.error("[gdrive/callback] erro:", err);
       const reason = encodeURIComponent(
         err instanceof Error ? err.message : "exchange_failed",
       );
