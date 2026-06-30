@@ -1,9 +1,9 @@
 import { useLocation } from "wouter";
-import { Boxes, Package, Table2 } from "lucide-react";
+import { Package, Table2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 /**
- * Abas internas da Planilha do Pedro: Produtos | Kits | Embalagens.
+ * Abas internas da Planilha do Pedro: Produtos | Embalagens.
  * Exibidas no topo de cada uma das três planilhas, permitindo alternar
  * entre elas sem voltar para a tela da Linha do Tempo.
  */
@@ -11,7 +11,6 @@ type TabDef = { label: string; path: string; icon: LucideIcon };
 
 const TABS: TabDef[] = [
   { label: "Produtos", path: "/pedro-timeline/planilha-sku", icon: Table2 },
-  { label: "Kits", path: "/pedro-timeline/kits", icon: Boxes },
   { label: "Embalagens", path: "/pedro-timeline/embalagens", icon: Package },
 ];
 
