@@ -1726,3 +1726,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Opcoes do filtro = todos os valores presentes na coluna (multi-select); aplicar em conjunto com a busca livre
 - [x] Indicador visual de filtro ativo + opcao "Limpar" (badge de contagem + botao "Limpar filtros (n)")
 - [x] Testes vitest da logica de filtragem por coluna (14 testes passando)
+
+## Cabecalho fixo (congelar paineis) na Planilha SKU - Pedro
+- [x] Tornar a linha de titulos (thead) fixa no topo ao rolar verticalmente (estilo "congelar paineis" do Excel) - rolagem interna + thead sticky top-0, validado no preview (linhas 19-33 com header fixo)
+- [x] Manter colunas sticky (#, selecao, Acoes) e os filtros funcionando
+- [x] Garantir que o zoom 0.85 nao quebre o sticky do header (funcionou no Chrome)

@@ -449,10 +449,15 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
 
       {/* Tabela */}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-        {/* zoom levemente reduzido p/ caber mais colunas e deixar as linhas mais baixas */}
-        <div className="overflow-x-auto" style={{ zoom: 0.85 } as React.CSSProperties}>
+        {/*
+          zoom levemente reduzido p/ caber mais colunas e deixar as linhas mais baixas.
+          A rolagem (horizontal + vertical) acontece DENTRO deste contêiner para que o
+          cabeçalho (thead sticky) permaneça fixo no topo ao rolar a lista, como
+          "congelar painéis" no Excel. A altura usa a viewport para se adaptar à tela.
+        */}
+        <div className="overflow-auto max-h-[calc(100vh-220px)]" style={{ zoom: 0.85 } as React.CSSProperties}>
           <table className="w-full border-collapse text-sm">
-            <thead>
+            <thead className="sticky top-0 z-30">
               <tr className="text-[11px] uppercase tracking-wide text-white">
                 {selection && (
                   <Th className="sticky left-0 z-20 w-10 text-center" style={{ background: "var(--sku-head)" }}>
