@@ -1718,5 +1718,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend: card "Backup no Google Drive" em Configuracoes (conectar, backup agora, ligar diario, escolher horario)
 - [x] Recriacao apos reversao de checkpoint: todos os arquivos do backup restaurados
 - [x] Testes: 776 passando, tsc 0 erros, card validado no preview
-- [ ] PENDENTE DO USUARIO: publicar, clicar em "Conectar Google Drive" no site publicado, autorizar conta e testar "Backup agora"
-- [ ] BUG: apos autorizar no Google, card continua "Nao conectado" (drive_backup_config sem refreshToken). Logs adicionados no callback para diagnostico; precisa republicar e reconectar.
+- [x] PENDENTE DO USUARIO: publicar, clicar em "Conectar Google Drive" no site publicado, autorizar conta e testar "Backup agora" (CONCLUIDO 30/06: conectado, Drive API ativada + escopo drive.file, backup manual OK -> Planilha-SKU-2026-06-30_10h05.xlsx na pasta Backups Planilha SKU)
+- [x] BUG: apos autorizar no Google, card continuava "Nao conectado". CAUSA: app sem Google Drive API ativada + escopo drive.file ausente na tela de consentimento. RESOLVIDO: token salvo, pasta criada e upload do XLSX OK.
+
+## Filtros de coluna na Planilha SKU (Linha do Tempo Pedro)
+- [x] Adicionar filtros nos cabecalhos: Cadastrado ML, Tipo SKU, Categoria, Subcategoria, Produto (pular Nº)
+- [x] Opcoes do filtro = todos os valores presentes na coluna (multi-select); aplicar em conjunto com a busca livre
+- [x] Indicador visual de filtro ativo + opcao "Limpar" (badge de contagem + botao "Limpar filtros (n)")
+- [x] Testes vitest da logica de filtragem por coluna (14 testes passando)

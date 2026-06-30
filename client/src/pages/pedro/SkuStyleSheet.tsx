@@ -58,6 +58,17 @@ import {
   resolveProductNumber,
 } from "../../../../shared/skuSheet";
 import SheetTabs from "./SheetTabs";
+import ColumnFilter from "./ColumnFilter";
+import {
+  type ColumnFilters,
+  type FilterableColumn,
+  buildOptions,
+  applyColumnFilters,
+  toggleFilterValue,
+  clearColumnFilter,
+  clearAllFilters,
+  countActiveFilters,
+} from "../../../../shared/skuFilters";
 
 type SkuRow = {
   id: number;
@@ -181,6 +192,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
   const categories = binding.categories;
   const customColumns = binding.customColumns;
   const [search, setSearch] = useState("");
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({});
   const [deleteId, setDeleteId] = useState<number | null>(null);
   // Modal de edição da linha inteira.
   const [editRowId, setEditRowId] = useState<number | null>(null);
@@ -234,19 +246,51 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
     [updateMut],
   );
 
+  // Opções dos filtros = todos os valores presentes em cada coluna (calculadas
+  // sobre TODAS as linhas, independentemente dos filtros/busca ativos, para que
+  // o usuário sempre veja o leque completo de valores possíveis).
+  const filterOptions = useMemo(() => {
+    const list = (rows ?? []) as never[];
+    const cols: FilterableColumn[] = [
+      "cadastradoMl",
+      "tipoSku",
+      "categoryName",
+      "subCategoryName",
+      "produto",
+    ];
+    const out = {} as Record<FilterableColumn, { value: string; label: string }[]>;
+    for (const c of cols) out[c] = buildOptions(list, c);
+    return out;
+  }, [rows]);
+
+  const activeFilterCount = countActiveFilters(columnFilters);
+
+  const handleToggleFilter = useCallback((column: FilterableColumn, value: string) => {
+    setColumnFilters((prev) => toggleFilterValue(prev, column, value));
+  }, []);
+  const handleClearColumn = useCallback((column: FilterableColumn) => {
+    setColumnFilters((prev) => clearColumnFilter(prev, column));
+  }, []);
+  const handleClearAll = useCallback(() => setColumnFilters(clearAllFilters()), []);
+
   const filtered = useMemo(() => {
-    const list = rows ?? [];
-    if (!search.trim()) return list;
-    const q = search.toLowerCase();
-    return list.filter(
-      (r) =>
-        r.produto.toLowerCase().includes(q) ||
-        r.variante.toLowerCase().includes(q) ||
-        r.sku.toLowerCase().includes(q) ||
-        r.eanGtin.toLowerCase().includes(q) ||
-        r.ncm.toLowerCase().includes(q),
-    );
-  }, [rows, search]);
+    let list = rows ?? [];
+    // 1) Filtros de coluna (multi-seleção).
+    list = applyColumnFilters(list as never[], columnFilters) as typeof list;
+    // 2) Busca livre por texto.
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (r) =>
+          r.produto.toLowerCase().includes(q) ||
+          r.variante.toLowerCase().includes(q) ||
+          r.sku.toLowerCase().includes(q) ||
+          r.eanGtin.toLowerCase().includes(q) ||
+          r.ncm.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [rows, search, columnFilters]);
 
   const handleAdd = () => {
     const maxProduct = (rows ?? []).reduce((m, r) => Math.max(m, r.productNumber ?? 0), 0);
@@ -351,6 +395,17 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
               className="h-9 pl-8 w-60"
             />
           </div>
+          {activeFilterCount > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 bg-card text-primary"
+              onClick={handleClearAll}
+            >
+              <X className="w-4 h-4 mr-1.5" />
+              Limpar filtros ({activeFilterCount})
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="h-9 bg-card" onClick={() => setManageColumns(true)}>
             <Columns3 className="w-4 h-4 mr-1.5" />
             Colunas
@@ -418,12 +473,55 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                   </Th>
                 )}
                 <Th className={`sticky ${selection ? "left-10" : "left-0"} z-20 w-12 text-center`} style={{ background: "var(--sku-head)" }}>#</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[140px]">Cadastrado ML</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">Tipo SKU</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">Categoria</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">Subcategoria</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[140px]">
+                  <ColumnFilter
+                    label="Cadastrado ML"
+                    options={filterOptions.cadastradoMl}
+                    selected={columnFilters.cadastradoMl ?? []}
+                    onToggle={(v) => handleToggleFilter("cadastradoMl", v)}
+                    onClear={() => handleClearColumn("cadastradoMl")}
+                  />
+                </Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">
+                  <ColumnFilter
+                    label="Tipo SKU"
+                    options={filterOptions.tipoSku}
+                    selected={columnFilters.tipoSku ?? []}
+                    onToggle={(v) => handleToggleFilter("tipoSku", v)}
+                    onClear={() => handleClearColumn("tipoSku")}
+                  />
+                </Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">
+                  <ColumnFilter
+                    label="Categoria"
+                    options={filterOptions.categoryName}
+                    selected={columnFilters.categoryName ?? []}
+                    onToggle={(v) => handleToggleFilter("categoryName", v)}
+                    onClear={() => handleClearColumn("categoryName")}
+                    searchable
+                  />
+                </Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">
+                  <ColumnFilter
+                    label="Subcategoria"
+                    options={filterOptions.subCategoryName}
+                    selected={columnFilters.subCategoryName ?? []}
+                    onToggle={(v) => handleToggleFilter("subCategoryName", v)}
+                    onClear={() => handleClearColumn("subCategoryName")}
+                    searchable
+                  />
+                </Th>
                 <Th style={{ background: "var(--sku-head)" }} className="w-10 text-center">Nº</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[280px]">Produto</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[280px]">
+                  <ColumnFilter
+                    label="Produto"
+                    options={filterOptions.produto}
+                    selected={columnFilters.produto ?? []}
+                    onToggle={(v) => handleToggleFilter("produto", v)}
+                    onClear={() => handleClearColumn("produto")}
+                    searchable
+                  />
+                </Th>
                 <Th style={{ background: "var(--sku-head)" }} className="w-10 text-center">Nº</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[240px]">Variante</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">SKU</Th>
@@ -469,7 +567,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={(selection ? 26 : 25) + cols.length} className="text-center py-12 text-muted-foreground">
-                    {search ? "Nenhum item encontrado para a busca." : "Nenhum item ainda. Clique em “Nova linha”."}
+                    {search || activeFilterCount > 0 ? "Nenhum item encontrado para os filtros aplicados." : "Nenhum item ainda. Clique em “Nova linha”."}
                   </td>
                 </tr>
               )}
