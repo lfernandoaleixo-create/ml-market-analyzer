@@ -16,6 +16,8 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  AlertTriangle,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +59,7 @@ import {
   buildSkuKit,
   resolveProductNumber,
   resolveVariantNumber,
+  isSkuDuplicate,
 } from "../../../../shared/skuSheet";
 import SheetTabs from "./SheetTabs";
 import ColumnFilter from "./ColumnFilter";
@@ -130,6 +133,9 @@ export type SkuStyleBinding = {
   deleteColumn: (id: number) => void;
   setCustomValue: (rowId: number, columnId: number, value: string) => void;
   createPending: boolean;
+  /** Corrige em massa quaisquer SKUs duplicados (recalcula variantes). Opcional. */
+  repairAll?: () => void;
+  repairPending?: boolean;
 };
 
 export type SkuStyleSheetProps = {
@@ -317,6 +323,22 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
     [rows],
   );
 
+  // Conjunto de SKUs que aparecem em MAIS de uma linha (considera todas as
+  // linhas, não só as filtradas, para o alerta ser sempre fiel). Ignora vazios.
+  const duplicateSkus = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows ?? []) {
+      const s = (r.sku ?? "").trim();
+      if (!s) continue;
+      counts.set(s, (counts.get(s) ?? 0) + 1);
+    }
+    const dups = new Set<string>();
+    for (const [s, n] of Array.from(counts.entries())) if (n > 1) dups.add(s);
+    return dups;
+  }, [rows]);
+
+  const duplicateCount = duplicateSkus.size;
+
   const handleAdd = () => {
     const maxProduct = (rows ?? []).reduce((m, r) => Math.max(m, r.productNumber ?? 0), 0);
     createMut.mutate({ productNumber: maxProduct + 1, variantNumber: 1, tipoSku: "2" });
@@ -461,6 +483,37 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
         </div>
       </div>
 
+      {/* Alerta de SKU duplicado: aparece apenas quando há colisões. Oferece
+          correção automática em massa (recalcula as variantes para SKU único).
+          Em condições normais NUNCA deve aparecer, pois a trava do backend impede
+          a gravação de duplicados — funciona como salvaguarda visível. */}
+      {duplicateCount > 0 && (
+        <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <strong>
+                {duplicateCount} SKU{duplicateCount > 1 ? "s" : ""} duplicado
+                {duplicateCount > 1 ? "s" : ""}
+              </strong>{" "}
+              detectado{duplicateCount > 1 ? "s" : ""}. As linhas afetadas estão destacadas em
+              vermelho. Clique para corrigir automaticamente (cada variação recebe um número único).
+            </span>
+          </div>
+          {binding.repairAll && (
+            <Button
+              size="sm"
+              className="h-9 shrink-0 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => binding.repairAll?.()}
+              disabled={binding.repairPending}
+            >
+              <Wrench className="mr-1.5 h-4 w-4" />
+              {binding.repairPending ? "Corrigindo…" : "Corrigir automaticamente"}
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Barra de seleção (somente quando há itens marcados) */}
       {selection && selection.renderBar && selection.selectedIds.length > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
@@ -583,6 +636,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                   key={row.id}
                   row={row as SkuRow}
                   index={idx}
+                  isDuplicate={duplicateSkus.has(((row as SkuRow).sku ?? "").trim())}
                   categories={categoriesList}
                   allRows={allRowsRef}
                   customColumns={cols}
@@ -712,6 +766,7 @@ type SkuRowRef = {
 type RowEditorProps = {
   row: SkuRow;
   index: number;
+  isDuplicate: boolean;
   categories: { id: string; name: string; children: { id: string; name: string }[] }[];
   allRows: SkuRowRef[];
   customColumns: CustomColumn[];
@@ -728,7 +783,7 @@ type RowEditorProps = {
   };
 };
 
-function SkuRowEditorImpl({ row, index, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, selection }: RowEditorProps) {
+function SkuRowEditorImpl({ row, index, isDuplicate, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, selection }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
 
   const rowRef = useRef(row);
@@ -850,13 +905,26 @@ function SkuRowEditorImpl({ row, index, categories, allRows, customColumns, onFi
   // Campo derivado (somente leitura): exibe valor calculado automaticamente.
   const derived = (field: "sku" | "skuKit") => {
     const val = (local[field] as string) ?? "";
+    // Somente o campo SKU (não o SKU Kit) sinaliza duplicidade.
+    const flagDup = field === "sku" && isDuplicate && !!val;
     return (
       <div
-        className={`w-full px-2 py-1.5 rounded-md font-mono text-xs select-all whitespace-nowrap ${
-          val ? "text-foreground font-semibold" : "text-muted-foreground/50 italic"
+        className={`w-full px-2 py-1.5 rounded-md font-mono text-xs select-all whitespace-nowrap flex items-center gap-1 ${
+          flagDup
+            ? "text-destructive font-bold ring-1 ring-destructive/60 bg-destructive/10"
+            : val
+              ? "text-foreground font-semibold"
+              : "text-muted-foreground/50 italic"
         }`}
-        title={val ? "Gerado automaticamente" : "Preencha Tipo, Categoria e números"}
+        title={
+          flagDup
+            ? "SKU DUPLICADO: existe outra linha com este mesmo SKU. Use ‘Corrigir automaticamente’ no topo ou ajuste Tipo/Categoria/Nº."
+            : val
+              ? "Gerado automaticamente"
+              : "Preencha Tipo, Categoria e números"
+        }
       >
+        {flagDup && <AlertTriangle className="h-3 w-3 shrink-0" />}
         {val || "auto"}
       </div>
     );
@@ -1125,6 +1193,7 @@ function SkuRowEditorImpl({ row, index, categories, allRows, customColumns, onFi
 const SkuRowEditor = memo(SkuRowEditorImpl, (prev, next) => {
   if (prev.row !== next.row) return false;
   if (prev.index !== next.index) return false;
+  if (prev.isDuplicate !== next.isDuplicate) return false;
   if (prev.categories !== next.categories) return false;
   if (prev.allRows !== next.allRows) return false;
   if (prev.customColumns !== next.customColumns) return false;

@@ -7,6 +7,73 @@ import {
   SkuSheetCustomColumn,
   skuSheetCustomColumns,
 } from "../drizzle/schema";
+import {
+  resolveVariantNumber,
+  normalizeVariantNumbers,
+  buildSku,
+  buildSkuKit,
+  type VariantNumberRow,
+  type VariantFix,
+} from "../shared/skuSheet";
+
+// Campos cuja alteração afeta o SKU final (prefixo do grupo + variante).
+const SKU_AFFECTING_FIELDS = [
+  "tipoSku",
+  "categoryName",
+  "productNumber",
+  "variantNumber",
+  "gerarSkuKit",
+] as const;
+
+/**
+ * TRAVA de unicidade (última linha de defesa no servidor).
+ * Recebe o estado FINAL pretendido de uma linha (merge do patch) e o conjunto
+ * de linhas existentes; recalcula a variante para o próximo Nº livre no grupo
+ * (tipo+categoria+Nº produto) e recompõe sku/skuKit. Assim o banco nunca grava
+ * um SKU duplicado — mesmo via colagem, importação ou edição concorrente.
+ *
+ * Retorna os campos que devem ser efetivamente persistidos (variantNumber, sku,
+ * skuKit). Se o grupo for inválido (faltando tipo/categoria/Nº produto),
+ * apenas recompõe o sku a partir dos dados atuais sem forçar variante.
+ */
+function enforceUniqueSku(
+  finalRow: {
+    id: number;
+    tipoSku: string;
+    categoryName: string | null;
+    productNumber: number | null;
+    variantNumber: number | null;
+    gerarSkuKit: boolean;
+  },
+  existingRows: VariantNumberRow[],
+): { variantNumber: number | null; sku: string; skuKit: string } {
+  const variantNumber = resolveVariantNumber(existingRows, finalRow.id, {
+    tipoSku: finalRow.tipoSku,
+    categoryName: finalRow.categoryName,
+    productNumber: finalRow.productNumber,
+    variantNumber: finalRow.variantNumber,
+  });
+  const sku = buildSku({
+    tipoSku: finalRow.tipoSku,
+    categoryName: finalRow.categoryName,
+    productNumber: finalRow.productNumber,
+    variantNumber,
+  });
+  const skuKit = buildSkuKit(sku, finalRow.gerarSkuKit);
+  return { variantNumber, sku, skuKit };
+}
+
+/** Carrega as linhas necessárias para o cálculo de unicidade (formato enxuto). */
+async function loadVariantRows(): Promise<VariantNumberRow[]> {
+  const rows = await listSkuRows();
+  return rows.map((r) => ({
+    id: r.id,
+    tipoSku: r.tipoSku,
+    categoryName: r.categoryName,
+    productNumber: r.productNumber,
+    variantNumber: r.variantNumber,
+  }));
+}
 
 /** Lista todas as linhas da planilha, ordenadas por posição. */
 export async function listSkuRows(): Promise<SkuSheetRow[]> {
@@ -38,7 +105,34 @@ export async function createSkuRow(
     .from(skuSheetRows)
     .orderBy(sql`${skuSheetRows.id} DESC`)
     .limit(1);
-  return created[0];
+  const row = created[0];
+
+  // TRAVA: se a linha nasceu com dados suficientes para um SKU, garante que
+  // ele seja único (recalcula variante/sku considerando as demais linhas).
+  const tipo = (row.tipoSku ?? "").trim();
+  if (tipo && row.categoryName && row.productNumber != null) {
+    const existing = await loadVariantRows();
+    const enforced = enforceUniqueSku(
+      {
+        id: row.id,
+        tipoSku: row.tipoSku,
+        categoryName: row.categoryName,
+        productNumber: row.productNumber,
+        variantNumber: row.variantNumber,
+        gerarSkuKit: row.gerarSkuKit,
+      },
+      existing,
+    );
+    if (
+      enforced.variantNumber !== row.variantNumber ||
+      enforced.sku !== row.sku ||
+      enforced.skuKit !== row.skuKit
+    ) {
+      await db.update(skuSheetRows).set(enforced).where(eq(skuSheetRows.id, row.id));
+      return { ...row, ...enforced };
+    }
+  }
+  return row;
 }
 
 /** Atualiza campos de uma linha existente. */
@@ -53,7 +147,36 @@ export async function updateSkuRow(
   if (Object.keys(safe).length > 0) {
     await db.update(skuSheetRows).set(safe).where(eq(skuSheetRows.id, id));
   }
-  const rows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
+  let rows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
+  const current = rows[0] ?? null;
+  if (!current) return null;
+
+  // TRAVA: quando o patch toca qualquer campo que compõe o SKU, revalida a
+  // unicidade no servidor e corrige automaticamente a variante/sku se preciso.
+  const touchesSku = SKU_AFFECTING_FIELDS.some((f) => f in safe);
+  const tipo = (current.tipoSku ?? "").trim();
+  if (touchesSku && tipo && current.categoryName && current.productNumber != null) {
+    const existing = await loadVariantRows();
+    const enforced = enforceUniqueSku(
+      {
+        id: current.id,
+        tipoSku: current.tipoSku,
+        categoryName: current.categoryName,
+        productNumber: current.productNumber,
+        variantNumber: current.variantNumber,
+        gerarSkuKit: current.gerarSkuKit,
+      },
+      existing,
+    );
+    if (
+      enforced.variantNumber !== current.variantNumber ||
+      enforced.sku !== current.sku ||
+      enforced.skuKit !== current.skuKit
+    ) {
+      await db.update(skuSheetRows).set(enforced).where(eq(skuSheetRows.id, id));
+      rows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
+    }
+  }
   return rows[0] ?? null;
 }
 
@@ -67,12 +190,6 @@ export async function deleteSkuRow(id: number): Promise<void> {
 // ---------------------------------------------------------------------------
 // Reparo em massa das variantes (elimina SKUs duplicados)
 // ---------------------------------------------------------------------------
-import {
-  normalizeVariantNumbers,
-  buildSku,
-  buildSkuKit,
-  type VariantFix,
-} from "../shared/skuSheet";
 
 export interface VariantRepairResult {
   /** Alterações aplicadas (antes/depois), com o SKU resultante. */

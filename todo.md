@@ -1751,3 +1751,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Backend: repairVariantNumbers(dryRun) em skuSheetDb + procedure trpc skuSheet.repairVariants (apply opcional), recalcula SKU e skuKit
 - [x] Testes vitest cobrindo colisao, reparo em massa, 3 variacoes -> 1,2,3, unicidade do SKU (10 testes)
 - [x] Corrigir a linha 60006 real no banco (variante 3 -> 1-SERVICOS-46-3); verificado 0 SKUs duplicados na planilha inteira
+
+## PREVENCAO PERMANENTE: nunca mais SKU duplicado - 01/07
+- [x] Backend (trava/ultima defesa): enforceUniqueSku em updateSkuRow/createSkuRow recalcula a variante para o proximo livre no grupo ANTES de gravar, garantindo SKU unico mesmo em colagem/importacao
+- [x] Backend: helper enforceUniqueSku reaproveita resolveVariantNumber com as linhas atuais do banco e recompoe sku/skuKit
+- [x] Frontend (alerta visual): linhas com SKU duplicado destacadas (borda/badge vermelho) via duplicateSkus + prop isDuplicate no SkuRowEditor (comparador do memo atualizado)
+- [x] Frontend: banner/contador no topo com botao "Corrigir automaticamente" (chama skuSheet.repairVariants apply=true e invalida a lista)
+- [x] Frontend (correcao automatica ao editar): update sincroniza o cache com a linha do servidor; se o sku retornar diferente do enviado, toast informa o ajuste automatico
+- [x] Testes vitest backend: 4 testes de trava (salvar linha que geraria SKU duplicado -> variante incrementada, sku unico)
+- [x] Validar no preview: inserida duplicata proposital -> banner+destaque apareceram; "Corrigir automaticamente" gerou 1-SERVICOS-46-4 e zerou duplicatas; linha de teste removida

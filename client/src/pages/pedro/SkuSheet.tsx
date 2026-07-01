@@ -10,9 +10,17 @@ import SkuStyleSheet, { type SkuStyleBinding } from "./SkuStyleSheet";
  * DIRETAMENTE no cache do React Query (update otimista), SEM refetch da lista
  * inteira. Isso mantém a digitação instantânea mesmo com muitas linhas. Apenas
  * operações que mudam a composição da lista (create/delete/colunas) invalidam.
+ *
+ * UNICIDADE DE SKU: o backend possui uma TRAVA que recalcula a variante/SKU para
+ * o próximo número livre no grupo antes de gravar (nunca persiste SKU duplicado).
+ * Como o update é otimista, ao receber a resposta do servidor sincronizamos o
+ * cache com a linha final; se o SKU tiver sido auto-corrigido, avisamos o usuário.
  */
 type SkuRowCache = {
   id: number;
+  sku?: string | null;
+  skuKit?: string | null;
+  variantNumber?: number | null;
   customValues?: string | null;
   [key: string]: unknown;
 };
@@ -36,7 +44,27 @@ export default function SkuSheet() {
   };
 
   const updateMut = trpc.skuSheet.update.useMutation({
-    // Sem onSuccess->invalidate: a tela já refletiu via patch otimista.
+    // Sincroniza o cache com a linha final do servidor (a trava pode ter
+    // corrigido variante/SKU). Avisa quando houver auto-correção.
+    onSuccess: (server, variables) => {
+      if (!server) return;
+      patchRowInCache(server.id, {
+        variantNumber: server.variantNumber,
+        sku: server.sku,
+        skuKit: server.skuKit,
+      });
+      const sentSku = (variables as { sku?: string }).sku;
+      // Se o usuário/edição levaria a um SKU e o servidor devolveu outro
+      // (por causa da trava anti-duplicidade), informamos a correção.
+      if (
+        typeof sentSku === "string" &&
+        sentSku.length > 0 &&
+        server.sku &&
+        server.sku !== sentSku
+      ) {
+        toast.info(`SKU ajustado automaticamente para ${server.sku} (evita duplicidade).`);
+      }
+    },
     onError: () => {
       toast.error("Não foi possível salvar a alteração");
       utils.skuSheet.list.invalidate();
@@ -81,6 +109,20 @@ export default function SkuSheet() {
       utils.skuSheet.list.invalidate();
     },
   });
+  const repairMut = trpc.skuSheet.repairVariants.useMutation({
+    onSuccess: async (res) => {
+      await utils.skuSheet.list.invalidate();
+      const n = res?.changes?.length ?? 0;
+      if (n === 0) {
+        toast.success("Nenhum SKU duplicado encontrado.");
+      } else {
+        toast.success(
+          `${n} SKU(s) corrigido(s) automaticamente. Todos os SKUs agora são únicos.`,
+        );
+      }
+    },
+    onError: () => toast.error("Não foi possível corrigir os SKUs"),
+  });
 
   const binding: SkuStyleBinding = {
     rows: rows as SkuStyleBinding["rows"],
@@ -90,7 +132,7 @@ export default function SkuSheet() {
     update: (input) => {
       const { id, ...patch } = input as { id: number } & Record<string, unknown>;
       patchRowInCache(id, patch); // reflete na hora
-      updateMut.mutate(input as never); // persiste em background
+      updateMut.mutate(input as never); // persiste + sincroniza no onSuccess
     },
     create: (input) => createMut.mutate(input as never),
     remove: (id) => deleteMut.mutate({ id }),
@@ -116,6 +158,8 @@ export default function SkuSheet() {
       setCustomValueMut.mutate({ rowId, columnId, value });
     },
     createPending: createMut.isPending,
+    repairAll: () => repairMut.mutate({ apply: true }),
+    repairPending: repairMut.isPending,
   };
 
   return (
