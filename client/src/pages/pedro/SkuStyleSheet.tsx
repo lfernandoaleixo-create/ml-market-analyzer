@@ -60,6 +60,7 @@ import {
   resolveProductNumber,
   resolveVariantNumber,
   isSkuDuplicate,
+  analyzeDuplicates,
 } from "../../../../shared/skuSheet";
 import SheetTabs from "./SheetTabs";
 import ColumnFilter from "./ColumnFilter";
@@ -323,21 +324,42 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
     [rows],
   );
 
-  // Conjunto de SKUs que aparecem em MAIS de uma linha (considera todas as
-  // linhas, não só as filtradas, para o alerta ser sempre fiel). Ignora vazios.
-  const duplicateSkus = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const r of rows ?? []) {
-      const s = (r.sku ?? "").trim();
-      if (!s) continue;
-      counts.set(s, (counts.get(s) ?? 0) + 1);
-    }
-    const dups = new Set<string>();
-    for (const [s, n] of Array.from(counts.entries())) if (n > 1) dups.add(s);
-    return dups;
-  }, [rows]);
+  // Análise de duplicidade em DOIS tipos (considera todas as linhas, não só as
+  // filtradas, para o alerta ser sempre fiel):
+  //   • identicalGroups → LINHA IDÊNTICA (erro do usuário): mesmo conteúdo.
+  //   • skuCollisions   → SKU IGUAL gerado (erro do sistema): corrigível.
+  const dupAnalysis = useMemo(
+    () =>
+      analyzeDuplicates(
+        (rows ?? []).map((r) => ({
+          id: r.id,
+          position: r.position,
+          tipoSku: r.tipoSku,
+          categoryName: r.categoryName,
+          produto: r.produto,
+          variante: r.variante,
+          productNumber: r.productNumber,
+          variantNumber: r.variantNumber,
+          sku: r.sku,
+        })),
+      ),
+    [rows],
+  );
 
-  const duplicateCount = duplicateSkus.size;
+  // Mapa id → tipo de problema, para destacar a linha com a cor certa.
+  // 'identical' (âmbar/bloqueio) tem prioridade sobre 'collision' (vermelho).
+  const rowProblem = useMemo(() => {
+    const m = new Map<number, "identical" | "collision">();
+    for (const g of dupAnalysis.skuCollisions) for (const id of g.ids) m.set(id, "collision");
+    for (const g of dupAnalysis.identicalGroups) for (const id of g.ids) m.set(id, "identical");
+    return m;
+  }, [dupAnalysis]);
+
+  const identicalCount = dupAnalysis.identicalGroups.length;
+  const collisionCount = dupAnalysis.skuCollisions.reduce(
+    (n, g) => n + Math.max(0, g.ids.length - 1),
+    0,
+  );
 
   const handleAdd = () => {
     const maxProduct = (rows ?? []).reduce((m, r) => Math.max(m, r.productNumber ?? 0), 0);
@@ -483,21 +505,50 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
         </div>
       </div>
 
-      {/* Alerta de SKU duplicado: aparece apenas quando há colisões. Oferece
-          correção automática em massa (recalcula as variantes para SKU único).
-          Em condições normais NUNCA deve aparecer, pois a trava do backend impede
-          a gravação de duplicados — funciona como salvaguarda visível. */}
-      {duplicateCount > 0 && (
+      {/* ALERTA TIPO 1 — LINHA IDÊNTICA (erro de preenchimento do usuário).
+          Duas ou mais linhas com o MESMO conteúdo (tipo + categoria + produto +
+          variante). Não se corrige renumerando: é cadastro repetido de verdade, o
+          usuário precisa remover/ajustar uma delas. Cor âmbar (atenção/bloqueio). */}
+      {identicalCount > 0 && (
+        <div className="flex flex-col gap-2 rounded-lg border border-amber-400/60 bg-amber-50 px-4 py-3 text-amber-900">
+          <div className="flex items-start gap-2 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="space-y-1">
+              <p className="font-semibold">
+                {identicalCount === 1
+                  ? "Linha idêntica detectada"
+                  : `${identicalCount} conjuntos de linhas idênticas detectados`}
+              </p>
+              {dupAnalysis.identicalGroups.map((g) => (
+                <p key={g.key} className="text-[13px] leading-snug">
+                  As linhas <strong>{g.positions.join(", ")}</strong> têm os mesmos dados
+                  idênticos cadastrados{g.produto ? <> (“{g.produto}”)</> : null} e gerariam um
+                  SKU igual, o que não é permitido. Ajuste a variante ou remova a linha repetida.
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ALERTA TIPO 2 — SKU IGUAL GERADO (falha da geração automática).
+          Linhas legitimamente diferentes que acabaram com o mesmo SKU. Corrigível
+          automaticamente (renumera a variante). Cor vermelha. */}
+      {collisionCount > 0 && (
         <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
               <strong>
-                {duplicateCount} SKU{duplicateCount > 1 ? "s" : ""} duplicado
-                {duplicateCount > 1 ? "s" : ""}
+                {collisionCount} SKU{collisionCount > 1 ? "s" : ""} igual
+                {collisionCount > 1 ? "is" : ""}
               </strong>{" "}
-              detectado{duplicateCount > 1 ? "s" : ""}. As linhas afetadas estão destacadas em
-              vermelho. Clique para corrigir automaticamente (cada variação recebe um número único).
+              gerado{collisionCount > 1 ? "s" : ""} para variações diferentes
+              {dupAnalysis.skuCollisions.length > 0 && (
+                <> (linhas {dupAnalysis.skuCollisions.flatMap((g) => g.positions).join(", ")})</>
+              )}
+              . Isso foi um erro na numeração automática. Clique para corrigir — cada variação
+              recebe um número único.
             </span>
           </div>
           {binding.repairAll && (
@@ -636,7 +687,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                   key={row.id}
                   row={row as SkuRow}
                   index={idx}
-                  isDuplicate={duplicateSkus.has(((row as SkuRow).sku ?? "").trim())}
+                  problemType={rowProblem.get(row.id) ?? null}
                   categories={categoriesList}
                   allRows={allRowsRef}
                   customColumns={cols}
@@ -766,7 +817,7 @@ type SkuRowRef = {
 type RowEditorProps = {
   row: SkuRow;
   index: number;
-  isDuplicate: boolean;
+  problemType: "identical" | "collision" | null;
   categories: { id: string; name: string; children: { id: string; name: string }[] }[];
   allRows: SkuRowRef[];
   customColumns: CustomColumn[];
@@ -783,7 +834,7 @@ type RowEditorProps = {
   };
 };
 
-function SkuRowEditorImpl({ row, index, isDuplicate, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, selection }: RowEditorProps) {
+function SkuRowEditorImpl({ row, index, problemType, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, selection }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
 
   const rowRef = useRef(row);
@@ -905,26 +956,31 @@ function SkuRowEditorImpl({ row, index, isDuplicate, categories, allRows, custom
   // Campo derivado (somente leitura): exibe valor calculado automaticamente.
   const derived = (field: "sku" | "skuKit") => {
     const val = (local[field] as string) ?? "";
-    // Somente o campo SKU (não o SKU Kit) sinaliza duplicidade.
-    const flagDup = field === "sku" && isDuplicate && !!val;
+    // Somente o campo SKU (não o SKU Kit) sinaliza problema.
+    const flag = field === "sku" && problemType != null && !!val;
+    const isIdentical = flag && problemType === "identical";
     return (
       <div
         className={`w-full px-2 py-1.5 rounded-md font-mono text-xs select-all whitespace-nowrap flex items-center gap-1 ${
-          flagDup
-            ? "text-destructive font-bold ring-1 ring-destructive/60 bg-destructive/10"
-            : val
-              ? "text-foreground font-semibold"
-              : "text-muted-foreground/50 italic"
+          isIdentical
+            ? "text-amber-700 font-bold ring-1 ring-amber-400/70 bg-amber-100"
+            : flag
+              ? "text-destructive font-bold ring-1 ring-destructive/60 bg-destructive/10"
+              : val
+                ? "text-foreground font-semibold"
+                : "text-muted-foreground/50 italic"
         }`}
         title={
-          flagDup
-            ? "SKU DUPLICADO: existe outra linha com este mesmo SKU. Use ‘Corrigir automaticamente’ no topo ou ajuste Tipo/Categoria/Nº."
-            : val
-              ? "Gerado automaticamente"
-              : "Preencha Tipo, Categoria e números"
+          isIdentical
+            ? "LINHA IDÊNTICA: outra linha já tem estes mesmos dados. Ajuste a variante ou remova a linha repetida."
+            : flag
+              ? "SKU IGUAL gerado para variações diferentes. Use ‘Corrigir automaticamente’ no topo."
+              : val
+                ? "Gerado automaticamente"
+                : "Preencha Tipo, Categoria e números"
         }
       >
-        {flagDup && <AlertTriangle className="h-3 w-3 shrink-0" />}
+        {flag && <AlertTriangle className="h-3 w-3 shrink-0" />}
         {val || "auto"}
       </div>
     );
@@ -1193,7 +1249,7 @@ function SkuRowEditorImpl({ row, index, isDuplicate, categories, allRows, custom
 const SkuRowEditor = memo(SkuRowEditorImpl, (prev, next) => {
   if (prev.row !== next.row) return false;
   if (prev.index !== next.index) return false;
-  if (prev.isDuplicate !== next.isDuplicate) return false;
+  if (prev.problemType !== next.problemType) return false;
   if (prev.categories !== next.categories) return false;
   if (prev.allRows !== next.allRows) return false;
   if (prev.customColumns !== next.customColumns) return false;

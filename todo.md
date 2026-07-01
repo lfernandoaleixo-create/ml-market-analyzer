@@ -1760,3 +1760,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Frontend (correcao automatica ao editar): update sincroniza o cache com a linha do servidor; se o sku retornar diferente do enviado, toast informa o ajuste automatico
 - [x] Testes vitest backend: 4 testes de trava (salvar linha que geraria SKU duplicado -> variante incrementada, sku unico)
 - [x] Validar no preview: inserida duplicata proposital -> banner+destaque apareceram; "Corrigir automaticamente" gerou 1-SERVICOS-46-4 e zerou duplicatas; linha de teste removida
+
+## DOIS TIPOS DE ALERTA DE SKU/LINHA DUPLICADA - 01/07
+- [x] Investigado: o banner antigo dependia do sku PERSISTIDO; como a trava do backend nunca grava sku repetido, o Tipo 2 quase nunca disparava, e o Tipo 1 (linha identica de conteudo) nem existia
+- [x] ALERTA 1 (erro do usuario - LINHA IDENTICA): analyzeDuplicates detecta linhas com mesma identidade (tipoSku + categoria + produto + variante normalizados); banner ambar aponta as linhas X e diz "tem os mesmos dados identicos cadastrados"; NAO renumera
+- [x] ALERTA 1: celula SKU destacada em ambar nas linhas envolvidas + mensagem com os numeros das linhas
+- [x] ALERTA 2 (erro do sistema - SKU IGUAL): analyzeDuplicates.skuCollisions detecta mesmo sku em variacoes DIFERENTES; banner vermelho + botao "Corrigir automaticamente" (repairVariants)
+- [x] Diferenciados no UI: Tipo 1 ambar (sem botao, exige acao manual) vs Tipo 2 vermelho (com botao de correcao); celulas destacadas com cores correspondentes
+- [x] Testes vitest (7): linha identica, ignora caixa/espacos, variantes diferentes, colisao corrigivel, colisao+identico=Tipo1, sem problemas, sem produto
+- [x] Validado no preview: inseri Tipo 1 (linhas 900/901 identicas -> banner ambar) e Tipo 2 (902/903 colisao -> banner vermelho); "Corrigir automaticamente" resolveu o Tipo 2; linhas de teste removidas; 0 duplicatas

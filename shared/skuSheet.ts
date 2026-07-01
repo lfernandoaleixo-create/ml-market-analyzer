@@ -379,3 +379,134 @@ export function isSkuDuplicate(
   if (!target) return false;
   return rows.some((r) => r.id !== currentRowId && (r.sku ?? "").trim() === target);
 }
+
+// ---------------------------------------------------------------------------
+// Análise de duplicidade em DOIS tipos distintos
+//   1) LINHA IDÊNTICA (erro de preenchimento do usuário): duas ou mais linhas
+//      com a MESMA identidade de conteúdo — mesmo tipo + categoria + nome do
+//      produto + texto da variante. Isso é conteúdo repetido de verdade e NÃO
+//      deve ser "corrigido" renumerando (seria mascarar um cadastro duplicado).
+//   2) COLISÃO DE SKU (falha de geração): linhas legitimamente DIFERENTES (a
+//      variante textual difere) que, por um erro de numeração, acabaram com o
+//      MESMO SKU. Esse caso é corrigível automaticamente (renumerar a variante).
+// ---------------------------------------------------------------------------
+
+/** Linha mínima para a análise de duplicidade (identidade + SKU atual). */
+export interface DuplicateAnalysisRow {
+  id: number;
+  position: number;
+  tipoSku: string;
+  categoryName: string | null;
+  produto: string | null;
+  variante: string | null;
+  productNumber: number | null;
+  variantNumber: number | null;
+  sku: string | null;
+}
+
+/** Grupo de linhas com a MESMA identidade de conteúdo (linha idêntica). */
+export interface IdenticalGroup {
+  /** Chave normalizada da identidade (para debug/testes). */
+  key: string;
+  /** Ids das linhas envolvidas, em ordem crescente. */
+  ids: number[];
+  /** Posições (número visível na planilha) das linhas envolvidas. */
+  positions: number[];
+  /** Nome do produto (para a mensagem). */
+  produto: string;
+}
+
+/** Grupo de linhas com o MESMO SKU gerado, mas variações diferentes. */
+export interface SkuCollisionGroup {
+  sku: string;
+  ids: number[];
+  positions: number[];
+}
+
+export interface DuplicateAnalysis {
+  identicalGroups: IdenticalGroup[];
+  skuCollisions: SkuCollisionGroup[];
+}
+
+/** Normaliza o texto da variante para comparação (trim + minúsculas + espaços). */
+export function normalizeVariantText(v: string | null | undefined): string {
+  return (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Chave de identidade de CONTEÚDO de uma linha: mesmo tipo + categoria + nome do
+ * produto + texto da variante. Duas linhas com a mesma chave são "idênticas".
+ * Só é considerada válida quando há produto (senão não faz sentido comparar).
+ */
+function identityKey(r: DuplicateAnalysisRow): string | null {
+  const produto = normalizeProductName(r.produto);
+  if (!produto) return null;
+  const tipo = (r.tipoSku ?? "").trim();
+  const cat = normalizeProductName(r.categoryName);
+  const variante = normalizeVariantText(r.variante);
+  return [tipo, cat, produto, variante].join("||");
+}
+
+/**
+ * Classifica as duplicidades da planilha nos dois tipos descritos acima.
+ * - `identicalGroups`: 2+ linhas com a mesma identidade de conteúdo.
+ * - `skuCollisions`: 2+ linhas com o mesmo SKU que NÃO são idênticas entre si
+ *   (i.e., a colisão não é explicada por conteúdo repetido — é erro de geração).
+ */
+export function analyzeDuplicates(rows: DuplicateAnalysisRow[]): DuplicateAnalysis {
+  // --- Tipo 1: linhas idênticas por conteúdo ---
+  const byIdentity = new Map<string, DuplicateAnalysisRow[]>();
+  for (const r of rows) {
+    const key = identityKey(r);
+    if (!key) continue;
+    const bucket = byIdentity.get(key);
+    if (bucket) bucket.push(r);
+    else byIdentity.set(key, [r]);
+  }
+  const identicalGroups: IdenticalGroup[] = [];
+  for (const [key, bucket] of Array.from(byIdentity.entries())) {
+    if (bucket.length < 2) continue;
+    const ordered = [...bucket].sort((a, b) => a.id - b.id);
+    identicalGroups.push({
+      key,
+      ids: ordered.map((r) => r.id),
+      positions: ordered.map((r) => r.position),
+      produto: (ordered[0].produto ?? "").trim(),
+    });
+  }
+
+  // Conjunto de ids que já estão em um grupo idêntico (para não duplicar o
+  // alerta: se a colisão de SKU é por conteúdo repetido, ela vira Tipo 1).
+  const identicalIds = new Set<number>();
+  for (const g of identicalGroups) for (const id of g.ids) identicalIds.add(id);
+
+  // --- Tipo 2: colisão de SKU entre linhas NÃO idênticas ---
+  const bySku = new Map<string, DuplicateAnalysisRow[]>();
+  for (const r of rows) {
+    const s = (r.sku ?? "").trim();
+    if (!s) continue;
+    const bucket = bySku.get(s);
+    if (bucket) bucket.push(r);
+    else bySku.set(s, [r]);
+  }
+  const skuCollisions: SkuCollisionGroup[] = [];
+  for (const [sku, bucket] of Array.from(bySku.entries())) {
+    if (bucket.length < 2) continue;
+    // Remove as linhas cuja colisão é explicada por conteúdo idêntico:
+    // se TODAS as linhas do SKU são idênticas entre si, é Tipo 1, não Tipo 2.
+    const distinctIdentities = new Set(
+      bucket.map((r) => identityKey(r) ?? `__noident_${r.id}`),
+    );
+    // Se há mais de uma identidade distinta, então são variações diferentes
+    // com o mesmo SKU → colisão de geração (Tipo 2).
+    if (distinctIdentities.size <= 1) continue;
+    const ordered = [...bucket].sort((a, b) => a.id - b.id);
+    skuCollisions.push({
+      sku,
+      ids: ordered.map((r) => r.id),
+      positions: ordered.map((r) => r.position),
+    });
+  }
+
+  return { identicalGroups, skuCollisions };
+}
