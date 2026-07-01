@@ -1743,3 +1743,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Testes vitest cobrindo Opcao A (21 testes)
 - [x] Corrigir dados existentes: unificar Nº de produto de nomes iguais divergentes (ex.: CAIXA PRESENTE PREMIUM BRÁS 31 e 29) e resolver SKUs duplicados (65/66) - mostrar antes/depois antes de gravar
 - [x] Rodar suite completa e validar no preview (796 testes passando; 3 falhas pre-existentes em accountProvider sensiveis a data)
+
+## BUG REGRESSAO: SKU ainda duplica (linhas 65/67 - ENVELOPE PLASTICO) - 01/07
+- [x] CAUSA: resolveVariantNumber so troca a variante quando "desired" colide no instante do calculo; se o grupo estava incompleto a variante 1 era aceita e nunca reavaliada. Linhas 65 e 67 ficaram ambas 1-SERVICOS-46-1
+- [x] Reforcar resolveVariantNumber para SEMPRE atribuir o proximo livre quando ha colisao no grupo (comparacao com id deterministico)
+- [x] Adicionar normalizeVariantNumbers(rows): reprocessa toda a planilha (2 passadas: preservar nao-colidentes por menor id, depois realocar) garantindo variante unica por grupo com mudanca minima
+- [x] Backend: repairVariantNumbers(dryRun) em skuSheetDb + procedure trpc skuSheet.repairVariants (apply opcional), recalcula SKU e skuKit
+- [x] Testes vitest cobrindo colisao, reparo em massa, 3 variacoes -> 1,2,3, unicidade do SKU (10 testes)
+- [x] Corrigir a linha 60006 real no banco (variante 3 -> 1-SERVICOS-46-3); verificado 0 SKUs duplicados na planilha inteira

@@ -10,6 +10,7 @@ import {
   renameCustomColumn,
   deleteCustomColumn,
   setCustomValue,
+  repairVariantNumbers,
 } from "../skuSheetDb";
 import mlCategoriesJson from "../../shared/mlCategories.json";
 import type { MlCategoryTree } from "../../shared/skuSheet";
@@ -109,4 +110,13 @@ export const skuSheetRouter = router({
       }),
     )
     .mutation(({ input }) => setCustomValue(input.rowId, input.columnId, input.value)),
+
+  /**
+   * Reparo de SKUs duplicados: recalcula as variantes para garantir unicidade
+   * por grupo (tipo+categoria+Nº produto). `dryRun` (padrão) apenas retorna as
+   * mudanças (antes/depois); com `apply=true` persiste as correções.
+   */
+  repairVariants: publicProcedure
+    .input(z.object({ apply: z.boolean().optional() }).optional())
+    .mutation(({ input }) => repairVariantNumbers(!(input?.apply ?? false))),
 });

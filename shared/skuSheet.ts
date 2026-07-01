@@ -269,19 +269,101 @@ export function resolveVariantNumber(
   if (!tipo || !cat || prod == null) return current.variantNumber ?? 1;
 
   const groupKey = skuGroupKey(current);
+
+  // Coleta as variantes já ocupadas por OUTRAS linhas do mesmo grupo.
+  // IMPORTANTE: usamos ordem determinística (id crescente) para desempate,
+  // de forma que "quem chegou primeiro" (menor id) mantém sua variante e a
+  // linha atual cede quando há colisão — assim o resultado é estável e não
+  // depende do instante em que o cálculo é disparado.
   const used = new Set<number>();
   for (const r of rows) {
     if (r.id === currentRowId) continue;
     if (r.variantNumber == null) continue;
-    if (skuGroupKey(r) === groupKey) used.add(r.variantNumber);
+    if (skuGroupKey(r) !== groupKey) continue;
+    used.add(r.variantNumber);
   }
 
   const desired = current.variantNumber;
+  // Só mantém a variante desejada se ela NÃO colidir com outra linha do grupo.
   if (desired != null && desired >= 1 && !used.has(desired)) return desired;
 
+  // Caso contrário, atribui o menor Nº de variante livre (>= 1).
   let next = 1;
   while (used.has(next)) next += 1;
   return next;
+}
+
+// ---------------------------------------------------------------------------
+// Normalização em massa das variantes (reparo de duplicatas)
+// Reprocessa TODAS as linhas garantindo que, dentro de cada grupo
+// (tipo+categoria+Nº produto), as variantes sejam únicas. A ordem de
+// prioridade é determinística: menor `variantNumber` primeiro e, em empate,
+// menor `id` (a linha mais antiga mantém seu número; as seguintes recebem o
+// próximo livre). Linhas sem grupo válido são preservadas sem alteração.
+// ---------------------------------------------------------------------------
+
+/** Resultado de uma alteração de variante sugerida pela normalização. */
+export interface VariantFix {
+  id: number;
+  from: number | null;
+  to: number;
+}
+
+/**
+ * Calcula as correções de variante necessárias para eliminar SKUs duplicados.
+ * Não muta a entrada; retorna apenas a lista de linhas que precisam mudar
+ * (para exibir antes/depois e aplicar de forma controlada).
+ */
+export function normalizeVariantNumbers(rows: VariantNumberRow[]): VariantFix[] {
+  // Agrupa por prefixo de SKU (tipo+categoria+Nº produto).
+  const groups = new Map<string, VariantNumberRow[]>();
+  for (const r of rows) {
+    const tipo = (r.tipoSku ?? "").trim();
+    const cat = categoryAbbreviation(r.categoryName);
+    const prod = r.productNumber;
+    if (!tipo || !cat || prod == null) continue; // grupo inválido: ignora
+    const key = skuGroupKey(r);
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(r);
+    else groups.set(key, [r]);
+  }
+
+  const fixes: VariantFix[] = [];
+  for (const bucket of Array.from(groups.values())) {
+    // Ordem estável por id (linha mais antiga tem prioridade em empates).
+    const ordered = [...bucket].sort((a, b) => a.id - b.id);
+
+    // Passada 1 — PRESERVAR: a PRIMEIRA linha (menor id) que reivindica um
+    // número de variante válido e ainda livre mantém esse número. Assim, apenas
+    // as linhas realmente duplicadas são alteradas (mudança mínima).
+    const finalUsed = new Set<number>();
+    const keepById = new Map<number, number>();
+    for (const r of ordered) {
+      const current = r.variantNumber;
+      if (current != null && current >= 1 && !finalUsed.has(current)) {
+        finalUsed.add(current);
+        keepById.set(r.id, current);
+      }
+    }
+    // Passada 2 — REALOCAR: as demais linhas recebem o menor Nº livre (>= 1).
+    for (const r of ordered) {
+      const current = r.variantNumber;
+      let assigned: number;
+      if (keepById.has(r.id)) {
+        assigned = keepById.get(r.id)!;
+      } else {
+        let next = 1;
+        while (finalUsed.has(next)) next += 1;
+        assigned = next;
+        finalUsed.add(next);
+      }
+      if (assigned !== current) {
+        fixes.push({ id: r.id, from: current ?? null, to: assigned });
+      }
+    }
+  }
+
+  return fixes;
 }
 
 /**

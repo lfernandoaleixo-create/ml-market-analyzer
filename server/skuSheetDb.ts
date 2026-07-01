@@ -65,6 +65,82 @@ export async function deleteSkuRow(id: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Reparo em massa das variantes (elimina SKUs duplicados)
+// ---------------------------------------------------------------------------
+import {
+  normalizeVariantNumbers,
+  buildSku,
+  buildSkuKit,
+  type VariantFix,
+} from "../shared/skuSheet";
+
+export interface VariantRepairResult {
+  /** Alterações aplicadas (antes/depois), com o SKU resultante. */
+  changes: Array<{
+    id: number;
+    produto: string;
+    fromVariant: number | null;
+    toVariant: number;
+    fromSku: string;
+    toSku: string;
+  }>;
+}
+
+/**
+ * Recalcula e persiste as variantes de todas as linhas para garantir SKUs
+ * únicos por grupo (tipo+categoria+Nº produto). Quando `dryRun` é true, apenas
+ * calcula as mudanças (antes/depois) sem gravar.
+ */
+export async function repairVariantNumbers(
+  dryRun = false,
+): Promise<VariantRepairResult> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+
+  const rows = await listSkuRows();
+  const fixes: VariantFix[] = normalizeVariantNumbers(
+    rows.map((r) => ({
+      id: r.id,
+      tipoSku: r.tipoSku,
+      categoryName: r.categoryName,
+      productNumber: r.productNumber,
+      variantNumber: r.variantNumber,
+    })),
+  );
+
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const changes: VariantRepairResult["changes"] = [];
+
+  for (const fix of fixes) {
+    const r = byId.get(fix.id);
+    if (!r) continue;
+    const toSku = buildSku({
+      tipoSku: r.tipoSku,
+      categoryName: r.categoryName,
+      productNumber: r.productNumber,
+      variantNumber: fix.to,
+    });
+    const toSkuKit = buildSkuKit(toSku, r.gerarSkuKit);
+    changes.push({
+      id: r.id,
+      produto: r.produto,
+      fromVariant: fix.from,
+      toVariant: fix.to,
+      fromSku: r.sku,
+      toSku,
+    });
+    if (!dryRun) {
+      await db
+        .update(skuSheetRows)
+        .set({ variantNumber: fix.to, sku: toSku, skuKit: toSkuKit })
+        .where(eq(skuSheetRows.id, r.id));
+    }
+  }
+
+  return { changes };
+}
+
+// ---------------------------------------------------------------------------
 // Colunas personalizadas (criadas pelo usuário)
 // ---------------------------------------------------------------------------
 
