@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useMemo, useRef, useState, useCallback, type ReactNode } from "react";
+import { memo, useMemo, useRef, useState, useCallback, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -56,6 +56,7 @@ import {
   buildSku,
   buildSkuKit,
   resolveProductNumber,
+  resolveVariantNumber,
 } from "../../../../shared/skuSheet";
 import SheetTabs from "./SheetTabs";
 import ColumnFilter from "./ColumnFilter";
@@ -202,6 +203,13 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
 
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // Mantém o binding mais recente numa ref para que os callbacks de salvamento
+  // possam ter deps vazias (identidade estável entre renders). Isso é essencial
+  // para o React.memo das linhas: se os callbacks mudassem a cada render, todas
+  // as linhas re-renderizariam ao digitar em qualquer célula.
+  const bindingRef = useRef(binding);
+  bindingRef.current = binding;
+
   // Adaptadores: chamam o binding fornecido pelo dono da planilha.
   const updateMut = { mutate: (input: { id: number } & Partial<SkuRow>) => binding.update(input) };
   const createMut = { mutate: (input: Partial<SkuRow>) => binding.create(input), isPending: binding.createPending };
@@ -211,7 +219,8 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
   const deleteColMut = { mutate: ({ id }: { id: number }) => { binding.deleteColumn(id); setDeleteColumnId(null); } };
   const setCustomValueMut = { mutate: ({ rowId, columnId, value }: { rowId: number; columnId: number; value: string }) => binding.setCustomValue(rowId, columnId, value) };
 
-  const cols: CustomColumn[] = customColumns ?? [];
+  const cols: CustomColumn[] = useMemo(() => customColumns ?? [], [customColumns]);
+  const categoriesList = useMemo(() => categories ?? [], [categories]);
   const editingRow = (rows ?? []).find((r) => r.id === editRowId) ?? null;
   const deletingColumn = cols.find((c) => c.id === deleteColumnId) ?? null;
 
@@ -222,10 +231,10 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
       const key = `${rowId}:c${columnId}`;
       if (customSaveTimers.current[key]) clearTimeout(customSaveTimers.current[key]);
       customSaveTimers.current[key] = setTimeout(() => {
-        setCustomValueMut.mutate({ rowId, columnId, value });
+        bindingRef.current.setCustomValue(rowId, columnId, value);
       }, delay);
     },
-    [setCustomValueMut],
+    [],
   );
 
   const scheduleSave = useCallback(
@@ -233,17 +242,17 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
       const timerKey = `${id}:${key}`;
       if (saveTimers.current[timerKey]) clearTimeout(saveTimers.current[timerKey]);
       saveTimers.current[timerKey] = setTimeout(() => {
-        updateMut.mutate({ id, ...patch } as never);
+        bindingRef.current.update({ id, ...patch });
       }, delay);
     },
-    [updateMut],
+    [],
   );
 
   const saveNow = useCallback(
     (id: number, patch: Partial<SkuRow>) => {
-      updateMut.mutate({ id, ...patch } as never);
+      bindingRef.current.update({ id, ...patch });
     },
-    [updateMut],
+    [],
   );
 
   // Opções dos filtros = todos os valores presentes em cada coluna (calculadas
@@ -291,6 +300,22 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
     }
     return list;
   }, [rows, search, columnFilters]);
+
+  // Lista enxuta (apenas os campos usados p/ resolver Nº produto/variante).
+  // Só muda quando um desses campos muda em alguma linha, evitando que a edição
+  // de campos irrelevantes re-renderize todas as linhas via a prop `allRows`.
+  const allRowsRef = useMemo(
+    () =>
+      (rows ?? []).map((r) => ({
+        id: r.id,
+        produto: r.produto,
+        productNumber: r.productNumber,
+        variantNumber: r.variantNumber,
+        tipoSku: r.tipoSku,
+        categoryName: r.categoryName,
+      })),
+    [rows],
+  );
 
   const handleAdd = () => {
     const maxProduct = (rows ?? []).reduce((m, r) => Math.max(m, r.productNumber ?? 0), 0);
@@ -558,8 +583,8 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                   key={row.id}
                   row={row as SkuRow}
                   index={idx}
-                  categories={categories ?? []}
-                  allRows={(rows ?? []) as SkuRow[]}
+                  categories={categoriesList}
+                  allRows={allRowsRef}
                   customColumns={cols}
                   onField={scheduleSave}
                   onFieldNow={saveNow}
@@ -619,8 +644,8 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
       <EditRowDialog
         key={editingRow?.id ?? "none"}
         row={editingRow}
-        categories={categories ?? []}
-        allRows={(rows ?? []) as SkuRow[]}
+        categories={categoriesList}
+        allRows={allRowsRef}
         customColumns={cols}
         onClose={() => setEditRowId(null)}
         onSave={(id, patch) => saveNow(id, patch)}
@@ -671,11 +696,24 @@ function Th({
 }
 
 // ─── Linha editável ──────────────────────────────────────────────────────────
+// Versão enxuta das linhas usada apenas para resolver Nº do produto/variante.
+// Passar somente estes campos (em vez de SkuRow[] completo) evita que a edição
+// de campos irrelevantes (preço, EAN, etc.) recrie a referência e re-renderize
+// todas as linhas — mantendo a planilha responsiva ao digitar.
+type SkuRowRef = {
+  id: number;
+  produto: string | null;
+  productNumber: number | null;
+  variantNumber: number | null;
+  tipoSku: string;
+  categoryName: string | null;
+};
+
 type RowEditorProps = {
   row: SkuRow;
   index: number;
   categories: { id: string; name: string; children: { id: string; name: string }[] }[];
-  allRows: SkuRow[];
+  allRows: SkuRowRef[];
   customColumns: CustomColumn[];
   onField: (id: number, patch: Partial<SkuRow>, key: string, delay?: number) => void;
   onFieldNow: (id: number, patch: Partial<SkuRow>) => void;
@@ -690,7 +728,7 @@ type RowEditorProps = {
   };
 };
 
-function SkuRowEditor({ row, index, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, selection }: RowEditorProps) {
+function SkuRowEditorImpl({ row, index, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, selection }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
 
   const rowRef = useRef(row);
@@ -715,7 +753,26 @@ function SkuRowEditor({ row, index, categories, allRows, customColumns, onField,
   // SKU = [Nº TIPO]-[CATEGORIA abreviada]-[Nº produto]-[Nº variante]
   // SKU Kit = SKU + "-KITINS" (somente quando "Gerar Kit?" estiver marcado).
   const applyDerived = (patch: Partial<SkuRow>) => {
-    const next = { ...local, ...patch };
+    const merged = { ...local, ...patch };
+    // Garante que o Nº da variante seja único dentro do grupo (mesmo
+    // tipo+categoria+Nº produto), evitando SKUs repetidos.
+    const variantNumber = resolveVariantNumber(
+      allRows.map((r) => ({
+        id: r.id,
+        tipoSku: r.tipoSku,
+        categoryName: r.categoryName,
+        productNumber: r.productNumber,
+        variantNumber: r.variantNumber,
+      })),
+      row.id,
+      {
+        tipoSku: merged.tipoSku,
+        categoryName: merged.categoryName,
+        productNumber: merged.productNumber,
+        variantNumber: merged.variantNumber,
+      },
+    );
+    const next = { ...merged, variantNumber };
     const sku = buildSku({
       tipoSku: next.tipoSku,
       categoryName: next.categoryName,
@@ -723,7 +780,7 @@ function SkuRowEditor({ row, index, categories, allRows, customColumns, onField,
       variantNumber: next.variantNumber,
     });
     const skuKit = buildSkuKit(sku, next.gerarSkuKit);
-    const full: Partial<SkuRow> = { ...patch, sku, skuKit };
+    const full: Partial<SkuRow> = { ...patch, variantNumber, sku, skuKit };
     set(full);
     onFieldNow(row.id, full);
   };
@@ -753,10 +810,11 @@ function SkuRowEditor({ row, index, categories, allRows, customColumns, onField,
   // atribui o próximo da sequência. Em seguida recalcula o SKU.
   const resolveAndApplyProductNumber = (produto: string) => {
     const num = resolveProductNumber(
-      allRows.map((r) => ({ id: r.id, produto: r.produto, productNumber: r.productNumber })),
+      allRows.map((r) => ({ id: r.id, produto: r.produto ?? "", productNumber: r.productNumber })),
       row.id,
       produto,
     );
+    // applyDerived resolve automaticamente o Nº da variante para manter o SKU único.
     applyDerived({ produto, productNumber: num });
   };
 
@@ -1060,6 +1118,34 @@ function SkuRowEditor({ row, index, categories, allRows, customColumns, onField,
   );
 }
 
+// Memoiza a linha: só re-renderiza quando algo que afeta ESTA linha muda.
+// As edições de texto são mantidas em estado local, então não dependemos de
+// re-render por prop para refletir a digitação. `allRows` já é uma referência
+// enxuta e estável (só muda quando id/produto/nº/tipo/categoria mudam).
+const SkuRowEditor = memo(SkuRowEditorImpl, (prev, next) => {
+  if (prev.row !== next.row) return false;
+  if (prev.index !== next.index) return false;
+  if (prev.categories !== next.categories) return false;
+  if (prev.allRows !== next.allRows) return false;
+  if (prev.customColumns !== next.customColumns) return false;
+  if (prev.onField !== next.onField) return false;
+  if (prev.onFieldNow !== next.onFieldNow) return false;
+  if (prev.onCustomValue !== next.onCustomValue) return false;
+  // Callbacks onDelete/onEdit são recriados a cada render do pai (closures por
+  // row.id), mas seu efeito é idêntico enquanto row.id for o mesmo — ignorá-los
+  // é seguro e evita re-render em massa ao editar qualquer célula.
+  // Seleção: só importa se o estado de seleção DESTA linha mudou.
+  const prevSel = prev.selection;
+  const nextSel = next.selection;
+  if (!!prevSel !== !!nextSel) return false;
+  if (prevSel && nextSel) {
+    const prevChecked = prevSel.selectedIds.includes(prev.row.id);
+    const nextChecked = nextSel.selectedIds.includes(next.row.id);
+    if (prevChecked !== nextChecked) return false;
+  }
+  return true;
+});
+
 // Ajusta a altura do textarea ao conteúdo, com um teto para manter as linhas
 // compactas. Acima do teto, o campo ganha rolagem interna (o texto não é
 // cortado — basta rolar ou abrir o modal de edição da linha).
@@ -1178,7 +1264,7 @@ function ColumnRow({ column, onRename, onAskDelete }: { column: CustomColumn; on
 type EditRowDialogProps = {
   row: SkuRow | null;
   categories: { id: string; name: string; children: { id: string; name: string }[] }[];
-  allRows: SkuRow[];
+  allRows: SkuRowRef[];
   customColumns: CustomColumn[];
   onClose: () => void;
   onSave: (id: number, patch: Partial<SkuRow>) => void;
@@ -1202,7 +1288,25 @@ function EditRowDialog({ row, categories, allRows, customColumns, onClose, onSav
   const upd = (patch: Partial<SkuRow>) => {
     setDraft((p) => {
       if (!p) return p;
-      const next = { ...p, ...patch };
+      const merged = { ...p, ...patch };
+      // Garante Nº de variante único dentro do grupo (evita SKU repetido).
+      const variantNumber = resolveVariantNumber(
+        allRows.map((r) => ({
+          id: r.id,
+          tipoSku: r.tipoSku,
+          categoryName: r.categoryName,
+          productNumber: r.productNumber,
+          variantNumber: r.variantNumber,
+        })),
+        p.id,
+        {
+          tipoSku: merged.tipoSku,
+          categoryName: merged.categoryName,
+          productNumber: merged.productNumber,
+          variantNumber: merged.variantNumber,
+        },
+      );
+      const next = { ...merged, variantNumber };
       // Recalcula SKU/SKU Kit derivados.
       const sku = buildSku({
         tipoSku: next.tipoSku,
@@ -1217,7 +1321,7 @@ function EditRowDialog({ row, categories, allRows, customColumns, onClose, onSav
   // Resolve o Nº do produto pelo nome (mesma regra da tabela).
   const onProductNameBlur = (produto: string) => {
     const num = resolveProductNumber(
-      allRows.map((r) => ({ id: r.id, produto: r.produto, productNumber: r.productNumber })),
+      allRows.map((r) => ({ id: r.id, produto: r.produto ?? "", productNumber: r.productNumber })),
       draft.id,
       produto,
     );

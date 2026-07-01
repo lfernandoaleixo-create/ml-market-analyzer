@@ -1731,3 +1731,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Tornar a linha de titulos (thead) fixa no topo ao rolar verticalmente (estilo "congelar paineis" do Excel) - rolagem interna + thead sticky top-0, validado no preview (linhas 19-33 com header fixo)
 - [x] Manter colunas sticky (#, selecao, Acoes) e os filtros funcionando
 - [x] Garantir que o zoom 0.85 nao quebre o sticky do header (funcionou no Chrome)
+
+## Correcoes Planilha SKU - Pedro (01/07)
+- [x] CRITICO: SKU duplicado (linhas 65/66 ambas 1-SERVICOS-46-1). Garantir unicidade do SKU (sufixo deve incrementar; nunca repetir)
+- [x] Investigar e corrigir por que a geracao de SKU nao incrementa o sufixo quando categoria+tipo+numero repetem
+- [x] Performance: Planilha SKU esta lenta ao digitar/editar. Otimizar re-render (React.memo nas linhas com comparador, allRows enxuto/memoizado, callbacks estaveis via bindingRef, updates otimistas de cache, refetchOnWindowFocus:false)
+
+## SKU - Opcao A (mesmo nome = mesmo Nº produto; variacao no Nº variante)
+- [x] Lógica: nomes iguais SEMPRE compartilham Nº de produto; variante incrementa por variacao (SKU unico)
+- [x] resolveVariantNumber garante unicidade em todos os pontos (nova linha, tabela, dialogo)
+- [x] Testes vitest cobrindo Opcao A (21 testes)
+- [x] Corrigir dados existentes: unificar Nº de produto de nomes iguais divergentes (ex.: CAIXA PRESENTE PREMIUM BRÁS 31 e 29) e resolver SKUs duplicados (65/66) - mostrar antes/depois antes de gravar
+- [x] Rodar suite completa e validar no preview (796 testes passando; 3 falhas pre-existentes em accountProvider sensiveis a data)

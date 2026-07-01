@@ -3,8 +3,11 @@ import {
   buildSku,
   buildSkuKit,
   resolveProductNumber,
+  resolveVariantNumber,
+  isSkuDuplicate,
   normalizeProductName,
   type ProductNumberRow,
+  type VariantNumberRow,
 } from "./skuSheet";
 
 describe("buildSku", () => {
@@ -80,5 +83,101 @@ describe("resolveProductNumber", () => {
   it("começa em 1 quando não há linhas com número", () => {
     const empty: ProductNumberRow[] = [{ id: 1, produto: "X", productNumber: null }];
     expect(resolveProductNumber(empty, 99, "Primeiro")).toBe(1);
+  });
+});
+
+describe("resolveVariantNumber", () => {
+  const grp = (over: Partial<VariantNumberRow> & { id: number }): VariantNumberRow => ({
+    tipoSku: "1",
+    categoryName: "Serviços",
+    productNumber: 46,
+    variantNumber: 1,
+    ...over,
+  });
+
+  it("mantém a variante quando ela ainda não é usada no grupo", () => {
+    const rows: VariantNumberRow[] = [grp({ id: 1, variantNumber: 1 })];
+    // linha nova (id 2) do mesmo grupo, com variante ainda nula
+    const v = resolveVariantNumber(rows, 2, {
+      tipoSku: "1",
+      categoryName: "Serviços",
+      productNumber: 46,
+      variantNumber: 2,
+    });
+    expect(v).toBe(2);
+  });
+
+  it("incrementa a variante para não repetir SKU no mesmo grupo (caso linhas 65/66)", () => {
+    const rows: VariantNumberRow[] = [grp({ id: 65, variantNumber: 1 })];
+    // linha 66, mesmo tipo+categoria+Nº produto, tentando variante 1 (duplicaria)
+    const v = resolveVariantNumber(rows, 66, {
+      tipoSku: "1",
+      categoryName: "Serviços",
+      productNumber: 46,
+      variantNumber: 1,
+    });
+    expect(v).toBe(2);
+  });
+
+  it("preenche buracos: escolhe o menor Nº livre", () => {
+    const rows: VariantNumberRow[] = [
+      grp({ id: 1, variantNumber: 1 }),
+      grp({ id: 3, variantNumber: 3 }),
+    ];
+    const v = resolveVariantNumber(rows, 2, {
+      tipoSku: "1",
+      categoryName: "Serviços",
+      productNumber: 46,
+      variantNumber: 1, // 1 está ocupado -> deve ir para 2
+    });
+    expect(v).toBe(2);
+  });
+
+  it("grupos diferentes não interferem (categoria distinta)", () => {
+    const rows: VariantNumberRow[] = [
+      grp({ id: 1, categoryName: "Serviços", variantNumber: 1 }),
+    ];
+    const v = resolveVariantNumber(rows, 2, {
+      tipoSku: "1",
+      categoryName: "Saúde",
+      productNumber: 46,
+      variantNumber: 1,
+    });
+    expect(v).toBe(1); // outro grupo, pode usar 1
+  });
+
+  it("preserva a variante quando o grupo é inválido (sem categoria)", () => {
+    const rows: VariantNumberRow[] = [grp({ id: 1 })];
+    const v = resolveVariantNumber(rows, 2, {
+      tipoSku: "1",
+      categoryName: null,
+      productNumber: 46,
+      variantNumber: 5,
+    });
+    expect(v).toBe(5);
+  });
+});
+
+describe("isSkuDuplicate", () => {
+  const rows = [
+    { id: 1, sku: "1-SERVICOS-46-1" },
+    { id: 2, sku: "1-SERVICOS-46-2" },
+    { id: 3, sku: "" },
+  ];
+
+  it("detecta SKU repetido em outra linha", () => {
+    expect(isSkuDuplicate(rows, 99, "1-SERVICOS-46-1")).toBe(true);
+  });
+
+  it("ignora a própria linha", () => {
+    expect(isSkuDuplicate(rows, 1, "1-SERVICOS-46-1")).toBe(false);
+  });
+
+  it("SKU vazio nunca duplica", () => {
+    expect(isSkuDuplicate(rows, 99, "")).toBe(false);
+  });
+
+  it("SKU inédito não duplica", () => {
+    expect(isSkuDuplicate(rows, 99, "1-SERVICOS-46-9")).toBe(false);
   });
 });

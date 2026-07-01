@@ -174,7 +174,7 @@ export function normalizeProductName(name: string | null | undefined): string {
 /** Linha mínima usada para resolver o Nº do produto. */
 export interface ProductNumberRow {
   id: number;
-  produto: string;
+  produto: string | null;
   productNumber: number | null;
 }
 
@@ -212,4 +212,88 @@ export function resolveProductNumber(
     if (r.productNumber != null && r.productNumber > max) max = r.productNumber;
   }
   return max + 1;
+}
+
+// ---------------------------------------------------------------------------
+// Numeração automática da VARIANTE (garante unicidade do SKU)
+// Regra: o SKU final é TIPO-CATEGORIA-NºProduto-NºVariante. Duas linhas com o
+// mesmo tipo+categoria+Nº produto DEVEM ter Nº de variante diferente, senão o
+// SKU se repete. Esta função encontra o próximo Nº de variante livre dentro do
+// mesmo "grupo" (mesmo tipo+categoria+Nº produto), ignorando a linha atual.
+// ---------------------------------------------------------------------------
+
+/** Linha mínima usada para resolver o Nº da variante / unicidade do SKU. */
+export interface VariantNumberRow {
+  id: number;
+  tipoSku: string;
+  categoryName: string | null;
+  productNumber: number | null;
+  variantNumber: number | null;
+}
+
+/** Chave do grupo que compartilha o mesmo prefixo de SKU (tipo+categoria+Nº produto). */
+function skuGroupKey(row: {
+  tipoSku: string;
+  categoryName: string | null;
+  productNumber: number | null;
+}): string {
+  const tipo = (row.tipoSku ?? "").trim();
+  const cat = categoryAbbreviation(row.categoryName);
+  const prod = row.productNumber;
+  return `${tipo}|${cat}|${prod ?? ""}`;
+}
+
+/**
+ * Resolve o Nº da variante para uma linha, garantindo que o SKU não se repita.
+ * - Considera apenas linhas do MESMO grupo (mesmo tipo+categoria+Nº produto).
+ * - Ignora a própria linha (`currentRowId`).
+ * - Se a variante atual (`desiredVariant`) ainda não estiver em uso no grupo,
+ *   ela é mantida; caso contrário, retorna o menor Nº de variante livre (>=1).
+ * - Retorna null quando não há dados suficientes para formar um grupo válido
+ *   (tipo/categoria/Nº produto ausentes), deixando a variante como está.
+ */
+export function resolveVariantNumber(
+  rows: VariantNumberRow[],
+  currentRowId: number,
+  current: {
+    tipoSku: string;
+    categoryName: string | null;
+    productNumber: number | null;
+    variantNumber: number | null;
+  },
+): number | null {
+  const tipo = (current.tipoSku ?? "").trim();
+  const cat = categoryAbbreviation(current.categoryName);
+  const prod = current.productNumber;
+  // Sem grupo válido: não há como garantir unicidade; preserva o valor atual.
+  if (!tipo || !cat || prod == null) return current.variantNumber ?? 1;
+
+  const groupKey = skuGroupKey(current);
+  const used = new Set<number>();
+  for (const r of rows) {
+    if (r.id === currentRowId) continue;
+    if (r.variantNumber == null) continue;
+    if (skuGroupKey(r) === groupKey) used.add(r.variantNumber);
+  }
+
+  const desired = current.variantNumber;
+  if (desired != null && desired >= 1 && !used.has(desired)) return desired;
+
+  let next = 1;
+  while (used.has(next)) next += 1;
+  return next;
+}
+
+/**
+ * Verifica se um SKU já existe em outra linha (colisão de unicidade).
+ * SKUs vazios ("") nunca colidem.
+ */
+export function isSkuDuplicate(
+  rows: { id: number; sku: string }[],
+  currentRowId: number,
+  sku: string,
+): boolean {
+  const target = (sku ?? "").trim();
+  if (!target) return false;
+  return rows.some((r) => r.id !== currentRowId && (r.sku ?? "").trim() === target);
 }

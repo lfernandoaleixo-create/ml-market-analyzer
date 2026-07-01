@@ -5,18 +5,42 @@ import SkuStyleSheet, { type SkuStyleBinding } from "./SkuStyleSheet";
 /**
  * Planilha SKU: cadastro central de SKUs. Usa o componente visual compartilhado
  * SkuStyleSheet, ligado ao router tRPC `skuSheet`.
+ *
+ * PERFORMANCE: edições de célula (update / setCustomValue) aplicam a alteração
+ * DIRETAMENTE no cache do React Query (update otimista), SEM refetch da lista
+ * inteira. Isso mantém a digitação instantânea mesmo com muitas linhas. Apenas
+ * operações que mudam a composição da lista (create/delete/colunas) invalidam.
  */
+type SkuRowCache = {
+  id: number;
+  customValues?: string | null;
+  [key: string]: unknown;
+};
+
 export default function SkuSheet() {
   const utils = trpc.useUtils();
   const { data: rows, isLoading } = trpc.skuSheet.list.useQuery(undefined, {
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
   const { data: categories } = trpc.skuSheet.categories.useQuery();
   const { data: customColumns } = trpc.skuSheet.listCustomColumns.useQuery();
 
+  // Aplica um patch em uma linha diretamente no cache (sem refetch).
+  const patchRowInCache = (id: number, patch: Record<string, unknown>) => {
+    utils.skuSheet.list.setData(undefined, (prev) => {
+      if (!prev) return prev;
+      return (prev as SkuRowCache[]).map((r) =>
+        r.id === id ? { ...r, ...patch } : r,
+      ) as never;
+    });
+  };
+
   const updateMut = trpc.skuSheet.update.useMutation({
-    onSuccess: () => utils.skuSheet.list.invalidate(),
-    onError: () => toast.error("Não foi possível salvar a alteração"),
+    // Sem onSuccess->invalidate: a tela já refletiu via patch otimista.
+    onError: () => {
+      toast.error("Não foi possível salvar a alteração");
+      utils.skuSheet.list.invalidate();
+    },
   });
   const createMut = trpc.skuSheet.create.useMutation({
     onSuccess: () => {
@@ -52,8 +76,10 @@ export default function SkuSheet() {
     onError: () => toast.error("Não foi possível excluir a coluna"),
   });
   const setCustomValueMut = trpc.skuSheet.setCustomValue.useMutation({
-    onSuccess: () => utils.skuSheet.list.invalidate(),
-    onError: () => toast.error("Não foi possível salvar o valor"),
+    onError: () => {
+      toast.error("Não foi possível salvar o valor");
+      utils.skuSheet.list.invalidate();
+    },
   });
 
   const binding: SkuStyleBinding = {
@@ -61,13 +87,34 @@ export default function SkuSheet() {
     isLoading,
     categories: categories as SkuStyleBinding["categories"],
     customColumns,
-    update: (input) => updateMut.mutate(input as never),
+    update: (input) => {
+      const { id, ...patch } = input as { id: number } & Record<string, unknown>;
+      patchRowInCache(id, patch); // reflete na hora
+      updateMut.mutate(input as never); // persiste em background
+    },
     create: (input) => createMut.mutate(input as never),
     remove: (id) => deleteMut.mutate({ id }),
     createColumn: (name) => createColMut.mutate({ name }),
     renameColumn: (id, name) => renameColMut.mutate({ id, name }),
     deleteColumn: (id) => deleteColMut.mutate({ id }),
-    setCustomValue: (rowId, columnId, value) => setCustomValueMut.mutate({ rowId, columnId, value }),
+    setCustomValue: (rowId, columnId, value) => {
+      // Atualiza o JSON de customValues no cache antes de persistir.
+      utils.skuSheet.list.setData(undefined, (prev) => {
+        if (!prev) return prev;
+        return (prev as SkuRowCache[]).map((r) => {
+          if (r.id !== rowId) return r;
+          let parsed: Record<string, string> = {};
+          try {
+            parsed = r.customValues ? (JSON.parse(r.customValues) as Record<string, string>) : {};
+          } catch {
+            parsed = {};
+          }
+          parsed[String(columnId)] = value;
+          return { ...r, customValues: JSON.stringify(parsed) };
+        }) as never;
+      });
+      setCustomValueMut.mutate({ rowId, columnId, value });
+    },
     createPending: createMut.isPending,
   };
 
