@@ -18,6 +18,7 @@ import {
   FileText,
   AlertTriangle,
   Wrench,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -954,6 +955,13 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
   );
 
   // Campo derivado (somente leitura): exibe valor calculado automaticamente.
+  const [copiedField, setCopiedField] = useState<"sku" | "skuKit" | null>(null);
+  const copyToClipboard = (field: "sku" | "skuKit", value: string) => {
+    navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1500);
+  };
+
   const derived = (field: "sku" | "skuKit") => {
     const val = (local[field] as string) ?? "";
     // Somente o campo SKU (não o SKU Kit) sinaliza problema.
@@ -961,7 +969,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
     const isIdentical = flag && problemType === "identical";
     return (
       <div
-        className={`w-full px-2 py-1.5 rounded-md font-mono text-xs select-all whitespace-nowrap flex items-center gap-1 ${
+        className={`w-full px-2 py-1.5 rounded-md font-mono text-xs whitespace-nowrap flex items-center gap-1 group/sku ${
           isIdentical
             ? "text-amber-700 font-bold ring-1 ring-amber-400/70 bg-amber-100"
             : flag
@@ -974,14 +982,28 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
           isIdentical
             ? "LINHA IDÊNTICA: outra linha já tem estes mesmos dados. Ajuste a variante ou remova a linha repetida."
             : flag
-              ? "SKU IGUAL gerado para variações diferentes. Use ‘Corrigir automaticamente’ no topo."
+              ? "SKU IGUAL gerado para variações diferentes. Use 'Corrigir automaticamente' no topo."
               : val
                 ? "Gerado automaticamente"
                 : "Preencha Tipo, Categoria e números"
         }
       >
         {flag && <AlertTriangle className="h-3 w-3 shrink-0" />}
-        {val || "auto"}
+        <span className="select-all">{val || "auto"}</span>
+        {val && (
+          <button
+            type="button"
+            onClick={() => copyToClipboard(field, val)}
+            className="ml-auto shrink-0 opacity-0 group-hover/sku:opacity-100 transition-opacity duration-150 p-0.5 rounded hover:bg-muted"
+            title="Copiar SKU"
+          >
+            {copiedField === field ? (
+              <Check className="h-3 w-3 text-emerald-600" />
+            ) : (
+              <Copy className="h-3 w-3 text-muted-foreground" />
+            )}
+          </button>
+        )}
       </div>
     );
   };

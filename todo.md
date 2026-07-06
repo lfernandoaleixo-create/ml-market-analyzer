@@ -1769,3 +1769,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Diferenciados no UI: Tipo 1 ambar (sem botao, exige acao manual) vs Tipo 2 vermelho (com botao de correcao); celulas destacadas com cores correspondentes
 - [x] Testes vitest (7): linha identica, ignora caixa/espacos, variantes diferentes, colisao corrigivel, colisao+identico=Tipo1, sem problemas, sem produto
 - [x] Validado no preview: inseri Tipo 1 (linhas 900/901 identicas -> banner ambar) e Tipo 2 (902/903 colisao -> banner vermelho); "Corrigir automaticamente" resolveu o Tipo 2; linhas de teste removidas; 0 duplicatas
+
+## BOTAO COPIAR SKU - 06/07
+- [x] Adicionar botao icone de copiar (clipboard) ao lado de cada SKU e SKU Kit gerado na Planilha SKU
+- [x] Ao clicar, copia o valor para o clipboard e mostra feedback visual (icone muda para check por 1.5s)
+- [x] Botao so aparece quando ha valor no campo (nao mostra no "auto" vazio)
+- [x] Validar no preview + checkpoint
