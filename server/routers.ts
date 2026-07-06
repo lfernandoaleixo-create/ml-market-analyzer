@@ -93,6 +93,19 @@ export const appRouter = router({
         return { success: true } as const;
       }),
 
+    // Valida a senha de desbloqueio da Planilha SKU (senha fixa definida pelo
+    // proprietário). Não cria sessão/cookie — apenas confirma que a senha está
+    // correta para liberar edição de linhas com SKU já gerado.
+    verifyPassword: publicProcedure
+      .input(z.object({ password: z.string().min(1) }))
+      .mutation(({ input }) => {
+        const SKU_EDIT_PASSWORD = "grupofox";
+        if (!safeEqual(input.password, SKU_EDIT_PASSWORD)) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Senha incorreta." });
+        }
+        return { valid: true } as const;
+      }),
+
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

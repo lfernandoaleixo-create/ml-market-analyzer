@@ -19,6 +19,8 @@ import {
   AlertTriangle,
   Wrench,
   Copy,
+  Lock,
+  LockOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +65,7 @@ import {
   isSkuDuplicate,
   analyzeDuplicates,
 } from "../../../../shared/skuSheet";
+import { trpc } from "@/lib/trpc";
 import SheetTabs from "./SheetTabs";
 import ColumnFilter from "./ColumnFilter";
 import {
@@ -208,6 +211,34 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
   // Painel de gerenciamento das colunas personalizadas.
   const [manageColumns, setManageColumns] = useState(false);
   const [deleteColumnId, setDeleteColumnId] = useState<number | null>(null);
+
+  // --- Bloqueio de edição por senha (linhas com SKU gerado) ---
+  const [unlockedIds, setUnlockedIds] = useState<Set<number>>(new Set());
+  const [unlockTarget, setUnlockTarget] = useState<number | null>(null); // id da linha pedindo desbloqueio
+  const [unlockPwd, setUnlockPwd] = useState("");
+  const verifyPwdMut = trpc.auth.verifyPassword.useMutation({
+    onSuccess: () => {
+      if (unlockTarget != null) {
+        setUnlockedIds((prev) => new Set(prev).add(unlockTarget));
+        toast.success("Linha desbloqueada para edição.");
+      }
+      setUnlockTarget(null);
+      setUnlockPwd("");
+    },
+    onError: () => {
+      toast.error("Senha incorreta.");
+      setUnlockPwd("");
+    },
+  });
+  const handleUnlockSubmit = () => {
+    if (!unlockPwd.trim()) return;
+    verifyPwdMut.mutate({ password: unlockPwd.trim() });
+  };
+  // Determina se uma linha está bloqueada: SKU gerado + não desbloqueada nesta sessão.
+  const isRowLocked = useCallback(
+    (row: SkuRow) => !!row.sku && row.sku !== "" && !unlockedIds.has(row.id),
+    [unlockedIds],
+  );
 
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -697,6 +728,8 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                   onDelete={() => setDeleteId(row.id)}
                   onEdit={() => setEditRowId(row.id)}
                   onCustomValue={saveCustomValue}
+                  isLocked={isRowLocked(row as SkuRow)}
+                  onUnlock={() => setUnlockTarget(row.id)}
                   selection={selection}
                 />
               ))}
@@ -730,6 +763,38 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
               onClick={() => deleteId && deleteMut.mutate({ id: deleteId })}
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog: desbloquear linha (senha) */}
+      <AlertDialog open={unlockTarget !== null} onOpenChange={(o) => { if (!o) { setUnlockTarget(null); setUnlockPwd(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Lock className="w-5 h-5 text-amber-600" />
+              Linha bloqueada
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta linha já possui um SKU gerado. Para editar, digite a senha de desbloqueio.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <input
+              type="password"
+              placeholder="Senha"
+              value={unlockPwd}
+              onChange={(e) => setUnlockPwd(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleUnlockSubmit(); }}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUnlockSubmit} disabled={!unlockPwd.trim() || verifyPwdMut.isPending}>
+              {verifyPwdMut.isPending ? "Verificando..." : "Desbloquear"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -827,6 +892,8 @@ type RowEditorProps = {
   onDelete: () => void;
   onEdit: () => void;
   onCustomValue: (rowId: number, columnId: number, value: string, delay?: number) => void;
+  isLocked: boolean;
+  onUnlock: () => void;
   selection?: {
     selectedIds: number[];
     onToggle: (id: number) => void;
@@ -835,7 +902,7 @@ type RowEditorProps = {
   };
 };
 
-function SkuRowEditorImpl({ row, index, problemType, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, selection }: RowEditorProps) {
+function SkuRowEditorImpl({ row, index, problemType, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, isLocked, onUnlock, selection }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
 
   const rowRef = useRef(row);
@@ -900,6 +967,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
     <textarea
       rows={1}
       value={(local[field] as string) ?? ""}
+      disabled={isLocked}
       onChange={(e) => {
         set({ [field]: e.target.value } as Partial<SkuRow>);
         onField(row.id, { [field]: e.target.value } as Partial<SkuRow>, String(field));
@@ -907,7 +975,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       }}
       ref={(el) => { if (el) autoGrow(el); }}
       placeholder={opts?.placeholder}
-      className={`w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm resize-none leading-snug break-words whitespace-pre-wrap overflow-hidden ${opts?.className ?? ""}`}
+      className={`w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm resize-none leading-snug break-words whitespace-pre-wrap overflow-hidden ${isLocked ? "opacity-60 cursor-not-allowed" : ""} ${opts?.className ?? ""}`}
       style={opts?.minWidth ? { minWidth: opts.minWidth } : undefined}
     />
   );
@@ -929,6 +997,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
     <textarea
       rows={1}
       value={local.produto ?? ""}
+      disabled={isLocked}
       onChange={(e) => {
         set({ produto: e.target.value });
         onField(row.id, { produto: e.target.value }, "produto");
@@ -937,7 +1006,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       onBlur={(e) => resolveAndApplyProductNumber(e.target.value)}
       ref={(el) => { if (el) autoGrow(el); }}
       placeholder="Nome do produto"
-      className="w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm resize-none leading-snug break-words whitespace-pre-wrap overflow-hidden font-semibold text-foreground"
+      className={`w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm resize-none leading-snug break-words whitespace-pre-wrap overflow-hidden font-semibold text-foreground ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
     />
   );
 
@@ -945,12 +1014,13 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
   const text = (field: keyof SkuRow, opts?: { className?: string; placeholder?: string }) => (
     <input
       value={(local[field] as string) ?? ""}
+      disabled={isLocked}
       onChange={(e) => {
         set({ [field]: e.target.value } as Partial<SkuRow>);
         onField(row.id, { [field]: e.target.value } as Partial<SkuRow>, String(field));
       }}
       placeholder={opts?.placeholder}
-      className={`w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm ${opts?.className ?? ""}`}
+      className={`w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm ${isLocked ? "opacity-60 cursor-not-allowed" : ""} ${opts?.className ?? ""}`}
     />
   );
 
@@ -1011,11 +1081,12 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
   const numField = (field: "productNumber" | "variantNumber") => (
     <input
       value={(local[field] ?? "") as number | string}
+      disabled={isLocked}
       onChange={(e) => {
         const v = e.target.value === "" ? null : Number(e.target.value.replace(/\D/g, ""));
         applyDerived({ [field]: v } as Partial<SkuRow>);
       }}
-      className="w-9 text-center bg-transparent px-1 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm font-bold text-primary"
+      className={`w-9 text-center bg-transparent px-1 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm font-bold text-primary ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
     />
   );
 
@@ -1064,11 +1135,12 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       <td className="px-2 py-2">
         <select
           value={local.cadastradoMl}
+          disabled={isLocked}
           onChange={(e) => {
             set({ cadastradoMl: e.target.value });
             onFieldNow(row.id, { cadastradoMl: e.target.value });
           }}
-          className="w-full rounded-md px-2 py-1.5 text-xs font-bold outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
+          className={`w-full rounded-md px-2 py-1.5 text-xs font-bold outline-none focus:ring-1 focus:ring-primary/40 ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
           style={
             cadStyle
               ? { background: cadStyle.bg, color: cadStyle.text, border: `1px solid ${cadStyle.border}` }
@@ -1086,10 +1158,11 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       <td className="px-2 py-2">
         <select
           value={local.tipoSku}
+          disabled={isLocked}
           onChange={(e) => {
             applyDerived({ tipoSku: e.target.value });
           }}
-          className="w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer border border-border bg-background"
+          className={`w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 border border-border bg-background ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         >
           <option value="">—</option>
           {TIPO_SKU_OPTIONS.map((o) => (
@@ -1102,6 +1175,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       <td className="px-2 py-2">
         <select
           value={local.categoryId ?? ""}
+          disabled={isLocked}
           onChange={(e) => {
             const cat = categories.find((c) => c.id === e.target.value);
             const patch: Partial<SkuRow> = {
@@ -1112,7 +1186,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
             };
             applyDerived(patch);
           }}
-          className="w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer border border-border bg-background"
+          className={`w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 border border-border bg-background ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         >
           <option value="">— selecionar —</option>
           {categories.map((c) => (
@@ -1125,7 +1199,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       <td className="px-2 py-2">
         <select
           value={local.subCategoryId ?? ""}
-          disabled={!local.categoryId}
+          disabled={isLocked || !local.categoryId}
           onChange={(e) => {
             const sub = subcats.find((s) => s.id === e.target.value);
             const patch: Partial<SkuRow> = {
@@ -1161,10 +1235,11 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
         <input
           type="checkbox"
           checked={local.gerarSkuKit}
+          disabled={isLocked}
           onChange={(e) => {
             applyDerived({ gerarSkuKit: e.target.checked });
           }}
-          className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
+          className={`w-4 h-4 accent-[var(--primary)] ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         />
       </td>
       {/* SKU Kit (derivado automaticamente) */}
@@ -1199,6 +1274,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
           <textarea
             rows={1}
             value={customVals[String(c.id)] ?? ""}
+            disabled={isLocked}
             onChange={(e) => {
               const v = e.target.value;
               setCustomVals((p) => ({ ...p, [String(c.id)]: v }));
@@ -1206,15 +1282,24 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
               autoGrow(e.target);
             }}
             ref={(el) => { if (el) autoGrow(el); }}
-            className="w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm resize-none leading-snug break-words whitespace-pre-wrap overflow-hidden"
+            className={`w-full bg-transparent px-2 py-1.5 rounded-md outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-sm resize-none leading-snug break-words whitespace-pre-wrap overflow-hidden ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
           />
         </td>
       ))}
 
-      {/* Ações: editar + cor da linha + excluir */}
+      {/* Ações: cadeado + editar + cor da linha + excluir */}
       <td className="px-2 py-2 sticky right-0 z-10" style={{ background: local.rowColor ? colorBg : "var(--card)" }}>
         <div className="flex items-center justify-center gap-0.5">
-          <Button size="icon" variant="ghost" className="h-8 w-8" title="Editar linha" onClick={onEdit}>
+          {isLocked ? (
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-600" title="Linha bloqueada — clique para desbloquear" onClick={onUnlock}>
+              <Lock className="w-4 h-4" />
+            </Button>
+          ) : row.sku ? (
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" title="Linha desbloqueada" disabled>
+              <LockOpen className="w-4 h-4" />
+            </Button>
+          ) : null}
+          <Button size="icon" variant="ghost" className="h-8 w-8" title="Editar linha" onClick={onEdit} disabled={isLocked}>
             <Pencil className="w-4 h-4" />
           </Button>
           <Popover>
@@ -1255,7 +1340,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
               </div>
             </PopoverContent>
           </Popover>
-          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={onDelete}>
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={onDelete} disabled={isLocked}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -1278,7 +1363,8 @@ const SkuRowEditor = memo(SkuRowEditorImpl, (prev, next) => {
   if (prev.onField !== next.onField) return false;
   if (prev.onFieldNow !== next.onFieldNow) return false;
   if (prev.onCustomValue !== next.onCustomValue) return false;
-  // Callbacks onDelete/onEdit são recriados a cada render do pai (closures por
+  if (prev.isLocked !== next.isLocked) return false;
+  // Callbacks onDelete/onEdit/onUnlock são recriados a cada render do pai (closures por
   // row.id), mas seu efeito é idêntico enquanto row.id for o mesmo — ignorá-los
   // é seguro e evita re-render em massa ao editar qualquer célula.
   // Seleção: só importa se o estado de seleção DESTA linha mudou.

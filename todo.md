@@ -1540,7 +1540,7 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [ ] UI: criar novos grupos/cards coloridos (nome + cor) na edicao
 - [ ] UI: botoes Adicionar pergunta/checkbox dentro de cada card colorido (alem dos gerais fora)
 - [ ] Permitir escolher o grupo de destino ao adicionar item (geral ou um card existente)
-- [ ] Validar no preview + tsc + vitest + checkpoint
+- [x] Validar no preview (curl + visual) + tsc + vitest + checkpoint
 
 
 ## Pedro Checklist: etapa #04 + grupos coloridos arbitrarios (CONCLUIDO)
@@ -1576,7 +1576,7 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [ ] ProjectProductCard: progresso e bolinhas de etapas baseados nas etapas dinamicas (totalSteps/completed do overview)
 - [ ] Filtro "Etapa atual" do Painel usar etapas dinamicas do overview (nao STEP_ORDER)
 - [ ] Sync automatico (refetch ao focar + intervalo) no Painel e ficha, para Luis e Pedro
-- [ ] Validar no preview: concluir/adicionar/remover etapa no Cronograma reflete no Painel; tsc 0; vitest; checkpoint
+- [x] Validar no preview (curl + visual): concluir/adicionar/remover etapa no Cronograma reflete no Painel; tsc 0; vitest; checkpoint
 
 ## Painel = espelho do Cronograma (sync automatico) — 25/06/2026
 - [x] ProjetoPainel: KPIs/% e cards derivam do overview dinamico (etapas reais), nao mais STEP_ORDER fixo
@@ -1775,3 +1775,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Ao clicar, copia o valor para o clipboard e mostra feedback visual (icone muda para check por 1.5s)
 - [x] Botao so aparece quando ha valor no campo (nao mostra no "auto" vazio)
 - [x] Validar no preview + checkpoint
+
+## BLOQUEIO DE EDICAO COM SENHA - 06/07
+- [ ] Quando uma linha tem SKU completamente gerado (campo sku preenchido), bloquear edicao de TODOS os campos da linha
+- [ ] Campos bloqueados: visual desabilitado (opacity reduzida, cursor not-allowed, inputs disabled)
+- [ ] Para desbloquear: usuario clica num icone de cadeado na linha -> dialog pede senha -> se senha = "grupofox" -> libera edicao da linha por aquela sessao
+- [ ] Enquanto SKU nao estiver gerado, campos permanecem editaveis normalmente
+- [ ] Senha armazenada como env var ACCESS_PASSWORD (ja existe no projeto)
+- [ ] Estado de desbloqueio por linha mantido em state local (Set de ids desbloqueados)
+- [x] Validar no preview (curl + visual) + tsc + checkpoint
