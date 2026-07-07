@@ -1802,3 +1802,5 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Dados persistidos no banco
 - [x] Testes vitest cobrindo CRUD de variações
 - [x] Validar no preview
+- [x] Fix: popover de variações não aparece na publicação (produção) — corrigido: trocado HoverCard por Popover (click) para compatibilidade com produção e touch
+- [x] Fix: aumentar espaçamento entre coluna "Variações SKU" e coluna "EAN" no popover (pr-10 + px-4)

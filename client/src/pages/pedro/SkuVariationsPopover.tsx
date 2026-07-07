@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import {
-  HoverCard,
-  HoverCardTrigger,
-  HoverCardContent,
-} from "@/components/ui/hover-card";
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 import { Loader2 } from "lucide-react";
 
 type SkuVariationsPopoverProps = {
@@ -22,9 +22,14 @@ type VariationRow = {
 };
 
 /**
- * Popover que aparece ao passar o mouse sobre uma célula SKU.
+ * Popover que aparece ao CLICAR sobre uma célula SKU.
  * Mostra uma tabela com 10 sub-variações (SKU derivado, EAN, MLB, OK).
  * Os dados são carregados sob demanda e salvos com debounce no blur.
+ *
+ * Usamos Popover (click) em vez de HoverCard porque:
+ * - Funciona em todos os dispositivos (desktop + touch/tablet)
+ * - Mais confiável em produção (HoverCard pode não disparar em certos browsers)
+ * - Permite interação com os campos sem fechar acidentalmente
  */
 export default function SkuVariationsPopover({
   skuRowId,
@@ -45,12 +50,14 @@ export default function SkuVariationsPopover({
   };
 
   return (
-    <HoverCard openDelay={400} closeDelay={200} open={open} onOpenChange={handleOpenChange}>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardContent
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent
         side="bottom"
         align="start"
-        className="w-auto min-w-[520px] max-w-[620px] p-3"
+        sideOffset={6}
+        className="w-auto min-w-[560px] max-w-[660px] p-3"
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <p className="text-xs font-semibold text-muted-foreground mb-2">
           Variações SKU
@@ -66,8 +73,8 @@ export default function SkuVariationsPopover({
             baseSku={baseSku}
           />
         )}
-      </HoverCardContent>
-    </HoverCard>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -94,12 +101,12 @@ function VariationsTable({
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="border-b border-border text-muted-foreground">
-            <th className="text-left py-1.5 px-1.5 font-semibold whitespace-nowrap">
+            <th className="text-left py-1.5 px-2 pr-10 font-semibold whitespace-nowrap">
               Variações SKU
             </th>
-            <th className="text-left py-1.5 px-1.5 font-semibold">EAN</th>
-            <th className="text-left py-1.5 px-1.5 font-semibold">MLB</th>
-            <th className="text-center py-1.5 px-1.5 font-semibold">✓</th>
+            <th className="text-left py-1.5 px-4 font-semibold">EAN</th>
+            <th className="text-left py-1.5 px-3 font-semibold">MLB</th>
+            <th className="text-center py-1.5 px-2 font-semibold">OK</th>
           </tr>
         </thead>
         <tbody>
@@ -182,10 +189,10 @@ function VariationRowEditor({
 
   return (
     <tr className="border-b border-border/40 hover:bg-muted/30 transition-colors">
-      <td className="py-1.5 px-1.5 font-mono text-[11px] text-muted-foreground whitespace-nowrap select-all">
+      <td className="py-1.5 px-2 pr-10 font-mono text-[11px] text-muted-foreground whitespace-nowrap select-all">
         {variation.variationSku}
       </td>
-      <td className="py-1 px-1">
+      <td className="py-1 px-3">
         <input
           value={ean}
           onChange={(e) => {
@@ -194,10 +201,10 @@ function VariationRowEditor({
           }}
           onBlur={handleEanBlur}
           placeholder="—"
-          className="w-full min-w-[100px] bg-transparent px-1.5 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
+          className="w-full min-w-[110px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
         />
       </td>
-      <td className="py-1 px-1">
+      <td className="py-1 px-2">
         <input
           value={mlb}
           onChange={(e) => {
@@ -206,10 +213,10 @@ function VariationRowEditor({
           }}
           onBlur={handleMlbBlur}
           placeholder="—"
-          className="w-full min-w-[100px] bg-transparent px-1.5 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
+          className="w-full min-w-[110px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
         />
       </td>
-      <td className="py-1 px-1 text-center">
+      <td className="py-1 px-2 text-center">
         <input
           type="checkbox"
           checked={done}

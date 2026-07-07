@@ -68,6 +68,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import SheetTabs from "./SheetTabs";
 import SkuVariationsPopover from "./SkuVariationsPopover";
+// Popover abre com CLICK (não hover) para funcionar em produção e touch devices
 import ColumnFilter from "./ColumnFilter";
 import {
   type ColumnFilters,
@@ -1235,11 +1236,11 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       {/* Variante (texto completo) */}
       <td className="px-1 py-2">{area("variante")}</td>
 
-      {/* SKU (derivado automaticamente) — com popover de variações no hover */}
+      {/* SKU (derivado automaticamente) — popover de variações ao CLICAR */}
       <td className="px-1 py-2">
         {(local.sku && local.sku !== "") ? (
           <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku}>
-            <div>{derived("sku")}</div>
+            <div className="cursor-pointer">{derived("sku")}</div>
           </SkuVariationsPopover>
         ) : (
           derived("sku")
@@ -1262,7 +1263,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       <td className="px-1 py-2">
         {(local.skuKit && local.skuKit !== "") ? (
           <SkuVariationsPopover skuRowId={row.id} baseSku={local.skuKit}>
-            <div>{derived("skuKit")}</div>
+            <div className="cursor-pointer">{derived("skuKit")}</div>
           </SkuVariationsPopover>
         ) : (
           derived("skuKit")
