@@ -1784,3 +1784,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [ ] Senha armazenada como env var ACCESS_PASSWORD (ja existe no projeto)
 - [ ] Estado de desbloqueio por linha mantido em state local (Set de ids desbloqueados)
 - [x] Validar no preview (curl + visual) + tsc + checkpoint
+
+## BUG: Bloqueio prematuro na criacao - 07/07
+- [x] O bloqueio ativa assim que o SKU e gerado (tipo+categoria+produto preenchidos), mas o cadastro ainda nao esta finalizado
+- [x] Corrigir: bloqueio so deve ativar quando o cadastro estiver FINALIZADO (produto + variante preenchidos no minimo, alem do SKU gerado)
+- [x] Validar que durante a criacao/edicao a linha permanece editavel ate estar completa

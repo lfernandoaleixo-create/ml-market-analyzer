@@ -234,9 +234,14 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
     if (!unlockPwd.trim()) return;
     verifyPwdMut.mutate({ password: unlockPwd.trim() });
   };
-  // Determina se uma linha está bloqueada: SKU gerado + não desbloqueada nesta sessão.
+  // Determina se uma linha está bloqueada: cadastro FINALIZADO (SKU gerado + variante
+  // preenchida) e não desbloqueada nesta sessão. Enquanto a variante estiver vazia,
+  // o cadastro ainda está em andamento e a linha permanece editável.
   const isRowLocked = useCallback(
-    (row: SkuRow) => !!row.sku && row.sku !== "" && !unlockedIds.has(row.id),
+    (row: SkuRow) =>
+      !!row.sku && row.sku !== "" &&
+      !!row.variante && row.variante.trim() !== "" &&
+      !unlockedIds.has(row.id),
     [unlockedIds],
   );
 
