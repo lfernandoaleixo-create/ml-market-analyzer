@@ -169,6 +169,13 @@
       "when": 1782743945147,
       "tag": "0023_medical_impossible_man",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1783430914255,
+      "tag": "0024_quick_psynapse",
+      "breakpoints": true
     }
   ]
 }

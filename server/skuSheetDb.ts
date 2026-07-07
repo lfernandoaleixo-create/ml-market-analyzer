@@ -377,3 +377,124 @@ export async function setCustomValue(
     .limit(1);
   return updated[0] ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Variações SKU (10 sub-variações por linha)
+// ---------------------------------------------------------------------------
+
+import { and } from "drizzle-orm";
+import { skuVariations, SkuVariation } from "../drizzle/schema";
+
+export interface SkuVariationData {
+  variationIndex: number;
+  variationSku: string;
+  ean: string;
+  mlb: string;
+  done: boolean;
+}
+
+/**
+ * Retorna as 10 variações de uma linha SKU. Se alguma não existir no banco,
+ * retorna um placeholder com valores vazios (para preencher a tabela no front).
+ */
+export async function getVariations(
+  skuRowId: number,
+  baseSku: string,
+): Promise<SkuVariationData[]> {
+  const db = await getDb();
+  if (!db) return buildEmptyVariations(baseSku);
+
+  const rows = await db
+    .select()
+    .from(skuVariations)
+    .where(eq(skuVariations.skuRowId, skuRowId))
+    .orderBy(asc(skuVariations.variationIndex));
+
+  const byIndex = new Map<number, SkuVariation>(rows.map((r) => [r.variationIndex, r]));
+  const result: SkuVariationData[] = [];
+  for (let i = 1; i <= 10; i++) {
+    const existing = byIndex.get(i);
+    const suffix = String(i).padStart(2, "0");
+    result.push({
+      variationIndex: i,
+      variationSku: baseSku ? `${baseSku}-${suffix}` : "",
+      ean: existing?.ean ?? "",
+      mlb: existing?.mlb ?? "",
+      done: existing?.done ?? false,
+    });
+  }
+  return result;
+}
+
+function buildEmptyVariations(baseSku: string): SkuVariationData[] {
+  return Array.from({ length: 10 }, (_, i) => {
+    const idx = i + 1;
+    const suffix = String(idx).padStart(2, "0");
+    return {
+      variationIndex: idx,
+      variationSku: baseSku ? `${baseSku}-${suffix}` : "",
+      ean: "",
+      mlb: "",
+      done: false,
+    };
+  });
+}
+
+/**
+ * Insere ou atualiza uma variação específica de uma linha SKU.
+ * Recalcula o variationSku com base no baseSku atual.
+ */
+export async function upsertVariation(
+  skuRowId: number,
+  variationIndex: number,
+  baseSku: string,
+  data: { ean?: string; mlb?: string; done?: boolean },
+): Promise<SkuVariationData> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+
+  const suffix = String(variationIndex).padStart(2, "0");
+  const variationSku = baseSku ? `${baseSku}-${suffix}` : "";
+
+  // Check if exists
+  const existing = await db
+    .select()
+    .from(skuVariations)
+    .where(
+      and(
+        eq(skuVariations.skuRowId, skuRowId),
+        eq(skuVariations.variationIndex, variationIndex),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    // Update
+    const updateData: Record<string, unknown> = { variationSku };
+    if (data.ean !== undefined) updateData.ean = data.ean;
+    if (data.mlb !== undefined) updateData.mlb = data.mlb;
+    if (data.done !== undefined) updateData.done = data.done;
+    await db
+      .update(skuVariations)
+      .set(updateData)
+      .where(eq(skuVariations.id, existing[0].id));
+  } else {
+    // Insert
+    await db.insert(skuVariations).values({
+      skuRowId,
+      variationIndex,
+      variationSku,
+      ean: data.ean ?? "",
+      mlb: data.mlb ?? "",
+      done: data.done ?? false,
+    });
+  }
+
+  return {
+    variationIndex,
+    variationSku,
+    ean: data.ean ?? existing[0]?.ean ?? "",
+    mlb: data.mlb ?? existing[0]?.mlb ?? "",
+    done: data.done ?? existing[0]?.done ?? false,
+  };
+}

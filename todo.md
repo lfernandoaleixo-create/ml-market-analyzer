@@ -1789,3 +1789,16 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] O bloqueio ativa assim que o SKU e gerado (tipo+categoria+produto preenchidos), mas o cadastro ainda nao esta finalizado
 - [x] Corrigir: bloqueio so deve ativar quando o cadastro estiver FINALIZADO (produto + variante preenchidos no minimo, alem do SKU gerado)
 - [x] Validar que durante a criacao/edicao a linha permanece editavel ate estar completa
+
+## POPOVER VARIACOES SKU - 07/07
+- [x] Schema: tabela sku_variations (id, skuRowId FK, variationIndex 1-10, variationSku text, ean text, mlb text, done boolean)
+- [x] Migration SQL aplicada via webdev_execute_sql
+- [x] Backend: helpers getVariations(skuRowId) e upsertVariation(skuRowId, index, {ean, mlb, done})
+- [x] Backend: procedures tRPC skuSheet.getVariations e skuSheet.upsertVariation
+- [x] Frontend: popover ao hover/click no SKU com tabela de 10 linhas (Variações SKU, EAN, MLB, OK)
+- [x] Variações SKU = sku base + sufixo -01 a -10
+- [x] Campos EAN e MLB editáveis com salvamento automático (debounce)
+- [x] Checkbox OK para marcar como realizado
+- [x] Dados persistidos no banco
+- [x] Testes vitest cobrindo CRUD de variações
+- [x] Validar no preview

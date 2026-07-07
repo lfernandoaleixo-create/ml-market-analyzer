@@ -67,6 +67,7 @@ import {
 } from "../../../../shared/skuSheet";
 import { trpc } from "@/lib/trpc";
 import SheetTabs from "./SheetTabs";
+import SkuVariationsPopover from "./SkuVariationsPopover";
 import ColumnFilter from "./ColumnFilter";
 import {
   type ColumnFilters,
@@ -1234,8 +1235,16 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       {/* Variante (texto completo) */}
       <td className="px-1 py-2">{area("variante")}</td>
 
-      {/* SKU (derivado automaticamente) */}
-      <td className="px-1 py-2">{derived("sku")}</td>
+      {/* SKU (derivado automaticamente) — com popover de variações no hover */}
+      <td className="px-1 py-2">
+        {(local.sku && local.sku !== "") ? (
+          <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku}>
+            <div>{derived("sku")}</div>
+          </SkuVariationsPopover>
+        ) : (
+          derived("sku")
+        )}
+      </td>
 
       {/* Gerar SKU Kit? */}
       <td className="px-2 py-2 text-center">
@@ -1249,8 +1258,16 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
           className={`w-4 h-4 accent-[var(--primary)] ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         />
       </td>
-      {/* SKU Kit (derivado automaticamente) */}
-      <td className="px-1 py-2">{derived("skuKit")}</td>
+      {/* SKU Kit (derivado automaticamente) — com popover de variações no hover */}
+      <td className="px-1 py-2">
+        {(local.skuKit && local.skuKit !== "") ? (
+          <SkuVariationsPopover skuRowId={row.id} baseSku={local.skuKit}>
+            <div>{derived("skuKit")}</div>
+          </SkuVariationsPopover>
+        ) : (
+          derived("skuKit")
+        )}
+      </td>
 
       {/* EAN/GTIN */}
       <td className="px-1 py-2">{text("eanGtin", { className: "font-mono text-xs" })}</td>

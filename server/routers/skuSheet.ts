@@ -11,6 +11,8 @@ import {
   deleteCustomColumn,
   setCustomValue,
   repairVariantNumbers,
+  getVariations,
+  upsertVariation,
 } from "../skuSheetDb";
 import mlCategoriesJson from "../../shared/mlCategories.json";
 import type { MlCategoryTree } from "../../shared/skuSheet";
@@ -119,4 +121,31 @@ export const skuSheetRouter = router({
   repairVariants: publicProcedure
     .input(z.object({ apply: z.boolean().optional() }).optional())
     .mutation(({ input }) => repairVariantNumbers(!(input?.apply ?? false))),
+
+  // --- Variações SKU (10 sub-variações por linha) ---
+
+  /** Retorna as 10 variações de uma linha SKU. */
+  getVariations: publicProcedure
+    .input(z.object({ skuRowId: z.number().int(), baseSku: z.string() }))
+    .query(({ input }) => getVariations(input.skuRowId, input.baseSku)),
+
+  /** Insere ou atualiza uma variação específica. */
+  upsertVariation: publicProcedure
+    .input(
+      z.object({
+        skuRowId: z.number().int(),
+        variationIndex: z.number().int().min(1).max(10),
+        baseSku: z.string(),
+        ean: z.string().max(60).optional(),
+        mlb: z.string().max(60).optional(),
+        done: z.boolean().optional(),
+      }),
+    )
+    .mutation(({ input }) =>
+      upsertVariation(input.skuRowId, input.variationIndex, input.baseSku, {
+        ean: input.ean,
+        mlb: input.mlb,
+        done: input.done,
+      }),
+    ),
 });

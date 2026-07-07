@@ -1397,3 +1397,34 @@ export const driveBackupConfig = mysqlTable("drive_backup_config", {
 
 export type DriveBackupConfig = typeof driveBackupConfig.$inferSelect;
 export type InsertDriveBackupConfig = typeof driveBackupConfig.$inferInsert;
+
+// ============================================================================
+// VARIAÇÕES SKU — cada linha da Planilha SKU pode ter até 10 sub-variações.
+// Cada sub-variação tem um SKU derivado (base + sufixo -01 a -10), EAN e MLB.
+// ============================================================================
+export const skuVariations = mysqlTable(
+  "sku_variations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** FK para a linha da Planilha SKU. */
+    skuRowId: int("skuRowId").notNull(),
+    /** Índice da variação (1 a 10). */
+    variationIndex: int("variationIndex").notNull(),
+    /** SKU da variação (gerado: sku base + "-01" a "-10"). */
+    variationSku: varchar("variationSku", { length: 140 }).default("").notNull(),
+    /** EAN/GTIN da variação. */
+    ean: varchar("ean", { length: 60 }).default("").notNull(),
+    /** MLB (código do anúncio no Mercado Livre). */
+    mlb: varchar("mlb", { length: 60 }).default("").notNull(),
+    /** Checkbox "OK" — marcado quando a variação está concluída. */
+    done: boolean("done").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => ({
+    rowIndexUniq: index("sku_var_row_index_idx").on(t.skuRowId, t.variationIndex),
+  }),
+);
+
+export type SkuVariation = typeof skuVariations.$inferSelect;
+export type InsertSkuVariation = typeof skuVariations.$inferInsert;
