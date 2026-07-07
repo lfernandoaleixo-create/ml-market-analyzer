@@ -799,7 +799,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleUnlockSubmit} disabled={!unlockPwd.trim() || verifyPwdMut.isPending}>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleUnlockSubmit(); }} disabled={!unlockPwd.trim() || verifyPwdMut.isPending}>
               {verifyPwdMut.isPending ? "Verificando..." : "Desbloquear"}
             </AlertDialogAction>
           </AlertDialogFooter>
