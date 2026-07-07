@@ -59,9 +59,6 @@ export default function SkuVariationsPopover({
         className="w-auto min-w-[560px] max-w-[660px] p-3"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <p className="text-xs font-semibold text-muted-foreground mb-2">
-          Variações SKU
-        </p>
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
