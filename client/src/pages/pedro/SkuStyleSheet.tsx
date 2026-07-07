@@ -735,6 +735,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                   onCustomValue={saveCustomValue}
                   isLocked={isRowLocked(row as SkuRow)}
                   onUnlock={() => setUnlockTarget(row.id)}
+                  onRelock={() => setUnlockedIds(prev => { const next = new Set(prev); next.delete(row.id); return next; })}
                   selection={selection}
                 />
               ))}
@@ -899,6 +900,7 @@ type RowEditorProps = {
   onCustomValue: (rowId: number, columnId: number, value: string, delay?: number) => void;
   isLocked: boolean;
   onUnlock: () => void;
+  onRelock: () => void;
   selection?: {
     selectedIds: number[];
     onToggle: (id: number) => void;
@@ -907,7 +909,7 @@ type RowEditorProps = {
   };
 };
 
-function SkuRowEditorImpl({ row, index, problemType, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, isLocked, onUnlock, selection }: RowEditorProps) {
+function SkuRowEditorImpl({ row, index, problemType, categories, allRows, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, isLocked, onUnlock, onRelock, selection }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
 
   const rowRef = useRef(row);
@@ -1299,8 +1301,8 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
             <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-600" title="Linha bloqueada — clique para desbloquear" onClick={onUnlock}>
               <Lock className="w-4 h-4" />
             </Button>
-          ) : row.sku ? (
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" title="Linha desbloqueada" disabled>
+          ) : (row.sku && row.variante && row.variante.trim()) ? (
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" title="Clique para bloquear novamente" onClick={onRelock}>
               <LockOpen className="w-4 h-4" />
             </Button>
           ) : null}
