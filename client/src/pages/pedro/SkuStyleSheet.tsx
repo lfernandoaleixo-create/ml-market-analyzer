@@ -1063,7 +1063,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
             : flag
               ? "SKU IGUAL gerado para variações diferentes. Use 'Corrigir automaticamente' no topo."
               : val
-                ? "Gerado automaticamente"
+                ? undefined
                 : "Preencha Tipo, Categoria e números"
         }
       >
