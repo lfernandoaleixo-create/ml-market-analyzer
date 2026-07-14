@@ -253,7 +253,7 @@ function StagesManager({ stages }: { stages: Stage[] }) {
       >
         <div className="flex items-center gap-2">
           <Settings2 className="w-4 h-4 text-primary" />
-          <span className="font-display font-semibold text-foreground text-sm">Etapas do Pedro</span>
+          <span className="font-display font-semibold text-foreground text-sm">Etapas do E-commerce</span>
           <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-primary/12 text-primary">
             {stages.length}
           </span>
@@ -905,7 +905,7 @@ function ChecklistEditor({
           <span className="inline-block w-1.5 h-5 rounded-full" style={{ background: barColor }} />
           {title}
         </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 items-start">
           {cards.map((c) => renderCard(c, type))}
         </div>
       </div>
@@ -1145,7 +1145,7 @@ function VerticalTimeline({ product }: { product: Product }) {
   if (product.steps.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-2">
-        Nenhuma etapa definida ainda. Use “Etapas do Pedro” no topo para criar.
+        Nenhuma etapa definida ainda. Use “Etapas do E-commerce” no topo para criar.
       </p>
     );
   }
@@ -1403,7 +1403,7 @@ export default function PedroTimeline() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-display font-semibold text-foreground">Cronograma do Pedro</h2>
+          <h2 className="text-2xl font-display font-semibold text-foreground">Cronograma E-commerce</h2>
           <p className="text-muted-foreground mt-1 text-sm">
             Cada produto tem sua própria linha do tempo. Clique numa bolinha para marcar a etapa como concluída e
             adicionar uma observação.

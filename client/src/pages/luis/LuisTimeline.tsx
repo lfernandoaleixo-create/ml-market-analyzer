@@ -156,7 +156,7 @@ function StagesManager({ stages }: { stages: Stage[] }) {
       >
         <div className="flex items-center gap-2">
           <Settings2 className="w-4 h-4 text-primary" />
-          <span className="font-display font-semibold text-foreground text-sm">Etapas do Luís</span>
+          <span className="font-display font-semibold text-foreground text-sm">Etapas de Negociação</span>
           <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-primary/12 text-primary">
             {stages.length}
           </span>
@@ -522,7 +522,7 @@ function HorizontalTimeline({ product, priorityColor }: { product: Product; prio
   if (product.steps.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-2">
-        Nenhuma etapa definida ainda. Use “Etapas do Luís” no topo para criar.
+        Nenhuma etapa definida ainda. Use “Etapas de Negociação” no topo para criar.
       </p>
     );
   }
@@ -724,7 +724,7 @@ export default function LuisTimeline() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h2 className="text-2xl font-display font-semibold text-foreground">Cronograma do Luís</h2>
+        <h2 className="text-2xl font-display font-semibold text-foreground">Cronograma de Negociação</h2>
         <p className="text-muted-foreground mt-1 text-sm">
           Cada produto tem sua própria linha do tempo. Clique numa bolinha para marcar a etapa como concluída e
           adicionar uma observação.

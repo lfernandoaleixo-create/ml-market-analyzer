@@ -24,9 +24,9 @@ export default function PedroTimelineContainer() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-display font-semibold text-foreground">Linha do Tempo Pedro</h1>
+        <h1 className="text-2xl font-display font-semibold text-foreground">Linha do Tempo E-commerce</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Pipeline do Pedro — etapas personalizáveis com status e observações por produto
+          Pipeline E-commerce — etapas personalizáveis com status e observações por produto
         </p>
       </div>
 
@@ -59,7 +59,7 @@ export default function PedroTimelineContainer() {
           A LINHA DO TEMPO e que e propria do Pedro -> a ficha recebe timelineNs="pedro".
         */}
         <Route path="/pedro-timeline">{() => <ProjetoPainel basePath="/pedro-timeline" ns="project" timelineNs="pedro" />}</Route>
-        {/* Apenas o Cronograma do Pedro e independente. */}
+        {/* Apenas o Cronograma E-commerce e independente. */}
         <Route path="/pedro-timeline/timeline" component={PedroTimeline} />
         <Route path="/pedro-timeline/analise">{() => <ProjetoAnalise basePath="/pedro-timeline" ns="project" />}</Route>
         <Route path="/pedro-timeline/produto/:id">{() => <ProjetoProduto basePath="/pedro-timeline" ns="project" timelineNs="pedro" />}</Route>

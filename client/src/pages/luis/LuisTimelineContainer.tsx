@@ -19,9 +19,9 @@ export default function LuisTimelineContainer() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-display font-semibold text-foreground">Linha do Tempo Luís</h1>
+        <h1 className="text-2xl font-display font-semibold text-foreground">Linha do Tempo Negociação</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Pipeline do Luís — etapas personalizáveis com status e observações por produto
+          Pipeline de Negociação — etapas personalizáveis com status e observações por produto
         </p>
       </div>
 

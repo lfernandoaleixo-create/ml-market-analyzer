@@ -70,8 +70,8 @@ const menuGroups: MenuGroup[] = [
       { icon: Wallet, label: "Lucratividade", path: "/lucratividade" },
       { icon: Calculator, label: "Calculadora de precificação", path: "/calculadora" },
       { icon: FolderKanban, label: "Projeto", path: "/projeto" },
-      { icon: GitBranch, label: "Linha do Tempo Luís", path: "/luis-timeline" },
-      { icon: GitBranch, label: "Linha do Tempo Pedro", path: "/pedro-timeline" },
+      { icon: GitBranch, label: "Linha do Tempo Negociação", path: "/luis-timeline" },
+      { icon: GitBranch, label: "Linha do Tempo E-commerce", path: "/pedro-timeline" },
     ],
   },
   {
@@ -473,7 +473,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
             </div>
           </div>
         )}
-        <main ref={mainRef} className="flex-1">{children}</main>
+        <main ref={mainRef} className="flex-1 pl-6">{children}</main>
       </SidebarInset>
     </>
   );
