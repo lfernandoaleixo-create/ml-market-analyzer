@@ -833,7 +833,7 @@ function ChecklistEditor({
 
   // Renderiza apenas os itens de um grupo.
   const renderGroupBody = (items: ChecklistItem[]) => (
-    <div className="space-y-2">{items.map(renderItem)}</div>
+    <div className="space-y-2 flex-1">{items.map(renderItem)}</div>
   );
 
   // Mini-formulario "+ adicionar" DENTRO de um card (so no modo edicao).
@@ -876,7 +876,7 @@ function ChecklistEditor({
     return (
       <div
         key={`${type}:${card.key}`}
-        className="rounded-xl border border-border/70 bg-card p-3 space-y-2"
+        className="rounded-xl border border-border/70 bg-card p-3 space-y-2 flex flex-col"
       >
         <div className="flex items-center gap-2">
           <span className="inline-block w-1.5 h-4 rounded-full" style={{ background: accent }} />
@@ -905,7 +905,7 @@ function ChecklistEditor({
           <span className="inline-block w-1.5 h-5 rounded-full" style={{ background: barColor }} />
           {title}
         </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
           {cards.map((c) => renderCard(c, type))}
         </div>
       </div>
