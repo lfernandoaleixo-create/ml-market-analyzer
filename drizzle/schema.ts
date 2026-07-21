@@ -1075,11 +1075,6 @@ export const skuSheetRows = mysqlTable(
     gerarSkuKit: boolean("gerarSkuKit").default(false).notNull(),
     skuKit: varchar("skuKit", { length: 120 }).default("").notNull(),
 
-    /** MLB do SKU principal (código do anúncio no Mercado Livre). */
-    mainMlb: varchar("mainMlb", { length: 60 }).default("").notNull(),
-    /** Checkbox "OK" do SKU principal — marcado quando concluído. */
-    mainDone: boolean("mainDone").default(false).notNull(),
-
     /** Códigos fiscais/identificação. */
     eanGtin: varchar("eanGtin", { length: 60 }).default("").notNull(),
     ncm: varchar("ncm", { length: 20 }).default("").notNull(),

@@ -10,18 +10,6 @@ import { Loader2 } from "lucide-react";
 type SkuVariationsPopoverProps = {
   skuRowId: number;
   baseSku: string;
-  /** EAN/GTIN do SKU principal (campo eanGtin da linha da planilha). */
-  mainEan: string;
-  /** MLB do SKU principal. */
-  mainMlb: string;
-  /** Checkbox OK do SKU principal. */
-  mainDone: boolean;
-  /** Callback para salvar alterações no EAN do SKU principal. */
-  onMainEanChange?: (ean: string) => void;
-  /** Callback para salvar alterações no MLB do SKU principal. */
-  onMainMlbChange?: (mlb: string) => void;
-  /** Callback para salvar alterações no Done do SKU principal. */
-  onMainDoneChange?: (done: boolean) => void;
   children: React.ReactNode;
 };
 
@@ -34,24 +22,23 @@ type VariationRow = {
 };
 
 /**
- * Popover que aparece ao CLICAR sobre o ícone SKU.
- * Exibe uma tabela com colunas: SKU | EAN | MLB | OK
- * A primeira linha é o SKU principal (em destaque, fundo diferenciado).
- * As linhas seguintes são as variações com efeito de cascata (indentadas).
+ * Popover que aparece ao CLICAR sobre uma célula SKU.
+ * Mostra uma tabela com 10 sub-variações (SKU derivado, EAN, MLB, OK).
+ * Os dados são carregados sob demanda e salvos com debounce no blur.
+ *
+ * Usamos Popover (click) em vez de HoverCard porque:
+ * - Funciona em todos os dispositivos (desktop + touch/tablet)
+ * - Mais confiável em produção (HoverCard pode não disparar em certos browsers)
+ * - Permite interação com os campos sem fechar acidentalmente
  */
 export default function SkuVariationsPopover({
   skuRowId,
   baseSku,
-  mainEan,
-  mainMlb,
-  mainDone,
-  onMainEanChange,
-  onMainMlbChange,
-  onMainDoneChange,
   children,
 }: SkuVariationsPopoverProps) {
   const [open, setOpen] = useState(false);
 
+  // Fetch variations only when popover opens
   const { data: variations, isLoading, refetch } = trpc.skuSheet.getVariations.useQuery(
     { skuRowId, baseSku },
     { enabled: open, staleTime: 30_000 },
@@ -69,11 +56,11 @@ export default function SkuVariationsPopover({
         side="bottom"
         align="start"
         sideOffset={6}
-        className="w-auto min-w-[600px] max-w-[720px] p-0 overflow-hidden"
+        className="w-auto min-w-[560px] max-w-[660px] p-3"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-6">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
@@ -81,12 +68,6 @@ export default function SkuVariationsPopover({
             variations={variations ?? []}
             skuRowId={skuRowId}
             baseSku={baseSku}
-            mainEan={mainEan}
-            mainMlb={mainMlb}
-            mainDone={mainDone}
-            onMainEanChange={onMainEanChange}
-            onMainMlbChange={onMainMlbChange}
-            onMainDoneChange={onMainDoneChange}
           />
         )}
       </PopoverContent>
@@ -94,28 +75,16 @@ export default function SkuVariationsPopover({
   );
 }
 
-// ─── Tabela unificada: SKU principal (1ª linha) + variações em cascata ───────
+// ─── Tabela interna de variações ─────────────────────────────────────────────
 
 function VariationsTable({
   variations,
   skuRowId,
   baseSku,
-  mainEan,
-  mainMlb,
-  mainDone,
-  onMainEanChange,
-  onMainMlbChange,
-  onMainDoneChange,
 }: {
   variations: VariationRow[];
   skuRowId: number;
   baseSku: string;
-  mainEan: string;
-  mainMlb: string;
-  mainDone: boolean;
-  onMainEanChange?: (ean: string) => void;
-  onMainMlbChange?: (mlb: string) => void;
-  onMainDoneChange?: (done: boolean) => void;
 }) {
   const utils = trpc.useUtils();
   const upsertMut = trpc.skuSheet.upsertVariation.useMutation({
@@ -125,37 +94,26 @@ function VariationsTable({
   });
 
   return (
-    <div className="max-h-[420px] overflow-y-auto">
+    <div className="max-h-[320px] overflow-y-auto">
       <table className="w-full text-xs border-collapse">
-        <thead className="sticky top-0 z-10">
-          <tr className="border-b border-border text-muted-foreground bg-muted/50">
-            <th className="text-left py-2 px-3 font-semibold whitespace-nowrap">SKU</th>
-            <th className="text-left py-2 px-3 font-semibold">EAN</th>
-            <th className="text-left py-2 px-3 font-semibold">MLB</th>
-            <th className="text-center py-2 px-2 font-semibold w-12">OK</th>
+        <thead>
+          <tr className="border-b border-border text-muted-foreground">
+            <th className="text-left py-1.5 px-2 pr-10 font-semibold whitespace-nowrap">
+              Variações SKU
+            </th>
+            <th className="text-left py-1.5 px-4 font-semibold">EAN</th>
+            <th className="text-left py-1.5 px-3 font-semibold">MLB</th>
+            <th className="text-center py-1.5 px-2 font-semibold">OK</th>
           </tr>
         </thead>
         <tbody>
-          {/* ─── SKU PRINCIPAL (primeira linha, em destaque) ─── */}
-          <MainSkuRowInline
-            baseSku={baseSku}
-            mainEan={mainEan}
-            mainMlb={mainMlb}
-            mainDone={mainDone}
-            onMainEanChange={onMainEanChange}
-            onMainMlbChange={onMainMlbChange}
-            onMainDoneChange={onMainDoneChange}
-          />
-
-          {/* ─── VARIAÇÕES (com efeito cascata/indent) ─── */}
-          {variations.map((v, i) => (
+          {variations.map((v) => (
             <VariationRowEditor
               key={v.variationIndex}
               variation={v}
-              isLast={i === variations.length - 1}
-              onSave={(idx, data) =>
-                upsertMut.mutate({ skuRowId, variationIndex: idx, baseSku, ...data })
-              }
+              skuRowId={skuRowId}
+              baseSku={baseSku}
+              onSave={(idx, data) => upsertMut.mutate({ skuRowId, variationIndex: idx, baseSku, ...data })}
             />
           ))}
         </tbody>
@@ -164,133 +122,24 @@ function VariationsTable({
   );
 }
 
-// ─── SKU Principal como primeira linha da tabela (em destaque) ────────────────
-
-function MainSkuRowInline({
-  baseSku,
-  mainEan,
-  mainMlb,
-  mainDone,
-  onMainEanChange,
-  onMainMlbChange,
-  onMainDoneChange,
-}: {
-  baseSku: string;
-  mainEan: string;
-  mainMlb: string;
-  mainDone: boolean;
-  onMainEanChange?: (ean: string) => void;
-  onMainMlbChange?: (mlb: string) => void;
-  onMainDoneChange?: (done: boolean) => void;
-}) {
-  const [ean, setEan] = useState(mainEan);
-  const [mlb, setMlb] = useState(mainMlb);
-  const [done, setDone] = useState(mainDone);
-
-  const prevRef = useRef({ mainEan, mainMlb, mainDone });
-  if (prevRef.current.mainEan !== mainEan || prevRef.current.mainMlb !== mainMlb || prevRef.current.mainDone !== mainDone) {
-    prevRef.current = { mainEan, mainMlb, mainDone };
-    setEan(mainEan);
-    setMlb(mainMlb);
-    setDone(mainDone);
-  }
-
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const debouncedEan = (value: string) => {
-    setEan(value);
-    if (onMainEanChange) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => onMainEanChange(value), 600);
-    }
-  };
-
-  const debouncedMlb = (value: string) => {
-    setMlb(value);
-    if (onMainMlbChange) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => onMainMlbChange(value), 600);
-    }
-  };
-
-  const handleEanBlur = () => {
-    if (ean !== mainEan && onMainEanChange) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      onMainEanChange(ean);
-    }
-  };
-
-  const handleMlbBlur = () => {
-    if (mlb !== mainMlb && onMainMlbChange) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      onMainMlbChange(mlb);
-    }
-  };
-
-  const handleDoneChange = (checked: boolean) => {
-    setDone(checked);
-    if (onMainDoneChange) onMainDoneChange(checked);
-  };
-
-  return (
-    <tr className="bg-primary/6 border-b-2 border-primary/25">
-      {/* SKU principal */}
-      <td className="py-2 px-3">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-          <span className="font-mono text-[12px] font-bold text-foreground select-all">
-            {baseSku}
-          </span>
-        </div>
-      </td>
-      {/* EAN editável */}
-      <td className="py-1.5 px-2">
-        <input
-          value={ean}
-          onChange={(e) => debouncedEan(e.target.value)}
-          onBlur={handleEanBlur}
-          placeholder="—"
-          className="w-full min-w-[120px] bg-background/80 border border-border/50 px-2 py-1 rounded text-xs font-mono outline-none focus:ring-1 focus:ring-primary/40"
-        />
-      </td>
-      {/* MLB editável */}
-      <td className="py-1.5 px-2">
-        <input
-          value={mlb}
-          onChange={(e) => debouncedMlb(e.target.value)}
-          onBlur={handleMlbBlur}
-          placeholder="—"
-          className="w-full min-w-[120px] bg-background/80 border border-border/50 px-2 py-1 rounded text-xs font-mono outline-none focus:ring-1 focus:ring-primary/40"
-        />
-      </td>
-      {/* OK checkbox */}
-      <td className="py-1.5 px-2 text-center">
-        <input
-          type="checkbox"
-          checked={done}
-          onChange={(e) => handleDoneChange(e.target.checked)}
-          className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
-        />
-      </td>
-    </tr>
-  );
-}
-
-// ─── Linha individual de variação (com efeito cascata) ───────────────────────
+// ─── Linha individual da tabela de variações ─────────────────────────────────
 
 function VariationRowEditor({
   variation,
-  isLast,
+  skuRowId,
+  baseSku,
   onSave,
 }: {
   variation: VariationRow;
-  isLast: boolean;
+  skuRowId: number;
+  baseSku: string;
   onSave: (index: number, data: { ean?: string; mlb?: string; done?: boolean }) => void;
 }) {
   const [ean, setEan] = useState(variation.ean);
   const [mlb, setMlb] = useState(variation.mlb);
   const [done, setDone] = useState(variation.done);
 
+  // Keep local state in sync if server data changes
   const prevRef = useRef(variation);
   if (
     prevRef.current.ean !== variation.ean ||
@@ -336,22 +185,11 @@ function VariationRowEditor({
   };
 
   return (
-    <tr className="border-b border-border/30 hover:bg-muted/20 transition-colors group">
-      {/* SKU da variação com conector visual (cascata) */}
-      <td className="py-1.5 px-3 relative">
-        {/* Linha vertical de conexão */}
-        <div
-          className="absolute left-[18px] top-0 w-px bg-border/60"
-          style={{ height: isLast ? "50%" : "100%" }}
-        />
-        {/* Branch horizontal */}
-        <div className="absolute left-[18px] top-1/2 w-3 h-px bg-border/60" />
-        <span className="font-mono text-[11px] text-muted-foreground whitespace-nowrap select-all pl-6">
-          {variation.variationSku}
-        </span>
+    <tr className="border-b border-border/40 hover:bg-muted/30 transition-colors">
+      <td className="py-1.5 px-2 pr-10 font-mono text-[11px] text-muted-foreground whitespace-nowrap select-all">
+        {variation.variationSku}
       </td>
-      {/* EAN */}
-      <td className="py-1 px-2">
+      <td className="py-1 px-3">
         <input
           value={ean}
           onChange={(e) => {
@@ -360,10 +198,9 @@ function VariationRowEditor({
           }}
           onBlur={handleEanBlur}
           placeholder="—"
-          className="w-full min-w-[120px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
+          className="w-full min-w-[110px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
         />
       </td>
-      {/* MLB */}
       <td className="py-1 px-2">
         <input
           value={mlb}
@@ -373,10 +210,9 @@ function VariationRowEditor({
           }}
           onBlur={handleMlbBlur}
           placeholder="—"
-          className="w-full min-w-[120px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
+          className="w-full min-w-[110px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
         />
       </td>
-      {/* OK */}
       <td className="py-1 px-2 text-center">
         <input
           type="checkbox"

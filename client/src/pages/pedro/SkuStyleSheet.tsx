@@ -97,8 +97,6 @@ type SkuRow = {
   sku: string;
   gerarSkuKit: boolean;
   skuKit: string;
-  mainMlb: string;
-  mainDone: boolean;
   eanGtin: string;
   ncm: string;
   gpc: string;
@@ -425,7 +423,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
       { label: "Variante", value: (r) => String(r.variante ?? "") },
       { label: "SKU", value: (r) => String(r.sku ?? "") },
       { label: "Gerar Kit?", value: (r) => (r.gerarSkuKit ? "Sim" : "Não") },
-      { label: "SKU Kit Base", value: (r) => String(r.skuKit ?? "") },
+      { label: "SKU Kit", value: (r) => String(r.skuKit ?? "") },
       { label: "EAN/GTIN", value: (r) => String(r.eanGtin ?? "") },
       { label: "NCM", value: (r) => String(r.ncm ?? "") },
       { label: "GPC", value: (r) => String(r.gpc ?? "") },
@@ -657,7 +655,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                     onClear={() => handleClearColumn("cadastradoMl")}
                   />
                 </Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[150px]">
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">
                   <ColumnFilter
                     label="Tipo SKU"
                     options={filterOptions.tipoSku}
@@ -666,7 +664,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                     onClear={() => handleClearColumn("tipoSku")}
                   />
                 </Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[220px]">
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">
                   <ColumnFilter
                     label="Categoria"
                     options={filterOptions.categoryName}
@@ -676,7 +674,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                     searchable
                   />
                 </Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[220px]">
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">
                   <ColumnFilter
                     label="Subcategoria"
                     options={filterOptions.subCategoryName}
@@ -701,18 +699,19 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[240px]">Variante</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">SKU</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="text-center">Gerar Kit?</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit Base</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[140px]">EAN/GTIN</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">NCM</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">GPC</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">CEST</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">Preço Clássico</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">Preço Premium</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">Preço Atacado</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">Emb. Prof.</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">Emb. Larg.</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">Emb. Alt.</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">Peso (kg)</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[280px]">Características</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[80px]">Emb. Prof.</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[80px]">Emb. Larg.</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[80px]">Emb. Alt.</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">Peso (kg)</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[220px]">Características</Th>
                 {cols.map((c) => (
                   <Th key={c.id} style={{ background: "var(--sku-head)" }} className="min-w-[160px]">
                     {c.name || "(sem nome)"}
@@ -744,7 +743,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={(selection ? 25 : 24) + cols.length} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={(selection ? 26 : 25) + cols.length} className="text-center py-12 text-muted-foreground">
                     {search || activeFilterCount > 0 ? "Nenhum item encontrado para os filtros aplicados." : "Nenhum item ainda. Clique em “Nova linha”."}
                   </td>
                 </tr>
@@ -1165,7 +1164,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       </td>
 
       {/* Tipo SKU */}
-      <td className="px-2 py-2" style={{ minWidth: "140px" }}>
+      <td className="px-2 py-2">
         <select
           value={local.tipoSku}
           disabled={isLocked}
@@ -1196,7 +1195,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
             };
             applyDerived(patch);
           }}
-          className={`w-full rounded-md pl-2 pr-6 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 border border-border bg-background ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+          className={`w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 border border-border bg-background ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         >
           <option value="">— selecionar —</option>
           {categories.map((c) => (
@@ -1219,7 +1218,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
             set(patch);
             onFieldNow(row.id, patch);
           }}
-          className="w-full rounded-md pl-2 pr-6 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer border border-border bg-background disabled:opacity-50"
+          className="w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer border border-border bg-background disabled:opacity-50"
         >
           <option value="">{local.categoryId ? "— selecionar —" : "escolha a categoria"}</option>
           {subcats.map((s) => (
@@ -1237,38 +1236,14 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       {/* Variante (texto completo) */}
       <td className="px-1 py-2">{area("variante")}</td>
 
-      {/* SKU (derivado automaticamente) — botão que abre popover de variações */}
+      {/* SKU (derivado automaticamente) — popover de variações ao CLICAR */}
       <td className="px-1 py-2">
         {(local.sku && local.sku !== "") ? (
-          <SkuVariationsPopover
-            skuRowId={row.id}
-            baseSku={local.sku}
-            mainEan={local.eanGtin}
-            mainMlb={local.mainMlb}
-            mainDone={local.mainDone}
-            onMainEanChange={(ean) => {
-              set({ eanGtin: ean });
-              onFieldNow(row.id, { eanGtin: ean });
-            }}
-            onMainMlbChange={(mlb) => {
-              set({ mainMlb: mlb });
-              onFieldNow(row.id, { mainMlb: mlb });
-            }}
-            onMainDoneChange={(done) => {
-              set({ mainDone: done });
-              onFieldNow(row.id, { mainDone: done });
-            }}
-          >
-            <button
-              type="button"
-              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-primary hover:bg-primary/10 border border-primary/20 transition-colors cursor-pointer active:scale-95"
-              title="Ver variações do SKU"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4.5 h-4.5"><path d="M21 8V21H3V8"/><path d="M1 3h22v5H1z"/><path d="M12 12v6"/><path d="M12 12l3 3"/><path d="M12 12l-3 3"/></svg>
-            </button>
+          <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku}>
+            <div className="cursor-pointer">{derived("sku")}</div>
           </SkuVariationsPopover>
         ) : (
-          <span className="text-muted-foreground/50 italic text-xs px-2">auto</span>
+          derived("sku")
         )}
       </td>
 
@@ -1284,11 +1259,19 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
           className={`w-4 h-4 accent-[var(--primary)] ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         />
       </td>
-      {/* SKU Kit Base (derivado automaticamente) — sem popover, código único */}
+      {/* SKU Kit (derivado automaticamente) — com popover de variações no hover */}
       <td className="px-1 py-2">
-        {derived("skuKit")}
+        {(local.skuKit && local.skuKit !== "") ? (
+          <SkuVariationsPopover skuRowId={row.id} baseSku={local.skuKit}>
+            <div className="cursor-pointer">{derived("skuKit")}</div>
+          </SkuVariationsPopover>
+        ) : (
+          derived("skuKit")
+        )}
       </td>
 
+      {/* EAN/GTIN */}
+      <td className="px-1 py-2">{text("eanGtin", { className: "font-mono text-xs" })}</td>
       {/* NCM (texto completo) */}
       <td className="px-1 py-2">{area("ncm", { className: "font-mono text-xs" })}</td>
       {/* GPC */}
@@ -1302,10 +1285,10 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       <td className="px-1 py-2">{text("precoAtacado", { placeholder: "R$", className: "text-right tabular-nums" })}</td>
 
       {/* Embalagem */}
-      <td className="px-1 py-2" style={{ minWidth: "110px" }}>{text("embProfundidade", { className: "text-center tabular-nums" })}</td>
-      <td className="px-1 py-2" style={{ minWidth: "110px" }}>{text("embLargura", { className: "text-center tabular-nums" })}</td>
-      <td className="px-1 py-2" style={{ minWidth: "110px" }}>{text("embAltura", { className: "text-center tabular-nums" })}</td>
-      <td className="px-1 py-2" style={{ minWidth: "100px" }}>{text("embPeso", { className: "text-center tabular-nums" })}</td>
+      <td className="px-1 py-2">{text("embProfundidade", { className: "text-center tabular-nums" })}</td>
+      <td className="px-1 py-2">{text("embLargura", { className: "text-center tabular-nums" })}</td>
+      <td className="px-1 py-2">{text("embAltura", { className: "text-center tabular-nums" })}</td>
+      <td className="px-1 py-2">{text("embPeso", { className: "text-center tabular-nums" })}</td>
 
       {/* Características (texto completo) */}
       <td className="px-1 py-2">{area("caracteristicas")}</td>
@@ -1770,7 +1753,7 @@ function EditRowDialog({ row, categories, allRows, customColumns, onClose, onSav
             <div className="w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-mono font-semibold">{draft.sku || "auto"}</div>
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">SKU Kit Base (auto)</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">SKU Kit (auto)</label>
             <div className="w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-mono font-semibold whitespace-nowrap overflow-x-auto">{draft.skuKit || "auto"}</div>
           </div>
 
