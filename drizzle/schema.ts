@@ -9,6 +9,7 @@ import {
   mysqlTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/mysql-core";
 
@@ -1422,7 +1423,7 @@ export const skuVariations = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   (t) => ({
-    rowIndexUniq: index("sku_var_row_index_idx").on(t.skuRowId, t.variationIndex),
+    rowIndexUniq: uniqueIndex("sku_var_unique_idx").on(t.skuRowId, t.variationIndex),
   }),
 );
 

@@ -456,7 +456,7 @@ export async function upsertVariation(
   const suffix = String(variationIndex).padStart(2, "0");
   const variationSku = baseSku ? `${baseSku}-${suffix}` : "";
 
-  // Check if exists
+  // Check if row already exists
   const existing = await db
     .select()
     .from(skuVariations)
@@ -469,7 +469,7 @@ export async function upsertVariation(
     .limit(1);
 
   if (existing.length > 0) {
-    // Update
+    // Update existing row
     const updateData: Record<string, unknown> = { variationSku };
     if (data.ean !== undefined) updateData.ean = data.ean;
     if (data.mlb !== undefined) updateData.mlb = data.mlb;
@@ -477,24 +477,63 @@ export async function upsertVariation(
     await db
       .update(skuVariations)
       .set(updateData)
-      .where(eq(skuVariations.id, existing[0].id));
+      .where(
+        and(
+          eq(skuVariations.skuRowId, skuRowId),
+          eq(skuVariations.variationIndex, variationIndex),
+        ),
+      );
   } else {
-    // Insert
-    await db.insert(skuVariations).values({
-      skuRowId,
-      variationIndex,
-      variationSku,
-      ean: data.ean ?? "",
-      mlb: data.mlb ?? "",
-      done: data.done ?? false,
-    });
+    // Insert new row (UNIQUE constraint prevents duplicates from race conditions)
+    try {
+      await db.insert(skuVariations).values({
+        skuRowId,
+        variationIndex,
+        variationSku,
+        ean: data.ean ?? "",
+        mlb: data.mlb ?? "",
+        done: data.done ?? false,
+      });
+    } catch (err: any) {
+      // If duplicate key error, another request inserted first — do an update instead
+      if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062) {
+        const updateData: Record<string, unknown> = { variationSku };
+        if (data.ean !== undefined) updateData.ean = data.ean;
+        if (data.mlb !== undefined) updateData.mlb = data.mlb;
+        if (data.done !== undefined) updateData.done = data.done;
+        await db
+          .update(skuVariations)
+          .set(updateData)
+          .where(
+            and(
+              eq(skuVariations.skuRowId, skuRowId),
+              eq(skuVariations.variationIndex, variationIndex),
+            ),
+          );
+      } else {
+        throw err;
+      }
+    }
   }
 
+  // Read back the actual stored row to return accurate data
+  const readBack = await db
+    .select()
+    .from(skuVariations)
+    .where(
+      and(
+        eq(skuVariations.skuRowId, skuRowId),
+        eq(skuVariations.variationIndex, variationIndex),
+      ),
+    )
+    .limit(1);
+
+  const row = readBack[0];
   return {
     variationIndex,
     variationSku,
-    ean: data.ean ?? existing[0]?.ean ?? "",
-    mlb: data.mlb ?? existing[0]?.mlb ?? "",
-    done: data.done ?? existing[0]?.done ?? false,
+    ean: row?.ean ?? data.ean ?? "",
+    mlb: row?.mlb ?? data.mlb ?? "",
+    done: row?.done ?? data.done ?? false,
   };
 }

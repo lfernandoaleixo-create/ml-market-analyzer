@@ -1804,3 +1804,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validar no preview
 - [x] Fix: popover de variações não aparece na publicação (produção) — corrigido: trocado HoverCard por Popover (click) para compatibilidade com produção e touch
 - [x] Fix: aumentar espaçamento entre coluna "Variações SKU" e coluna "EAN" no popover (pr-10 + px-4)
+- [x] Fix: bug de registros duplicados no upsertVariation — reescrito com padrão select+insert/update + UNIQUE constraint + fallback ER_DUP_ENTRY para race conditions
+
+## RENOMEAÇÃO DE TIMELINES - 07/07
+- [x] "Linha do Tempo Luís" → "Linha do Tempo Negociação" (sidebar, headers, containers)
+- [x] "Linha do Tempo Pedro" → "Linha do Tempo E-commerce" (sidebar, headers, containers)
+- [x] Padding-left no main content para espaçamento da sidebar
+- [x] Cards do Kickoff com altura igual por linha (items-stretch + flex flex-col)
