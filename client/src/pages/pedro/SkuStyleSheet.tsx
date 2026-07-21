@@ -700,7 +700,6 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">SKU</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="text-center">Gerar Kit?</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit Base</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[140px]">EAN/GTIN</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">NCM</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">GPC</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">CEST</Th>
@@ -743,7 +742,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={(selection ? 26 : 25) + cols.length} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={(selection ? 25 : 24) + cols.length} className="text-center py-12 text-muted-foreground">
                     {search || activeFilterCount > 0 ? "Nenhum item encontrado para os filtros aplicados." : "Nenhum item ainda. Clique em “Nova linha”."}
                   </td>
                 </tr>
@@ -1236,14 +1235,29 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       {/* Variante (texto completo) */}
       <td className="px-1 py-2">{area("variante")}</td>
 
-      {/* SKU (derivado automaticamente) — popover de variações ao CLICAR */}
+      {/* SKU (derivado automaticamente) — botão que abre popover de variações */}
       <td className="px-1 py-2">
         {(local.sku && local.sku !== "") ? (
-          <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku}>
-            <div className="cursor-pointer">{derived("sku")}</div>
+          <SkuVariationsPopover
+            skuRowId={row.id}
+            baseSku={local.sku}
+            mainEan={local.eanGtin}
+            onMainEanChange={(ean) => {
+              set({ eanGtin: ean });
+              onFieldNow(row.id, { eanGtin: ean });
+            }}
+          >
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors cursor-pointer whitespace-nowrap"
+              title="Clique para ver variações"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 opacity-70"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.62 4H12.5A1.5 1.5 0 0 1 14 5.5v1.401a2.986 2.986 0 0 0-1.5-.401h-9A2.986 2.986 0 0 0 2 6.901V3.5Z" /><path d="M2 8.5A1.5 1.5 0 0 1 3.5 7h9A1.5 1.5 0 0 1 14 8.5v4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-4Z" /></svg>
+              {local.sku}
+            </button>
           </SkuVariationsPopover>
         ) : (
-          derived("sku")
+          <span className="text-muted-foreground/50 italic text-xs px-2">auto</span>
         )}
       </td>
 
@@ -1264,8 +1278,6 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
         {derived("skuKit")}
       </td>
 
-      {/* EAN/GTIN */}
-      <td className="px-1 py-2">{text("eanGtin", { className: "font-mono text-xs" })}</td>
       {/* NCM (texto completo) */}
       <td className="px-1 py-2">{area("ncm", { className: "font-mono text-xs" })}</td>
       {/* GPC */}

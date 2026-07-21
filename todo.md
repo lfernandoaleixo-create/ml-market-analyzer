@@ -1813,3 +1813,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] "Linha do Tempo Pedro" → "Linha do Tempo E-commerce" (sidebar, headers, containers)
 - [x] Padding-left no main content para espaçamento da sidebar
 - [x] Cards do Kickoff com altura igual por linha (items-stretch + flex flex-col)
+
+## REFORMULAÇÃO POPOVER VARIAÇÕES SKU - 21/07
+- [x] Incluir SKU principal em destaque no topo do popover (com EAN, MLB, OK)
+- [x] Variações aparecem indentadas/em cascata abaixo do principal (estilo pastas Windows)
+- [x] Mover EAN de cada produto (campo eanGtin da planilha) para dentro do popover como EAN do SKU principal
+- [x] Na coluna SKU, substituir o código por um botão clicável que abre o popover
+- [x] Eliminar a coluna EAN/GTIN da planilha (informação agora vive dentro do popover)
+- [x] Garantir que o EAN existente de cada produto não se perca na migração
