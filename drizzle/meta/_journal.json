@@ -176,6 +176,13 @@
       "when": 1783430914255,
       "tag": "0024_quick_psynapse",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1784641902422,
+      "tag": "0025_small_spectrum",
+      "breakpoints": true
     }
   ]
 }

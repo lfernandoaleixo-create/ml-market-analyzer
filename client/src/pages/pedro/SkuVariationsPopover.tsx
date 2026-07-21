@@ -12,8 +12,16 @@ type SkuVariationsPopoverProps = {
   baseSku: string;
   /** EAN/GTIN do SKU principal (campo eanGtin da linha da planilha). */
   mainEan: string;
+  /** MLB do SKU principal. */
+  mainMlb: string;
+  /** Checkbox OK do SKU principal. */
+  mainDone: boolean;
   /** Callback para salvar alterações no EAN do SKU principal. */
   onMainEanChange?: (ean: string) => void;
+  /** Callback para salvar alterações no MLB do SKU principal. */
+  onMainMlbChange?: (mlb: string) => void;
+  /** Callback para salvar alterações no Done do SKU principal. */
+  onMainDoneChange?: (done: boolean) => void;
   children: React.ReactNode;
 };
 
@@ -29,13 +37,17 @@ type VariationRow = {
  * Popover que aparece ao CLICAR sobre o ícone SKU.
  * Exibe uma tabela com colunas: SKU | EAN | MLB | OK
  * A primeira linha é o SKU principal (em destaque, fundo diferenciado).
- * As linhas seguintes são as variações.
+ * As linhas seguintes são as variações com efeito de cascata (indentadas).
  */
 export default function SkuVariationsPopover({
   skuRowId,
   baseSku,
   mainEan,
+  mainMlb,
+  mainDone,
   onMainEanChange,
+  onMainMlbChange,
+  onMainDoneChange,
   children,
 }: SkuVariationsPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -57,7 +69,7 @@ export default function SkuVariationsPopover({
         side="bottom"
         align="start"
         sideOffset={6}
-        className="w-auto min-w-[580px] max-w-[700px] p-0 overflow-hidden"
+        className="w-auto min-w-[600px] max-w-[720px] p-0 overflow-hidden"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {isLoading ? (
@@ -70,7 +82,11 @@ export default function SkuVariationsPopover({
             skuRowId={skuRowId}
             baseSku={baseSku}
             mainEan={mainEan}
+            mainMlb={mainMlb}
+            mainDone={mainDone}
             onMainEanChange={onMainEanChange}
+            onMainMlbChange={onMainMlbChange}
+            onMainDoneChange={onMainDoneChange}
           />
         )}
       </PopoverContent>
@@ -78,20 +94,28 @@ export default function SkuVariationsPopover({
   );
 }
 
-// ─── Tabela unificada: SKU principal (1ª linha) + variações ──────────────────
+// ─── Tabela unificada: SKU principal (1ª linha) + variações em cascata ───────
 
 function VariationsTable({
   variations,
   skuRowId,
   baseSku,
   mainEan,
+  mainMlb,
+  mainDone,
   onMainEanChange,
+  onMainMlbChange,
+  onMainDoneChange,
 }: {
   variations: VariationRow[];
   skuRowId: number;
   baseSku: string;
   mainEan: string;
+  mainMlb: string;
+  mainDone: boolean;
   onMainEanChange?: (ean: string) => void;
+  onMainMlbChange?: (mlb: string) => void;
+  onMainDoneChange?: (done: boolean) => void;
 }) {
   const utils = trpc.useUtils();
   const upsertMut = trpc.skuSheet.upsertVariation.useMutation({
@@ -101,7 +125,7 @@ function VariationsTable({
   });
 
   return (
-    <div className="max-h-[400px] overflow-y-auto">
+    <div className="max-h-[420px] overflow-y-auto">
       <table className="w-full text-xs border-collapse">
         <thead className="sticky top-0 z-10">
           <tr className="border-b border-border text-muted-foreground bg-muted/50">
@@ -116,14 +140,19 @@ function VariationsTable({
           <MainSkuRowInline
             baseSku={baseSku}
             mainEan={mainEan}
+            mainMlb={mainMlb}
+            mainDone={mainDone}
             onMainEanChange={onMainEanChange}
+            onMainMlbChange={onMainMlbChange}
+            onMainDoneChange={onMainDoneChange}
           />
 
-          {/* ─── VARIAÇÕES ─── */}
-          {variations.map((v) => (
+          {/* ─── VARIAÇÕES (com efeito cascata/indent) ─── */}
+          {variations.map((v, i) => (
             <VariationRowEditor
               key={v.variationIndex}
               variation={v}
+              isLast={i === variations.length - 1}
               onSave={(idx, data) =>
                 upsertMut.mutate({ skuRowId, variationIndex: idx, baseSku, ...data })
               }
@@ -140,20 +169,49 @@ function VariationsTable({
 function MainSkuRowInline({
   baseSku,
   mainEan,
+  mainMlb,
+  mainDone,
   onMainEanChange,
+  onMainMlbChange,
+  onMainDoneChange,
 }: {
   baseSku: string;
   mainEan: string;
+  mainMlb: string;
+  mainDone: boolean;
   onMainEanChange?: (ean: string) => void;
+  onMainMlbChange?: (mlb: string) => void;
+  onMainDoneChange?: (done: boolean) => void;
 }) {
   const [ean, setEan] = useState(mainEan);
-  const prevEanRef = useRef(mainEan);
-  if (prevEanRef.current !== mainEan) {
-    prevEanRef.current = mainEan;
+  const [mlb, setMlb] = useState(mainMlb);
+  const [done, setDone] = useState(mainDone);
+
+  const prevRef = useRef({ mainEan, mainMlb, mainDone });
+  if (prevRef.current.mainEan !== mainEan || prevRef.current.mainMlb !== mainMlb || prevRef.current.mainDone !== mainDone) {
+    prevRef.current = { mainEan, mainMlb, mainDone };
     setEan(mainEan);
+    setMlb(mainMlb);
+    setDone(mainDone);
   }
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedEan = (value: string) => {
+    setEan(value);
+    if (onMainEanChange) {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => onMainEanChange(value), 600);
+    }
+  };
+
+  const debouncedMlb = (value: string) => {
+    setMlb(value);
+    if (onMainMlbChange) {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => onMainMlbChange(value), 600);
+    }
+  };
 
   const handleEanBlur = () => {
     if (ean !== mainEan && onMainEanChange) {
@@ -162,56 +220,71 @@ function MainSkuRowInline({
     }
   };
 
-  const handleEanChange = (value: string) => {
-    setEan(value);
-    if (onMainEanChange) {
+  const handleMlbBlur = () => {
+    if (mlb !== mainMlb && onMainMlbChange) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        onMainEanChange(value);
-      }, 600);
+      onMainMlbChange(mlb);
     }
   };
 
+  const handleDoneChange = (checked: boolean) => {
+    setDone(checked);
+    if (onMainDoneChange) onMainDoneChange(checked);
+  };
+
   return (
-    <tr className="bg-primary/6 border-b-2 border-primary/25 font-semibold">
-      {/* SKU principal — sem campo de variação, é o produto base */}
+    <tr className="bg-primary/6 border-b-2 border-primary/25">
+      {/* SKU principal */}
       <td className="py-2 px-3">
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
           <span className="font-mono text-[12px] font-bold text-foreground select-all">
             {baseSku}
           </span>
         </div>
       </td>
-      {/* EAN editável — vinculado ao eanGtin da linha */}
+      {/* EAN editável */}
       <td className="py-1.5 px-2">
         <input
           value={ean}
-          onChange={(e) => handleEanChange(e.target.value)}
+          onChange={(e) => debouncedEan(e.target.value)}
           onBlur={handleEanBlur}
           placeholder="—"
           className="w-full min-w-[120px] bg-background/80 border border-border/50 px-2 py-1 rounded text-xs font-mono outline-none focus:ring-1 focus:ring-primary/40"
         />
       </td>
-      {/* MLB — não existe para o SKU principal (campo vazio/desabilitado) */}
+      {/* MLB editável */}
       <td className="py-1.5 px-2">
-        <span className="text-muted-foreground/40 text-xs px-2">—</span>
+        <input
+          value={mlb}
+          onChange={(e) => debouncedMlb(e.target.value)}
+          onBlur={handleMlbBlur}
+          placeholder="—"
+          className="w-full min-w-[120px] bg-background/80 border border-border/50 px-2 py-1 rounded text-xs font-mono outline-none focus:ring-1 focus:ring-primary/40"
+        />
       </td>
-      {/* OK — não existe para o SKU principal */}
+      {/* OK checkbox */}
       <td className="py-1.5 px-2 text-center">
-        <span className="text-muted-foreground/40 text-xs">—</span>
+        <input
+          type="checkbox"
+          checked={done}
+          onChange={(e) => handleDoneChange(e.target.checked)}
+          className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
+        />
       </td>
     </tr>
   );
 }
 
-// ─── Linha individual de variação ────────────────────────────────────────────
+// ─── Linha individual de variação (com efeito cascata) ───────────────────────
 
 function VariationRowEditor({
   variation,
+  isLast,
   onSave,
 }: {
   variation: VariationRow;
+  isLast: boolean;
   onSave: (index: number, data: { ean?: string; mlb?: string; done?: boolean }) => void;
 }) {
   const [ean, setEan] = useState(variation.ean);
@@ -263,10 +336,17 @@ function VariationRowEditor({
   };
 
   return (
-    <tr className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-      {/* SKU da variação */}
-      <td className="py-1.5 px-3 pl-6">
-        <span className="font-mono text-[11px] text-muted-foreground whitespace-nowrap select-all">
+    <tr className="border-b border-border/30 hover:bg-muted/20 transition-colors group">
+      {/* SKU da variação com conector visual (cascata) */}
+      <td className="py-1.5 px-3 relative">
+        {/* Linha vertical de conexão */}
+        <div
+          className="absolute left-[18px] top-0 w-px bg-border/60"
+          style={{ height: isLast ? "50%" : "100%" }}
+        />
+        {/* Branch horizontal */}
+        <div className="absolute left-[18px] top-1/2 w-3 h-px bg-border/60" />
+        <span className="font-mono text-[11px] text-muted-foreground whitespace-nowrap select-all pl-6">
           {variation.variationSku}
         </span>
       </td>

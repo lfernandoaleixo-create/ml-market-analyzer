@@ -97,6 +97,8 @@ type SkuRow = {
   sku: string;
   gerarSkuKit: boolean;
   skuKit: string;
+  mainMlb: string;
+  mainDone: boolean;
   eanGtin: string;
   ncm: string;
   gpc: string;
@@ -1242,9 +1244,19 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
             skuRowId={row.id}
             baseSku={local.sku}
             mainEan={local.eanGtin}
+            mainMlb={local.mainMlb}
+            mainDone={local.mainDone}
             onMainEanChange={(ean) => {
               set({ eanGtin: ean });
               onFieldNow(row.id, { eanGtin: ean });
+            }}
+            onMainMlbChange={(mlb) => {
+              set({ mainMlb: mlb });
+              onFieldNow(row.id, { mainMlb: mlb });
+            }}
+            onMainDoneChange={(done) => {
+              set({ mainDone: done });
+              onFieldNow(row.id, { mainDone: done });
             }}
           >
             <button

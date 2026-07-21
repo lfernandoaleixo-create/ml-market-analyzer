@@ -35,6 +35,8 @@ const rowFields = z.object({
   sku: z.string().max(120).optional(),
   gerarSkuKit: z.boolean().optional(),
   skuKit: z.string().max(120).optional(),
+  mainMlb: z.string().max(60).optional(),
+  mainDone: z.boolean().optional(),
   eanGtin: z.string().max(60).optional(),
   ncm: z.string().max(20).optional(),
   gpc: z.string().max(30).optional(),
