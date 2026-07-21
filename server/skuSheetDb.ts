@@ -496,7 +496,13 @@ export async function upsertVariation(
       });
     } catch (err: any) {
       // If duplicate key error, another request inserted first — do an update instead
-      if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062) {
+      // Drizzle wraps mysql2 errors in DrizzleQueryError with the original in err.cause
+      const isDup =
+        err?.code === "ER_DUP_ENTRY" ||
+        err?.errno === 1062 ||
+        err?.cause?.code === "ER_DUP_ENTRY" ||
+        err?.cause?.errno === 1062;
+      if (isDup) {
         const updateData: Record<string, unknown> = { variationSku };
         if (data.ean !== undefined) updateData.ean = data.ean;
         if (data.mlb !== undefined) updateData.mlb = data.mlb;
