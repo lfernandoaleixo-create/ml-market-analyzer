@@ -1264,7 +1264,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
               className="inline-flex items-center justify-center w-8 h-8 rounded-md text-primary hover:bg-primary/10 border border-primary/20 transition-colors cursor-pointer active:scale-95"
               title="Ver variações do SKU"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4.5 h-4.5"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h3.879a2.5 2.5 0 0 1 1.767.732l.732.732A2.5 2.5 0 0 0 12.646 4H15.5A2.5 2.5 0 0 1 18 6.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 2 14.5v-10Z" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4.5m0 0l-5.5 4.5M12 12l5.5 4.5"/></svg>
             </button>
           </SkuVariationsPopover>
         ) : (
