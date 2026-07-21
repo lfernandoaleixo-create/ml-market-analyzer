@@ -666,7 +666,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                     onClear={() => handleClearColumn("tipoSku")}
                   />
                 </Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[220px]">
                   <ColumnFilter
                     label="Categoria"
                     options={filterOptions.categoryName}
@@ -676,7 +676,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                     searchable
                   />
                 </Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[180px]">
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[220px]">
                   <ColumnFilter
                     label="Subcategoria"
                     options={filterOptions.subCategoryName}
@@ -1196,7 +1196,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
             };
             applyDerived(patch);
           }}
-          className={`w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 border border-border bg-background ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+          className={`w-full rounded-md pl-2 pr-6 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 border border-border bg-background ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         >
           <option value="">— selecionar —</option>
           {categories.map((c) => (
@@ -1219,7 +1219,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
             set(patch);
             onFieldNow(row.id, patch);
           }}
-          className="w-full rounded-md px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer border border-border bg-background disabled:opacity-50"
+          className="w-full rounded-md pl-2 pr-6 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer border border-border bg-background disabled:opacity-50"
         >
           <option value="">{local.categoryId ? "— selecionar —" : "escolha a categoria"}</option>
           {subcats.map((s) => (
