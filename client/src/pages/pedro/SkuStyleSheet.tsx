@@ -657,7 +657,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                     onClear={() => handleClearColumn("cadastradoMl")}
                   />
                 </Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[150px]">
                   <ColumnFilter
                     label="Tipo SKU"
                     options={filterOptions.tipoSku}
@@ -708,11 +708,11 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">Preço Clássico</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">Preço Premium</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">Preço Atacado</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[80px]">Emb. Prof.</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[80px]">Emb. Larg.</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[80px]">Emb. Alt.</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">Peso (kg)</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[220px]">Características</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">Emb. Prof.</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">Emb. Larg.</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">Emb. Alt.</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">Peso (kg)</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[280px]">Características</Th>
                 {cols.map((c) => (
                   <Th key={c.id} style={{ background: "var(--sku-head)" }} className="min-w-[160px]">
                     {c.name || "(sem nome)"}
@@ -1165,7 +1165,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       </td>
 
       {/* Tipo SKU */}
-      <td className="px-2 py-2">
+      <td className="px-2 py-2" style={{ minWidth: "140px" }}>
         <select
           value={local.tipoSku}
           disabled={isLocked}
@@ -1302,10 +1302,10 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       <td className="px-1 py-2">{text("precoAtacado", { placeholder: "R$", className: "text-right tabular-nums" })}</td>
 
       {/* Embalagem */}
-      <td className="px-1 py-2">{text("embProfundidade", { className: "text-center tabular-nums" })}</td>
-      <td className="px-1 py-2">{text("embLargura", { className: "text-center tabular-nums" })}</td>
-      <td className="px-1 py-2">{text("embAltura", { className: "text-center tabular-nums" })}</td>
-      <td className="px-1 py-2">{text("embPeso", { className: "text-center tabular-nums" })}</td>
+      <td className="px-1 py-2" style={{ minWidth: "110px" }}>{text("embProfundidade", { className: "text-center tabular-nums" })}</td>
+      <td className="px-1 py-2" style={{ minWidth: "110px" }}>{text("embLargura", { className: "text-center tabular-nums" })}</td>
+      <td className="px-1 py-2" style={{ minWidth: "110px" }}>{text("embAltura", { className: "text-center tabular-nums" })}</td>
+      <td className="px-1 py-2" style={{ minWidth: "100px" }}>{text("embPeso", { className: "text-center tabular-nums" })}</td>
 
       {/* Características (texto completo) */}
       <td className="px-1 py-2">{area("caracteristicas")}</td>
