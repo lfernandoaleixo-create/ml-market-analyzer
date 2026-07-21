@@ -1259,15 +1259,9 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
           className={`w-4 h-4 accent-[var(--primary)] ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         />
       </td>
-      {/* SKU Kit (derivado automaticamente) — com popover de variações no hover */}
+      {/* SKU Kit Base (derivado automaticamente) — sem popover, código único */}
       <td className="px-1 py-2">
-        {(local.skuKit && local.skuKit !== "") ? (
-          <SkuVariationsPopover skuRowId={row.id} baseSku={local.skuKit}>
-            <div className="cursor-pointer">{derived("skuKit")}</div>
-          </SkuVariationsPopover>
-        ) : (
-          derived("skuKit")
-        )}
+        {derived("skuKit")}
       </td>
 
       {/* EAN/GTIN */}
