@@ -423,7 +423,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
       { label: "Variante", value: (r) => String(r.variante ?? "") },
       { label: "SKU", value: (r) => String(r.sku ?? "") },
       { label: "Gerar Kit?", value: (r) => (r.gerarSkuKit ? "Sim" : "Não") },
-      { label: "SKU Kit", value: (r) => String(r.skuKit ?? "") },
+      { label: "SKU Kit Base", value: (r) => String(r.skuKit ?? "") },
       { label: "EAN/GTIN", value: (r) => String(r.eanGtin ?? "") },
       { label: "NCM", value: (r) => String(r.ncm ?? "") },
       { label: "GPC", value: (r) => String(r.gpc ?? "") },
@@ -699,7 +699,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[240px]">Variante</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">SKU</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="text-center">Gerar Kit?</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit Base</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[140px]">EAN/GTIN</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">NCM</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">GPC</Th>
@@ -1753,7 +1753,7 @@ function EditRowDialog({ row, categories, allRows, customColumns, onClose, onSav
             <div className="w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-mono font-semibold">{draft.sku || "auto"}</div>
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">SKU Kit (auto)</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">SKU Kit Base (auto)</label>
             <div className="w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-mono font-semibold whitespace-nowrap overflow-x-auto">{draft.skuKit || "auto"}</div>
           </div>
 
