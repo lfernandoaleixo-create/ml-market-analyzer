@@ -1249,11 +1249,10 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
           >
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors cursor-pointer whitespace-nowrap"
-              title="Clique para ver variações"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-primary hover:bg-primary/10 border border-primary/20 transition-colors cursor-pointer active:scale-95"
+              title="Ver variações do SKU"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 opacity-70"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.62 4H12.5A1.5 1.5 0 0 1 14 5.5v1.401a2.986 2.986 0 0 0-1.5-.401h-9A2.986 2.986 0 0 0 2 6.901V3.5Z" /><path d="M2 8.5A1.5 1.5 0 0 1 3.5 7h9A1.5 1.5 0 0 1 14 8.5v4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-4Z" /></svg>
-              {local.sku}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4.5 h-4.5"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h3.879a2.5 2.5 0 0 1 1.767.732l.732.732A2.5 2.5 0 0 0 12.646 4H15.5A2.5 2.5 0 0 1 18 6.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 2 14.5v-10Z" /></svg>
             </button>
           </SkuVariationsPopover>
         ) : (
