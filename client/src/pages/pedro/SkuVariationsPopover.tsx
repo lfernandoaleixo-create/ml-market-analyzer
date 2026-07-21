@@ -26,9 +26,10 @@ type VariationRow = {
 };
 
 /**
- * Popover que aparece ao CLICAR sobre o botão SKU.
- * Exibe o SKU principal em destaque no topo (com EAN, MLB e OK),
- * seguido das 10 sub-variações indentadas em cascata (estilo pastas Windows).
+ * Popover que aparece ao CLICAR sobre o ícone SKU.
+ * Exibe uma tabela com colunas: SKU | EAN | MLB | OK
+ * A primeira linha é o SKU principal (em destaque, fundo diferenciado).
+ * As linhas seguintes são as variações.
  */
 export default function SkuVariationsPopover({
   skuRowId,
@@ -39,7 +40,6 @@ export default function SkuVariationsPopover({
 }: SkuVariationsPopoverProps) {
   const [open, setOpen] = useState(false);
 
-  // Fetch variations only when popover opens
   const { data: variations, isLoading, refetch } = trpc.skuSheet.getVariations.useQuery(
     { skuRowId, baseSku },
     { enabled: open, staleTime: 30_000 },
@@ -57,7 +57,7 @@ export default function SkuVariationsPopover({
         side="bottom"
         align="start"
         sideOffset={6}
-        className="w-auto min-w-[620px] max-w-[720px] p-0 overflow-hidden"
+        className="w-auto min-w-[580px] max-w-[700px] p-0 overflow-hidden"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {isLoading ? (
@@ -65,7 +65,7 @@ export default function SkuVariationsPopover({
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <VariationsPanel
+          <VariationsTable
             variations={variations ?? []}
             skuRowId={skuRowId}
             baseSku={baseSku}
@@ -78,9 +78,9 @@ export default function SkuVariationsPopover({
   );
 }
 
-// ─── Painel interno com SKU principal + variações em cascata ─────────────────
+// ─── Tabela unificada: SKU principal (1ª linha) + variações ──────────────────
 
-function VariationsPanel({
+function VariationsTable({
   variations,
   skuRowId,
   baseSku,
@@ -101,52 +101,43 @@ function VariationsPanel({
   });
 
   return (
-    <div className="flex flex-col">
-      {/* ─── SKU PRINCIPAL (destaque) ─── */}
-      <MainSkuRow
-        baseSku={baseSku}
-        mainEan={mainEan}
-        onMainEanChange={onMainEanChange}
-      />
+    <div className="max-h-[400px] overflow-y-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead className="sticky top-0 z-10">
+          <tr className="border-b border-border text-muted-foreground bg-muted/50">
+            <th className="text-left py-2 px-3 font-semibold whitespace-nowrap">SKU</th>
+            <th className="text-left py-2 px-3 font-semibold">EAN</th>
+            <th className="text-left py-2 px-3 font-semibold">MLB</th>
+            <th className="text-center py-2 px-2 font-semibold w-12">OK</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* ─── SKU PRINCIPAL (primeira linha, em destaque) ─── */}
+          <MainSkuRowInline
+            baseSku={baseSku}
+            mainEan={mainEan}
+            onMainEanChange={onMainEanChange}
+          />
 
-      {/* ─── VARIAÇÕES (indentadas em cascata) ─── */}
-      <div className="relative">
-        {/* Linha vertical de conexão (estilo árvore/cascata) */}
-        <div className="absolute left-5 top-0 bottom-3 w-px bg-border" />
-
-        <div className="max-h-[320px] overflow-y-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground bg-muted/30">
-                <th className="text-left py-1.5 pl-10 pr-4 font-semibold whitespace-nowrap">
-                  Variações SKU
-                </th>
-                <th className="text-left py-1.5 px-3 font-semibold">EAN</th>
-                <th className="text-left py-1.5 px-3 font-semibold">MLB</th>
-                <th className="text-center py-1.5 px-2 font-semibold">OK</th>
-              </tr>
-            </thead>
-            <tbody>
-              {variations.map((v) => (
-                <VariationRowEditor
-                  key={v.variationIndex}
-                  variation={v}
-                  skuRowId={skuRowId}
-                  baseSku={baseSku}
-                  onSave={(idx, data) => upsertMut.mutate({ skuRowId, variationIndex: idx, baseSku, ...data })}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+          {/* ─── VARIAÇÕES ─── */}
+          {variations.map((v) => (
+            <VariationRowEditor
+              key={v.variationIndex}
+              variation={v}
+              onSave={(idx, data) =>
+                upsertMut.mutate({ skuRowId, variationIndex: idx, baseSku, ...data })
+              }
+            />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-// ─── SKU Principal em destaque ───────────────────────────────────────────────
+// ─── SKU Principal como primeira linha da tabela (em destaque) ────────────────
 
-function MainSkuRow({
+function MainSkuRowInline({
   baseSku,
   mainEan,
   onMainEanChange,
@@ -182,50 +173,51 @@ function MainSkuRow({
   };
 
   return (
-    <div className="bg-gradient-to-r from-primary/8 to-primary/4 border-b-2 border-primary/30 px-4 py-3">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-        <span className="text-[10px] uppercase tracking-wider font-bold text-primary/80">
-          SKU Principal
-        </span>
-      </div>
-      <div className="grid grid-cols-[1fr_140px] gap-3 items-center">
-        <div className="font-mono text-sm font-bold text-foreground select-all tracking-wide">
-          {baseSku}
+    <tr className="bg-primary/6 border-b-2 border-primary/25 font-semibold">
+      {/* SKU principal — sem campo de variação, é o produto base */}
+      <td className="py-2 px-3">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+          <span className="font-mono text-[12px] font-bold text-foreground select-all">
+            {baseSku}
+          </span>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-muted-foreground font-medium">EAN/GTIN</span>
-          <input
-            value={ean}
-            onChange={(e) => handleEanChange(e.target.value)}
-            onBlur={handleEanBlur}
-            placeholder="—"
-            className="w-full bg-background/80 border border-border/60 px-2 py-1 rounded text-xs font-mono outline-none focus:ring-1 focus:ring-primary/40"
-          />
-        </div>
-      </div>
-    </div>
+      </td>
+      {/* EAN editável — vinculado ao eanGtin da linha */}
+      <td className="py-1.5 px-2">
+        <input
+          value={ean}
+          onChange={(e) => handleEanChange(e.target.value)}
+          onBlur={handleEanBlur}
+          placeholder="—"
+          className="w-full min-w-[120px] bg-background/80 border border-border/50 px-2 py-1 rounded text-xs font-mono outline-none focus:ring-1 focus:ring-primary/40"
+        />
+      </td>
+      {/* MLB — não existe para o SKU principal (campo vazio/desabilitado) */}
+      <td className="py-1.5 px-2">
+        <span className="text-muted-foreground/40 text-xs px-2">—</span>
+      </td>
+      {/* OK — não existe para o SKU principal */}
+      <td className="py-1.5 px-2 text-center">
+        <span className="text-muted-foreground/40 text-xs">—</span>
+      </td>
+    </tr>
   );
 }
 
-// ─── Linha individual da tabela de variações ─────────────────────────────────
+// ─── Linha individual de variação ────────────────────────────────────────────
 
 function VariationRowEditor({
   variation,
-  skuRowId,
-  baseSku,
   onSave,
 }: {
   variation: VariationRow;
-  skuRowId: number;
-  baseSku: string;
   onSave: (index: number, data: { ean?: string; mlb?: string; done?: boolean }) => void;
 }) {
   const [ean, setEan] = useState(variation.ean);
   const [mlb, setMlb] = useState(variation.mlb);
   const [done, setDone] = useState(variation.done);
 
-  // Keep local state in sync if server data changes
   const prevRef = useRef(variation);
   if (
     prevRef.current.ean !== variation.ean ||
@@ -271,15 +263,14 @@ function VariationRowEditor({
   };
 
   return (
-    <tr className="border-b border-border/30 hover:bg-muted/30 transition-colors group">
-      {/* SKU da variação com conector visual */}
-      <td className="py-1.5 pl-10 pr-4 relative">
-        {/* Conector horizontal (branch) */}
-        <div className="absolute left-5 top-1/2 w-4 h-px bg-border" />
+    <tr className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+      {/* SKU da variação */}
+      <td className="py-1.5 px-3 pl-6">
         <span className="font-mono text-[11px] text-muted-foreground whitespace-nowrap select-all">
           {variation.variationSku}
         </span>
       </td>
+      {/* EAN */}
       <td className="py-1 px-2">
         <input
           value={ean}
@@ -289,9 +280,10 @@ function VariationRowEditor({
           }}
           onBlur={handleEanBlur}
           placeholder="—"
-          className="w-full min-w-[110px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
+          className="w-full min-w-[120px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
         />
       </td>
+      {/* MLB */}
       <td className="py-1 px-2">
         <input
           value={mlb}
@@ -301,9 +293,10 @@ function VariationRowEditor({
           }}
           onBlur={handleMlbBlur}
           placeholder="—"
-          className="w-full min-w-[110px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
+          className="w-full min-w-[120px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
         />
       </td>
+      {/* OK */}
       <td className="py-1 px-2 text-center">
         <input
           type="checkbox"
