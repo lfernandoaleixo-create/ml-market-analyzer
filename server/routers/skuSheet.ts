@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { publicProcedure, router } from "../_core/trpc";
 import {
   createSkuRow,
@@ -14,6 +15,7 @@ import {
   getVariations,
   upsertVariation,
 } from "../skuSheetDb";
+import { validateSkuPassword, logSkuChange, listSkuChangeLog } from "../skuProtection";
 import mlCategoriesJson from "../../shared/mlCategories.json";
 import type { MlCategoryTree } from "../../shared/skuSheet";
 
@@ -148,4 +150,52 @@ export const skuSheetRouter = router({
         done: input.done,
       }),
     ),
+
+  // --- Proteção de SKU (senha + histórico) ---
+
+  /** Valida a senha de autorização para alterações em SKU. */
+  validateSkuAuth: publicProcedure
+    .input(z.object({ password: z.string().min(1) }))
+    .mutation(({ input }) => {
+      const authorizer = validateSkuPassword(input.password);
+      if (!authorizer) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Senha incorreta. Use o nome de um dos autorizadores." });
+      }
+      return { valid: true, authorizer } as const;
+    }),
+
+  /** Registra uma alteração de SKU no histórico após autorização. */
+  logSkuChange: publicProcedure
+    .input(
+      z.object({
+        password: z.string().min(1),
+        action: z.string().max(100),
+        description: z.string().max(2000),
+        affectedRowIds: z.array(z.number().int()),
+        oldValues: z.any().optional(),
+        newValues: z.any().optional(),
+        affectedCount: z.number().int(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const authorizer = validateSkuPassword(input.password);
+      if (!authorizer) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Senha incorreta." });
+      }
+      await logSkuChange({
+        action: input.action,
+        authorizedBy: authorizer,
+        description: input.description,
+        affectedRowIds: input.affectedRowIds,
+        oldValues: input.oldValues,
+        newValues: input.newValues,
+        affectedCount: input.affectedCount,
+      });
+      return { ok: true, authorizer } as const;
+    }),
+
+  /** Lista o histórico de alterações de SKU. */
+  skuChangeHistory: publicProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(200).optional() }).optional())
+    .query(({ input }) => listSkuChangeLog(input?.limit ?? 50)),
 });

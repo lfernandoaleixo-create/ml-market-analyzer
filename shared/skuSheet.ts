@@ -159,11 +159,12 @@ export function buildSkuKit(baseSku: string, gerarSkuKit: boolean): string {
 }
 
 // ---------------------------------------------------------------------------
-// Numeração automática do PRODUTO pelo nome
+// Numeração automática do PRODUTO pelo nome — GLOBAL
 // Regra: ao digitar o nome do produto, se já existir outra linha com o mesmo
 // nome (ignorando maiúsculas/minúsculas e espaços), reaproveita o mesmo Nº.
-// Caso contrário, recebe o próximo número da sequência (maior Nº existente + 1).
-// A numeração da VARIANTE não é afetada por esta regra.
+// Caso contrário, recebe o próximo número da sequência GLOBAL
+// (maior Nº existente + 1). A numeração é única e sequencial sem buracos.
+// A numeração da VARIANTE é que reinicia por grupo (tipo+categoria+Nº produto).
 // ---------------------------------------------------------------------------
 
 /** Normaliza o nome do produto para comparação (trim + minúsculas + espaços colapsados). */
@@ -180,13 +181,17 @@ export interface ProductNumberRow {
 
 /**
  * Resolve o Nº do produto para uma linha com base no nome digitado.
+ * A numeração é GLOBAL: todos os produtos compartilham a mesma sequência
+ * (1, 2, 3...). Produtos com o mesmo nome (em qualquer categoria)
+ * compartilham o mesmo número.
+ *
  * - `rows`: todas as linhas atuais da planilha.
  * - `currentRowId`: id da linha que está sendo editada (ignorada na busca por nome).
  * - `productName`: nome digitado.
  *
  * Retorna:
  * - o Nº já usado por outra linha com o mesmo nome (reaproveitamento), ou
- * - o próximo Nº da sequência (max + 1) quando o nome é novo, ou
+ * - o próximo Nº da sequência global (max + 1) quando o nome é novo, ou
  * - null quando o nome está vazio.
  */
 export function resolveProductNumber(
@@ -206,7 +211,7 @@ export function resolveProductNumber(
     }
   }
 
-  // 2) Nome novo: próximo número da sequência (considera todas as linhas).
+  // 2) Nome novo: próximo número da sequência global (considera todas as linhas).
   let max = 0;
   for (const r of rows) {
     if (r.productNumber != null && r.productNumber > max) max = r.productNumber;

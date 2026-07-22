@@ -176,6 +176,20 @@
       "when": 1783430914255,
       "tag": "0024_quick_psynapse",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1784641902422,
+      "tag": "0025_small_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1784718574526,
+      "tag": "0026_salty_whistler",
+      "breakpoints": true
     }
   ]
 }

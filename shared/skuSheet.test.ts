@@ -47,32 +47,48 @@ describe("normalizeProductName", () => {
   });
 });
 
-describe("resolveProductNumber", () => {
+describe("resolveProductNumber (global)", () => {
+  // Linhas com numeração global sequencial
   const rows: ProductNumberRow[] = [
-    { id: 1, produto: "Palito de Hashi de Bambu", productNumber: 6 },
-    { id: 2, produto: "Palito de Hashi de Bambu", productNumber: 6 },
-    { id: 3, produto: "Tábua de Corte", productNumber: 7 },
-    { id: 4, produto: "Filme Plástico", productNumber: 23 },
+    { id: 1, produto: "Palito de Dente Embalado", productNumber: 1 },
+    { id: 2, produto: "Palito de Bambu Unha", productNumber: 2 },
+    { id: 3, produto: "Vareta Aromatizador Fibra", productNumber: 3 },
+    { id: 4, produto: "Vareta Aromatizador Madeira", productNumber: 4 },
+    { id: 5, produto: "Palito de Dente Bambu", productNumber: 5 },
+    { id: 6, produto: "Palito de Hashi de Bambu", productNumber: 6 },
+    { id: 7, produto: "Vareta Algodão Doce", productNumber: 7 },
   ];
 
-  it("reaproveita o Nº de um produto de mesmo nome (case-insensitive)", () => {
+  it("reaproveita o Nº de um produto de mesmo nome (case-insensitive, global)", () => {
     expect(resolveProductNumber(rows, 99, "PALITO DE HASHI DE BAMBU")).toBe(6);
     expect(resolveProductNumber(rows, 99, "  palito  de hashi de bambu ")).toBe(6);
   });
 
-  it("atribui o próximo da sequência para um nome novo", () => {
-    expect(resolveProductNumber(rows, 99, "Produto Totalmente Novo")).toBe(24);
+  it("atribui o próximo da sequência GLOBAL para um nome novo", () => {
+    // max é 7, então próximo = 8
+    expect(resolveProductNumber(rows, 99, "Produto Totalmente Novo")).toBe(8);
+  });
+
+  it("resgata o número de um produto com mesmo nome independente de categoria", () => {
+    // A numeração é global — se o nome já existe, retorna o número dele
+    expect(resolveProductNumber(rows, 99, "Vareta Aromatizador Fibra")).toBe(3);
+    expect(resolveProductNumber(rows, 99, "vareta aromatizador fibra")).toBe(3);
   });
 
   it("ignora a própria linha ao buscar nome igual", () => {
-    // Linha 1 sendo editada; existe outra (id 2) com mesmo nome -> reaproveita 6.
-    expect(resolveProductNumber(rows, 1, "Palito de Hashi de Bambu")).toBe(6);
+    // id 6 tem "Palito de Hashi de Bambu" com Nº 6.
+    // Se estamos editando a linha 6 e não há outra com o mesmo nome, atribui max+1
+    expect(resolveProductNumber(rows, 6, "Palito de Hashi de Bambu")).toBe(8);
   });
 
-  it("trata nome novo quando a única ocorrência é a própria linha", () => {
-    const single: ProductNumberRow[] = [{ id: 10, produto: "Único", productNumber: 5 }];
-    // Editando a própria linha 10 com um nome novo -> próximo da sequência (5 + 1).
-    expect(resolveProductNumber(single, 10, "Outro Nome")).toBe(6);
+  it("ignora a própria linha mas encontra outra com mesmo nome", () => {
+    // Adicionar uma duplicata
+    const rowsWithDup: ProductNumberRow[] = [
+      ...rows,
+      { id: 8, produto: "Palito de Hashi de Bambu", productNumber: 6 },
+    ];
+    // Editando id 6, deve encontrar id 8 com mesmo nome e retornar 6
+    expect(resolveProductNumber(rowsWithDup, 6, "Palito de Hashi de Bambu")).toBe(6);
   });
 
   it("retorna null quando o nome está vazio", () => {
@@ -80,7 +96,11 @@ describe("resolveProductNumber", () => {
     expect(resolveProductNumber(rows, 99, "   ")).toBeNull();
   });
 
-  it("começa em 1 quando não há linhas com número", () => {
+  it("começa em 1 quando não há linhas", () => {
+    expect(resolveProductNumber([], 99, "Primeiro")).toBe(1);
+  });
+
+  it("começa em 1 quando nenhuma linha tem productNumber", () => {
     const empty: ProductNumberRow[] = [{ id: 1, produto: "X", productNumber: null }];
     expect(resolveProductNumber(empty, 99, "Primeiro")).toBe(1);
   });
@@ -97,7 +117,6 @@ describe("resolveVariantNumber", () => {
 
   it("mantém a variante quando ela ainda não é usada no grupo", () => {
     const rows: VariantNumberRow[] = [grp({ id: 1, variantNumber: 1 })];
-    // linha nova (id 2) do mesmo grupo, com variante ainda nula
     const v = resolveVariantNumber(rows, 2, {
       tipoSku: "1",
       categoryName: "Serviços",
@@ -107,9 +126,8 @@ describe("resolveVariantNumber", () => {
     expect(v).toBe(2);
   });
 
-  it("incrementa a variante para não repetir SKU no mesmo grupo (caso linhas 65/66)", () => {
+  it("incrementa a variante para não repetir SKU no mesmo grupo", () => {
     const rows: VariantNumberRow[] = [grp({ id: 65, variantNumber: 1 })];
-    // linha 66, mesmo tipo+categoria+Nº produto, tentando variante 1 (duplicaria)
     const v = resolveVariantNumber(rows, 66, {
       tipoSku: "1",
       categoryName: "Serviços",
@@ -128,7 +146,7 @@ describe("resolveVariantNumber", () => {
       tipoSku: "1",
       categoryName: "Serviços",
       productNumber: 46,
-      variantNumber: 1, // 1 está ocupado -> deve ir para 2
+      variantNumber: 1,
     });
     expect(v).toBe(2);
   });
@@ -143,7 +161,7 @@ describe("resolveVariantNumber", () => {
       productNumber: 46,
       variantNumber: 1,
     });
-    expect(v).toBe(1); // outro grupo, pode usar 1
+    expect(v).toBe(1);
   });
 
   it("preserva a variante quando o grupo é inválido (sem categoria)", () => {

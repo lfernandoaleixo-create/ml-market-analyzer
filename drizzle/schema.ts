@@ -1075,6 +1075,11 @@ export const skuSheetRows = mysqlTable(
     gerarSkuKit: boolean("gerarSkuKit").default(false).notNull(),
     skuKit: varchar("skuKit", { length: 120 }).default("").notNull(),
 
+    /** MLB do SKU principal (código do anúncio no Mercado Livre). */
+    mainMlb: varchar("mainMlb", { length: 60 }).default("").notNull(),
+    /** Checkbox "OK" do SKU principal — marcado quando concluído. */
+    mainDone: boolean("mainDone").default(false).notNull(),
+
     /** Códigos fiscais/identificação. */
     eanGtin: varchar("eanGtin", { length: 60 }).default("").notNull(),
     ncm: varchar("ncm", { length: 20 }).default("").notNull(),
@@ -1429,3 +1434,39 @@ export const skuVariations = mysqlTable(
 
 export type SkuVariation = typeof skuVariations.$inferSelect;
 export type InsertSkuVariation = typeof skuVariations.$inferInsert;
+
+
+// ============================================================================
+// Histórico de alterações de SKU (auditoria e proteção)
+// Registra TODA alteração que impacta SKUs: quem autorizou, quando, o que mudou.
+// ============================================================================
+export const skuChangeLog = mysqlTable(
+  "sku_change_log",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Tipo de ação: "update" | "bulk_repair" | "bulk_renumber" | "delete" | "create" */
+    action: varchar("action", { length: 40 }).notNull(),
+    /** Nome de quem autorizou a alteração (Luis, Guilherme, Fernando, Bruno). */
+    authorizedBy: varchar("authorizedBy", { length: 100 }).notNull(),
+    /** Descrição resumida do que foi alterado. */
+    description: varchar("description", { length: 1000 }).default("").notNull(),
+    /** IDs das linhas afetadas (JSON array). */
+    affectedRowIds: text("affectedRowIds"),
+    /** Valores antigos (JSON snapshot). */
+    oldValues: text("oldValues"),
+    /** Valores novos (JSON snapshot). */
+    newValues: text("newValues"),
+    /** Quantidade de linhas afetadas. */
+    affectedCount: int("affectedCount").default(0).notNull(),
+    /** Timestamp da alteração (Unix ms). */
+    timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    actionIdx: index("sku_change_log_action_idx").on(t.action),
+    timestampIdx: index("sku_change_log_timestamp_idx").on(t.timestamp),
+    authorIdx: index("sku_change_log_author_idx").on(t.authorizedBy),
+  }),
+);
+export type SkuChangeLog = typeof skuChangeLog.$inferSelect;
+export type InsertSkuChangeLog = typeof skuChangeLog.$inferInsert;

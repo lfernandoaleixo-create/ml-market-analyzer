@@ -21,6 +21,7 @@ import {
   Copy,
   Lock,
   LockOpen,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -213,25 +214,31 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
   // Painel de gerenciamento das colunas personalizadas.
   const [manageColumns, setManageColumns] = useState(false);
   const [deleteColumnId, setDeleteColumnId] = useState<number | null>(null);
+  // Painel de histórico de alterações de SKU.
+  const [showHistory, setShowHistory] = useState(false);
 
   // --- Bloqueio de edição por senha (linhas com SKU gerado) ---
   const [unlockedIds, setUnlockedIds] = useState<Set<number>>(new Set());
   const [unlockTarget, setUnlockTarget] = useState<number | null>(null); // id da linha pedindo desbloqueio
   const [unlockPwd, setUnlockPwd] = useState("");
-  const verifyPwdMut = trpc.auth.verifyPassword.useMutation({
-    onSuccess: () => {
+  // Guarda quem autorizou o desbloqueio (para registrar no histórico ao salvar)
+  const [currentAuthorizer, setCurrentAuthorizer] = useState<string | null>(null);
+  const verifyPwdMut = trpc.skuSheet.validateSkuAuth.useMutation({
+    onSuccess: (data) => {
       if (unlockTarget != null) {
         setUnlockedIds((prev) => new Set(prev).add(unlockTarget));
-        toast.success("Linha desbloqueada para edição.");
+        setCurrentAuthorizer(data.authorizer);
+        toast.success(`Linha desbloqueada por ${data.authorizer}.`);
       }
       setUnlockTarget(null);
       setUnlockPwd("");
     },
     onError: () => {
-      toast.error("Senha incorreta.");
+      toast.error("Nome incorreto. Use: Luis, Guilherme, Fernando ou Bruno.");
       setUnlockPwd("");
     },
   });
+  const logChangeMut = trpc.skuSheet.logSkuChange.useMutation();
   const handleUnlockSubmit = () => {
     if (!unlockPwd.trim()) return;
     verifyPwdMut.mutate({ password: unlockPwd.trim() });
@@ -294,9 +301,36 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
     [],
   );
 
+  // Ref para guardar o autorizador atual (para uso em callbacks estáveis)
+  const authorizerRef = useRef<string | null>(null);
+  authorizerRef.current = currentAuthorizer;
+  // Ref para acessar unlockedIds em callbacks estáveis
+  const unlockedIdsRef = useRef<Set<number>>(unlockedIds);
+  unlockedIdsRef.current = unlockedIds;
+
   const saveNow = useCallback(
     (id: number, patch: Partial<SkuRow>) => {
       bindingRef.current.update({ id, ...patch });
+      // Se a linha estava desbloqueada (ou seja, tinha SKU e foi editada com autorização),
+      // registra a alteração no histórico.
+      if (unlockedIdsRef.current.has(id) && authorizerRef.current) {
+        const skuFields = ["tipoSku", "categoryName", "productNumber", "variantNumber", "produto", "sku", "skuKit"];
+        const affectsSkuField = Object.keys(patch).some((k) => skuFields.includes(k));
+        if (affectsSkuField) {
+          const desc = Object.entries(patch)
+            .filter(([k]) => skuFields.includes(k))
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+          logChangeMut.mutate({
+            password: authorizerRef.current.toLowerCase(),
+            action: "edit_sku_field",
+            description: `Editou campos SKU da linha #${id}: ${desc}`,
+            affectedRowIds: [id],
+            newValues: patch,
+            affectedCount: 1,
+          });
+        }
+      }
     },
     [],
   );
@@ -537,6 +571,10 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
             </DropdownMenuContent>
           </DropdownMenu>
           {headerExtra}
+          <Button size="sm" variant="outline" className="h-9 bg-card" onClick={() => setShowHistory(true)}>
+            <History className="w-4 h-4 mr-1.5" />
+            Histórico
+          </Button>
           <Button size="sm" className="h-9" onClick={handleAdd} disabled={createMut.isPending}>
             <Plus className="w-4 h-4 mr-1.5" />
             Nova linha
@@ -785,13 +823,13 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
               Linha bloqueada
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Esta linha já possui um SKU gerado. Para editar, digite a senha de desbloqueio.
+              Esta linha já possui um SKU gerado. Para editar, digite o nome de quem autoriza (Luis, Guilherme, Fernando ou Bruno).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-2">
             <input
-              type="password"
-              placeholder="Senha"
+              type="text"
+              placeholder="Nome do autorizador"
               value={unlockPwd}
               onChange={(e) => setUnlockPwd(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleUnlockSubmit(); }}
@@ -851,6 +889,52 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog: Histórico de alterações de SKU */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Histórico de Alterações de SKU
+            </DialogTitle>
+          </DialogHeader>
+          <SkuChangeHistoryPanel />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** Painel interno que busca e exibe o histórico de alterações de SKU. */
+function SkuChangeHistoryPanel() {
+  const { data: history, isLoading } = trpc.skuSheet.skuChangeHistory.useQuery({ limit: 100 });
+  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+  if (!history || history.length === 0) return <p className="text-muted-foreground text-center py-8">Nenhuma alteração registrada ainda.</p>;
+  return (
+    <div className="overflow-y-auto flex-1 -mx-2 px-2">
+      <table className="w-full text-sm">
+        <thead className="sticky top-0 bg-background">
+          <tr className="border-b">
+            <th className="text-left py-2 px-2 font-semibold">Data/Hora</th>
+            <th className="text-left py-2 px-2 font-semibold">Autorizado por</th>
+            <th className="text-left py-2 px-2 font-semibold">Ação</th>
+            <th className="text-left py-2 px-2 font-semibold">Descrição</th>
+            <th className="text-center py-2 px-2 font-semibold">Linhas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((h, i) => (
+            <tr key={i} className="border-b border-border/50 hover:bg-muted/30">
+              <td className="py-2 px-2 whitespace-nowrap text-muted-foreground">{new Date(Number(h.timestamp)).toLocaleString("pt-BR")}</td>
+              <td className="py-2 px-2 font-medium">{h.authorizedBy}</td>
+              <td className="py-2 px-2">{h.action}</td>
+              <td className="py-2 px-2 max-w-[300px] truncate" title={h.description}>{h.description}</td>
+              <td className="py-2 px-2 text-center">{h.affectedCount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

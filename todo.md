@@ -1811,3 +1811,14 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] "Linha do Tempo Pedro" → "Linha do Tempo E-commerce" (sidebar, headers, containers)
 - [x] Padding-left no main content para espaçamento da sidebar
 - [x] Cards do Kickoff com altura igual por linha (items-stretch + flex flex-col)
+
+## CORREÇÃO CRÍTICA: Nº Produto Global Sequencial + Sistema de Proteção SKU
+- [x] Corrigir lógica resolveProductNumber: Nº Produto é GLOBAL sequencial (sem buracos); mesmo nome = mesmo Nº; nome diferente = próximo Nº
+- [x] Gerar relatório antes/depois de todos os SKUs para validação (enviado e aprovado pelo usuário)
+- [x] Aplicar correção no banco: 18 linhas atualizadas (Nº Produto + SKU recalculado)
+- [x] Criar tabela de histórico de alterações de SKU no banco (sku_change_log)
+- [x] Implementar sistema de proteção de SKU: senha = nome do autorizador (Luis/Guilherme/Fernando/Bruno)
+- [x] Registrar automaticamente no histórico quem autorizou + o que mudou ao editar campos de SKU
+- [x] Botão "Histórico" na toolbar da planilha com dialog mostrando todas as alterações
+- [x] Testes vitest (validateSkuPassword + resolveProductNumber global) passando
+- [ ] Checkpoint final e entrega
