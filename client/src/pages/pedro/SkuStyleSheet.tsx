@@ -428,7 +428,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
       { label: "Variante", value: (r) => String(r.variante ?? "") },
       { label: "SKU", value: (r) => String(r.sku ?? "") },
       { label: "Gerar Kit?", value: (r) => (r.gerarSkuKit ? "Sim" : "Não") },
-      { label: "SKU Kit", value: (r) => String(r.skuKit ?? "") },
+      { label: "SKU Kit Base", value: (r) => String(r.skuKit ?? "") },
       { label: "EAN/GTIN", value: (r) => String(r.eanGtin ?? "") },
       { label: "NCM", value: (r) => String(r.ncm ?? "") },
       { label: "GPC", value: (r) => String(r.gpc ?? "") },
@@ -708,7 +708,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[240px]">Variante</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[50px] text-center">SKU</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="text-center">Gerar Kit?</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit Base</Th>
 
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">NCM</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">GPC</Th>
@@ -1322,15 +1322,9 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
           className={`w-4 h-4 accent-[var(--primary)] ${isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
         />
       </td>
-      {/* SKU Kit (derivado automaticamente) — com popover de variações no hover */}
+      {/* SKU Kit (derivado automaticamente) — apenas exibição, sem popover */}
       <td className="px-1 py-2">
-        {(local.skuKit && local.skuKit !== "") ? (
-          <SkuVariationsPopover skuRowId={row.id} baseSku={local.skuKit}>
-            <div className="cursor-pointer">{derived("skuKit")}</div>
-          </SkuVariationsPopover>
-        ) : (
-          derived("skuKit")
-        )}
+        {derived("skuKit")}
       </td>
 
 
