@@ -1821,4 +1821,9 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Registrar automaticamente no histórico quem autorizou + o que mudou ao editar campos de SKU
 - [x] Botão "Histórico" na toolbar da planilha com dialog mostrando todas as alterações
 - [x] Testes vitest (validateSkuPassword + resolveProductNumber global) passando
-- [ ] Checkpoint final e entrega
+- [x] Checkpoint final e entrega
+
+## REGRAS ADICIONAIS SKU - 22/07
+- [x] Nunca gerar SKU se faltam requisitos (tipo, categoria, produto devem estar preenchidos); campo SKU fica vazio até completar (buildSku já retorna "" se faltar qualquer campo)
+- [x] Linhas apagadas não influenciam na numeração: Nº Produto é recalculado apenas com base nas linhas EXISTENTES no banco (resolveProductNumber usa apenas listSkuRows que consulta o banco)
+- [x] Corrigir linha CATÁLOGO (ID 43): SKU "CJ-PR-BR01-CT" limpo no banco (agora vazio até preencher categoria)
