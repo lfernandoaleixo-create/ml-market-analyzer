@@ -5,11 +5,12 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy, Check } from "lucide-react";
 
 type SkuVariationsPopoverProps = {
   skuRowId: number;
   baseSku: string;
+  eanGtin?: string;
   children: React.ReactNode;
 };
 
@@ -22,21 +23,19 @@ type VariationRow = {
 };
 
 /**
- * Popover que aparece ao CLICAR sobre uma célula SKU.
- * Mostra uma tabela com 10 sub-variações (SKU derivado, EAN, MLB, OK).
- * Os dados são carregados sob demanda e salvos com debounce no blur.
- *
- * Usamos Popover (click) em vez de HoverCard porque:
- * - Funciona em todos os dispositivos (desktop + touch/tablet)
- * - Mais confiável em produção (HoverCard pode não disparar em certos browsers)
- * - Permite interação com os campos sem fechar acidentalmente
+ * Popover que aparece ao CLICAR sobre o ícone SKU.
+ * Mostra:
+ * 1. SKU principal em destaque (com EAN do produto)
+ * 2. Variações em cascata (estilo pastas Windows) com SKU, EAN, MLB e OK
  */
 export default function SkuVariationsPopover({
   skuRowId,
   baseSku,
+  eanGtin,
   children,
 }: SkuVariationsPopoverProps) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Fetch variations only when popover opens
   const { data: variations, isLoading, refetch } = trpc.skuSheet.getVariations.useQuery(
@@ -49,6 +48,12 @@ export default function SkuVariationsPopover({
     if (o) refetch();
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
@@ -56,26 +61,59 @@ export default function SkuVariationsPopover({
         side="bottom"
         align="start"
         sideOffset={6}
-        className="w-auto min-w-[560px] max-w-[660px] p-3"
+        className="w-auto min-w-[520px] max-w-[660px] p-0 overflow-hidden"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {isLoading ? (
-          <div className="flex items-center justify-center py-6">
+          <div className="flex items-center justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <VariationsTable
-            variations={variations ?? []}
-            skuRowId={skuRowId}
-            baseSku={baseSku}
-          />
+          <div className="flex flex-col">
+            {/* ─── SKU Principal em destaque ─────────────────────────── */}
+            <div className="bg-primary/5 border-b border-primary/20 px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/70">SKU Principal</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm font-bold text-primary select-all">{baseSku}</span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(baseSku)}
+                  className="p-1 rounded hover:bg-primary/10 transition-colors"
+                  title="Copiar SKU"
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5 text-primary/60" />
+                  )}
+                </button>
+              </div>
+              {eanGtin && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase">EAN:</span>
+                  <span className="font-mono text-xs text-foreground/80 select-all">{eanGtin}</span>
+                </div>
+              )}
+            </div>
+
+            {/* ─── Variações em cascata ─────────────────────────────── */}
+            <div className="px-2 py-2">
+              <VariationsTable
+                variations={variations ?? []}
+                skuRowId={skuRowId}
+                baseSku={baseSku}
+              />
+            </div>
+          </div>
         )}
       </PopoverContent>
     </Popover>
   );
 }
 
-// ─── Tabela interna de variações ─────────────────────────────────────────────
+// ─── Tabela interna de variações (estilo cascata) ────────────────────────────
 
 function VariationsTable({
   variations,
@@ -95,44 +133,42 @@ function VariationsTable({
 
   return (
     <div className="max-h-[320px] overflow-y-auto">
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="text-left py-1.5 px-2 pr-10 font-semibold whitespace-nowrap">
-              Variações SKU
-            </th>
-            <th className="text-left py-1.5 px-4 font-semibold">EAN</th>
-            <th className="text-left py-1.5 px-3 font-semibold">MLB</th>
-            <th className="text-center py-1.5 px-2 font-semibold">OK</th>
-          </tr>
-        </thead>
-        <tbody>
-          {variations.map((v) => (
-            <VariationRowEditor
-              key={v.variationIndex}
-              variation={v}
-              skuRowId={skuRowId}
-              baseSku={baseSku}
-              onSave={(idx, data) => upsertMut.mutate({ skuRowId, variationIndex: idx, baseSku, ...data })}
-            />
-          ))}
-        </tbody>
-      </table>
+      {/* Header das variações */}
+      <div className="flex items-center gap-1 px-2 pb-1.5 mb-1 border-b border-border/50">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Variações ({variations.length})
+        </span>
+      </div>
+      {/* Lista em cascata */}
+      <div className="flex flex-col gap-0.5">
+        {variations.map((v, i) => (
+          <VariationRowEditor
+            key={v.variationIndex}
+            variation={v}
+            skuRowId={skuRowId}
+            baseSku={baseSku}
+            index={i}
+            onSave={(idx, data) => upsertMut.mutate({ skuRowId, variationIndex: idx, baseSku, ...data })}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-// ─── Linha individual da tabela de variações ─────────────────────────────────
+// ─── Linha individual (estilo pasta em cascata) ──────────────────────────────
 
 function VariationRowEditor({
   variation,
   skuRowId,
   baseSku,
+  index,
   onSave,
 }: {
   variation: VariationRow;
   skuRowId: number;
   baseSku: string;
+  index: number;
   onSave: (index: number, data: { ean?: string; mlb?: string; done?: boolean }) => void;
 }) {
   const [ean, setEan] = useState(variation.ean);
@@ -185,42 +221,65 @@ function VariationRowEditor({
   };
 
   return (
-    <tr className="border-b border-border/40 hover:bg-muted/30 transition-colors">
-      <td className="py-1.5 px-2 pr-10 font-mono text-[11px] text-muted-foreground whitespace-nowrap select-all">
-        {variation.variationSku}
-      </td>
-      <td className="py-1 px-3">
-        <input
-          value={ean}
-          onChange={(e) => {
-            setEan(e.target.value);
-            debouncedSave({ ean: e.target.value });
-          }}
-          onBlur={handleEanBlur}
-          placeholder="—"
-          className="w-full min-w-[110px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
-        />
-      </td>
-      <td className="py-1 px-2">
-        <input
-          value={mlb}
-          onChange={(e) => {
-            setMlb(e.target.value);
-            debouncedSave({ mlb: e.target.value });
-          }}
-          onBlur={handleMlbBlur}
-          placeholder="—"
-          className="w-full min-w-[110px] bg-transparent px-2 py-1 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-xs font-mono"
-        />
-      </td>
-      <td className="py-1 px-2 text-center">
-        <input
-          type="checkbox"
-          checked={done}
-          onChange={(e) => handleDoneChange(e.target.checked)}
-          className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
-        />
-      </td>
-    </tr>
+    <div
+      className="relative rounded-md border border-border/50 bg-card hover:bg-muted/30 transition-colors px-3 py-2"
+      style={{ marginLeft: `${12 + index * 2}px` }}
+    >
+      {/* Linha de conexão visual (cascata) */}
+      <div
+        className="absolute left-0 top-1/2 -translate-x-full w-3 border-t border-border/50"
+        style={{ left: "0px" }}
+      />
+
+      <div className="flex items-center gap-3">
+        {/* SKU da variação */}
+        <div className="flex-shrink-0 min-w-[140px]">
+          <span className="font-mono text-[11px] text-muted-foreground select-all">
+            {variation.variationSku}
+          </span>
+        </div>
+
+        {/* EAN */}
+        <div className="flex items-center gap-1 min-w-[130px]">
+          <span className="text-[9px] font-medium text-muted-foreground/70 uppercase">EAN</span>
+          <input
+            value={ean}
+            onChange={(e) => {
+              setEan(e.target.value);
+              debouncedSave({ ean: e.target.value });
+            }}
+            onBlur={handleEanBlur}
+            placeholder="—"
+            className="w-full bg-transparent px-1.5 py-0.5 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-[11px] font-mono"
+          />
+        </div>
+
+        {/* MLB */}
+        <div className="flex items-center gap-1 min-w-[130px]">
+          <span className="text-[9px] font-medium text-muted-foreground/70 uppercase">MLB</span>
+          <input
+            value={mlb}
+            onChange={(e) => {
+              setMlb(e.target.value);
+              debouncedSave({ mlb: e.target.value });
+            }}
+            onBlur={handleMlbBlur}
+            placeholder="—"
+            className="w-full bg-transparent px-1.5 py-0.5 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-[11px] font-mono"
+          />
+        </div>
+
+        {/* OK */}
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] font-medium text-muted-foreground/70 uppercase">OK</span>
+          <input
+            type="checkbox"
+            checked={done}
+            onChange={(e) => handleDoneChange(e.target.checked)}
+            className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
+          />
+        </div>
+      </div>
+    </div>
   );
 }

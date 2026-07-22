@@ -1841,3 +1841,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] TRAVAR edição no backend (updateSkuRow) quando variante normalizada for igual a outra no mesmo produto (throw DUPLICATA_DETECTADA)
 - [x] Frontend mostra toast de erro específico quando duplicata é detectada + invalidate cache
 - [x] Testes vitest: 35 passando ("100UND"=="100", "1.000"=="1000", ROLO≠CAIXA)
+
+## POPOVER SKU + ELIMINAR COLUNA EAN - 22/07
+- [x] Substituir o código SKU na coluna por um ícone clicável (Layers icon, sem texto do código)
+- [x] Criar popover ao clicar: SKU principal em destaque + variações em cascata (estilo pastas Windows com margin-left progressivo)
+- [x] Dentro do popover: SKU variante, EAN, MLB e OK de cada variação
+- [x] Mover EAN para dentro do popover (EAN do produto aparece no header do popover junto ao SKU principal)
+- [x] Eliminar a coluna EAN da planilha (removida do header e do corpo da tabela, mantida no export)

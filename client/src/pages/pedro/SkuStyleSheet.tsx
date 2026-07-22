@@ -22,6 +22,7 @@ import {
   Lock,
   LockOpen,
   History,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -704,10 +705,10 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                 </Th>
                 <Th style={{ background: "var(--sku-head)" }} className="w-10 text-center">Nº</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[240px]">Variante</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[120px]">SKU</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="min-w-[50px] text-center">SKU</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="text-center">Gerar Kit?</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[170px] whitespace-nowrap">SKU Kit</Th>
-                <Th style={{ background: "var(--sku-head)" }} className="min-w-[140px]">EAN/GTIN</Th>
+
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[110px]">NCM</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">GPC</Th>
                 <Th style={{ background: "var(--sku-head)" }} className="min-w-[90px]">CEST</Th>
@@ -1289,14 +1290,22 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       {/* Variante (texto completo) */}
       <td className="px-1 py-2">{area("variante")}</td>
 
-      {/* SKU (derivado automaticamente) — popover de variações ao CLICAR */}
+      {/* SKU — ícone clicável que abre popover com SKU principal + variações */}
       <td className="px-1 py-2">
         {(local.sku && local.sku !== "") ? (
-          <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku}>
-            <div className="cursor-pointer">{derived("sku")}</div>
+          <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku} eanGtin={local.eanGtin}>
+            <button
+              type="button"
+              className="flex items-center justify-center w-8 h-8 mx-auto rounded-md hover:bg-primary/10 transition-colors group/skuicon"
+              title="Ver SKU e variações"
+            >
+              <Layers className="h-4 w-4 text-primary group-hover/skuicon:scale-110 transition-transform" />
+            </button>
           </SkuVariationsPopover>
         ) : (
-          derived("sku")
+          <div className="flex items-center justify-center w-8 h-8 mx-auto opacity-30" title="Preencha Tipo, Categoria e números">
+            <Layers className="h-4 w-4 text-muted-foreground" />
+          </div>
         )}
       </td>
 
@@ -1323,8 +1332,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
         )}
       </td>
 
-      {/* EAN/GTIN */}
-      <td className="px-1 py-2">{text("eanGtin", { className: "font-mono text-xs" })}</td>
+
       {/* NCM (texto completo) */}
       <td className="px-1 py-2">{area("ncm", { className: "font-mono text-xs" })}</td>
       {/* GPC */}
