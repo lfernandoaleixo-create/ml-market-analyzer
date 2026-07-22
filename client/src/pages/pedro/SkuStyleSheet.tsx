@@ -221,24 +221,20 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
   const [unlockedIds, setUnlockedIds] = useState<Set<number>>(new Set());
   const [unlockTarget, setUnlockTarget] = useState<number | null>(null); // id da linha pedindo desbloqueio
   const [unlockPwd, setUnlockPwd] = useState("");
-  // Guarda quem autorizou o desbloqueio (para registrar no histórico ao salvar)
-  const [currentAuthorizer, setCurrentAuthorizer] = useState<string | null>(null);
-  const verifyPwdMut = trpc.skuSheet.validateSkuAuth.useMutation({
-    onSuccess: (data) => {
+  const verifyPwdMut = trpc.auth.verifyPassword.useMutation({
+    onSuccess: () => {
       if (unlockTarget != null) {
         setUnlockedIds((prev) => new Set(prev).add(unlockTarget));
-        setCurrentAuthorizer(data.authorizer);
-        toast.success(`Linha desbloqueada por ${data.authorizer}.`);
+        toast.success("Linha desbloqueada para edição.");
       }
       setUnlockTarget(null);
       setUnlockPwd("");
     },
     onError: () => {
-      toast.error("Nome incorreto. Use: Luis, Guilherme, Fernando ou Bruno.");
+      toast.error("Senha incorreta.");
       setUnlockPwd("");
     },
   });
-  const logChangeMut = trpc.skuSheet.logSkuChange.useMutation();
   const handleUnlockSubmit = () => {
     if (!unlockPwd.trim()) return;
     verifyPwdMut.mutate({ password: unlockPwd.trim() });
@@ -301,36 +297,9 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
     [],
   );
 
-  // Ref para guardar o autorizador atual (para uso em callbacks estáveis)
-  const authorizerRef = useRef<string | null>(null);
-  authorizerRef.current = currentAuthorizer;
-  // Ref para acessar unlockedIds em callbacks estáveis
-  const unlockedIdsRef = useRef<Set<number>>(unlockedIds);
-  unlockedIdsRef.current = unlockedIds;
-
   const saveNow = useCallback(
     (id: number, patch: Partial<SkuRow>) => {
       bindingRef.current.update({ id, ...patch });
-      // Se a linha estava desbloqueada (ou seja, tinha SKU e foi editada com autorização),
-      // registra a alteração no histórico.
-      if (unlockedIdsRef.current.has(id) && authorizerRef.current) {
-        const skuFields = ["tipoSku", "categoryName", "productNumber", "variantNumber", "produto", "sku", "skuKit"];
-        const affectsSkuField = Object.keys(patch).some((k) => skuFields.includes(k));
-        if (affectsSkuField) {
-          const desc = Object.entries(patch)
-            .filter(([k]) => skuFields.includes(k))
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(", ");
-          logChangeMut.mutate({
-            password: authorizerRef.current.toLowerCase(),
-            action: "edit_sku_field",
-            description: `Editou campos SKU da linha #${id}: ${desc}`,
-            affectedRowIds: [id],
-            newValues: patch,
-            affectedCount: 1,
-          });
-        }
-      }
     },
     [],
   );
@@ -823,13 +792,13 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
               Linha bloqueada
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Esta linha já possui um SKU gerado. Para editar, digite o nome de quem autoriza (Luis, Guilherme, Fernando ou Bruno).
+              Esta linha já possui um SKU gerado. Para editar, digite a senha de acesso.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-2">
             <input
-              type="text"
-              placeholder="Nome do autorizador"
+              type="password"
+              placeholder="Senha"
               value={unlockPwd}
               onChange={(e) => setUnlockPwd(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleUnlockSubmit(); }}

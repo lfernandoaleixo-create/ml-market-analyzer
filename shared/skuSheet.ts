@@ -372,17 +372,33 @@ export function normalizeVariantNumbers(rows: VariantNumberRow[]): VariantFix[] 
 }
 
 /**
+ * Normaliza um SKU para comparação de unicidade:
+ * - lowercase
+ * - remove espaços
+ * - remove pontos
+ * - trim
+ * Assim "2-CASA-1-1", "2-casa-1-1", "2-CASA -1-1", "2.CASA.1.1" são todos iguais.
+ */
+export function normalizeSku(sku: string | null | undefined): string {
+  // 1. trim + lowercase
+  // 2. pontos viram hífen (separador equivalente)
+  // 3. espaços são removidos
+  return (sku ?? "").trim().toLowerCase().replace(/\./g, "-").replace(/\s+/g, "");
+}
+
+/**
  * Verifica se um SKU já existe em outra linha (colisão de unicidade).
  * SKUs vazios ("") nunca colidem.
+ * Comparação é case-insensitive e ignora espaços/pontos.
  */
 export function isSkuDuplicate(
   rows: { id: number; sku: string }[],
   currentRowId: number,
   sku: string,
 ): boolean {
-  const target = (sku ?? "").trim();
+  const target = normalizeSku(sku);
   if (!target) return false;
-  return rows.some((r) => r.id !== currentRowId && (r.sku ?? "").trim() === target);
+  return rows.some((r) => r.id !== currentRowId && normalizeSku(r.sku) === target);
 }
 
 // ---------------------------------------------------------------------------
@@ -486,9 +502,10 @@ export function analyzeDuplicates(rows: DuplicateAnalysisRow[]): DuplicateAnalys
   for (const g of identicalGroups) for (const id of g.ids) identicalIds.add(id);
 
   // --- Tipo 2: colisão de SKU entre linhas NÃO idênticas ---
+  // Comparação normalizada (case-insensitive, sem espaços/pontos).
   const bySku = new Map<string, DuplicateAnalysisRow[]>();
   for (const r of rows) {
-    const s = (r.sku ?? "").trim();
+    const s = normalizeSku(r.sku);
     if (!s) continue;
     const bucket = bySku.get(s);
     if (bucket) bucket.push(r);

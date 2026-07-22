@@ -5,6 +5,7 @@ import {
   resolveProductNumber,
   resolveVariantNumber,
   isSkuDuplicate,
+  normalizeSku,
   normalizeProductName,
   type ProductNumberRow,
   type VariantNumberRow,
@@ -181,6 +182,7 @@ describe("isSkuDuplicate", () => {
     { id: 1, sku: "1-SERVICOS-46-1" },
     { id: 2, sku: "1-SERVICOS-46-2" },
     { id: 3, sku: "" },
+    { id: 4, sku: "2-CASA-1-1" },
   ];
 
   it("detecta SKU repetido em outra linha", () => {
@@ -197,5 +199,35 @@ describe("isSkuDuplicate", () => {
 
   it("SKU inédito não duplica", () => {
     expect(isSkuDuplicate(rows, 99, "1-SERVICOS-46-9")).toBe(false);
+  });
+
+  it("detecta duplicata case-insensitive", () => {
+    expect(isSkuDuplicate(rows, 99, "2-casa-1-1")).toBe(true);
+    expect(isSkuDuplicate(rows, 99, "2-CASA-1-1")).toBe(true);
+  });
+
+  it("detecta duplicata ignorando espaços", () => {
+    expect(isSkuDuplicate(rows, 99, "2-CASA -1-1")).toBe(true);
+    expect(isSkuDuplicate(rows, 99, " 2-CASA-1-1 ")).toBe(true);
+  });
+
+  it("detecta duplicata ignorando pontos", () => {
+    expect(isSkuDuplicate(rows, 99, "2.CASA.1.1")).toBe(true);
+    expect(isSkuDuplicate(rows, 99, "2-CASA.1-1")).toBe(true);
+  });
+});
+
+describe("normalizeSku", () => {
+  it("converte para lowercase e remove espaços e pontos", () => {
+    expect(normalizeSku("2-CASA-1-1")).toBe("2-casa-1-1");
+    expect(normalizeSku("2-CASA -1-1")).toBe("2-casa-1-1");
+    expect(normalizeSku("2.CASA.1.1")).toBe("2-casa-1-1");
+    expect(normalizeSku(" 2-CASA-1-1 ")).toBe("2-casa-1-1");
+  });
+
+  it("retorna vazio para null/undefined/vazio", () => {
+    expect(normalizeSku(null)).toBe("");
+    expect(normalizeSku(undefined)).toBe("");
+    expect(normalizeSku("")).toBe("");
   });
 });

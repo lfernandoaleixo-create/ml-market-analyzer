@@ -1827,3 +1827,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Nunca gerar SKU se faltam requisitos (tipo, categoria, produto devem estar preenchidos); campo SKU fica vazio até completar (buildSku já retorna "" se faltar qualquer campo)
 - [x] Linhas apagadas não influenciam na numeração: Nº Produto é recalculado apenas com base nas linhas EXISTENTES no banco (resolveProductNumber usa apenas listSkuRows que consulta o banco)
 - [x] Corrigir linha CATÁLOGO (ID 43): SKU "CJ-PR-BR01-CT" limpo no banco (agora vazio até preencher categoria)
+
+## UNICIDADE SKU REFORÇADA (case-insensitive, ignorar pontos/espaços) - 22/07
+- [x] Normalizar SKU para comparação de unicidade: lowercase + remover espaços + pontos viram hífen + trim
+- [x] Atualizar isSkuDuplicate em shared/skuSheet.ts para usar normalizeSku
+- [x] Atualizar analyzeDuplicates para usar normalizeSku na detecção de colisão
+- [x] enforceUniqueSku já usa isSkuDuplicate que agora usa normalizeSku (não precisa de alteração direta)
+- [x] Testes vitest: 28 passando (case-insensitive, espaços, pontos)
