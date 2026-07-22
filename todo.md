@@ -1848,3 +1848,6 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Dentro do popover: SKU variante, EAN, MLB e OK de cada variação
 - [x] Mover EAN para dentro do popover (EAN do produto aparece no header do popover junto ao SKU principal)
 - [x] Eliminar a coluna EAN da planilha (removida do header e do corpo da tabela, mantida no export)
+- [x] SKU principal como item editável (EAN, MLB, OK) em destaque acima das variações
+- [x] mainMlb e mainDone adicionados ao schema, router e frontend
+- [x] Grid alinhado (colunas: SKU | EAN | MLB | OK) para principal e variações

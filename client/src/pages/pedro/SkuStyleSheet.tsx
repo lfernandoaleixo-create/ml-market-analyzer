@@ -99,6 +99,8 @@ type SkuRow = {
   sku: string;
   gerarSkuKit: boolean;
   skuKit: string;
+  mainMlb: string;
+  mainDone: boolean;
   eanGtin: string;
   ncm: string;
   gpc: string;
@@ -1293,7 +1295,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
       {/* SKU — ícone clicável que abre popover com SKU principal + variações */}
       <td className="px-1 py-2">
         {(local.sku && local.sku !== "") ? (
-          <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku} eanGtin={local.eanGtin}>
+          <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku} eanGtin={local.eanGtin} mainMlb={local.mainMlb} mainDone={local.mainDone} onMainFieldChange={(field, value) => { const updated = { ...local, [field]: value }; setLocal(updated); onFieldNow(row.id, { [field]: value }); }}>
             <button
               type="button"
               className="flex items-center justify-center w-8 h-8 mx-auto rounded-md hover:bg-primary/10 transition-colors group/skuicon"
