@@ -65,8 +65,14 @@ export default function SkuSheet() {
         toast.info(`SKU ajustado automaticamente para ${server.sku} (evita duplicidade).`);
       }
     },
-    onError: () => {
-      toast.error("Não foi possível salvar a alteração");
+    onError: (err) => {
+      const msg = err?.message ?? "";
+      if (msg.includes("DUPLICATA_DETECTADA")) {
+        const desc = msg.split("|")[1] ?? "Linha idêntica já existe. Ajuste a variante ou remova a duplicata.";
+        toast.error(desc, { duration: 6000 });
+      } else {
+        toast.error("Não foi possível salvar a alteração");
+      }
       utils.skuSheet.list.invalidate();
     },
   });

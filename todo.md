@@ -1834,3 +1834,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Atualizar analyzeDuplicates para usar normalizeSku na detecção de colisão
 - [x] enforceUniqueSku já usa isSkuDuplicate que agora usa normalizeSku (não precisa de alteração direta)
 - [x] Testes vitest: 28 passando (case-insensitive, espaços, pontos)
+
+## TRAVA DE DUPLICATA INTELIGENTE (variante normalizada) - 22/07
+- [x] Criar normalizeVariantText inteligente: lowercase + remove unidades após números (UND/UN/UNID/PCT/CX/KG/G/ML/L/M/CM/MM) + remove pontos de milhar + remove espaços + remove acentos + ×→x
+- [x] Atualizar analyzeDuplicates / identityKey para usar normalização inteligente da variante
+- [x] TRAVAR edição no backend (updateSkuRow) quando variante normalizada for igual a outra no mesmo produto (throw DUPLICATA_DETECTADA)
+- [x] Frontend mostra toast de erro específico quando duplicata é detectada + invalidate cache
+- [x] Testes vitest: 35 passando ("100UND"=="100", "1.000"=="1000", ROLO≠CAIXA)

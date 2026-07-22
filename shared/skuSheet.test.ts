@@ -7,6 +7,7 @@ import {
   isSkuDuplicate,
   normalizeSku,
   normalizeProductName,
+  normalizeVariantText,
   type ProductNumberRow,
   type VariantNumberRow,
 } from "./skuSheet";
@@ -229,5 +230,51 @@ describe("normalizeSku", () => {
     expect(normalizeSku(null)).toBe("");
     expect(normalizeSku(undefined)).toBe("");
     expect(normalizeSku("")).toBe("");
+  });
+});
+
+describe("normalizeVariantText (comparação inteligente de variantes)", () => {
+  it("'100UND' == '100' == '100 und' == '100un'", () => {
+    const base = normalizeVariantText("100");
+    expect(normalizeVariantText("100UND")).toBe(base);
+    expect(normalizeVariantText("100 und")).toBe(base);
+    expect(normalizeVariantText("100un")).toBe(base);
+    expect(normalizeVariantText("100 UN")).toBe(base);
+    expect(normalizeVariantText("100unid")).toBe(base);
+  });
+
+  it("'1.000' == '1000' == '1.000und' == '1000 un'", () => {
+    const base = normalizeVariantText("1000");
+    expect(normalizeVariantText("1.000")).toBe(base);
+    expect(normalizeVariantText("1.000und")).toBe(base);
+    expect(normalizeVariantText("1000 un")).toBe(base);
+  });
+
+  it("'20×30' == '20x30' == '20 x 30'", () => {
+    const base = normalizeVariantText("20x30");
+    expect(normalizeVariantText("20×30")).toBe(base);
+    expect(normalizeVariantText("20 x 30")).toBe(base);
+  });
+
+  it("remove acentos: 'Proteção' == 'Protecao'", () => {
+    expect(normalizeVariantText("Proteção")).toBe(normalizeVariantText("Protecao"));
+  });
+
+  it("case insensitive: 'ROLO' == 'rolo' == 'Rolo'", () => {
+    const base = normalizeVariantText("rolo");
+    expect(normalizeVariantText("ROLO")).toBe(base);
+    expect(normalizeVariantText("Rolo")).toBe(base);
+  });
+
+  it("variantes diferentes continuam diferentes", () => {
+    expect(normalizeVariantText("100")).not.toBe(normalizeVariantText("200"));
+    expect(normalizeVariantText("20x30")).not.toBe(normalizeVariantText("26x36"));
+    expect(normalizeVariantText("ROLO")).not.toBe(normalizeVariantText("CAIXA"));
+  });
+
+  it("null/undefined/vazio retorna string vazia", () => {
+    expect(normalizeVariantText(null)).toBe("");
+    expect(normalizeVariantText(undefined)).toBe("");
+    expect(normalizeVariantText("")).toBe("");
   });
 });

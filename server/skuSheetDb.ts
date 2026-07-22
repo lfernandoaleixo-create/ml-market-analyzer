@@ -12,6 +12,8 @@ import {
   normalizeVariantNumbers,
   buildSku,
   buildSkuKit,
+  normalizeVariantText,
+  normalizeProductName,
   type VariantNumberRow,
   type VariantFix,
 } from "../shared/skuSheet";
@@ -135,6 +137,36 @@ export async function createSkuRow(
   return row;
 }
 
+/**
+ * Verifica se uma linha (após merge do patch) é duplicata inteligente de outra
+ * linha existente. Compara: mesmo tipo + categoria + nome do produto + variante
+ * normalizada (ignora unidades, pontos de milhar, acentos, case).
+ * Retorna o id da linha conflitante, ou null se não há duplicata.
+ */
+async function checkDuplicateVariant(
+  rowId: number,
+  merged: { tipoSku: string; categoryName: string | null; produto: string; variante: string },
+): Promise<{ duplicateOfId: number; duplicatePosition: number } | null> {
+  const allRows = await listSkuRows();
+  const myTipo = (merged.tipoSku ?? "").trim();
+  const myCat = normalizeProductName(merged.categoryName);
+  const myProd = normalizeProductName(merged.produto);
+  const myVar = normalizeVariantText(merged.variante);
+  if (!myProd) return null; // sem produto, não dá pra comparar
+
+  for (const r of allRows) {
+    if (r.id === rowId) continue;
+    const rTipo = (r.tipoSku ?? "").trim();
+    const rCat = normalizeProductName(r.categoryName);
+    const rProd = normalizeProductName(r.produto);
+    const rVar = normalizeVariantText(r.variante);
+    if (rTipo === myTipo && rCat === myCat && rProd === myProd && rVar === myVar) {
+      return { duplicateOfId: r.id, duplicatePosition: r.position };
+    }
+  }
+  return null;
+}
+
 /** Atualiza campos de uma linha existente. */
 export async function updateSkuRow(
   id: number,
@@ -144,6 +176,31 @@ export async function updateSkuRow(
   if (!db) throw new Error("DB indisponível");
   // Nunca permitir sobrescrever id/createdAt acidentalmente.
   const { id: _ignore, createdAt: _ignore2, ...safe } = patch as Record<string, unknown>;
+
+  // TRAVA DE DUPLICATA INTELIGENTE: se o patch altera produto ou variante,
+  // verifica se a linha resultante seria duplicata de outra existente.
+  const identityFields = ["tipoSku", "categoryName", "produto", "variante"];
+  const touchesIdentity = identityFields.some((f) => f in safe);
+  if (touchesIdentity) {
+    // Busca o estado atual da linha para fazer merge com o patch
+    const currentRows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
+    const cur = currentRows[0];
+    if (cur) {
+      const merged = {
+        tipoSku: (safe.tipoSku as string) ?? cur.tipoSku,
+        categoryName: (safe.categoryName as string | null) ?? cur.categoryName,
+        produto: (safe.produto as string) ?? cur.produto,
+        variante: (safe.variante as string) ?? cur.variante,
+      };
+      const dup = await checkDuplicateVariant(id, merged);
+      if (dup) {
+        throw new Error(
+          `DUPLICATA_DETECTADA|Linha idêntica já existe (linha #${dup.duplicatePosition}). Ajuste a variante ou remova a linha duplicada.`
+        );
+      }
+    }
+  }
+
   if (Object.keys(safe).length > 0) {
     await db.update(skuSheetRows).set(safe).where(eq(skuSheetRows.id, id));
   }

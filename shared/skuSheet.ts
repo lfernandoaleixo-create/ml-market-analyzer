@@ -449,9 +449,58 @@ export interface DuplicateAnalysis {
   skuCollisions: SkuCollisionGroup[];
 }
 
-/** Normaliza o texto da variante para comparação (trim + minúsculas + espaços). */
+/**
+ * Remove acentos de uma string (substitui caracteres acentuados por equivalentes ASCII).
+ */
+function removeAccents(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * Sufixos de unidade comuns que devem ser ignorados na comparação de variantes.
+ * Ordenados do mais longo ao mais curto para evitar match parcial.
+ */
+const UNIT_SUFFIXES = [
+  "unidades", "unidade", "unid", "und", "un",
+  "pecas", "peca", "pcs", "pc",
+  "pacotes", "pacote", "pct",
+  "caixas", "caixa", "cx",
+  "rolos", "rolo",
+  "metros", "metro",
+  "mm", "cm", "ml", "kg", "g", "l", "m",
+];
+
+/**
+ * Normaliza o texto da variante para comparação INTELIGENTE de duplicatas:
+ * - lowercase
+ * - remove acentos
+ * - remove pontos de milhar ("1.000" → "1000") — preserva decimais com vírgula
+ * - remove sufixos de unidade (UND, UN, UNID, PÇ, PCT, CX, KG, G, ML, L, M, CM, MM...)
+ * - remove espaços, hífens e barras
+ * Assim: "100UND" == "100" == "100 und" == "100un"
+ *        "1.000" == "1000" == "1.000und"
+ *        "20×30" == "20x30" == "20 x 30"
+ */
 export function normalizeVariantText(v: string | null | undefined): string {
-  return (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  let s = (v ?? "").trim().toLowerCase();
+  // Remove acentos
+  s = removeAccents(s);
+  // Substitui × por x (símbolo de multiplicação)
+  s = s.replace(/\u00d7/g, "x");
+  // Remove pontos de milhar: dígito.dígito{3} (ex: 1.000 → 1000)
+  s = s.replace(/(\d)\.(\d{3})(?!\d)/g, "$1$2");
+  // Repete para múltiplos pontos (ex: 1.000.000)
+  s = s.replace(/(\d)\.(\d{3})(?!\d)/g, "$1$2");
+  // Remove sufixos de unidade APENAS quando precedidos por um número.
+  // Assim "100UND" → "100", mas "ROLO" e "CAIXA" permanecem intactos.
+  for (const unit of UNIT_SUFFIXES) {
+    // Remove unidade após número: "100und" → "100", "1000 un" → "1000"
+    const re = new RegExp(`(\\d)\\s*${unit}(?:\\s|$)`, "g");
+    s = s.replace(re, "$1");
+  }
+  // Remove espaços, hífens e barras para comparação pura
+  s = s.replace(/[\s\-\/]+/g, "");
+  return s;
 }
 
 /**

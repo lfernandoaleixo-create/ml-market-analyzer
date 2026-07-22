@@ -68,9 +68,16 @@ export const skuSheetRouter = router({
   /** Atualiza uma linha existente. */
   update: publicProcedure
     .input(z.object({ id: z.number().int() }).and(rowFields))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const { id, ...patch } = input;
-      return updateSkuRow(id, patch);
+      try {
+        return await updateSkuRow(id, patch);
+      } catch (e: any) {
+        if (e?.message?.includes("DUPLICATA_DETECTADA")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: e.message });
+        }
+        throw e;
+      }
     }),
 
   /** Exclui uma linha. */
