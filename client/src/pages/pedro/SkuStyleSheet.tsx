@@ -22,7 +22,6 @@ import {
   Lock,
   LockOpen,
   History,
-  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1301,12 +1300,12 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
               className="flex items-center justify-center w-8 h-8 mx-auto rounded-md hover:bg-primary/10 transition-colors group/skuicon"
               title="Ver SKU e variações"
             >
-              <Layers className="h-4 w-4 text-primary group-hover/skuicon:scale-110 transition-transform" />
+              <svg className="h-5 w-5 text-primary group-hover/skuicon:scale-110 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="8" width="16" height="13" rx="2" /><path d="M4 8l8-5 8 5" /><path d="M14 12l3-3m0 0l-3-3m3 3H9" /></svg>
             </button>
           </SkuVariationsPopover>
         ) : (
           <div className="flex items-center justify-center w-8 h-8 mx-auto opacity-30" title="Preencha Tipo, Categoria e números">
-            <Layers className="h-4 w-4 text-muted-foreground" />
+            <svg className="h-5 w-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="8" width="16" height="13" rx="2" /><path d="M4 8l8-5 8 5" /><path d="M14 12l3-3m0 0l-3-3m3 3H9" /></svg>
           </div>
         )}
       </td>
