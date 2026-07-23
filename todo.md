@@ -1851,3 +1851,10 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] SKU principal como item editável (EAN, MLB, OK) em destaque acima das variações
 - [x] mainMlb e mainDone adicionados ao schema, router e frontend
 - [x] Grid alinhado (colunas: SKU | EAN | MLB | OK) para principal e variações
+
+## Correção de Numeração de Produtos (23/jul)
+- [x] Bug: resolveProductNumber usava max+1 que deixava gaps quando produtos eram deletados (31, 33, 34 no meio de 12, 17)
+- [x] Corrigido: agora usa contagem de nomes distintos existentes + 1 (sem buracos)
+- [x] Banco reparado: 27 linhas renumeradas sequencialmente (1-28) sem gaps
+- [x] Log registrado em sku_change_log (autorizado por Guilherme)
+- [x] 35 testes passando, 0 erros TypeScript

@@ -163,7 +163,8 @@ export function buildSkuKit(baseSku: string, gerarSkuKit: boolean): string {
 // Regra: ao digitar o nome do produto, se já existir outra linha com o mesmo
 // nome (ignorando maiúsculas/minúsculas e espaços), reaproveita o mesmo Nº.
 // Caso contrário, recebe o próximo número da sequência GLOBAL
-// (maior Nº existente + 1). A numeração é única e sequencial sem buracos.
+// (contagem de nomes distintos existentes + 1). A numeração é única e
+// sequencial SEM BURACOS — linhas apagadas não influenciam.
 // A numeração da VARIANTE é que reinicia por grupo (tipo+categoria+Nº produto).
 // ---------------------------------------------------------------------------
 
@@ -191,8 +192,12 @@ export interface ProductNumberRow {
  *
  * Retorna:
  * - o Nº já usado por outra linha com o mesmo nome (reaproveitamento), ou
- * - o próximo Nº da sequência global (max + 1) quando o nome é novo, ou
+ * - o próximo Nº da sequência global (contagem de nomes distintos + 1)
+ *   quando o nome é novo, ou
  * - null quando o nome está vazio.
+ *
+ * IMPORTANTE: usa contagem de nomes distintos (não max+1) para garantir que
+ * linhas deletadas não deixem buracos na sequência.
  */
 export function resolveProductNumber(
   rows: ProductNumberRow[],
@@ -211,12 +216,18 @@ export function resolveProductNumber(
     }
   }
 
-  // 2) Nome novo: próximo número da sequência global (considera todas as linhas).
-  let max = 0;
+  // 2) Nome novo: próximo número = contagem de nomes distintos existentes + 1.
+  //    Isso garante que deletar um produto não deixa buracos — o novo produto
+  //    sempre recebe o próximo número sequencial baseado em quantos nomes
+  //    distintos existem atualmente (excluindo a linha atual e linhas sem nome).
+  const distinctNames = new Set<string>();
   for (const r of rows) {
-    if (r.productNumber != null && r.productNumber > max) max = r.productNumber;
+    if (r.id === currentRowId) continue;
+    if (r.productNumber == null) continue;
+    const normalized = normalizeProductName(r.produto);
+    if (normalized) distinctNames.add(normalized);
   }
-  return max + 1;
+  return distinctNames.size + 1;
 }
 
 // ---------------------------------------------------------------------------
