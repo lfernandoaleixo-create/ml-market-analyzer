@@ -67,7 +67,7 @@ describe("resolveProductNumber (global)", () => {
   });
 
   it("atribui o próximo da sequência GLOBAL para um nome novo", () => {
-    // 7 nomes distintos existem, então próximo = 7 + 1 = 8
+    // max é 7, então próximo = 7 + 1 = 8
     expect(resolveProductNumber(rows, 99, "Produto Totalmente Novo")).toBe(8);
   });
 
@@ -80,8 +80,8 @@ describe("resolveProductNumber (global)", () => {
   it("ignora a própria linha ao buscar nome igual", () => {
     // id 6 tem "Palito de Hashi de Bambu" com Nº 6.
     // Se estamos editando a linha 6 e não há outra com o mesmo nome,
-    // atribui contagem de distintos restantes + 1 = 6 nomes restantes + 1 = 7
-    expect(resolveProductNumber(rows, 6, "Palito de Hashi de Bambu")).toBe(7);
+    // atribui max+1 = 7+1 = 8 (número do produto é ID permanente, nunca reciclado)
+    expect(resolveProductNumber(rows, 6, "Palito de Hashi de Bambu")).toBe(8);
   });
 
   it("ignora a própria linha mas encontra outra com mesmo nome", () => {

@@ -162,9 +162,13 @@ export function buildSkuKit(baseSku: string, gerarSkuKit: boolean): string {
 // Numeração automática do PRODUTO pelo nome — GLOBAL
 // Regra: ao digitar o nome do produto, se já existir outra linha com o mesmo
 // nome (ignorando maiúsculas/minúsculas e espaços), reaproveita o mesmo Nº.
-// Caso contrário, recebe o próximo número da sequência GLOBAL
-// (contagem de nomes distintos existentes + 1). A numeração é única e
-// sequencial SEM BURACOS — linhas apagadas não influenciam.
+// Caso contrário, recebe o próximo número da sequência GLOBAL (max + 1).
+//
+// REGRA DEFINITIVA (23/jul/2026, autorizada por Guilherme):
+// O número do produto é um IDENTIFICADOR PERMANENTE — uma vez atribuído,
+// nunca muda e nunca é reciclado. Se um produto é deletado, seu número
+// "morre" e não é reutilizado. O próximo produto novo recebe max + 1.
+// Isso garante que SKUs existentes NUNCA mudam por causa de deleções.
 // A numeração da VARIANTE é que reinicia por grupo (tipo+categoria+Nº produto).
 // ---------------------------------------------------------------------------
 
@@ -192,12 +196,11 @@ export interface ProductNumberRow {
  *
  * Retorna:
  * - o Nº já usado por outra linha com o mesmo nome (reaproveitamento), ou
- * - o próximo Nº da sequência global (contagem de nomes distintos + 1)
- *   quando o nome é novo, ou
+ * - o próximo Nº da sequência global (maior Nº existente + 1) quando o nome
+ *   é novo, ou
  * - null quando o nome está vazio.
  *
- * IMPORTANTE: usa contagem de nomes distintos (não max+1) para garantir que
- * linhas deletadas não deixem buracos na sequência.
+ * Números deletados NUNCA são reciclados — o número é um ID permanente.
  */
 export function resolveProductNumber(
   rows: ProductNumberRow[],
@@ -216,18 +219,13 @@ export function resolveProductNumber(
     }
   }
 
-  // 2) Nome novo: próximo número = contagem de nomes distintos existentes + 1.
-  //    Isso garante que deletar um produto não deixa buracos — o novo produto
-  //    sempre recebe o próximo número sequencial baseado em quantos nomes
-  //    distintos existem atualmente (excluindo a linha atual e linhas sem nome).
-  const distinctNames = new Set<string>();
+  // 2) Nome novo: próximo número = maior Nº existente + 1.
+  //    Números de produtos deletados não são reutilizados.
+  let max = 0;
   for (const r of rows) {
-    if (r.id === currentRowId) continue;
-    if (r.productNumber == null) continue;
-    const normalized = normalizeProductName(r.produto);
-    if (normalized) distinctNames.add(normalized);
+    if (r.productNumber != null && r.productNumber > max) max = r.productNumber;
   }
-  return distinctNames.size + 1;
+  return max + 1;
 }
 
 // ---------------------------------------------------------------------------

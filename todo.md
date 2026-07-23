@@ -1853,8 +1853,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Grid alinhado (colunas: SKU | EAN | MLB | OK) para principal e variações
 
 ## Correção de Numeração de Produtos (23/jul)
-- [x] Bug: resolveProductNumber usava max+1 que deixava gaps quando produtos eram deletados (31, 33, 34 no meio de 12, 17)
-- [x] Corrigido: agora usa contagem de nomes distintos existentes + 1 (sem buracos)
+- [x] Bug: números inflados no banco (31, 33, 34 no meio de 12, 17) causados por dados legados
 - [x] Banco reparado: 27 linhas renumeradas sequencialmente (1-28) sem gaps
 - [x] Log registrado em sku_change_log (autorizado por Guilherme)
+- [x] REGRA DEFINITIVA: Nº do produto é ID permanente (max+1). Nunca muda, nunca é reciclado. Deleções não afetam SKUs existentes.
 - [x] 35 testes passando, 0 erros TypeScript
