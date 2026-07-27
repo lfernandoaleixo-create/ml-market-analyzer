@@ -77,11 +77,28 @@ describe("resolveProductNumber (global)", () => {
     expect(resolveProductNumber(rows, 99, "vareta aromatizador fibra")).toBe(3);
   });
 
-  it("ignora a própria linha ao buscar nome igual", () => {
+  it("ignora a própria linha ao buscar nome igual — sem currentProductNumber dá max+1", () => {
     // id 6 tem "Palito de Hashi de Bambu" com Nº 6.
-    // Se estamos editando a linha 6 e não há outra com o mesmo nome,
-    // atribui max+1 = 7+1 = 8 (número do produto é ID permanente, nunca reciclado)
+    // Sem passar currentProductNumber (linha nova), atribui max+1 = 8
     expect(resolveProductNumber(rows, 6, "Palito de Hashi de Bambu")).toBe(8);
+  });
+
+  it("preserva o número existente quando a linha já tem productNumber e o nome muda", () => {
+    // Linha 6 tem Nº 6. Usuário edita o nome para algo novo.
+    // Como já tem número (6), PRESERVA — não gera novo.
+    expect(resolveProductNumber(rows, 6, "Nome Completamente Diferente", 6)).toBe(6);
+  });
+
+  it("preserva o número existente quando usuário redigita o mesmo nome", () => {
+    // Linha 6 tem Nº 6. Usuário clica no campo e sai sem mudar.
+    // Como já tem número (6), PRESERVA.
+    expect(resolveProductNumber(rows, 6, "Palito de Hashi de Bambu", 6)).toBe(6);
+  });
+
+  it("reaproveita número de outro produto mesmo quando já tem número (merge de nomes)", () => {
+    // Linha 6 tem Nº 6. Usuário muda o nome para "Vareta Aromatizador Fibra" (Nº 3).
+    // Deve REAPROVEITAR o Nº 3 (merge), não preservar o 6.
+    expect(resolveProductNumber(rows, 6, "Vareta Aromatizador Fibra", 6)).toBe(3);
   });
 
   it("ignora a própria linha mas encontra outra com mesmo nome", () => {

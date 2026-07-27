@@ -1858,3 +1858,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Log registrado em sku_change_log (autorizado por Guilherme)
 - [x] REGRA DEFINITIVA: Nº do produto é ID permanente (max+1). Nunca muda, nunca é reciclado. Deleções não afetam SKUs existentes.
 - [x] 35 testes passando, 0 erros TypeScript
+
+## Correção de Numeração de Produtos (27/jul) — Proteção contra reatribuição
+- [x] Bug: onBlur no campo PRODUTO chamava resolveProductNumber e reatribuía max+1 quando nome era editado
+- [x] Causa raiz: a função não sabia que a linha JÁ TINHA um número — tratava como produto novo
+- [x] Correção: novo parâmetro `currentProductNumber` — se a linha já tem número, PRESERVA (não gera novo)
+- [x] Exceção: se o nome editado coincidir com outro produto existente, REAPROVEITA o número daquele (merge)
+- [x] Banco corrigido: BRINCO PONTO DE LUZ 28→15, GRANDE SACO DE LIXO 29→20, KIT 4 EM 1 34→29
+- [x] Log registrado (autorizado por Guilherme)
+- [x] 38 testes passando, 0 erros TypeScript

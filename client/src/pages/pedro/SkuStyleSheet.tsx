@@ -1046,12 +1046,13 @@ function SkuRowEditorImpl({ row, index, problemType, categories, allRows, custom
 
   // Campo do NOME do produto: ao terminar de digitar (blur) resolve o Nº do
   // produto automaticamente — reaproveita o Nº de um produto de mesmo nome ou
-  // atribui o próximo da sequência. Em seguida recalcula o SKU.
+  // preserva o número existente. Só atribui max+1 para linhas NOVAS (sem número).
   const resolveAndApplyProductNumber = (produto: string) => {
     const num = resolveProductNumber(
       allRows.map((r) => ({ id: r.id, produto: r.produto ?? "", productNumber: r.productNumber })),
       row.id,
       produto,
+      row.productNumber, // preserva o número existente se a linha já tem um
     );
     // applyDerived resolve automaticamente o Nº da variante para manter o SKU único.
     applyDerived({ produto, productNumber: num });
@@ -1633,11 +1634,13 @@ function EditRowDialog({ row, categories, allRows, customColumns, onClose, onSav
   };
 
   // Resolve o Nº do produto pelo nome (mesma regra da tabela).
+  // Preserva o número existente se a linha já tem um atribuído.
   const onProductNameBlur = (produto: string) => {
     const num = resolveProductNumber(
       allRows.map((r) => ({ id: r.id, produto: r.produto ?? "", productNumber: r.productNumber })),
       draft.id,
       produto,
+      draft.productNumber, // preserva o número existente
     );
     upd({ produto, productNumber: num });
   };

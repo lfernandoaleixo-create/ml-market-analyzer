@@ -164,11 +164,18 @@ export function buildSkuKit(baseSku: string, gerarSkuKit: boolean): string {
 // nome (ignorando maiúsculas/minúsculas e espaços), reaproveita o mesmo Nº.
 // Caso contrário, recebe o próximo número da sequência GLOBAL (max + 1).
 //
-// REGRA DEFINITIVA (23/jul/2026, autorizada por Guilherme):
+// REGRA DEFINITIVA (27/jul/2026, autorizada por Guilherme):
 // O número do produto é um IDENTIFICADOR PERMANENTE — uma vez atribuído,
 // nunca muda e nunca é reciclado. Se um produto é deletado, seu número
 // "morre" e não é reutilizado. O próximo produto novo recebe max + 1.
 // Isso garante que SKUs existentes NUNCA mudam por causa de deleções.
+//
+// PROTEÇÃO CONTRA REATRIBUIÇÃO (27/jul/2026):
+// Se a linha JÁ TEM um productNumber atribuído (currentProductNumber != null),
+// o número é PRESERVADO — a menos que o nome digitado coincida com outro
+// produto existente (caso de reaproveitamento). Editar o nome de um produto
+// existente NÃO deve gerar um novo número; o número é permanente à linha.
+//
 // A numeração da VARIANTE é que reinicia por grupo (tipo+categoria+Nº produto).
 // ---------------------------------------------------------------------------
 
@@ -193,11 +200,14 @@ export interface ProductNumberRow {
  * - `rows`: todas as linhas atuais da planilha.
  * - `currentRowId`: id da linha que está sendo editada (ignorada na busca por nome).
  * - `productName`: nome digitado.
+ * - `currentProductNumber`: o Nº que a linha JÁ TEM (se houver). Quando presente,
+ *   o número é preservado a menos que o nome coincida com outro produto existente.
  *
  * Retorna:
  * - o Nº já usado por outra linha com o mesmo nome (reaproveitamento), ou
- * - o próximo Nº da sequência global (maior Nº existente + 1) quando o nome
- *   é novo, ou
+ * - o currentProductNumber se a linha já tem número e o nome é novo/editado, ou
+ * - o próximo Nº da sequência global (maior Nº existente + 1) quando a linha
+ *   NÃO tem número e o nome é novo, ou
  * - null quando o nome está vazio.
  *
  * Números deletados NUNCA são reciclados — o número é um ID permanente.
@@ -206,11 +216,13 @@ export function resolveProductNumber(
   rows: ProductNumberRow[],
   currentRowId: number,
   productName: string,
+  currentProductNumber?: number | null,
 ): number | null {
   const key = normalizeProductName(productName);
   if (!key) return null;
 
   // 1) Procura outra linha (diferente da atual) com o mesmo nome e Nº já definido.
+  //    Se encontrar, REAPROVEITA o número daquele produto (merge de nomes).
   for (const r of rows) {
     if (r.id === currentRowId) continue;
     if (r.productNumber == null) continue;
@@ -219,7 +231,13 @@ export function resolveProductNumber(
     }
   }
 
-  // 2) Nome novo: próximo número = maior Nº existente + 1.
+  // 2) Nome não encontrado em outra linha. Se a linha JÁ TEM um número,
+  //    PRESERVA — o número é permanente, editar o nome não gera novo número.
+  if (currentProductNumber != null && currentProductNumber > 0) {
+    return currentProductNumber;
+  }
+
+  // 3) Linha nova (sem número): próximo número = maior Nº existente + 1.
   //    Números de produtos deletados não são reutilizados.
   let max = 0;
   for (const r of rows) {
