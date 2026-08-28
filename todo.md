@@ -1867,3 +1867,8 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Banco corrigido: BRINCO PONTO DE LUZ 28→15, GRANDE SACO DE LIXO 29→20, KIT 4 EM 1 34→29
 - [x] Log registrado (autorizado por Guilherme)
 - [x] 38 testes passando, 0 erros TypeScript
+
+## Falha de sincronização com GitHub
+- [ ] Diagnosticar o erro exato da sincronização com o repositório conectado
+- [ ] Corrigir a causa sem sobrescrever alterações locais ou remotas
+- [ ] Validar pull/push por meio de novo checkpoint
