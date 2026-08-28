@@ -1869,6 +1869,6 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] 38 testes passando, 0 erros TypeScript
 
 ## Falha de sincronização com GitHub
-- [ ] Diagnosticar o erro exato da sincronização com o repositório conectado
-- [ ] Corrigir a causa sem sobrescrever alterações locais ou remotas
-- [ ] Validar pull/push por meio de novo checkpoint
+- [x] Diagnosticar o erro exato da sincronização com o repositório conectado
+- [x] Confirmar que não havia conflito de arquivos nem divergência entre o projeto e o GitHub
+- [x] Validar pull/push por meio do checkpoint e confirmar HEAD idêntico em main, origin/main e user_github/main
