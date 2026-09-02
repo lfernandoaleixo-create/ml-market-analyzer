@@ -1872,3 +1872,13 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Diagnosticar o erro exato da sincronização com o repositório conectado
 - [x] Confirmar que não havia conflito de arquivos nem divergência entre o projeto e o GitHub
 - [x] Validar pull/push por meio do checkpoint e confirmar HEAD idêntico em main, origin/main e user_github/main
+
+## Gestão de variações no popover SKU (02/set — autorizado por Guilherme)
+- [x] Preservar integralmente todos os SKUs e variações existentes; não renumerar, corrigir, migrar ou excluir dados atuais
+- [x] Permitir adicionar variações de SKU diretamente no popover, sem senha
+- [x] Permitir editar os dados de cada variação diretamente no popover, sem senha
+- [x] Permitir excluir variações diretamente no popover, sem senha
+- [x] Exigir confirmação explícita antes de excluir uma variação
+- [x] Validar novos dados manualmente inseridos sem modificar retroativamente os registros existentes
+- [x] Adicionar testes Vitest e validar os fluxos visualmente
+- [x] Registrar a implementação no histórico de alterações de SKU

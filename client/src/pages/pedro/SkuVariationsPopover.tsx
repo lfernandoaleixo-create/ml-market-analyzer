@@ -1,11 +1,23 @@
-import { useState, useRef, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import { Loader2, Copy, Check } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Check, Copy, Loader2, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 type SkuVariationsPopoverProps = {
   skuRowId: number;
@@ -26,11 +38,9 @@ type VariationRow = {
 };
 
 /**
- * Popover que aparece ao CLICAR sobre o ícone SKU.
- * Mostra:
- * 1. Header com título das colunas (SKU, EAN, MLB, OK)
- * 2. SKU principal como primeiro item editável em destaque
- * 3. Variações abaixo com indentação (cascata)
+ * Gestão manual das variações do SKU. As variações podem ser adicionadas,
+ * editadas e excluídas sem senha. A exclusão sempre exige confirmação e é
+ * lógica no servidor, preservando o índice/SKU para nunca ser reutilizado.
  */
 export default function SkuVariationsPopover({
   skuRowId,
@@ -43,16 +53,34 @@ export default function SkuVariationsPopover({
 }: SkuVariationsPopoverProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [variationToDelete, setVariationToDelete] = useState<VariationRow | null>(null);
+  const utils = trpc.useUtils();
 
-  // Fetch variations only when popover opens
   const { data: variations, isLoading, refetch } = trpc.skuSheet.getVariations.useQuery(
     { skuRowId, baseSku },
     { enabled: open, staleTime: 30_000 },
   );
 
-  const handleOpenChange = (o: boolean) => {
-    setOpen(o);
-    if (o) refetch();
+  const addMut = trpc.skuSheet.addVariation.useMutation({
+    onSuccess: async (created) => {
+      await utils.skuSheet.getVariations.invalidate({ skuRowId, baseSku });
+      toast.success(`Variação ${created.variationSku} adicionada.`);
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível adicionar a variação."),
+  });
+
+  const deleteMut = trpc.skuSheet.deleteVariation.useMutation({
+    onSuccess: async () => {
+      await utils.skuSheet.getVariations.invalidate({ skuRowId, baseSku });
+      setVariationToDelete(null);
+      toast.success("Variação excluída. O número dela não será reutilizado.");
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível excluir a variação."),
+  });
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) refetch();
   };
 
   const copyToClipboard = (text: string) => {
@@ -62,67 +90,123 @@ export default function SkuVariationsPopover({
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="start"
-        sideOffset={6}
-        className="w-auto min-w-[560px] max-w-[700px] p-0 overflow-hidden"
-        onOpenAutoFocus={(e) => e.preventDefault()}
+    <>
+      <Popover open={open} onOpenChange={handleOpenChange}>
+        <PopoverTrigger asChild>{children}</PopoverTrigger>
+        <PopoverContent
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          className="w-[min(860px,calc(100vw-24px))] p-0 overflow-hidden"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] gap-2 border-b border-border/60 bg-muted/30 px-4 py-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SKU</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">EAN</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">MLB</span>
+                <span className="text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">OK</span>
+                <span className="sr-only">Ações</span>
+              </div>
+
+              <MainSkuRow
+                baseSku={baseSku}
+                eanGtin={eanGtin ?? ""}
+                mainMlb={mainMlb ?? ""}
+                mainDone={mainDone ?? false}
+                onCopy={copyToClipboard}
+                copied={copied}
+                onFieldChange={onMainFieldChange}
+              />
+
+              <div className="border-t border-border/30 px-2 py-2">
+                <div className="mb-1 flex items-center justify-between gap-2 px-2 pb-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Variações ({variations?.length ?? 0})
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 px-2.5 text-xs"
+                    disabled={!baseSku || addMut.isPending}
+                    onClick={() => addMut.mutate({ skuRowId, baseSku })}
+                    title={baseSku ? "Adicionar nova variação" : "Preencha o SKU principal primeiro"}
+                  >
+                    {addMut.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="h-3.5 w-3.5" />
+                    )}
+                    Adicionar
+                  </Button>
+                </div>
+
+                <div className="max-h-[320px] overflow-y-auto flex flex-col gap-0.5">
+                  {(variations ?? []).map((variation) => (
+                    <VariationRowEditor
+                      key={variation.variationIndex}
+                      variation={variation}
+                      skuRowId={skuRowId}
+                      baseSku={baseSku}
+                      onRequestDelete={() => setVariationToDelete(variation)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <AlertDialog
+        open={variationToDelete !== null}
+        onOpenChange={(dialogOpen) => {
+          if (!dialogOpen && !deleteMut.isPending) setVariationToDelete(null);
+        }}
       >
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {/* ─── Header das colunas ─────────────────────────────── */}
-            <div className="grid grid-cols-[1fr_130px_130px_40px] gap-2 px-4 py-2 border-b border-border/60 bg-muted/30">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SKU</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">EAN</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">MLB</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-center">OK</span>
-            </div>
-
-            {/* ─── SKU Principal (item em destaque) ───────────────── */}
-            <MainSkuRow
-              baseSku={baseSku}
-              eanGtin={eanGtin ?? ""}
-              mainMlb={mainMlb ?? ""}
-              mainDone={mainDone ?? false}
-              onCopy={copyToClipboard}
-              copied={copied}
-              onFieldChange={onMainFieldChange}
-            />
-
-            {/* ─── Variações (indentadas) ─────────────────────────── */}
-            <div className="px-2 py-2 border-t border-border/30">
-              <div className="flex items-center gap-1 px-2 pb-1.5 mb-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Variações ({variations?.length ?? 0})
-                </span>
-              </div>
-              <div className="max-h-[280px] overflow-y-auto flex flex-col gap-0.5">
-                {(variations ?? []).map((v, i) => (
-                  <VariationRowEditor
-                    key={v.variationIndex}
-                    variation={v}
-                    skuRowId={skuRowId}
-                    baseSku={baseSku}
-                    index={i}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir variação de SKU?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a variação
+              {variationToDelete?.variationSku ? (
+                <strong className="ml-1 font-mono text-foreground">
+                  {variationToDelete.variationSku}
+                </strong>
+              ) : null}
+              ? O número desta variação será preservado e não será usado novamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMut.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMut.isPending || !variationToDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                if (!variationToDelete) return;
+                deleteMut.mutate({
+                  skuRowId,
+                  variationIndex: variationToDelete.variationIndex,
+                  baseSku,
+                });
+              }}
+            >
+              {deleteMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Sim, excluir variação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
-
-// ─── SKU Principal (item editável em destaque) ───────────────────────────────
 
 function MainSkuRow({
   baseSku,
@@ -145,41 +229,19 @@ function MainSkuRow({
   const [localMlb, setLocalMlb] = useState(mainMlb);
   const [localDone, setLocalDone] = useState(mainDone);
 
-  const prevRef = useRef({ eanGtin, mainMlb, mainDone });
-  if (prevRef.current.eanGtin !== eanGtin || prevRef.current.mainMlb !== mainMlb || prevRef.current.mainDone !== mainDone) {
-    prevRef.current = { eanGtin, mainMlb, mainDone };
-    setLocalEan(eanGtin);
-    setLocalMlb(mainMlb);
-    setLocalDone(mainDone);
-  }
-
-  const handleEanBlur = () => {
-    if (localEan !== eanGtin && onFieldChange) {
-      onFieldChange("eanGtin", localEan);
-    }
-  };
-
-  const handleMlbBlur = () => {
-    if (localMlb !== mainMlb && onFieldChange) {
-      onFieldChange("mainMlb", localMlb);
-    }
-  };
-
-  const handleDoneChange = (checked: boolean) => {
-    setLocalDone(checked);
-    if (onFieldChange) onFieldChange("mainDone", checked);
-  };
+  useEffect(() => setLocalEan(eanGtin), [eanGtin]);
+  useEffect(() => setLocalMlb(mainMlb), [mainMlb]);
+  useEffect(() => setLocalDone(mainDone), [mainDone]);
 
   return (
-    <div className="bg-primary/5 border-b border-primary/20 px-4 py-2.5">
-      <div className="grid grid-cols-[1fr_130px_130px_40px] gap-2 items-center">
-        {/* SKU principal com botão de copiar */}
+    <div className="border-b border-primary/20 bg-primary/5 px-4 py-2.5">
+      <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] items-center gap-2">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-xs font-bold text-primary select-all">{baseSku}</span>
+          <span className="select-all font-mono text-xs font-bold text-primary">{baseSku}</span>
           <button
             type="button"
             onClick={() => onCopy(baseSku)}
-            className="p-0.5 rounded hover:bg-primary/10 transition-colors flex-shrink-0"
+            className="flex-shrink-0 rounded p-0.5 transition-colors hover:bg-primary/10"
             title="Copiar SKU"
           >
             {copied ? (
@@ -190,150 +252,150 @@ function MainSkuRow({
           </button>
         </div>
 
-        {/* EAN editável */}
         <input
           value={localEan}
-          onChange={(e) => setLocalEan(e.target.value)}
-          onBlur={handleEanBlur}
+          onChange={(event) => setLocalEan(event.target.value)}
+          onBlur={() => {
+            if (localEan !== eanGtin) onFieldChange?.("eanGtin", localEan);
+          }}
           placeholder="—"
-          className="w-full bg-white/60 dark:bg-white/5 px-2 py-1 rounded border border-primary/20 outline-none focus:ring-1 focus:ring-primary/40 text-[11px] font-mono"
+          className="w-full rounded border border-primary/20 bg-white/60 px-2 py-1 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40 dark:bg-white/5"
         />
 
-        {/* MLB editável */}
         <input
           value={localMlb}
-          onChange={(e) => setLocalMlb(e.target.value)}
-          onBlur={handleMlbBlur}
+          onChange={(event) => setLocalMlb(event.target.value)}
+          onBlur={() => {
+            if (localMlb !== mainMlb) onFieldChange?.("mainMlb", localMlb);
+          }}
           placeholder="—"
-          className="w-full bg-white/60 dark:bg-white/5 px-2 py-1 rounded border border-primary/20 outline-none focus:ring-1 focus:ring-primary/40 text-[11px] font-mono"
+          className="w-full rounded border border-primary/20 bg-white/60 px-2 py-1 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40 dark:bg-white/5"
         />
 
-        {/* OK checkbox */}
         <div className="flex justify-center">
           <input
             type="checkbox"
             checked={localDone}
-            onChange={(e) => handleDoneChange(e.target.checked)}
-            className="w-4 h-4 accent-emerald-600 cursor-pointer"
+            onChange={(event) => {
+              setLocalDone(event.target.checked);
+              onFieldChange?.("mainDone", event.target.checked);
+            }}
+            className="h-4 w-4 cursor-pointer accent-emerald-600"
           />
         </div>
+        <div />
       </div>
     </div>
   );
 }
 
-// ─── Linha individual de variação (indentada) ────────────────────────────────
-
 function VariationRowEditor({
   variation,
   skuRowId,
   baseSku,
-  index,
+  onRequestDelete,
 }: {
   variation: VariationRow;
   skuRowId: number;
   baseSku: string;
-  index: number;
+  onRequestDelete: () => void;
 }) {
   const utils = trpc.useUtils();
   const upsertMut = trpc.skuSheet.upsertVariation.useMutation({
-    onSuccess: () => {
+    onSuccess: () => utils.skuSheet.getVariations.invalidate({ skuRowId, baseSku }),
+    onError: (error) => {
       utils.skuSheet.getVariations.invalidate({ skuRowId, baseSku });
+      toast.error(error.message || "Não foi possível salvar a variação.");
     },
   });
 
+  const [variationSku, setVariationSku] = useState(variation.variationSku);
   const [ean, setEan] = useState(variation.ean);
   const [mlb, setMlb] = useState(variation.mlb);
   const [done, setDone] = useState(variation.done);
 
-  const prevRef = useRef(variation);
-  if (
-    prevRef.current.ean !== variation.ean ||
-    prevRef.current.mlb !== variation.mlb ||
-    prevRef.current.done !== variation.done
-  ) {
-    prevRef.current = variation;
-    setEan(variation.ean);
-    setMlb(variation.mlb);
-    setDone(variation.done);
-  }
+  useEffect(() => setVariationSku(variation.variationSku), [variation.variationSku]);
+  useEffect(() => setEan(variation.ean), [variation.ean]);
+  useEffect(() => setMlb(variation.mlb), [variation.mlb]);
+  useEffect(() => setDone(variation.done), [variation.done]);
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const debouncedSave = useCallback(
-    (data: { ean?: string; mlb?: string; done?: boolean }) => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        upsertMut.mutate({ skuRowId, variationIndex: variation.variationIndex, baseSku, ...data });
-      }, 500);
-    },
-    [upsertMut, skuRowId, baseSku, variation.variationIndex],
-  );
-
-  const handleEanBlur = () => {
-    if (ean !== variation.ean) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      upsertMut.mutate({ skuRowId, variationIndex: variation.variationIndex, baseSku, ean });
-    }
-  };
-
-  const handleMlbBlur = () => {
-    if (mlb !== variation.mlb) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      upsertMut.mutate({ skuRowId, variationIndex: variation.variationIndex, baseSku, mlb });
-    }
-  };
-
-  const handleDoneChange = (checked: boolean) => {
-    setDone(checked);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    upsertMut.mutate({ skuRowId, variationIndex: variation.variationIndex, baseSku, done: checked });
+  const saveField = (data: {
+    variationSku?: string;
+    ean?: string;
+    mlb?: string;
+    done?: boolean;
+  }) => {
+    upsertMut.mutate({
+      skuRowId,
+      variationIndex: variation.variationIndex,
+      baseSku,
+      ...data,
+    });
   };
 
   return (
-    <div
-      className="rounded-md border border-border/40 bg-card hover:bg-muted/20 transition-colors px-3 py-1.5"
-      style={{ marginLeft: `${16}px` }}
-    >
-      <div className="grid grid-cols-[1fr_130px_130px_40px] gap-2 items-center">
-        {/* SKU da variação */}
-        <span className="font-mono text-[11px] text-muted-foreground select-all truncate">
-          {variation.variationSku}
-        </span>
+    <div className="ml-4 rounded-md border border-border/40 bg-card px-3 py-1.5 transition-colors hover:bg-muted/20">
+      <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] items-center gap-2">
+        <input
+          value={variationSku}
+          onChange={(event) => setVariationSku(event.target.value)}
+          onBlur={() => {
+            const nextSku = variationSku.trim();
+            if (!nextSku) {
+              setVariationSku(variation.variationSku);
+              toast.error("O SKU da variação não pode ficar vazio.");
+            } else if (nextSku !== variation.variationSku) {
+              saveField({ variationSku: nextSku });
+            }
+          }}
+          aria-label={`SKU da variação ${variation.variationIndex}`}
+          className="w-full rounded bg-transparent px-2 py-0.5 font-mono text-[11px] text-muted-foreground outline-none focus:bg-background focus:ring-1 focus:ring-primary/40"
+        />
 
-        {/* EAN */}
         <input
           value={ean}
-          onChange={(e) => {
-            setEan(e.target.value);
-            debouncedSave({ ean: e.target.value });
+          onChange={(event) => setEan(event.target.value)}
+          onBlur={() => {
+            if (ean !== variation.ean) saveField({ ean });
           }}
-          onBlur={handleEanBlur}
+          aria-label={`EAN da variação ${variation.variationIndex}`}
           placeholder="—"
-          className="w-full bg-transparent px-2 py-0.5 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-[11px] font-mono"
+          className="w-full rounded bg-transparent px-2 py-0.5 font-mono text-[11px] outline-none focus:bg-background focus:ring-1 focus:ring-primary/40"
         />
 
-        {/* MLB */}
         <input
           value={mlb}
-          onChange={(e) => {
-            setMlb(e.target.value);
-            debouncedSave({ mlb: e.target.value });
+          onChange={(event) => setMlb(event.target.value)}
+          onBlur={() => {
+            if (mlb !== variation.mlb) saveField({ mlb });
           }}
-          onBlur={handleMlbBlur}
+          aria-label={`MLB da variação ${variation.variationIndex}`}
           placeholder="—"
-          className="w-full bg-transparent px-2 py-0.5 rounded outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 text-[11px] font-mono"
+          className="w-full rounded bg-transparent px-2 py-0.5 font-mono text-[11px] outline-none focus:bg-background focus:ring-1 focus:ring-primary/40"
         />
 
-        {/* OK */}
         <div className="flex justify-center">
           <input
             type="checkbox"
             checked={done}
-            onChange={(e) => handleDoneChange(e.target.checked)}
-            className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
+            onChange={(event) => {
+              setDone(event.target.checked);
+              saveField({ done: event.target.checked });
+            }}
+            aria-label={`Marcar variação ${variation.variationIndex} como concluída`}
+            className="h-3.5 w-3.5 cursor-pointer accent-emerald-600"
           />
         </div>
+
+        <button
+          type="button"
+          onClick={onRequestDelete}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
+          title={`Excluir ${variation.variationSku}`}
+          aria-label={`Excluir variação ${variation.variationSku}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );

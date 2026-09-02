@@ -1,0 +1,1 @@
+ALTER TABLE `sku_variations` ADD `isDeleted` boolean DEFAULT false NOT NULL;

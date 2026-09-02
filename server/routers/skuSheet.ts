@@ -14,6 +14,8 @@ import {
   repairVariantNumbers,
   getVariations,
   upsertVariation,
+  addVariation,
+  deleteVariation,
 } from "../skuSheetDb";
 import { validateSkuPassword, logSkuChange, listSkuChangeLog } from "../skuProtection";
 import mlCategoriesJson from "../../shared/mlCategories.json";
@@ -133,9 +135,9 @@ export const skuSheetRouter = router({
     .input(z.object({ apply: z.boolean().optional() }).optional())
     .mutation(({ input }) => repairVariantNumbers(!(input?.apply ?? false))),
 
-  // --- Variações SKU (10 sub-variações por linha) ---
+  // --- Variações SKU (gestão manual, sem senha) ---
 
-  /** Retorna as 10 variações de uma linha SKU. */
+  /** Retorna as variações ativas de uma linha SKU. */
   getVariations: publicProcedure
     .input(z.object({ skuRowId: z.number().int(), baseSku: z.string() }))
     .query(({ input }) => getVariations(input.skuRowId, input.baseSku)),
@@ -145,19 +147,52 @@ export const skuSheetRouter = router({
     .input(
       z.object({
         skuRowId: z.number().int(),
-        variationIndex: z.number().int().min(1).max(10),
+        variationIndex: z.number().int().min(1),
         baseSku: z.string(),
+        variationSku: z.string().max(140).optional(),
         ean: z.string().max(60).optional(),
         mlb: z.string().max(60).optional(),
         done: z.boolean().optional(),
       }),
     )
-    .mutation(({ input }) =>
-      upsertVariation(input.skuRowId, input.variationIndex, input.baseSku, {
-        ean: input.ean,
-        mlb: input.mlb,
-        done: input.done,
+    .mutation(async ({ input }) => {
+      try {
+        return await upsertVariation(input.skuRowId, input.variationIndex, input.baseSku, {
+          variationSku: input.variationSku,
+          ean: input.ean,
+          mlb: input.mlb,
+          done: input.done,
+        });
+      } catch (e: any) {
+        if (e?.message === "SKU_VARIACAO_DUPLICADO") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Este SKU já está sendo usado por outro produto ou variação.",
+          });
+        }
+        if (e?.message === "SKU_VARIACAO_OBRIGATORIO") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "O SKU da variação não pode ficar vazio." });
+        }
+        throw e;
+      }
+    }),
+
+  /** Adiciona uma nova variação no próximo índice permanente disponível. */
+  addVariation: publicProcedure
+    .input(z.object({ skuRowId: z.number().int(), baseSku: z.string().min(1) }))
+    .mutation(({ input }) => addVariation(input.skuRowId, input.baseSku)),
+
+  /** Exclui logicamente uma variação, sem renumerar ou reutilizar seu SKU. */
+  deleteVariation: publicProcedure
+    .input(
+      z.object({
+        skuRowId: z.number().int(),
+        variationIndex: z.number().int().min(1),
+        baseSku: z.string(),
       }),
+    )
+    .mutation(({ input }) =>
+      deleteVariation(input.skuRowId, input.variationIndex, input.baseSku),
     ),
 
   // --- Proteção de SKU (senha + histórico) ---

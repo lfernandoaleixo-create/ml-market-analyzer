@@ -13,6 +13,7 @@ type VarRow = {
   ean: string;
   mlb: string;
   done: boolean;
+  isDeleted?: boolean;
 };
 
 let variations: VarRow[];
@@ -119,6 +120,7 @@ function makeDb() {
             ean: vals.ean ?? "",
             mlb: vals.mlb ?? "",
             done: vals.done ?? false,
+            isDeleted: vals.isDeleted ?? false,
           });
         } else if (tableOf(t) === "skuRows") {
           skuRows.push({
@@ -170,15 +172,22 @@ import { skuVariations, skuSheetRows, skuSheetCustomColumns } from "../drizzle/s
 (skuVariations as any).ean = { __c: "ean" };
 (skuVariations as any).mlb = { __c: "mlb" };
 (skuVariations as any).done = { __c: "done" };
+(skuVariations as any).isDeleted = { __c: "isDeleted" };
 
 (skuSheetRows as any).id = { __c: "id" };
 (skuSheetRows as any).position = { __c: "position" };
+(skuSheetRows as any).sku = { __c: "sku" };
 (skuSheetRows as any).customValues = { __c: "customValues" };
 
 (skuSheetCustomColumns as any).id = { __c: "id" };
 (skuSheetCustomColumns as any).position = { __c: "position" };
 
-import { getVariations, upsertVariation } from "./skuSheetDb";
+import {
+  addVariation,
+  deleteVariation,
+  getVariations,
+  upsertVariation,
+} from "./skuSheetDb";
 
 beforeEach(() => {
   variations = [];
@@ -238,6 +247,16 @@ describe("getVariations", () => {
     expect(result[0].variationSku).toBe("");
     expect(result[9].variationSku).toBe("");
   });
+
+  it("oculta uma variação excluída sem renumerar as demais", async () => {
+    variations = [
+      { id: 1, skuRowId: 1, variationIndex: 3, variationSku: "1-SERVICOS-10-1-03", ean: "", mlb: "", done: false, isDeleted: true },
+    ];
+    const result = await getVariations(1, "1-SERVICOS-10-1");
+    expect(result).toHaveLength(9);
+    expect(result.some((row) => row.variationIndex === 3)).toBe(false);
+    expect(result.some((row) => row.variationIndex === 4)).toBe(true);
+  });
 });
 
 describe("upsertVariation", () => {
@@ -279,5 +298,85 @@ describe("upsertVariation", () => {
   it("gera variationSku correto com padding de dois dígitos", async () => {
     const result = await upsertVariation(1, 1, "2-BAMBU-5-3", { ean: "x" });
     expect(result.variationSku).toBe("2-BAMBU-5-3-01");
+  });
+
+  it("permite editar manualmente o SKU da variação", async () => {
+    variations = [
+      { id: 30, skuRowId: 1, variationIndex: 2, variationSku: "1-SERVICOS-10-1-02", ean: "", mlb: "", done: false },
+    ];
+    const result = await upsertVariation(1, 2, "1-SERVICOS-10-1", {
+      variationSku: "SKU-MANUAL-02",
+    });
+    expect(result.variationSku).toBe("SKU-MANUAL-02");
+    expect(variations[0].variationSku).toBe("SKU-MANUAL-02");
+  });
+
+  it("preserva o SKU manual ao editar apenas EAN, MLB ou OK", async () => {
+    variations = [
+      { id: 31, skuRowId: 1, variationIndex: 2, variationSku: "SKU-MANUAL-02", ean: "antigo", mlb: "", done: false },
+    ];
+    const result = await upsertVariation(1, 2, "1-SERVICOS-10-1", { ean: "novo" });
+    expect(result.variationSku).toBe("SKU-MANUAL-02");
+    expect(variations[0].variationSku).toBe("SKU-MANUAL-02");
+  });
+
+  it("bloqueia SKU manual vazio", async () => {
+    await expect(
+      upsertVariation(1, 2, "1-SERVICOS-10-1", { variationSku: "   " }),
+    ).rejects.toThrow("SKU_VARIACAO_OBRIGATORIO");
+    expect(variations).toHaveLength(0);
+  });
+
+  it("bloqueia SKU manual duplicado usando normalização de espaços, pontos e caixa", async () => {
+    variations = [
+      { id: 32, skuRowId: 1, variationIndex: 2, variationSku: "SKU-EXISTENTE", ean: "", mlb: "", done: false, isDeleted: false },
+    ];
+    await expect(
+      upsertVariation(1, 3, "1-SERVICOS-10-1", { variationSku: " sku.existente " }),
+    ).rejects.toThrow("SKU_VARIACAO_DUPLICADO");
+    expect(variations).toHaveLength(1);
+  });
+});
+
+describe("gestão manual de variações", () => {
+  it("adiciona a primeira variação manual como índice 11", async () => {
+    const result = await addVariation(1, "1-SERVICOS-10-1");
+    expect(result.variationIndex).toBe(11);
+    expect(result.variationSku).toBe("1-SERVICOS-10-1-11");
+  });
+
+  it("exclui logicamente e não altera os índices das outras variações", async () => {
+    variations = [
+      { id: 40, skuRowId: 1, variationIndex: 2, variationSku: "1-SERVICOS-10-1-02", ean: "EAN2", mlb: "MLB2", done: true, isDeleted: false },
+      { id: 41, skuRowId: 1, variationIndex: 4, variationSku: "1-SERVICOS-10-1-04", ean: "EAN4", mlb: "MLB4", done: false, isDeleted: false },
+    ];
+
+    await deleteVariation(1, 2, "1-SERVICOS-10-1");
+
+    expect(variations.find((row) => row.variationIndex === 2)?.isDeleted).toBe(true);
+    expect(variations.find((row) => row.variationIndex === 4)?.variationIndex).toBe(4);
+    expect(variations.find((row) => row.variationIndex === 4)?.variationSku).toBe("1-SERVICOS-10-1-04");
+  });
+
+  it("não reutiliza índice excluído ao adicionar outra variação", async () => {
+    variations = [
+      { id: 50, skuRowId: 1, variationIndex: 11, variationSku: "1-SERVICOS-10-1-11", ean: "", mlb: "", done: false, isDeleted: true },
+    ];
+
+    const result = await addVariation(1, "1-SERVICOS-10-1");
+    expect(result.variationIndex).toBe(12);
+    expect(result.variationSku).toBe("1-SERVICOS-10-1-12");
+  });
+
+  it("cria um tombstone ao excluir um placeholder ainda não persistido", async () => {
+    await deleteVariation(1, 5, "1-SERVICOS-10-1");
+    expect(variations).toHaveLength(1);
+    expect(variations[0]).toMatchObject({
+      variationIndex: 5,
+      variationSku: "1-SERVICOS-10-1-05",
+      isDeleted: true,
+    });
+    const visible = await getVariations(1, "1-SERVICOS-10-1");
+    expect(visible.some((row) => row.variationIndex === 5)).toBe(false);
   });
 });

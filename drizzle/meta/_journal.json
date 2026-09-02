@@ -190,6 +190,13 @@
       "when": 1784718574526,
       "tag": "0026_salty_whistler",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1788367686628,
+      "tag": "0027_condemned_wasp",
+      "breakpoints": true
     }
   ]
 }

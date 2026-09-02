@@ -1405,8 +1405,9 @@ export type DriveBackupConfig = typeof driveBackupConfig.$inferSelect;
 export type InsertDriveBackupConfig = typeof driveBackupConfig.$inferInsert;
 
 // ============================================================================
-// VARIAÇÕES SKU — cada linha da Planilha SKU pode ter até 10 sub-variações.
-// Cada sub-variação tem um SKU derivado (base + sufixo -01 a -10), EAN e MLB.
+// VARIAÇÕES SKU — cada linha da Planilha SKU começa com 10 sub-variações e
+// pode receber outras manualmente. Variações excluídas são preservadas como
+// tombstones (isDeleted=true): nunca renumeramos nem reciclamos seu índice/SKU.
 // ============================================================================
 export const skuVariations = mysqlTable(
   "sku_variations",
@@ -1414,9 +1415,9 @@ export const skuVariations = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     /** FK para a linha da Planilha SKU. */
     skuRowId: int("skuRowId").notNull(),
-    /** Índice da variação (1 a 10). */
+    /** Índice permanente da variação. Nunca é renumerado ou reutilizado. */
     variationIndex: int("variationIndex").notNull(),
-    /** SKU da variação (gerado: sku base + "-01" a "-10"). */
+    /** SKU editável da variação. Novas variações começam com base + sufixo. */
     variationSku: varchar("variationSku", { length: 140 }).default("").notNull(),
     /** EAN/GTIN da variação. */
     ean: varchar("ean", { length: 60 }).default("").notNull(),
@@ -1424,6 +1425,8 @@ export const skuVariations = mysqlTable(
     mlb: varchar("mlb", { length: 60 }).default("").notNull(),
     /** Checkbox "OK" — marcado quando a variação está concluída. */
     done: boolean("done").default(false).notNull(),
+    /** Exclusão lógica para preservar definitivamente o índice/SKU já utilizado. */
+    isDeleted: boolean("isDeleted").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

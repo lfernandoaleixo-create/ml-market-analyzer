@@ -14,6 +14,7 @@ import {
   buildSkuKit,
   normalizeVariantText,
   normalizeProductName,
+  normalizeSku,
   type VariantNumberRow,
   type VariantFix,
 } from "../shared/skuSheet";
@@ -451,8 +452,9 @@ export interface SkuVariationData {
 }
 
 /**
- * Retorna as 10 variações de uma linha SKU. Se alguma não existir no banco,
- * retorna um placeholder com valores vazios (para preencher a tabela no front).
+ * Retorna as variações ativas de uma linha SKU. As 10 posições iniciais são
+ * exibidas como placeholders enquanto ainda não foram persistidas. Posições
+ * excluídas logicamente permanecem reservadas e nunca são exibidas/reutilizadas.
  */
 export async function getVariations(
   skuRowId: number,
@@ -469,12 +471,15 @@ export async function getVariations(
 
   const byIndex = new Map<number, SkuVariation>(rows.map((r) => [r.variationIndex, r]));
   const result: SkuVariationData[] = [];
-  for (let i = 1; i <= 10; i++) {
+  const maxIndex = Math.max(10, ...rows.map((r) => r.variationIndex));
+  for (let i = 1; i <= maxIndex; i++) {
     const existing = byIndex.get(i);
+    if (existing?.isDeleted) continue;
     const suffix = String(i).padStart(2, "0");
+    const derivedSku = baseSku ? `${baseSku}-${suffix}` : "";
     result.push({
       variationIndex: i,
-      variationSku: baseSku ? `${baseSku}-${suffix}` : "",
+      variationSku: existing?.variationSku || derivedSku,
       ean: existing?.ean ?? "",
       mlb: existing?.mlb ?? "",
       done: existing?.done ?? false,
@@ -505,13 +510,12 @@ export async function upsertVariation(
   skuRowId: number,
   variationIndex: number,
   baseSku: string,
-  data: { ean?: string; mlb?: string; done?: boolean },
+  data: { variationSku?: string; ean?: string; mlb?: string; done?: boolean },
 ): Promise<SkuVariationData> {
   const db = await getDb();
   if (!db) throw new Error("DB indisponível");
 
   const suffix = String(variationIndex).padStart(2, "0");
-  const variationSku = baseSku ? `${baseSku}-${suffix}` : "";
 
   // Check if row already exists
   const existing = await db
@@ -525,9 +529,39 @@ export async function upsertVariation(
     )
     .limit(1);
 
+  const variationSku = (
+    data.variationSku ??
+    existing[0]?.variationSku ??
+    (baseSku ? `${baseSku}-${suffix}` : "")
+  ).trim();
+
+  if (!variationSku) {
+    throw new Error("SKU_VARIACAO_OBRIGATORIO");
+  }
+
+  // Valida somente o novo valor informado. Nenhum registro antigo é alterado.
+  if (data.variationSku !== undefined) {
+    const normalized = normalizeSku(variationSku);
+    const [allVariations, allMainRows] = await Promise.all([
+      db.select().from(skuVariations),
+      db.select({ id: skuSheetRows.id, sku: skuSheetRows.sku }).from(skuSheetRows),
+    ]);
+
+    const duplicateVariation = allVariations.some(
+      (row) =>
+        !row.isDeleted &&
+        !(row.skuRowId === skuRowId && row.variationIndex === variationIndex) &&
+        normalizeSku(row.variationSku) === normalized,
+    );
+    const duplicateMainSku = allMainRows.some((row) => normalizeSku(row.sku) === normalized);
+    if (duplicateVariation || duplicateMainSku) {
+      throw new Error("SKU_VARIACAO_DUPLICADO");
+    }
+  }
+
   if (existing.length > 0) {
     // Update existing row
-    const updateData: Record<string, unknown> = { variationSku };
+    const updateData: Record<string, unknown> = { variationSku, isDeleted: false };
     if (data.ean !== undefined) updateData.ean = data.ean;
     if (data.mlb !== undefined) updateData.mlb = data.mlb;
     if (data.done !== undefined) updateData.done = data.done;
@@ -550,11 +584,12 @@ export async function upsertVariation(
         ean: data.ean ?? "",
         mlb: data.mlb ?? "",
         done: data.done ?? false,
+        isDeleted: false,
       });
     } catch (err: any) {
       // If duplicate key error, another request inserted first — do an update instead
       if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062) {
-        const updateData: Record<string, unknown> = { variationSku };
+        const updateData: Record<string, unknown> = { variationSku, isDeleted: false };
         if (data.ean !== undefined) updateData.ean = data.ean;
         if (data.mlb !== undefined) updateData.mlb = data.mlb;
         if (data.done !== undefined) updateData.done = data.done;
@@ -593,4 +628,73 @@ export async function upsertVariation(
     mlb: row?.mlb ?? data.mlb ?? "",
     done: row?.done ?? data.done ?? false,
   };
+}
+
+/**
+ * Adiciona uma nova variação sem reutilizar índices já usados ou excluídos.
+ * Os 10 slots iniciais ficam reservados; a primeira adição manual é a posição 11.
+ */
+export async function addVariation(
+  skuRowId: number,
+  baseSku: string,
+): Promise<SkuVariationData> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+
+  const rows = await db
+    .select()
+    .from(skuVariations)
+    .where(eq(skuVariations.skuRowId, skuRowId));
+  const maxUsedIndex = rows.reduce((max, row) => Math.max(max, row.variationIndex), 10);
+  const variationIndex = maxUsedIndex + 1;
+  return upsertVariation(skuRowId, variationIndex, baseSku, {});
+}
+
+/**
+ * Exclui uma variação logicamente. O índice e o SKU permanecem reservados no
+ * banco, impedindo renumeração ou reutilização acidental no futuro.
+ */
+export async function deleteVariation(
+  skuRowId: number,
+  variationIndex: number,
+  baseSku: string,
+): Promise<{ ok: true }> {
+  const db = await getDb();
+  if (!db) throw new Error("DB indisponível");
+
+  const existing = await db
+    .select()
+    .from(skuVariations)
+    .where(
+      and(
+        eq(skuVariations.skuRowId, skuRowId),
+        eq(skuVariations.variationIndex, variationIndex),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(skuVariations)
+      .set({ isDeleted: true })
+      .where(
+        and(
+          eq(skuVariations.skuRowId, skuRowId),
+          eq(skuVariations.variationIndex, variationIndex),
+        ),
+      );
+  } else {
+    const suffix = String(variationIndex).padStart(2, "0");
+    await db.insert(skuVariations).values({
+      skuRowId,
+      variationIndex,
+      variationSku: baseSku ? `${baseSku}-${suffix}` : "",
+      ean: "",
+      mlb: "",
+      done: false,
+      isDeleted: true,
+    });
+  }
+
+  return { ok: true };
 }
