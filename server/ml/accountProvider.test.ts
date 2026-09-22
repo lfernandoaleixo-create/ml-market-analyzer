@@ -438,8 +438,8 @@ describe("AccountProvider.getListings", () => {
     ];
     // Two active-only days share a date so we can assert aggregation. MLB2 is
     // paused, so its series must be ignored entirely.
-    const day1 = "2026-06-01";
-    const day2 = "2026-06-02";
+    const day1 = brtDateKey(Date.now() - 24 * 60 * 60 * 1000);
+    const day2 = brtDateKey(Date.now());
     global.fetch = vi.fn(async (url: any) => {
       const u = String(url);
       let body: any = {};
@@ -582,7 +582,7 @@ describe("AccountProvider.getListings", () => {
     const itemsBody = [
       { code: 200, body: { id: "MLB1", title: "Ativo A", price: 50, currency_id: "BRL", available_quantity: 10, sold_quantity: 5, status: "active", listing_type_id: "gold_special" } },
     ];
-    const day1 = "2026-06-01";
+    const day1 = brtDateKey(Date.now());
     let visitCalls = 0;
     global.fetch = vi.fn(async (url: any) => {
       const u = String(url);
@@ -641,7 +641,7 @@ describe("AccountProvider.getListings", () => {
       { code: 200, body: { id: "MLB1", title: "Ativo A", price: 50, currency_id: "BRL", available_quantity: 10, sold_quantity: 5, status: "active", listing_type_id: "gold_special" } },
       { code: 200, body: { id: "MLB2", title: "Ativo B", price: 20, currency_id: "BRL", available_quantity: 8, sold_quantity: 2, status: "active", listing_type_id: "gold_special" } },
     ];
-    const day1 = "2026-06-01";
+    const day1 = brtDateKey(Date.now());
     global.fetch = vi.fn(async (url: any) => {
       const u = String(url);
       // MLB2 is throttled, but MLB1 answers normally — its visits MUST survive.

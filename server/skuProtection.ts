@@ -40,6 +40,7 @@ export async function logSkuChange(entry: {
   oldValues?: unknown;
   newValues?: unknown;
   affectedCount: number;
+  idempotencyKey?: string;
 }): Promise<void> {
   const db = await getDb();
   if (!db) return;
@@ -53,6 +54,7 @@ export async function logSkuChange(entry: {
     newValues: entry.newValues ? JSON.stringify(entry.newValues) : null,
     affectedCount: entry.affectedCount,
     timestamp: Date.now(),
+    idempotencyKey: entry.idempotencyKey ?? null,
   });
 }
 

@@ -8,6 +8,7 @@ import {
   normalizeSku,
   normalizeProductName,
   normalizeVariantText,
+  analyzeDuplicates,
   type ProductNumberRow,
   type VariantNumberRow,
 } from "./skuSheet";
@@ -95,10 +96,9 @@ describe("resolveProductNumber (global)", () => {
     expect(resolveProductNumber(rows, 6, "Palito de Hashi de Bambu", 6)).toBe(6);
   });
 
-  it("reaproveita número de outro produto mesmo quando já tem número (merge de nomes)", () => {
-    // Linha 6 tem Nº 6. Usuário muda o nome para "Vareta Aromatizador Fibra" (Nº 3).
-    // Deve REAPROVEITAR o Nº 3 (merge), não preservar o 6.
-    expect(resolveProductNumber(rows, 6, "Vareta Aromatizador Fibra", 6)).toBe(3);
+  it("nunca reatribui uma linha já numerada, mesmo quando o nome coincide com outro produto", () => {
+    // Linha 6 tem Nº 6. O identificador permanece 6 em qualquer edição futura.
+    expect(resolveProductNumber(rows, 6, "Vareta Aromatizador Fibra", 6)).toBe(6);
   });
 
   it("ignora a própria linha mas encontra outra com mesmo nome", () => {
@@ -157,7 +157,7 @@ describe("resolveVariantNumber", () => {
     expect(v).toBe(2);
   });
 
-  it("preenche buracos: escolhe o menor Nº livre", () => {
+  it("não preenche buracos: continua após o maior Nº histórico", () => {
     const rows: VariantNumberRow[] = [
       grp({ id: 1, variantNumber: 1 }),
       grp({ id: 3, variantNumber: 3 }),
@@ -168,7 +168,7 @@ describe("resolveVariantNumber", () => {
       productNumber: 46,
       variantNumber: 1,
     });
-    expect(v).toBe(2);
+    expect(v).toBe(4);
   });
 
   it("grupos diferentes não interferem (categoria distinta)", () => {
@@ -294,5 +294,44 @@ describe("normalizeVariantText (comparação inteligente de variantes)", () => {
     expect(normalizeVariantText(null)).toBe("");
     expect(normalizeVariantText(undefined)).toBe("");
     expect(normalizeVariantText("")).toBe("");
+  });
+});
+
+describe("analyzeDuplicates — decisões explícitas de SKU", () => {
+  const base = {
+    tipoSku: "2",
+    categoryName: "Casa, Móveis e Decoração",
+    produto: "Produto igual",
+    variante: "100 UND",
+    caracteristicas: "Azul",
+    productNumber: 10,
+    variantNumber: 1,
+    sku: "2-CASA-10-1",
+  };
+
+  it("não acusa reutilização intencional ligada à linha de origem", () => {
+    const result = analyzeDuplicates([
+      { id: 1, position: 1, ...base, skuMode: "legacy", skuSourceRowId: null },
+      { id: 2, position: 2, ...base, skuMode: "reuse", skuSourceRowId: 1 },
+    ]);
+    expect(result.identicalGroups).toHaveLength(0);
+    expect(result.skuCollisions).toHaveLength(0);
+  });
+
+  it("não acusa como erro uma nova linha enquanto ela aguarda decisão", () => {
+    const result = analyzeDuplicates([
+      { id: 1, position: 1, ...base, skuMode: "legacy", skuSourceRowId: null },
+      { id: 2, position: 2, ...base, sku: "", skuMode: "pending", skuSourceRowId: null },
+    ]);
+    expect(result.identicalGroups).toHaveLength(0);
+    expect(result.skuCollisions).toHaveLength(0);
+  });
+
+  it("continua detectando duplicidade não autorizada", () => {
+    const result = analyzeDuplicates([
+      { id: 1, position: 1, ...base, skuMode: "legacy", skuSourceRowId: null },
+      { id: 2, position: 2, ...base, skuMode: "legacy", skuSourceRowId: null },
+    ]);
+    expect(result.identicalGroups).toHaveLength(1);
   });
 });

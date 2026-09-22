@@ -8,28 +8,17 @@ import {
   InsertSkuSheetRow,
   KitSheetRow,
 } from "../drizzle/schema";
-import { buildSku, buildSkuKit } from "../shared/skuSheet";
 
 /**
- * Mapeia uma linha de KIT (que agora já está no formato SKU) para os valores
- * de inserção na Planilha SKU. Copia exatamente as colunas do formato SKU,
- * preservando preenchimento, características e cor da linha. NÃO copia id,
- * createdAt nem position (a posição é recalculada no destino).
+ * Mapeia uma linha de Kit para uma nova linha pendente na Planilha SKU.
+ * Preserva os dados descritivos, mas não copia nem calcula identificadores:
+ * Nº Produto, Nº Variante e SKU serão definidos somente pelo fluxo protegido.
  */
 export function mapKitRowToSkuInsert(row: KitSheetRow): Partial<InsertSkuSheetRow> {
-  // SKU e SKU Kit são SEMPRE recalculados pela mesma regra da Planilha SKU,
-  // a partir de Tipo + Categoria + Nº produto + Nº variante. Assim a migração
-  // já leva o SKU correto, mesmo que o campo armazenado esteja vazio.
-  const computedSku = buildSku({
-    tipoSku: row.tipoSku ?? "",
-    categoryName: row.categoryName ?? null,
-    productNumber: row.productNumber ?? null,
-    variantNumber: row.variantNumber ?? null,
-  });
-  const computedSkuKit = buildSkuKit(computedSku, row.gerarSkuKit ?? false);
   return {
-    productNumber: row.productNumber ?? null,
-    variantNumber: row.variantNumber ?? null,
+    // O card protegido decide os identificadores depois da migração.
+    productNumber: null,
+    variantNumber: null,
     cadastradoMl: row.cadastradoMl ?? "",
     tipoSku: row.tipoSku ?? "",
     categoryId: row.categoryId ?? null,
@@ -38,9 +27,12 @@ export function mapKitRowToSkuInsert(row: KitSheetRow): Partial<InsertSkuSheetRo
     subCategoryName: row.subCategoryName ?? null,
     produto: row.produto ?? "",
     variante: row.variante ?? "",
-    sku: computedSku,
+    sku: "",
     gerarSkuKit: row.gerarSkuKit ?? false,
-    skuKit: computedSkuKit,
+    skuKit: "",
+    skuMode: "pending",
+    skuSourceRowId: null,
+    skuDecisionAt: null,
     eanGtin: row.eanGtin ?? "",
     ncm: row.ncm ?? "",
     gpc: row.gpc ?? "",
@@ -76,10 +68,19 @@ export interface MigrateResult {
   targetSkuRowIds: number[];
 }
 
+function resultInsertId(result: unknown): number | null {
+  const candidate = Array.isArray(result) ? result[0] : result;
+  if (candidate && typeof candidate === "object" && "insertId" in candidate) {
+    const value = Number((candidate as { insertId: unknown }).insertId);
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }
+  return null;
+}
+
 /**
  * MOVE (opção B) uma ou mais linhas da planilha de Kits para a Planilha SKU:
  * 1. Lê cada linha de kit pelos ids informados.
- * 2. Insere uma linha equivalente na Planilha SKU (formato idêntico).
+ * 2. Insere uma linha pendente na Planilha SKU, sem SKU pré-calculado.
  * 3. Registra no histórico (migration_history) com snapshot completo.
  * 4. Remove a linha original da planilha de Kits.
  *
@@ -112,14 +113,13 @@ export async function migrateKitsToSku(params: {
     const insertValues = { ...mapped, position };
     position += 1;
 
-    // 1) Insere na Planilha SKU.
-    await db.insert(skuSheetRows).values(insertValues);
-    const createdSku = await db
-      .select({ id: skuSheetRows.id })
-      .from(skuSheetRows)
-      .orderBy(desc(skuSheetRows.id))
-      .limit(1);
-    const targetSkuRowId = createdSku[0]?.id ?? null;
+    // 1) Insere uma linha pendente na Planilha SKU. O insertId evita confundir
+    // a linha criada por outra requisição concorrente.
+    const insertedSku = await db.insert(skuSheetRows).values(insertValues);
+    const targetSkuRowId = resultInsertId(insertedSku);
+    if (!targetSkuRowId) {
+      throw new Error("Não foi possível confirmar a linha SKU criada; o Kit original foi preservado.");
+    }
 
     // 2) Registra no histórico (snapshot completo da linha original).
     const label =
@@ -131,7 +131,7 @@ export async function migrateKitsToSku(params: {
       sourceKitRowId: kit.id,
       targetSkuRowId: targetSkuRowId ?? undefined,
       label: label.slice(0, 400),
-      sku: (mapped.sku ?? "").slice(0, 120),
+      sku: "",
       snapshot: JSON.stringify(kit),
       migratedByOpenId: params.migratedByOpenId ?? undefined,
       migratedByName: params.migratedByName ?? undefined,

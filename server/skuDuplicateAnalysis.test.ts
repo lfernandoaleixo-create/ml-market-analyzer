@@ -58,7 +58,7 @@ describe("analyzeDuplicates — Tipo 2: colisão de SKU (erro do sistema)", () =
     ];
     const res = analyzeDuplicates(rows);
     expect(res.skuCollisions).toHaveLength(1);
-    expect(res.skuCollisions[0].sku).toBe("1-SERVICOS-46-1");
+    expect(res.skuCollisions[0].sku).toBe("1-servicos-46-1");
     expect(res.skuCollisions[0].positions).toEqual([65, 67]);
     // Não é linha idêntica (variantes diferentes).
     expect(res.identicalGroups).toHaveLength(0);

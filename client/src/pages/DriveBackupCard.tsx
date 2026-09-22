@@ -60,7 +60,10 @@ export default function DriveBackupCard() {
 
   const backupNow = trpc.driveBackup.backupNow.useMutation({
     onSuccess: (r) => {
-      if (r.ok) toast.success(`Backup enviado ao Drive: ${r.fileName}`);
+      if (r.ok && r.driveOk) toast.success(`Backup redundante concluído: ${r.fileName}`);
+      else if (r.ok && r.internalOk) {
+        toast.warning(`Cópia interna concluída; Google Drive requer reconexão. Arquivo: ${r.fileName}`);
+      }
       else toast.error(`Falha no backup: ${r.error}`);
       utils.driveBackup.status.invalidate();
     },
@@ -91,6 +94,8 @@ export default function DriveBackupCard() {
   const lastStatus = status.data?.lastStatus ?? null;
   const lastError = status.data?.lastError ?? null;
   const accountEmail = status.data?.accountEmail ?? "";
+  const lastInternalBackupAt = status.data?.lastInternalBackupAt ?? null;
+  const lastInternalBackupFileName = status.data?.lastInternalBackupFileName ?? "";
 
   const handleConnect = () => {
     if (redirecting) return;
@@ -108,9 +113,9 @@ export default function DriveBackupCard() {
           <CloudUpload className="h-4 w-4" />
         </div>
         <div>
-          <h2 className="font-display text-lg font-600">Backup no Google Drive</h2>
+          <h2 className="font-display text-lg font-600">Backup redundante da Planilha SKU</h2>
           <p className="text-xs text-muted-foreground">
-            Cópia diária completa: planilhas, variações, exclusões lógicas e histórico de SKU
+            Cópia interna diária + Google Drive: linhas, variações, tombstones, reservas e histórico
           </p>
         </div>
         <div className="ml-auto">
@@ -135,8 +140,8 @@ export default function DriveBackupCard() {
           {requiresReconnect ? (
             <div className="space-y-3">
               <p className="text-xs leading-relaxed text-red-600 dark:text-red-400">
-                A autorização do Google expirou ou foi revogada. O agendamento continua cadastrado,
-                mas os backups falharão até você reconectar a conta.
+                A autorização do Google expirou ou foi revogada. A cópia interna diária continua
+                funcionando, mas o espelho no Google Drive precisa ser reconectado.
               </p>
               <Button className="w-full" onClick={handleConnect} disabled={redirecting}>
                 {redirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
@@ -178,7 +183,7 @@ export default function DriveBackupCard() {
           variant="outline"
           className="w-full"
           onClick={() => backupNow.mutate()}
-          disabled={!connected || backupNow.isPending}
+          disabled={backupNow.isPending}
         >
           {backupNow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <HardDriveUpload className="h-4 w-4" />}
           Fazer backup agora
@@ -193,7 +198,7 @@ export default function DriveBackupCard() {
           <Switch
             checked={enabled}
             onCheckedChange={(v) => setSchedule.mutate({ enabled: v, hourUtc })}
-            disabled={!connected || setSchedule.isPending}
+            disabled={setSchedule.isPending}
           />
         </div>
 
@@ -202,7 +207,7 @@ export default function DriveBackupCard() {
           <Select
             value={String(hourUtc)}
             onValueChange={(v) => setHourUtc(Number(v))}
-            disabled={enabled || !connected}
+            disabled={enabled}
           >
             <SelectTrigger>
               <SelectValue />
@@ -226,11 +231,15 @@ export default function DriveBackupCard() {
             className={`flex items-start gap-2 rounded-lg border p-3 ${
               lastStatus === "error"
                 ? "border-red-500/20 bg-red-500/5"
-                : "border-emerald-500/20 bg-emerald-500/5"
+                : lastStatus === "warning"
+                  ? "border-amber-500/20 bg-amber-500/5"
+                  : "border-emerald-500/20 bg-emerald-500/5"
             }`}
           >
             {lastStatus === "error" ? (
               <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+            ) : lastStatus === "warning" ? (
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             ) : (
               <Download className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
             )}
@@ -238,8 +247,10 @@ export default function DriveBackupCard() {
               <p className="text-xs font-medium">
                 Último backup: {new Date(lastBackupAt).toLocaleString("pt-BR")}
               </p>
-              {lastStatus === "error" && lastError ? (
-                <p className="text-xs text-red-500">{lastError}</p>
+              {lastStatus !== "ok" && lastError ? (
+                <p className={`text-xs ${lastStatus === "error" ? "text-red-500" : "text-amber-600 dark:text-amber-400"}`}>
+                  {lastError}
+                </p>
               ) : (
                 <p className="text-xs text-muted-foreground">{status.data?.lastFileName ?? "concluído"}</p>
               )}
@@ -247,9 +258,21 @@ export default function DriveBackupCard() {
           </div>
         )}
 
+        {lastInternalBackupAt && (
+          <div className="flex items-start gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+            <HardDriveUpload className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+            <div>
+              <p className="text-xs font-medium">
+                Última cópia interna: {new Date(lastInternalBackupAt).toLocaleString("pt-BR")}
+              </p>
+              <p className="text-xs text-muted-foreground">{lastInternalBackupFileName || "concluída"}</p>
+            </div>
+          </div>
+        )}
+
         <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground leading-relaxed">
-          O backup diário usa o serviço de tarefas da plataforma e só executa no site publicado.
-          Para testar agora, use o botão "Fazer backup agora".
+          O agendamento salva primeiro uma cópia interna versionada e depois tenta o espelho no
+          Google Drive. O job automático executa apenas no site publicado.
         </p>
       </div>
     </Card>

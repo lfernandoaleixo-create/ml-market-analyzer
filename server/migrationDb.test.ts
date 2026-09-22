@@ -49,10 +49,12 @@ describe("mapKitRowToSkuInsert", () => {
   it("copia todas as colunas do formato SKU preservando os valores", () => {
     const out = mapKitRowToSkuInsert(makeKit());
     expect(out.produto).toBe("KIT VELA");
-    // SKU e SKU Kit são recalculados pela regra padrão (Tipo-Categoria-Nprod-Nvar),
-    // ignorando o valor antigo armazenado no kit.
-    expect(out.sku).toBe("3-FESTAS-10-2");
-    expect(out.skuKit).toBe("3-FESTAS-10-2-KITINS");
+    // Identificadores não são copiados nem gerados fora do fluxo protegido.
+    expect(out.productNumber).toBeNull();
+    expect(out.variantNumber).toBeNull();
+    expect(out.sku).toBe("");
+    expect(out.skuKit).toBe("");
+    expect(out.skuMode).toBe("pending");
     expect(out.cadastradoMl).toBe("ATIVO");
     expect(out.tipoSku).toBe("3");
     expect(out.categoryName).toBe("Festas e Lembrancinhas");
@@ -102,9 +104,10 @@ describe("mapKitRowToSkuInsert", () => {
     expect(out.skuKit).toBe("");
   });
 
-  it("recalcula SKU mesmo quando o campo sku do kit está vazio", () => {
+  it("mantém SKU pendente mesmo quando o kit possui todos os componentes", () => {
     const out = mapKitRowToSkuInsert(makeKit({ sku: "", skuKit: "" }));
-    expect(out.sku).toBe("3-FESTAS-10-2");
-    expect(out.skuKit).toBe("3-FESTAS-10-2-KITINS");
+    expect(out.sku).toBe("");
+    expect(out.skuKit).toBe("");
+    expect(out.skuMode).toBe("pending");
   });
 });

@@ -3,8 +3,12 @@ import * as XLSX from "xlsx";
 
 const {
   listSkuRows,
+  listAllSkuRows,
   listCustomColumns,
   listSkuVariationsForBackup,
+  listSkuProductNumberReservationsForBackup,
+  listSkuVariantNumberReservationsForBackup,
+  listSkuValueReservationsForBackup,
   listKitRows,
   listKitCustomColumns,
   listEmbalagemRows,
@@ -12,8 +16,12 @@ const {
   listSkuChangeLogForBackup,
 } = vi.hoisted(() => ({
   listSkuRows: vi.fn(),
+  listAllSkuRows: vi.fn(),
   listCustomColumns: vi.fn(),
   listSkuVariationsForBackup: vi.fn(),
+  listSkuProductNumberReservationsForBackup: vi.fn(),
+  listSkuVariantNumberReservationsForBackup: vi.fn(),
+  listSkuValueReservationsForBackup: vi.fn(),
   listKitRows: vi.fn(),
   listKitCustomColumns: vi.fn(),
   listEmbalagemRows: vi.fn(),
@@ -23,8 +31,12 @@ const {
 
 vi.mock("../skuSheetDb", () => ({
   listSkuRows,
+  listAllSkuRows,
   listCustomColumns,
   listSkuVariationsForBackup,
+  listSkuProductNumberReservationsForBackup,
+  listSkuVariantNumberReservationsForBackup,
+  listSkuValueReservationsForBackup,
 }));
 
 vi.mock("../kitSheetDb", () => ({
@@ -64,6 +76,9 @@ beforeEach(() => {
       sku: "2-CONSTRUCAO-31-2",
       gerarSkuKit: false,
       skuKit: "",
+      skuMode: "legacy",
+      skuSourceRowId: null,
+      skuDecisionAt: null,
       mainMlb: "MLB999",
       mainDone: true,
       eanGtin: "7890000000000",
@@ -79,11 +94,28 @@ beforeEach(() => {
       embPeso: "0,1",
       caracteristicas: "Dados completos",
       rowColor: "blue",
+      isDeleted: false,
+      deletedAt: null,
       customValues: JSON.stringify({ "501": "valor preservado" }),
       createdAt,
       updatedAt,
     },
   ]);
+  listAllSkuRows.mockImplementation(async () => {
+    const active = await listSkuRows();
+    return [
+      ...active,
+      {
+        ...active[0],
+        id: 78,
+        position: 10,
+        productNumber: 32,
+        sku: "2-CONSTRUCAO-32-1",
+        isDeleted: true,
+        deletedAt: 1_790_080_500_000,
+      },
+    ];
+  });
   listCustomColumns.mockResolvedValue([
     { id: 501, name: "Coluna livre", position: 1, createdAt, updatedAt },
   ]);
@@ -125,6 +157,7 @@ beforeEach(() => {
       mlb: "MLB123",
       done: false,
       isDeleted: true,
+      revision: 1,
       createdAt,
       updatedAt,
     },
@@ -140,6 +173,31 @@ beforeEach(() => {
       newValues: JSON.stringify({ preserveExisting: true }),
       affectedCount: 0,
       timestamp: 1_790_080_000_000,
+      createdAt,
+    },
+  ]);
+  listSkuProductNumberReservationsForBackup.mockResolvedValue([
+    { productNumber: 31, skuRowId: 77, createdAt },
+    { productNumber: 32, skuRowId: 78, createdAt },
+  ]);
+  listSkuVariantNumberReservationsForBackup.mockResolvedValue([
+    {
+      id: 1,
+      skuRowId: 77,
+      tipoSku: "2",
+      categoryKey: "construção",
+      productNumber: 31,
+      variantNumber: 2,
+      createdAt,
+    },
+  ]);
+  listSkuValueReservationsForBackup.mockResolvedValue([
+    {
+      id: 1,
+      normalizedSku: "2-construcao-31-2",
+      originalSku: "2-CONSTRUCAO-31-2",
+      sourceType: "main",
+      sourceKey: "77",
       createdAt,
     },
   ]);
@@ -162,6 +220,9 @@ describe("buildSheetsWorkbookBuffer", () => {
       "_Colunas_Embalagens",
       "_Variacoes_SKU",
       "_Historico_SKU",
+      "_Reservas_Num_Produto",
+      "_Reservas_Num_Variante",
+      "_Reservas_Valor_SKU",
     ]);
   });
 
@@ -190,6 +251,12 @@ describe("buildSheetsWorkbookBuffer", () => {
       mainMlb: "MLB999",
       customValues: '{"501":"valor preservado"}',
     });
+    expect(products[1]).toMatchObject({
+      id: 78,
+      productNumber: 32,
+      sku: "2-CONSTRUCAO-32-1",
+      isDeleted: "SIM",
+    });
     expect(variations[0]).toMatchObject({
       id: 900,
       skuRowId: 77,
@@ -201,6 +268,30 @@ describe("buildSheetsWorkbookBuffer", () => {
       id: 3,
       authorizedBy: "Guilherme",
       affectedCount: 0,
+    });
+    const reservations = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+      workbook.Sheets["_Reservas_Num_Produto"],
+      { defval: "" },
+    );
+    expect(reservations).toHaveLength(2);
+    expect(reservations[1]).toMatchObject({ productNumber: 32, skuRowId: 78 });
+    const variantReservations = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+      workbook.Sheets["_Reservas_Num_Variante"],
+      { defval: "" },
+    );
+    expect(variantReservations[0]).toMatchObject({
+      skuRowId: 77,
+      productNumber: 31,
+      variantNumber: 2,
+    });
+    const skuValueReservations = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+      workbook.Sheets["_Reservas_Valor_SKU"],
+      { defval: "" },
+    );
+    expect(skuValueReservations[0]).toMatchObject({
+      normalizedSku: "2-construcao-31-2",
+      sourceType: "main",
+      sourceKey: "77",
     });
   });
 

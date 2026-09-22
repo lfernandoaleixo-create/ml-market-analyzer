@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Popover,
@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Copy, Loader2, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Link2, Loader2, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type SkuVariationsPopoverProps = {
@@ -25,6 +25,7 @@ type SkuVariationsPopoverProps = {
   eanGtin?: string;
   mainMlb?: string;
   mainDone?: boolean;
+  enableSkuDecision?: boolean;
   onMainFieldChange?: (field: string, value: string | boolean) => void;
   children: React.ReactNode;
 };
@@ -35,6 +36,7 @@ type VariationRow = {
   ean: string;
   mlb: string;
   done: boolean;
+  revision: number;
 };
 
 /**
@@ -48,18 +50,49 @@ export default function SkuVariationsPopover({
   eanGtin,
   mainMlb,
   mainDone,
+  enableSkuDecision = false,
   onMainFieldChange,
   children,
 }: SkuVariationsPopoverProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [variationToDelete, setVariationToDelete] = useState<VariationRow | null>(null);
+  const [sourceRowId, setSourceRowId] = useState<number | null>(null);
+  const [manualSku, setManualSku] = useState("");
   const utils = trpc.useUtils();
 
   const { data: variations, isLoading, refetch } = trpc.skuSheet.getVariations.useQuery(
     { skuRowId, baseSku },
-    { enabled: open, staleTime: 30_000 },
+    { enabled: open && Boolean(baseSku), staleTime: 30_000 },
   );
+  const decision = trpc.skuSheet.getSkuDecision.useQuery(
+    { skuRowId },
+    { enabled: open && enableSkuDecision, staleTime: 5_000 },
+  );
+  const activeMatches = (decision.data?.matches ?? []).filter((match) => !match.isDeleted);
+
+  useEffect(() => {
+    if (sourceRowId == null && activeMatches[0]) setSourceRowId(activeMatches[0].id);
+  }, [activeMatches, sourceRowId]);
+
+  const decisionMut = trpc.skuSheet.setSkuDecision.useMutation({
+    onSuccess: async (updated) => {
+      await Promise.all([
+        utils.skuSheet.list.invalidate(),
+        utils.skuSheet.getSkuDecision.invalidate({ skuRowId }),
+      ]);
+      setOpen(false);
+      setManualSku("");
+      toast.success(`SKU definido como ${updated.sku}.`);
+    },
+    onError: async (error) => {
+      await Promise.all([
+        utils.skuSheet.list.invalidate(),
+        utils.skuSheet.getSkuDecision.invalidate({ skuRowId }),
+      ]);
+      toast.error(error.message || "Não foi possível definir o SKU.");
+    },
+  });
 
   const addMut = trpc.skuSheet.addVariation.useMutation({
     onSuccess: async (created) => {
@@ -75,12 +108,16 @@ export default function SkuVariationsPopover({
       setVariationToDelete(null);
       toast.success("Variação excluída. O número dela não será reutilizado.");
     },
-    onError: (error) => toast.error(error.message || "Não foi possível excluir a variação."),
+    onError: async (error) => {
+      await utils.skuSheet.getVariations.invalidate({ skuRowId, baseSku });
+      setVariationToDelete(null);
+      toast.error(error.message || "Não foi possível excluir a variação.");
+    },
   });
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (nextOpen) refetch();
+    if (nextOpen && baseSku) refetch();
   };
 
   const copyToClipboard = (text: string) => {
@@ -100,12 +137,49 @@ export default function SkuVariationsPopover({
           className="w-[min(860px,calc(100vw-24px))] p-0 overflow-hidden"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
-          {isLoading ? (
+          {(isLoading && Boolean(baseSku)) || (enableSkuDecision && decision.isLoading) ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <div className="flex flex-col">
+              {enableSkuDecision && decision.data ? (
+                <SkuDecisionPanel
+                  context={decision.data}
+                  activeMatches={activeMatches}
+                  sourceRowId={sourceRowId}
+                  onSourceRowIdChange={setSourceRowId}
+                  manualSku={manualSku}
+                  onManualSkuChange={setManualSku}
+                  pending={decisionMut.isPending}
+                  onReuse={() =>
+                    decisionMut.mutate({
+                      skuRowId,
+                      mode: "reuse",
+                      sourceRowId: sourceRowId ?? undefined,
+                      expectedRevision: decision.data.revision,
+                    })
+                  }
+                  onAuto={() =>
+                    decisionMut.mutate({
+                      skuRowId,
+                      mode: "auto",
+                      expectedRevision: decision.data.revision,
+                    })
+                  }
+                  onManual={() =>
+                    decisionMut.mutate({
+                      skuRowId,
+                      mode: "manual",
+                      manualSku: manualSku.trim(),
+                      expectedRevision: decision.data.revision,
+                    })
+                  }
+                />
+              ) : null}
+
+              {baseSku ? (
+                <>
               <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] gap-2 border-b border-border/60 bg-muted/30 px-4 py-2">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SKU</span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">EAN</span>
@@ -159,6 +233,12 @@ export default function SkuVariationsPopover({
                   ))}
                 </div>
               </div>
+                </>
+              ) : !decision.data?.requiresDecision ? (
+                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  Preencha tipo, categoria, produto e variante para gerar ou escolher o SKU.
+                </div>
+              ) : null}
             </div>
           )}
         </PopoverContent>
@@ -195,6 +275,7 @@ export default function SkuVariationsPopover({
                   skuRowId,
                   variationIndex: variationToDelete.variationIndex,
                   baseSku,
+                  expectedRevision: variationToDelete.revision,
                 });
               }}
             >
@@ -205,6 +286,122 @@ export default function SkuVariationsPopover({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+type SkuDecisionMatch = {
+  id: number;
+  position: number;
+  produto: string;
+  variante: string;
+  sku: string;
+  isDeleted: boolean;
+};
+
+function SkuDecisionPanel({
+  context,
+  activeMatches,
+  sourceRowId,
+  onSourceRowIdChange,
+  manualSku,
+  onManualSkuChange,
+  pending,
+  onReuse,
+  onAuto,
+  onManual,
+}: {
+  context: {
+    mode: string;
+    requiresDecision: boolean;
+    matches: SkuDecisionMatch[];
+  };
+  activeMatches: SkuDecisionMatch[];
+  sourceRowId: number | null;
+  onSourceRowIdChange: (value: number) => void;
+  manualSku: string;
+  onManualSkuChange: (value: string) => void;
+  pending: boolean;
+  onReuse: () => void;
+  onAuto: () => void;
+  onManual: () => void;
+}) {
+  if (!context.requiresDecision) return null;
+
+  return (
+    <div className="space-y-3 border-b border-amber-300/60 bg-amber-50 p-4 text-amber-950 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-100">
+      <div>
+        <p className="text-sm font-semibold">Este produto já existe. Quer que eu mantenha o mesmo SKU?</p>
+        <p className="mt-1 text-xs leading-relaxed opacity-80">
+          Nada será alterado nas linhas existentes. A escolha afeta somente esta nova linha.
+        </p>
+      </div>
+
+      <div className="rounded-md border border-amber-300/60 bg-background/80 p-2.5 text-foreground">
+        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Produto de referência
+        </label>
+        {activeMatches.length > 0 ? (
+          <select
+            value={sourceRowId ?? ""}
+            onChange={(event) => onSourceRowIdChange(Number(event.target.value))}
+            className="w-full rounded-md border border-border bg-background px-2.5 py-2 font-mono text-xs"
+          >
+            {activeMatches.map((match) => (
+              <option key={match.id} value={match.id}>
+                Linha {match.position} · {match.sku}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            O produto correspondente está excluído. O SKU histórico continua reservado e não pode ser reutilizado.
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button
+          type="button"
+          className="h-auto min-h-10 justify-start gap-2 whitespace-normal py-2 text-left"
+          disabled={!sourceRowId || pending}
+          onClick={onReuse}
+        >
+          <Link2 className="h-4 w-4 shrink-0" />
+          Manter o mesmo SKU
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto min-h-10 justify-start gap-2 bg-background py-2 text-left"
+          disabled={pending}
+          onClick={onAuto}
+        >
+          <Sparkles className="h-4 w-4 shrink-0" />
+          Gerar novo SKU / variante
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-md border border-border bg-background/90 p-2.5 text-foreground sm:flex-row">
+        <div className="relative flex-1">
+          <Pencil className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={manualSku}
+            onChange={(event) => onManualSkuChange(event.target.value)}
+            placeholder="Digite o SKU manual"
+            className="h-9 w-full rounded-md border border-border bg-background pl-8 pr-2 font-mono text-xs outline-none focus:ring-1 focus:ring-primary/40"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 bg-background"
+          disabled={!manualSku.trim() || pending}
+          onClick={onManual}
+        >
+          Editar manualmente
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -313,11 +510,16 @@ function VariationRowEditor({
   const [ean, setEan] = useState(variation.ean);
   const [mlb, setMlb] = useState(variation.mlb);
   const [done, setDone] = useState(variation.done);
+  const revisionRef = useRef(variation.revision);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => setVariationSku(variation.variationSku), [variation.variationSku]);
   useEffect(() => setEan(variation.ean), [variation.ean]);
   useEffect(() => setMlb(variation.mlb), [variation.mlb]);
   useEffect(() => setDone(variation.done), [variation.done]);
+  useEffect(() => {
+    revisionRef.current = variation.revision;
+  }, [variation.revision]);
 
   const saveField = (data: {
     variationSku?: string;
@@ -325,12 +527,18 @@ function VariationRowEditor({
     mlb?: string;
     done?: boolean;
   }) => {
-    upsertMut.mutate({
-      skuRowId,
-      variationIndex: variation.variationIndex,
-      baseSku,
-      ...data,
-    });
+    saveQueue.current = saveQueue.current
+      .then(async () => {
+        const updated = await upsertMut.mutateAsync({
+          skuRowId,
+          variationIndex: variation.variationIndex,
+          baseSku,
+          expectedRevision: revisionRef.current,
+          ...data,
+        });
+        revisionRef.current = updated.revision;
+      })
+      .catch(() => undefined);
   };
 
   return (

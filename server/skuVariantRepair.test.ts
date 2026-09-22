@@ -37,7 +37,7 @@ describe("resolveVariantNumber — unicidade por grupo", () => {
     expect(v).toBe(3);
   });
 
-  it("atribui a menor variante livre quando não há valor desejado", () => {
+  it("atribui uma variante acima do maior número histórico quando não há valor desejado", () => {
     const rows: VariantNumberRow[] = [
       { id: 1, tipoSku: "2", categoryName: "Beleza e Cuidado Pessoal", productNumber: 2, variantNumber: 1 },
       { id: 2, tipoSku: "2", categoryName: "Beleza e Cuidado Pessoal", productNumber: 2, variantNumber: 3 },
@@ -48,7 +48,7 @@ describe("resolveVariantNumber — unicidade por grupo", () => {
       productNumber: 2,
       variantNumber: null,
     });
-    expect(v).toBe(2); // 1 e 3 ocupados → menor livre é 2
+    expect(v).toBe(4); // 1 e 3 já existiram → a lacuna 2 não é reciclada
   });
 
   it("grupos distintos não interferem entre si", () => {

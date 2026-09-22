@@ -1075,6 +1075,18 @@ export const skuSheetRows = mysqlTable(
     gerarSkuKit: boolean("gerarSkuKit").default(false).notNull(),
     skuKit: varchar("skuKit", { length: 120 }).default("").notNull(),
 
+    /**
+     * Estratégia de definição do SKU principal.
+     * legacy = registro anterior à escolha explícita; pending = nova linha ainda
+     * sem decisão; auto = SKU novo; reuse = reutilização intencional; manual =
+     * SKU digitado pelo operador.
+     */
+    skuMode: varchar("skuMode", { length: 16 }).default("legacy").notNull(),
+    /** Linha cujo SKU foi reutilizado intencionalmente (somente modo reuse). */
+    skuSourceRowId: int("skuSourceRowId"),
+    /** Momento da decisão explícita de SKU (Unix ms). */
+    skuDecisionAt: bigint("skuDecisionAt", { mode: "number" }),
+
     /** MLB do SKU principal (código do anúncio no Mercado Livre). */
     mainMlb: varchar("mainMlb", { length: 60 }).default("").notNull(),
     /** Checkbox "OK" do SKU principal — marcado quando concluído. */
@@ -1103,6 +1115,13 @@ export const skuSheetRows = mysqlTable(
     /** Cor de fundo da linha (estilo Excel). Vazio = sem cor. */
     rowColor: varchar("rowColor", { length: 20 }).default("").notNull(),
 
+    /** Exclusão lógica: a linha fica oculta, mas seus números e dados são preservados. */
+    isDeleted: boolean("isDeleted").default(false).notNull(),
+    /** Momento da exclusão lógica (Unix ms). */
+    deletedAt: bigint("deletedAt", { mode: "number" }),
+    /** Versão monotônica para impedir decisões/exclusões sobre dados desatualizados. */
+    revision: int("revision").default(1).notNull(),
+
     /**
      * Valores das COLUNAS PERSONALIZADAS desta linha.
      * JSON no formato { [customColumnId: string]: string }.
@@ -1116,11 +1135,84 @@ export const skuSheetRows = mysqlTable(
   (t) => ({
     positionIdx: index("sku_sheet_position_idx").on(t.position),
     productNumberIdx: index("sku_sheet_product_number_idx").on(t.productNumber),
+    deletedIdx: index("sku_sheet_deleted_idx").on(t.isDeleted),
   }),
 );
 
 export type SkuSheetRow = typeof skuSheetRows.$inferSelect;
 export type InsertSkuSheetRow = typeof skuSheetRows.$inferInsert;
+
+/**
+ * Reserva monotônica de Nº Produto. Cada produto realmente novo consome um ID
+ * auto-incremental; registros desta tabela nunca são apagados. A unicidade por
+ * skuRowId também torna a alocação idempotente em requisições concorrentes.
+ */
+export const skuProductNumberReservations = mysqlTable(
+  "sku_product_number_reservations",
+  {
+    productNumber: int("productNumber").autoincrement().primaryKey(),
+    skuRowId: int("skuRowId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    skuRowUniq: uniqueIndex("sku_product_number_row_unique_idx").on(t.skuRowId),
+  }),
+);
+
+export type SkuProductNumberReservation = typeof skuProductNumberReservations.$inferSelect;
+
+/** Reserva append-only de Nº Variante por grupo de SKU. */
+export const skuVariantNumberReservations = mysqlTable(
+  "sku_variant_number_reservations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    skuRowId: int("skuRowId").notNull(),
+    tipoSku: varchar("tipoSku", { length: 20 }).notNull(),
+    categoryKey: varchar("categoryKey", { length: 255 }).notNull(),
+    productNumber: int("productNumber").notNull(),
+    variantNumber: int("variantNumber").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    skuRowUniq: uniqueIndex("sku_variant_number_row_unique_idx").on(t.skuRowId),
+    groupVariantUniq: uniqueIndex("sku_variant_number_group_unique_idx").on(
+      t.tipoSku,
+      t.categoryKey,
+      t.productNumber,
+      t.variantNumber,
+    ),
+    groupIdx: index("sku_variant_number_group_idx").on(
+      t.tipoSku,
+      t.categoryKey,
+      t.productNumber,
+    ),
+  }),
+);
+
+export type SkuVariantNumberReservation = typeof skuVariantNumberReservations.$inferSelect;
+
+/**
+ * Reserva global do SKU normalizado. É append-only e impede atomicamente que
+ * duas requisições finalizem o mesmo SKU por engano. Reutilizações intencionais
+ * não criam outra reserva: apontam para a linha-fonte já reservada.
+ */
+export const skuValueReservations = mysqlTable(
+  "sku_value_reservations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    normalizedSku: varchar("normalizedSku", { length: 160 }).notNull(),
+    originalSku: varchar("originalSku", { length: 160 }).notNull(),
+    sourceType: varchar("sourceType", { length: 16 }).notNull(),
+    sourceKey: varchar("sourceKey", { length: 80 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    normalizedSkuUniq: uniqueIndex("sku_value_normalized_unique_idx").on(t.normalizedSku),
+    sourceIdx: index("sku_value_source_idx").on(t.sourceType, t.sourceKey),
+  }),
+);
+
+export type SkuValueReservation = typeof skuValueReservations.$inferSelect;
 
 /**
  * Colunas PERSONALIZADAS criadas pelo usuário na Planilha SKU.
@@ -1398,6 +1490,11 @@ export const driveBackupConfig = mysqlTable("drive_backup_config", {
   lastError: text("lastError"),
   lastFileId: varchar("lastFileId", { length: 120 }).default("").notNull(),
   lastFileName: varchar("lastFileName", { length: 200 }).default("").notNull(),
+  /** Cópia redundante no armazenamento do projeto, independente do token do Drive. */
+  lastInternalBackupAt: bigint("lastInternalBackupAt", { mode: "number" }),
+  lastInternalBackupKey: varchar("lastInternalBackupKey", { length: 512 }).default("").notNull(),
+  lastInternalBackupFileName: varchar("lastInternalBackupFileName", { length: 200 }).default("").notNull(),
+  lastInternalBackupError: text("lastInternalBackupError"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -1427,6 +1524,8 @@ export const skuVariations = mysqlTable(
     done: boolean("done").default(false).notNull(),
     /** Exclusão lógica para preservar definitivamente o índice/SKU já utilizado. */
     isDeleted: boolean("isDeleted").default(false).notNull(),
+    /** Versão monotônica para impedir sobrescrita concorrente entre abas. */
+    revision: int("revision").default(1).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -1463,12 +1562,15 @@ export const skuChangeLog = mysqlTable(
     affectedCount: int("affectedCount").default(0).notNull(),
     /** Timestamp da alteração (Unix ms). */
     timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+    /** Chave opcional para tornar registros de política idempotentes. */
+    idempotencyKey: varchar("idempotencyKey", { length: 100 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (t) => ({
     actionIdx: index("sku_change_log_action_idx").on(t.action),
     timestampIdx: index("sku_change_log_timestamp_idx").on(t.timestamp),
     authorIdx: index("sku_change_log_author_idx").on(t.authorizedBy),
+    idempotencyUniq: uniqueIndex("sku_change_log_idempotency_unique_idx").on(t.idempotencyKey),
   }),
 );
 export type SkuChangeLog = typeof skuChangeLog.$inferSelect;

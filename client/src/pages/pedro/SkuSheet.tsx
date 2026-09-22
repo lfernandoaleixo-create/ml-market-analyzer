@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useRef } from "react";
 import SkuStyleSheet, { type SkuStyleBinding } from "./SkuStyleSheet";
 
 /**
@@ -11,22 +12,23 @@ import SkuStyleSheet, { type SkuStyleBinding } from "./SkuStyleSheet";
  * inteira. Isso mantém a digitação instantânea mesmo com muitas linhas. Apenas
  * operações que mudam a composição da lista (create/delete/colunas) invalidam.
  *
- * UNICIDADE DE SKU: o backend possui uma TRAVA que recalcula a variante/SKU para
- * o próximo número livre no grupo antes de gravar (nunca persiste SKU duplicado).
- * Como o update é otimista, ao receber a resposta do servidor sincronizamos o
- * cache com a linha final; se o SKU tiver sido auto-corrigido, avisamos o usuário.
+ * IMUTABILIDADE DE SKU: linhas finalizadas não têm identidade/SKU reescritos.
+ * Linhas novas usam reservas monotônicas e, quando idênticas, aguardam a escolha
+ * explícita no card. Updates por linha são serializados e validados por revisão.
  */
 type SkuRowCache = {
   id: number;
   sku?: string | null;
   skuKit?: string | null;
   variantNumber?: number | null;
+  revision?: number;
   customValues?: string | null;
   [key: string]: unknown;
 };
 
 export default function SkuSheet() {
   const utils = trpc.useUtils();
+  const updateQueues = useRef<Map<number, Promise<void>>>(new Map());
   const { data: rows, isLoading } = trpc.skuSheet.list.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
@@ -44,15 +46,10 @@ export default function SkuSheet() {
   };
 
   const updateMut = trpc.skuSheet.update.useMutation({
-    // Sincroniza o cache com a linha final do servidor (a trava pode ter
-    // corrigido variante/SKU). Avisa quando houver auto-correção.
+    // Sincroniza o cache com a linha final decidida pelo servidor.
     onSuccess: (server, variables) => {
       if (!server) return;
-      patchRowInCache(server.id, {
-        variantNumber: server.variantNumber,
-        sku: server.sku,
-        skuKit: server.skuKit,
-      });
+      patchRowInCache(server.id, server as unknown as Record<string, unknown>);
       const sentSku = (variables as { sku?: string }).sku;
       // Se o usuário/edição levaria a um SKU e o servidor devolveu outro
       // (por causa da trava anti-duplicidade), informamos a correção.
@@ -65,15 +62,20 @@ export default function SkuSheet() {
         toast.info(`SKU ajustado automaticamente para ${server.sku} (evita duplicidade).`);
       }
     },
-    onError: (err) => {
+    onError: async (err) => {
       const msg = err?.message ?? "";
       if (msg.includes("DUPLICATA_DETECTADA")) {
         const desc = msg.split("|")[1] ?? "Linha idêntica já existe. Ajuste a variante ou remova a duplicata.";
         toast.error(desc, { duration: 6000 });
+      } else if (msg.includes("SKU_DECISION_REQUIRED")) {
+        const desc = msg.split("|")[1] ?? "Abra o card do SKU e escolha como deseja defini-lo.";
+        toast.info(desc, { duration: 7000 });
+      } else if (msg.includes("imutável") || msg.includes("outra aba")) {
+        toast.error(msg, { duration: 7000 });
       } else {
         toast.error("Não foi possível salvar a alteração");
       }
-      utils.skuSheet.list.invalidate();
+      await utils.skuSheet.list.invalidate();
     },
   });
   const createMut = trpc.skuSheet.create.useMutation({
@@ -88,7 +90,10 @@ export default function SkuSheet() {
       utils.skuSheet.list.invalidate();
       toast.success("Linha excluída");
     },
-    onError: () => toast.error("Não foi possível excluir"),
+    onError: (error) => {
+      toast.error(error.message || "Não foi possível excluir");
+      utils.skuSheet.list.invalidate();
+    },
   });
   const createColMut = trpc.skuSheet.createCustomColumn.useMutation({
     onSuccess: () => {
@@ -115,33 +120,28 @@ export default function SkuSheet() {
       utils.skuSheet.list.invalidate();
     },
   });
-  const repairMut = trpc.skuSheet.repairVariants.useMutation({
-    onSuccess: async (res) => {
-      await utils.skuSheet.list.invalidate();
-      const n = res?.changes?.length ?? 0;
-      if (n === 0) {
-        toast.success("Nenhum SKU duplicado encontrado.");
-      } else {
-        toast.success(
-          `${n} SKU(s) corrigido(s) automaticamente. Todos os SKUs agora são únicos.`,
-        );
-      }
-    },
-    onError: () => toast.error("Não foi possível corrigir os SKUs"),
-  });
-
   const binding: SkuStyleBinding = {
     rows: rows as SkuStyleBinding["rows"],
     isLoading,
     categories: categories as SkuStyleBinding["categories"],
     customColumns,
     update: (input) => {
-      const { id, ...patch } = input as { id: number } & Record<string, unknown>;
+      const { id, expectedRevision, ...patch } = input as {
+        id: number;
+        expectedRevision: number;
+      } & Record<string, unknown>;
       patchRowInCache(id, patch); // reflete na hora
-      updateMut.mutate(input as never); // persiste + sincroniza no onSuccess
+      const previous = updateQueues.current.get(id) ?? Promise.resolve();
+      const operation = previous.catch(() => undefined).then(async () => {
+        const cached = utils.skuSheet.list.getData() as SkuRowCache[] | undefined;
+        const currentRevision = cached?.find((row) => row.id === id)?.revision ?? expectedRevision;
+        await updateMut.mutateAsync({ id, expectedRevision: currentRevision, ...patch } as never);
+      });
+      const settled = operation.catch(() => undefined);
+      updateQueues.current.set(id, settled);
     },
     create: (input) => createMut.mutate(input as never),
-    remove: (id) => deleteMut.mutate({ id }),
+    remove: (id, expectedRevision) => deleteMut.mutate({ id, expectedRevision }),
     createColumn: (name) => createColMut.mutate({ name }),
     renameColumn: (id, name) => renameColMut.mutate({ id, name }),
     deleteColumn: (id) => deleteColMut.mutate({ id }),
@@ -164,8 +164,7 @@ export default function SkuSheet() {
       setCustomValueMut.mutate({ rowId, columnId, value });
     },
     createPending: createMut.isPending,
-    repairAll: () => repairMut.mutate({ apply: true }),
-    repairPending: repairMut.isPending,
+    supportsSkuDecisions: true,
   };
 
   return (

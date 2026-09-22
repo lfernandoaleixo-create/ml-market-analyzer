@@ -58,6 +58,9 @@ export interface SkuRowEditable {
   sku: string;
   gerarSkuKit: boolean;
   skuKit: string;
+  skuMode: SkuMode;
+  skuSourceRowId: number | null;
+  skuDecisionAt: number | null;
   eanGtin: string;
   ncm: string;
   gpc: string;
@@ -71,6 +74,8 @@ export interface SkuRowEditable {
   embPeso: string;
   caracteristicas: string | null;
 }
+
+export type SkuMode = "legacy" | "pending" | "auto" | "reuse" | "manual";
 
 // ---------------------------------------------------------------------------
 // Geração automática de SKU
@@ -172,9 +177,8 @@ export function buildSkuKit(baseSku: string, gerarSkuKit: boolean): string {
 //
 // PROTEÇÃO CONTRA REATRIBUIÇÃO (27/jul/2026):
 // Se a linha JÁ TEM um productNumber atribuído (currentProductNumber != null),
-// o número é PRESERVADO — a menos que o nome digitado coincida com outro
-// produto existente (caso de reaproveitamento). Editar o nome de um produto
-// existente NÃO deve gerar um novo número; o número é permanente à linha.
+// o número é SEMPRE PRESERVADO. Editar o nome de um produto existente não pode
+// fundi-lo, renumerá-lo nem gerar um novo número.
 //
 // A numeração da VARIANTE é que reinicia por grupo (tipo+categoria+Nº produto).
 // ---------------------------------------------------------------------------
@@ -201,11 +205,11 @@ export interface ProductNumberRow {
  * - `currentRowId`: id da linha que está sendo editada (ignorada na busca por nome).
  * - `productName`: nome digitado.
  * - `currentProductNumber`: o Nº que a linha JÁ TEM (se houver). Quando presente,
- *   o número é preservado a menos que o nome coincida com outro produto existente.
+ *   o número é sempre preservado.
  *
  * Retorna:
- * - o Nº já usado por outra linha com o mesmo nome (reaproveitamento), ou
- * - o currentProductNumber se a linha já tem número e o nome é novo/editado, ou
+ * - o currentProductNumber se a linha já tem número, ou
+ * - o Nº já usado por outra linha com o mesmo nome (para uma linha nova), ou
  * - o próximo Nº da sequência global (maior Nº existente + 1) quando a linha
  *   NÃO tem número e o nome é novo, ou
  * - null quando o nome está vazio.
@@ -221,20 +225,19 @@ export function resolveProductNumber(
   const key = normalizeProductName(productName);
   if (!key) return null;
 
-  // 1) Procura outra linha (diferente da atual) com o mesmo nome e Nº já definido.
-  //    Se encontrar, REAPROVEITA o número daquele produto (merge de nomes).
+  // 1) Uma linha já numerada nunca muda de número, nem ao receber o nome de
+  //    outro produto. O identificador é permanente à linha após a atribuição.
+  if (currentProductNumber != null && currentProductNumber > 0) {
+    return currentProductNumber;
+  }
+
+  // 2) Linha nova: procura outra linha com o mesmo nome e reaproveita o Nº.
   for (const r of rows) {
     if (r.id === currentRowId) continue;
     if (r.productNumber == null) continue;
     if (normalizeProductName(r.produto) === key) {
       return r.productNumber;
     }
-  }
-
-  // 2) Nome não encontrado em outra linha. Se a linha JÁ TEM um número,
-  //    PRESERVA — o número é permanente, editar o nome não gera novo número.
-  if (currentProductNumber != null && currentProductNumber > 0) {
-    return currentProductNumber;
   }
 
   // 3) Linha nova (sem número): próximo número = maior Nº existente + 1.
@@ -261,6 +264,8 @@ export interface VariantNumberRow {
   categoryName: string | null;
   productNumber: number | null;
   variantNumber: number | null;
+  skuMode?: SkuMode | string;
+  skuSourceRowId?: number | null;
 }
 
 /** Chave do grupo que compartilha o mesmo prefixo de SKU (tipo+categoria+Nº produto). */
@@ -280,7 +285,7 @@ function skuGroupKey(row: {
  * - Considera apenas linhas do MESMO grupo (mesmo tipo+categoria+Nº produto).
  * - Ignora a própria linha (`currentRowId`).
  * - Se a variante atual (`desiredVariant`) ainda não estiver em uso no grupo,
- *   ela é mantida; caso contrário, retorna o menor Nº de variante livre (>=1).
+ *   ela é mantida; caso contrário, retorna o maior Nº já usado + 1.
  * - Retorna null quando não há dados suficientes para formar um grupo válido
  *   (tipo/categoria/Nº produto ausentes), deixando a variante como está.
  */
@@ -319,10 +324,13 @@ export function resolveVariantNumber(
   // Só mantém a variante desejada se ela NÃO colidir com outra linha do grupo.
   if (desired != null && desired >= 1 && !used.has(desired)) return desired;
 
-  // Caso contrário, atribui o menor Nº de variante livre (>= 1).
-  let next = 1;
-  while (used.has(next)) next += 1;
-  return next;
+  // Caso contrário, continua após o maior Nº já usado. Nunca preenche lacunas:
+  // índices antigos são permanentes e não podem ser reciclados após exclusões.
+  let max = 0;
+  used.forEach((value) => {
+    if (value > max) max = value;
+  });
+  return max + 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,7 +369,12 @@ export function normalizeVariantNumbers(rows: VariantNumberRow[]): VariantFix[] 
   }
 
   const fixes: VariantFix[] = [];
-  for (const bucket of Array.from(groups.values())) {
+  for (const fullBucket of Array.from(groups.values())) {
+    // Reutilizações intencionais compartilham o SKU da linha de origem e não
+    // participam do reparo automático. O registro de origem continua reservando
+    // o número da variante para novas gerações.
+    const bucket = fullBucket.filter((row) => row.skuMode !== "reuse");
+    if (bucket.length === 0) continue;
     // Ordem estável por id (linha mais antiga tem prioridade em empates).
     const ordered = [...bucket].sort((a, b) => a.id - b.id);
 
@@ -377,17 +390,21 @@ export function normalizeVariantNumbers(rows: VariantNumberRow[]): VariantFix[] 
         keepById.set(r.id, current);
       }
     }
-    // Passada 2 — REALOCAR: as demais linhas recebem o menor Nº livre (>= 1).
+    // Passada 2 — REALOCAR: as demais linhas recebem números acima do maior
+    // histórico. Nunca preenchemos lacunas deixadas por exclusões.
+    let next = 1;
+    finalUsed.forEach((value) => {
+      if (value >= next) next = value + 1;
+    });
     for (const r of ordered) {
       const current = r.variantNumber;
       let assigned: number;
       if (keepById.has(r.id)) {
         assigned = keepById.get(r.id)!;
       } else {
-        let next = 1;
-        while (finalUsed.has(next)) next += 1;
         assigned = next;
         finalUsed.add(next);
+        next += 1;
       }
       if (assigned !== current) {
         fixes.push({ id: r.id, from: current ?? null, to: assigned });
@@ -447,9 +464,13 @@ export interface DuplicateAnalysisRow {
   categoryName: string | null;
   produto: string | null;
   variante: string | null;
+  caracteristicas?: string | null;
   productNumber: number | null;
   variantNumber: number | null;
   sku: string | null;
+  /** Reutilização explícita de SKU não é tratada como erro de duplicidade. */
+  skuMode?: SkuMode | string;
+  skuSourceRowId?: number | null;
 }
 
 /** Grupo de linhas com a MESMA identidade de conteúdo (linha idêntica). */
@@ -541,7 +562,8 @@ function identityKey(r: DuplicateAnalysisRow): string | null {
   const tipo = (r.tipoSku ?? "").trim();
   const cat = normalizeProductName(r.categoryName);
   const variante = normalizeVariantText(r.variante);
-  return [tipo, cat, produto, variante].join("||");
+  const caracteristicas = normalizeProductName(r.caracteristicas);
+  return [tipo, cat, produto, variante, caracteristicas].join("||");
 }
 
 /**
@@ -554,6 +576,7 @@ export function analyzeDuplicates(rows: DuplicateAnalysisRow[]): DuplicateAnalys
   // --- Tipo 1: linhas idênticas por conteúdo ---
   const byIdentity = new Map<string, DuplicateAnalysisRow[]>();
   for (const r of rows) {
+    if (r.skuMode === "pending") continue;
     const key = identityKey(r);
     if (!key) continue;
     const bucket = byIdentity.get(key);
@@ -563,7 +586,12 @@ export function analyzeDuplicates(rows: DuplicateAnalysisRow[]): DuplicateAnalys
   const identicalGroups: IdenticalGroup[] = [];
   for (const [key, bucket] of Array.from(byIdentity.entries())) {
     if (bucket.length < 2) continue;
-    const ordered = [...bucket].sort((a, b) => a.id - b.id);
+    const bucketIds = new Set(bucket.map((row) => row.id));
+    const actionable = bucket.filter(
+      (row) => !(row.skuMode === "reuse" && row.skuSourceRowId != null && bucketIds.has(row.skuSourceRowId)),
+    );
+    if (actionable.length < 2) continue;
+    const ordered = [...actionable].sort((a, b) => a.id - b.id);
     identicalGroups.push({
       key,
       ids: ordered.map((r) => r.id),
@@ -581,6 +609,7 @@ export function analyzeDuplicates(rows: DuplicateAnalysisRow[]): DuplicateAnalys
   // Comparação normalizada (case-insensitive, sem espaços/pontos).
   const bySku = new Map<string, DuplicateAnalysisRow[]>();
   for (const r of rows) {
+    if (r.skuMode === "reuse" && r.skuSourceRowId != null) continue;
     const s = normalizeSku(r.sku);
     if (!s) continue;
     const bucket = bySku.get(s);

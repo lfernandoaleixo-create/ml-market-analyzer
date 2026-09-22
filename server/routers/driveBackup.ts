@@ -25,7 +25,7 @@ export const driveBackupRouter = router({
   status: protectedProcedure.query(async () => {
     const cfg = await getDriveBackupConfig();
     const requiresReconnect =
-      cfg.lastStatus === "error" && (cfg.lastError ?? "").includes("invalid_grant");
+      (cfg.lastError ?? "").includes("invalid_grant");
     return {
       connected: isConnected(cfg) && !requiresReconnect,
       requiresReconnect,
@@ -37,6 +37,9 @@ export const driveBackupRouter = router({
       lastStatus: cfg.lastStatus,
       lastError: cfg.lastError ?? null,
       lastFileName: cfg.lastFileName,
+      lastInternalBackupAt: cfg.lastInternalBackupAt ?? null,
+      lastInternalBackupFileName: cfg.lastInternalBackupFileName,
+      lastInternalBackupError: cfg.lastInternalBackupError ?? null,
     };
   }),
 
@@ -66,7 +69,13 @@ export const driveBackupRouter = router({
     if (!result.ok) {
       return { ok: false, error: result.error ?? "Falha desconhecida" };
     }
-    return { ok: true, fileName: result.fileName };
+    return {
+      ok: true,
+      driveOk: result.driveOk,
+      internalOk: result.internalOk,
+      fileName: result.fileName,
+      error: result.error,
+    };
   }),
 
   /**
@@ -83,9 +92,6 @@ export const driveBackupRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const cfg = await getDriveBackupConfig();
-      if (!isConnected(cfg)) {
-        return { enabled: false, error: "Conecte o Google Drive antes de agendar." };
-      }
       const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
       const existingUid = cfg.scheduleCronTaskUid ?? null;
       const cron = dailyCron(input.hourUtc);
@@ -101,7 +107,7 @@ export const driveBackupRouter = router({
             name: "drive-backup-diario",
             cron,
             path: "/api/scheduled/driveBackup",
-            description: "Backup diário das planilhas (Produtos/Kits/Embalagens) no Google Drive",
+            description: "Backup diário redundante das planilhas (armazenamento interno + Google Drive quando conectado)",
           },
           sessionToken,
         );

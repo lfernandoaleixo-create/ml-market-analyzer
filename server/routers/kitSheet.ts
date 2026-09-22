@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import {
   createKitRow,
   deleteKitRow,
@@ -117,7 +117,7 @@ export const kitSheetRouter = router({
    * Move linhas de Kits para a Planilha SKU. Se `ids` vier vazio/omitido,
    * migra TODAS as linhas. Registra cada movimentação no histórico.
    */
-  migrateToSku: publicProcedure
+  migrateToSku: protectedProcedure
     .input(
       z
         .object({ ids: z.array(z.number().int()).optional() })

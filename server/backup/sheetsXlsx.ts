@@ -1,8 +1,12 @@
 import * as XLSX from "xlsx";
 import {
   listSkuRows,
+  listAllSkuRows,
   listCustomColumns,
   listSkuVariationsForBackup,
+  listSkuProductNumberReservationsForBackup,
+  listSkuVariantNumberReservationsForBackup,
+  listSkuValueReservationsForBackup,
 } from "../skuSheetDb";
 import { listKitRows, listKitCustomColumns } from "../kitSheetDb";
 import { listEmbalagemRows, listEmbalagemCustomColumns } from "../embalagemSheetDb";
@@ -51,10 +55,11 @@ const EMBALAGEM_COLUMNS: Array<[string, string]> = [
 const SKU_RAW_FIELDS = [
   "id", "position", "productNumber", "variantNumber", "cadastradoMl", "tipoSku",
   "categoryId", "categoryName", "subCategoryId", "subCategoryName", "produto",
-  "variante", "sku", "gerarSkuKit", "skuKit", "mainMlb", "mainDone", "eanGtin",
+  "variante", "sku", "gerarSkuKit", "skuKit", "skuMode", "skuSourceRowId",
+  "skuDecisionAt", "mainMlb", "mainDone", "eanGtin",
   "ncm", "gpc", "cest", "precoClassico", "precoPremium", "precoAtacado",
   "embProfundidade", "embLargura", "embAltura", "embPeso", "caracteristicas",
-  "rowColor", "customValues", "createdAt", "updatedAt",
+  "rowColor", "isDeleted", "deletedAt", "revision", "customValues", "createdAt", "updatedAt",
 ] as const;
 
 const KIT_RAW_FIELDS = [
@@ -78,11 +83,18 @@ const EMBALAGEM_RAW_FIELDS = [
 const CUSTOM_COLUMN_FIELDS = ["id", "name", "position", "createdAt", "updatedAt"] as const;
 const VARIATION_FIELDS = [
   "id", "skuRowId", "variationIndex", "variationSku", "ean", "mlb", "done",
-  "isDeleted", "createdAt", "updatedAt",
+  "isDeleted", "revision", "createdAt", "updatedAt",
 ] as const;
 const CHANGE_LOG_FIELDS = [
   "id", "action", "authorizedBy", "description", "affectedRowIds", "oldValues",
-  "newValues", "affectedCount", "timestamp", "createdAt",
+  "newValues", "affectedCount", "timestamp", "idempotencyKey", "createdAt",
+] as const;
+const PRODUCT_NUMBER_RESERVATION_FIELDS = ["productNumber", "skuRowId", "createdAt"] as const;
+const VARIANT_NUMBER_RESERVATION_FIELDS = [
+  "id", "skuRowId", "tipoSku", "categoryKey", "productNumber", "variantNumber", "createdAt",
+] as const;
+const SKU_VALUE_RESERVATION_FIELDS = [
+  "id", "normalizedSku", "originalSku", "sourceType", "sourceKey", "createdAt",
 ] as const;
 
 function cell(value: unknown): string | number {
@@ -147,6 +159,7 @@ function appendSheet(
 export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
   const [
     skuRows,
+    allSkuRows,
     skuCols,
     kitRows,
     kitCols,
@@ -154,8 +167,12 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     embCols,
     skuVariations,
     skuHistory,
+    numberReservations,
+    variantReservations,
+    skuValueReservations,
   ] = await Promise.all([
     listSkuRows(),
+    listAllSkuRows(),
     listCustomColumns(),
     listKitRows(),
     listKitCustomColumns(),
@@ -163,6 +180,9 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     listEmbalagemCustomColumns(),
     listSkuVariationsForBackup(),
     listSkuChangeLogForBackup(),
+    listSkuProductNumberReservationsForBackup(),
+    listSkuVariantNumberReservationsForBackup(),
+    listSkuValueReservationsForBackup(),
   ]);
 
   const wb = XLSX.utils.book_new();
@@ -182,7 +202,7 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     buildAoa(EMBALAGEM_COLUMNS, embRows as AnyRow[], embCols as unknown as CustomCol[]),
   );
 
-  appendSheet(wb, "_Produtos_Tecnico", buildRawAoa(skuRows as AnyRow[], SKU_RAW_FIELDS));
+  appendSheet(wb, "_Produtos_Tecnico", buildRawAoa(allSkuRows as AnyRow[], SKU_RAW_FIELDS));
   appendSheet(wb, "_Kits_Tecnico", buildRawAoa(kitRows as AnyRow[], KIT_RAW_FIELDS));
   appendSheet(wb, "_Embalagens_Tecnico", buildRawAoa(embRows as AnyRow[], EMBALAGEM_RAW_FIELDS));
   appendSheet(wb, "_Colunas_Produtos", buildRawAoa(skuCols as AnyRow[], CUSTOM_COLUMN_FIELDS));
@@ -190,6 +210,21 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
   appendSheet(wb, "_Colunas_Embalagens", buildRawAoa(embCols as AnyRow[], CUSTOM_COLUMN_FIELDS));
   appendSheet(wb, "_Variacoes_SKU", buildRawAoa(skuVariations as AnyRow[], VARIATION_FIELDS));
   appendSheet(wb, "_Historico_SKU", buildRawAoa(skuHistory as AnyRow[], CHANGE_LOG_FIELDS));
+  appendSheet(
+    wb,
+    "_Reservas_Num_Produto",
+    buildRawAoa(numberReservations as AnyRow[], PRODUCT_NUMBER_RESERVATION_FIELDS),
+  );
+  appendSheet(
+    wb,
+    "_Reservas_Num_Variante",
+    buildRawAoa(variantReservations as AnyRow[], VARIANT_NUMBER_RESERVATION_FIELDS),
+  );
+  appendSheet(
+    wb,
+    "_Reservas_Valor_SKU",
+    buildRawAoa(skuValueReservations as AnyRow[], SKU_VALUE_RESERVATION_FIELDS),
+  );
 
   const out = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   return Buffer.from(out);

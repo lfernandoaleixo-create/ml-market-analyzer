@@ -1863,7 +1863,7 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Bug: onBlur no campo PRODUTO chamava resolveProductNumber e reatribuía max+1 quando nome era editado
 - [x] Causa raiz: a função não sabia que a linha JÁ TINHA um número — tratava como produto novo
 - [x] Correção: novo parâmetro `currentProductNumber` — se a linha já tem número, PRESERVA (não gera novo)
-- [x] Exceção: se o nome editado coincidir com outro produto existente, REAPROVEITA o número daquele (merge)
+- [x] Regra posteriormente endurecida (22/set): uma linha já numerada nunca muda nem faz merge automático
 - [x] Banco corrigido: BRINCO PONTO DE LUZ 28→15, GRANDE SACO DE LIXO 29→20, KIT 4 EM 1 34→29
 - [x] Log registrado (autorizado por Guilherme)
 - [x] 38 testes passando, 0 erros TypeScript
@@ -1882,3 +1882,40 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validar novos dados manualmente inseridos sem modificar retroativamente os registros existentes
 - [x] Adicionar testes Vitest e validar os fluxos visualmente
 - [x] Registrar a implementação no histórico de alterações de SKU
+
+## Política imutável de SKU e backup redundante (22/set — autorizado por Guilherme)
+- [x] Transformar exclusão de linha SKU em exclusão lógica; preservar SKU, Nº Produto e Nº Variante
+- [x] Ocultar tombstones das consultas normais sem renumerar, reconstruir ou reciclar identificadores
+- [x] Criar reserva append-only e monotônica de Nº Produto, inicializada com os 29 números históricos
+- [x] Criar reserva append-only e monotônica de Nº Variante, inicializada com as 71 linhas históricas
+- [x] Impedir gravação direta de SKU e números pelo update genérico do frontend
+- [x] Remover o cálculo automático de SKU/números do navegador e centralizar decisões no servidor
+- [x] Para produto+variante+características idênticos, exigir escolha no card: manter mesmo SKU, gerar novo ou editar manualmente
+- [x] Permitir duplicidade somente na escolha explícita “Manter o mesmo SKU”, vinculada à linha de origem
+- [x] Desativar aplicação de reparo automático em massa e preservar linhas já finalizadas
+- [x] Adicionar revisão otimista para impedir decisão/exclusão baseada em dados antigos de outra aba
+- [x] Preservar tombstones e bloquear reutilização de índices/SKUs de variações excluídas
+- [x] Registrar a política uma única vez em `sku_change_log` com `affectedCount=0` e autorizador Guilherme
+- [x] Ampliar o XLSX restaurável com linhas excluídas, variações, histórico, reservas de produto e reservas de variante
+- [x] Criar fallback diário versionado no armazenamento interno, independente do token do Google Drive
+- [x] Proteger todas as rotas da planilha com sessão autenticada, mantendo operações autorizadas sem senha adicional
+- [x] Bloquear no backend qualquer tentativa direta de redefinir SKU de linha já finalizada
+- [x] Congelar campos de identidade de linhas finalizadas e validar todo update por revisão otimista
+- [x] Serializar updates por linha no frontend para suportar digitação rápida sem sobrescrita entre requisições
+- [x] Garantir que tombstone nunca volte a fornecer Nº Produto ou SKU a um novo cadastro
+- [x] Tornar inclusão de variação resiliente a colisões simultâneas entre abas
+- [x] Remover definitivamente o caminho mutável do antigo reparo automático em massa
+- [x] Tornar o backfill de reservas de variante determinístico diante de eventuais colisões legadas
+- [x] Criar reserva global atômica para todo SKU principal e de variação, inclusive tombstones
+- [x] Inicializar 101/101 valores históricos normalizados na reserva global, sem alterar nenhum SKU
+- [x] Adicionar revisão/CAS às variações e impedir sobrescrita entre abas em inserts e updates concorrentes
+- [x] Liberar reservas novas somente quando o CAS falha e nenhuma gravação vencedora usa o mesmo SKU
+- [x] Fazer a migração Kits → SKU criar linha pendente, sem copiar/recalcular Nº Produto, Nº Variante ou SKU
+- [x] Proteger a migração Kits → SKU com sessão e usar o `insertId` real para evitar confusão entre requisições
+- [x] Neutralizar o script legado `backfill-sku.mjs`: auditoria somente leitura, 0 atualizações
+- [x] Concluir terceira revisão independente: nenhum bloqueador P0/P1 e nenhum escritor de SKU fora dos fluxos protegidos
+- [x] Gerar e baixar uma cópia interna real atualizada: 264.501 bytes, 14 abas e 71 linhas técnicas
+- [x] Confirmar preservação do banco: 71 linhas ativas, 0 excluídas, 0 não-legadas e 0 duplicidades normalizadas
+- [x] Confirmar 95 testes focados, TypeScript, build de produção e auditorias somente leitura
+- [x] Corrigir 4 testes antigos instáveis e confirmar suíte ampla: 881/881 testes aprovados (sem `.live.test.ts`)
+- [ ] Reconectar a conta Google pelo painel para restaurar também o espelho no Drive (token atual: `invalid_grant`)

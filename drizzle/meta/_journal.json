@@ -197,6 +197,41 @@
       "when": 1788367686628,
       "tag": "0027_condemned_wasp",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1790094977100,
+      "tag": "0028_familiar_lord_hawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1790095916081,
+      "tag": "0029_unknown_nightmare",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1790096351197,
+      "tag": "0030_first_shiva",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1790097310673,
+      "tag": "0031_kind_sheva_callister",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1790099499195,
+      "tag": "0032_careful_jack_flag",
+      "breakpoints": true
     }
   ]
 }
