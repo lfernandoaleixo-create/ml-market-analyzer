@@ -18,6 +18,7 @@ import {
   HardDriveUpload,
   Link2,
   Loader2,
+  AlertTriangle,
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -84,6 +85,7 @@ export default function DriveBackupCard() {
   });
 
   const connected = status.data?.connected ?? false;
+  const requiresReconnect = status.data?.requiresReconnect ?? false;
   const enabled = status.data?.enabled ?? false;
   const lastBackupAt = status.data?.lastBackupAt ?? null;
   const lastStatus = status.data?.lastStatus ?? null;
@@ -107,10 +109,16 @@ export default function DriveBackupCard() {
         </div>
         <div>
           <h2 className="font-display text-lg font-600">Backup no Google Drive</h2>
-          <p className="text-xs text-muted-foreground">Cópia diária das planilhas (Produtos, Kits, Embalagens)</p>
+          <p className="text-xs text-muted-foreground">
+            Cópia diária completa: planilhas, variações, exclusões lógicas e histórico de SKU
+          </p>
         </div>
         <div className="ml-auto">
-          {connected ? (
+          {requiresReconnect ? (
+            <Badge variant="outline" className="gap-1 border-red-500/40 text-red-500">
+              <AlertTriangle className="h-3 w-3" /> Reconexão necessária
+            </Badge>
+          ) : connected ? (
             <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-500">
               <CheckCircle2 className="h-3 w-3" /> Conectado
             </Badge>
@@ -124,7 +132,18 @@ export default function DriveBackupCard() {
         {/* Conexão da conta Google */}
         <div className="rounded-lg border border-border/70 p-3">
           <p className="mb-2 text-sm font-medium">Conta do Google</p>
-          {connected ? (
+          {requiresReconnect ? (
+            <div className="space-y-3">
+              <p className="text-xs leading-relaxed text-red-600 dark:text-red-400">
+                A autorização do Google expirou ou foi revogada. O agendamento continua cadastrado,
+                mas os backups falharão até você reconectar a conta.
+              </p>
+              <Button className="w-full" onClick={handleConnect} disabled={redirecting}>
+                {redirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                {redirecting ? "Redirecionando para o Google…" : "Reconectar Google Drive"}
+              </Button>
+            </div>
+          ) : connected ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 Conectado como <span className="font-medium text-foreground">{accountEmail || "conta autorizada"}</span>.

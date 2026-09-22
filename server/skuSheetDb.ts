@@ -452,6 +452,19 @@ export interface SkuVariationData {
 }
 
 /**
+ * Retorna todas as variações persistidas para backup técnico, inclusive as
+ * excluídas logicamente. Esta consulta nunca é usada na UI e não altera dados.
+ */
+export async function listSkuVariationsForBackup(): Promise<SkuVariation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(skuVariations)
+    .orderBy(asc(skuVariations.skuRowId), asc(skuVariations.variationIndex));
+}
+
+/**
  * Retorna as variações ativas de uma linha SKU. As 10 posições iniciais são
  * exibidas como placeholders enquanto ainda não foram persistidas. Posições
  * excluídas logicamente permanecem reservadas e nunca são exibidas/reutilizadas.

@@ -1,7 +1,12 @@
 import * as XLSX from "xlsx";
-import { listSkuRows, listCustomColumns } from "../skuSheetDb";
+import {
+  listSkuRows,
+  listCustomColumns,
+  listSkuVariationsForBackup,
+} from "../skuSheetDb";
 import { listKitRows, listKitCustomColumns } from "../kitSheetDb";
 import { listEmbalagemRows, listEmbalagemCustomColumns } from "../embalagemSheetDb";
+import { listSkuChangeLogForBackup } from "../skuProtection";
 
 /**
  * Colunas fixas (na ordem da planilha) compartilhadas por SKU e Kits, que usam
@@ -43,10 +48,48 @@ const EMBALAGEM_COLUMNS: Array<[string, string]> = [
   ["CARACTERÍSTICAS", "caracteristicas"],
 ];
 
+const SKU_RAW_FIELDS = [
+  "id", "position", "productNumber", "variantNumber", "cadastradoMl", "tipoSku",
+  "categoryId", "categoryName", "subCategoryId", "subCategoryName", "produto",
+  "variante", "sku", "gerarSkuKit", "skuKit", "mainMlb", "mainDone", "eanGtin",
+  "ncm", "gpc", "cest", "precoClassico", "precoPremium", "precoAtacado",
+  "embProfundidade", "embLargura", "embAltura", "embPeso", "caracteristicas",
+  "rowColor", "customValues", "createdAt", "updatedAt",
+] as const;
+
+const KIT_RAW_FIELDS = [
+  "id", "position", "productNumber", "variantNumber", "cadastradoMl", "tipoSku",
+  "categoryId", "categoryName", "subCategoryId", "subCategoryName", "produto",
+  "variante", "eanGtin", "sku", "gerarSkuKit", "skuKit", "ncm", "gpc", "cest",
+  "precoClassico", "precoPremium", "precoAtacado", "embProfundidade",
+  "embLargura", "embAltura", "embPeso", "caracteristicas", "kit", "embalagem",
+  "profundidade", "largura", "alturaComprimento", "kg", "categoria",
+  "dimensoesGs1", "baseAjustado", "mlAjustado", "formadoPor", "observacao",
+  "rowColor", "customValues", "createdAt", "updatedAt",
+] as const;
+
+const EMBALAGEM_RAW_FIELDS = [
+  "id", "position", "produto", "eanGtin", "sku", "embalagem", "ncm", "gpc",
+  "cest", "precoClassico", "precoPremium", "altura", "largura", "comprimento",
+  "kg", "categoria", "observacao", "rowColor", "customValues", "createdAt",
+  "updatedAt",
+] as const;
+
+const CUSTOM_COLUMN_FIELDS = ["id", "name", "position", "createdAt", "updatedAt"] as const;
+const VARIATION_FIELDS = [
+  "id", "skuRowId", "variationIndex", "variationSku", "ean", "mlb", "done",
+  "isDeleted", "createdAt", "updatedAt",
+] as const;
+const CHANGE_LOG_FIELDS = [
+  "id", "action", "authorizedBy", "description", "affectedRowIds", "oldValues",
+  "newValues", "affectedCount", "timestamp", "createdAt",
+] as const;
+
 function cell(value: unknown): string | number {
   if (value === null || value === undefined) return "";
   if (typeof value === "boolean") return value ? "SIM" : "NÃO";
   if (typeof value === "number") return value;
+  if (value instanceof Date) return value.toISOString();
   return String(value);
 }
 
@@ -78,39 +121,75 @@ function buildAoa(
   return [header, ...body];
 }
 
-/** Gera o workbook XLSX com as três planilhas como abas separadas. */
+function buildRawAoa(rows: AnyRow[], fields: readonly string[]): (string | number)[][] {
+  return [
+    [...fields],
+    ...rows.map((row) => fields.map((field) => cell(row[field]))),
+  ];
+}
+
+function appendSheet(
+  workbook: XLSX.WorkBook,
+  name: string,
+  rows: (string | number)[][],
+): void {
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), name);
+}
+
+/**
+ * Gera o workbook XLSX de segurança.
+ *
+ * As três primeiras abas são amigáveis para uso diário. As abas prefixadas por
+ * "_" são cópias técnicas completas, preservando IDs, metadados, colunas
+ * personalizadas, variações (inclusive tombstones) e histórico de SKU para uma
+ * restauração fiel sem renumeração ou reconstrução automática.
+ */
 export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
-  const [skuRows, skuCols, kitRows, kitCols, embRows, embCols] = await Promise.all([
+  const [
+    skuRows,
+    skuCols,
+    kitRows,
+    kitCols,
+    embRows,
+    embCols,
+    skuVariations,
+    skuHistory,
+  ] = await Promise.all([
     listSkuRows(),
     listCustomColumns(),
     listKitRows(),
     listKitCustomColumns(),
     listEmbalagemRows(),
     listEmbalagemCustomColumns(),
+    listSkuVariationsForBackup(),
+    listSkuChangeLogForBackup(),
   ]);
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(
+  appendSheet(
     wb,
-    XLSX.utils.aoa_to_sheet(
-      buildAoa(SHARED_COLUMNS, skuRows as AnyRow[], skuCols as unknown as CustomCol[]),
-    ),
     "Produtos",
+    buildAoa(SHARED_COLUMNS, skuRows as AnyRow[], skuCols as unknown as CustomCol[]),
   );
-  XLSX.utils.book_append_sheet(
+  appendSheet(
     wb,
-    XLSX.utils.aoa_to_sheet(
-      buildAoa(SHARED_COLUMNS, kitRows as AnyRow[], kitCols as unknown as CustomCol[]),
-    ),
     "Kits",
+    buildAoa(SHARED_COLUMNS, kitRows as AnyRow[], kitCols as unknown as CustomCol[]),
   );
-  XLSX.utils.book_append_sheet(
+  appendSheet(
     wb,
-    XLSX.utils.aoa_to_sheet(
-      buildAoa(EMBALAGEM_COLUMNS, embRows as AnyRow[], embCols as unknown as CustomCol[]),
-    ),
     "Embalagens",
+    buildAoa(EMBALAGEM_COLUMNS, embRows as AnyRow[], embCols as unknown as CustomCol[]),
   );
+
+  appendSheet(wb, "_Produtos_Tecnico", buildRawAoa(skuRows as AnyRow[], SKU_RAW_FIELDS));
+  appendSheet(wb, "_Kits_Tecnico", buildRawAoa(kitRows as AnyRow[], KIT_RAW_FIELDS));
+  appendSheet(wb, "_Embalagens_Tecnico", buildRawAoa(embRows as AnyRow[], EMBALAGEM_RAW_FIELDS));
+  appendSheet(wb, "_Colunas_Produtos", buildRawAoa(skuCols as AnyRow[], CUSTOM_COLUMN_FIELDS));
+  appendSheet(wb, "_Colunas_Kits", buildRawAoa(kitCols as AnyRow[], CUSTOM_COLUMN_FIELDS));
+  appendSheet(wb, "_Colunas_Embalagens", buildRawAoa(embCols as AnyRow[], CUSTOM_COLUMN_FIELDS));
+  appendSheet(wb, "_Variacoes_SKU", buildRawAoa(skuVariations as AnyRow[], VARIATION_FIELDS));
+  appendSheet(wb, "_Historico_SKU", buildRawAoa(skuHistory as AnyRow[], CHANGE_LOG_FIELDS));
 
   const out = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   return Buffer.from(out);

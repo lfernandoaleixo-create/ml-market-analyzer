@@ -24,8 +24,11 @@ export const driveBackupRouter = router({
   /** Estado atual da integração (sem expor o refresh token). */
   status: protectedProcedure.query(async () => {
     const cfg = await getDriveBackupConfig();
+    const requiresReconnect =
+      cfg.lastStatus === "error" && (cfg.lastError ?? "").includes("invalid_grant");
     return {
-      connected: isConnected(cfg),
+      connected: isConnected(cfg) && !requiresReconnect,
+      requiresReconnect,
       accountEmail: cfg.accountEmail,
       folderName: cfg.folderName,
       enabled: cfg.enabled,

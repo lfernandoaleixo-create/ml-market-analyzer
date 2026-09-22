@@ -68,3 +68,16 @@ export async function listSkuChangeLog(limit = 50) {
     .orderBy(desc(skuChangeLog.timestamp))
     .limit(limit);
 }
+
+/**
+ * Retorna o histórico completo para backup técnico, sem truncar registros.
+ * A ordenação cronológica facilita auditoria e restauração manual.
+ */
+export async function listSkuChangeLogForBackup() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(skuChangeLog)
+    .orderBy(desc(skuChangeLog.timestamp));
+}
