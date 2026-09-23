@@ -1919,3 +1919,19 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Confirmar 95 testes focados, TypeScript, build de produção e auditorias somente leitura
 - [x] Corrigir 4 testes antigos instáveis e confirmar suíte ampla: 881/881 testes aprovados (sem `.live.test.ts`)
 - [ ] Reconectar a conta Google pelo painel para restaurar também o espelho no Drive (token atual: `invalid_grant`)
+
+## Edição manual explícita de SKU no popover (23/set — autorizado por Guilherme)
+- [x] Confirmar com Fernando o impacto e obter autorização de Guilherme antes de liberar edição de SKUs existentes
+- [x] Adicionar lápis ao SKU principal e a cada SKU de variação
+- [x] Exigir ação explícita de Salvar ou Cancelar; não salvar SKU por blur
+- [x] Permitir texto/números livres sem senha adicional, mantendo sessão autenticada
+- [x] Alterar somente o campo escolhido; não renumerar Nº Produto, Nº Variante nem outras variações
+- [x] Manter os valores antigos reservados para impedir reciclagem acidental
+- [x] Registrar cada edição futura no `sku_change_log`, autorizada por Guilherme e atribuída ao usuário da sessão
+- [x] Tornar alteração, reserva global e histórico uma transação atômica; falha de auditoria reverte tudo
+- [x] Remover do `upsertVariation` genérico qualquer possibilidade de alterar `variationSku`
+- [x] Confirmar por auditoria que nenhum SKU existente foi alterado durante a implementação (hash preservado)
+- [x] Gerar e abrir cópia interna atualizada: 265.228 bytes, 14 abas e 71 linhas técnicas
+- [x] Confirmar 111 testes focados, TypeScript, build e suíte ampla com 889/889 testes (sem `.live.test.ts`)
+- [x] Concluir segunda revisão independente sem bloqueadores P0/P1
+- [ ] Salvar checkpoint e validar sincronização com GitHub

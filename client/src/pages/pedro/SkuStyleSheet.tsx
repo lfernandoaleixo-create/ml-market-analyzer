@@ -1246,7 +1246,30 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
       {/* SKU — ícone clicável que abre popover com SKU principal + variações */}
       <td className="px-1 py-2">
         {(local.sku && local.sku !== "") || (supportsSkuDecisions && local.produto.trim()) ? (
-          <SkuVariationsPopover skuRowId={row.id} baseSku={local.sku} eanGtin={local.eanGtin} mainMlb={local.mainMlb} mainDone={local.mainDone} enableSkuDecision={supportsSkuDecisions} onMainFieldChange={(field, value) => { const updated = { ...local, [field]: value }; setLocal(updated); onFieldNow(row.id, Number(local.revision ?? 1), { [field]: value }); }}>
+          <SkuVariationsPopover
+            skuRowId={row.id}
+            baseSku={local.sku}
+            eanGtin={local.eanGtin}
+            mainMlb={local.mainMlb}
+            mainDone={local.mainDone}
+            enableSkuDecision={supportsSkuDecisions}
+            onMainFieldChange={(field, value) => {
+              const updated = { ...local, [field]: value };
+              setLocal(updated);
+              onFieldNow(row.id, Number(local.revision ?? 1), { [field]: value });
+            }}
+            onMainSkuSaved={(updated) => {
+              setLocal({
+                ...local,
+                sku: updated.sku,
+                skuKit: updated.skuKit,
+                skuMode: updated.skuMode as SkuRow["skuMode"],
+                skuSourceRowId: updated.skuSourceRowId,
+                skuDecisionAt: updated.skuDecisionAt,
+                revision: updated.revision,
+              });
+            }}
+          >
             <button
               type="button"
               className="flex items-center justify-center w-8 h-8 mx-auto rounded-md hover:bg-primary/10 transition-colors group/skuicon"

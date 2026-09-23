@@ -52,6 +52,9 @@ const missingValueReservations = [...allHistoricalNormalized].filter(
   (sku) => !reservedNormalized.has(sku),
 );
 const policyLogs = logs.filter((row) => row.idempotencyKey === "sku-immutable-v1-guilherme");
+const manualEditPolicyLogs = logs.filter(
+  (row) => row.idempotencyKey === "manual-sku-edit-guilherme-2026-09-23",
+);
 
 const workbookBuffer = await buildSheetsWorkbookBuffer();
 const workbook = XLSX.read(workbookBuffer, { type: "buffer" });
@@ -90,6 +93,9 @@ const report = {
     matchingPolicyLogs: policyLogs.length,
     authorizedBy: policyLogs[0]?.authorizedBy ?? null,
     affectedCount: policyLogs[0]?.affectedCount ?? null,
+    manualEditMatchingPolicyLogs: manualEditPolicyLogs.length,
+    manualEditAuthorizedBy: manualEditPolicyLogs[0]?.authorizedBy ?? null,
+    manualEditAffectedCount: manualEditPolicyLogs[0]?.affectedCount ?? null,
   },
   backup: {
     sheets: workbook.SheetNames,
@@ -110,6 +116,13 @@ if (missingValueReservations.length !== 0) {
 }
 if (policyLogs.length !== 1 || policyLogs[0]?.affectedCount !== 0) {
   throw new Error("Registro idempotente da autorização de Guilherme está inconsistente.");
+}
+if (
+  manualEditPolicyLogs.length !== 1 ||
+  manualEditPolicyLogs[0]?.authorizedBy !== "Guilherme" ||
+  manualEditPolicyLogs[0]?.affectedCount !== 0
+) {
+  throw new Error("Registro idempotente da edição manual autorizada por Guilherme está inconsistente.");
 }
 if (!report.backup.includesAllSkuRows || !report.backup.includesProductReservations || !report.backup.includesVariantReservations || !report.backup.includesSkuValueReservations) {
   throw new Error("O backup técnico não cobre todo o estado de SKU.");

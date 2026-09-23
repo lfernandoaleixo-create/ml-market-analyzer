@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Copy, Link2, Loader2, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Check, Copy, Link2, Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 type SkuVariationsPopoverProps = {
@@ -27,6 +27,14 @@ type SkuVariationsPopoverProps = {
   mainDone?: boolean;
   enableSkuDecision?: boolean;
   onMainFieldChange?: (field: string, value: string | boolean) => void;
+  onMainSkuSaved?: (updated: {
+    sku: string;
+    skuKit: string;
+    skuMode: string;
+    skuSourceRowId: number | null;
+    skuDecisionAt: number | null;
+    revision: number;
+  }) => void;
   children: React.ReactNode;
 };
 
@@ -52,6 +60,7 @@ export default function SkuVariationsPopover({
   mainDone,
   enableSkuDecision = false,
   onMainFieldChange,
+  onMainSkuSaved,
   children,
 }: SkuVariationsPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -91,6 +100,25 @@ export default function SkuVariationsPopover({
         utils.skuSheet.getSkuDecision.invalidate({ skuRowId }),
       ]);
       toast.error(error.message || "Não foi possível definir o SKU.");
+    },
+  });
+
+  const editMainSkuMut = trpc.skuSheet.editMainSku.useMutation({
+    onSuccess: async (updated) => {
+      onMainSkuSaved?.(updated);
+      await Promise.all([
+        utils.skuSheet.list.invalidate(),
+        utils.skuSheet.getSkuDecision.invalidate({ skuRowId }),
+        utils.skuSheet.getVariations.invalidate(),
+      ]);
+      toast.success(`SKU principal alterado para ${updated.sku}.`);
+    },
+    onError: async (error) => {
+      await Promise.all([
+        utils.skuSheet.list.invalidate(),
+        utils.skuSheet.getSkuDecision.invalidate({ skuRowId }),
+      ]);
+      toast.error(error.message || "Não foi possível alterar o SKU principal.");
     },
   });
 
@@ -196,6 +224,19 @@ export default function SkuVariationsPopover({
                 onCopy={copyToClipboard}
                 copied={copied}
                 onFieldChange={onMainFieldChange}
+                revision={decision.data?.revision ?? null}
+                onSaveSku={
+                  enableSkuDecision
+                    ? async (newSku, expectedRevision) => {
+                        await editMainSkuMut.mutateAsync({
+                          skuRowId,
+                          newSku,
+                          expectedRevision,
+                        });
+                      }
+                    : undefined
+                }
+                isSavingSku={editMainSkuMut.isPending}
               />
 
               <div className="border-t border-border/30 px-2 py-2">
@@ -413,6 +454,9 @@ function MainSkuRow({
   onCopy,
   copied,
   onFieldChange,
+  revision,
+  onSaveSku,
+  isSavingSku,
 }: {
   baseSku: string;
   eanGtin: string;
@@ -421,11 +465,17 @@ function MainSkuRow({
   onCopy: (text: string) => void;
   copied: boolean;
   onFieldChange?: (field: string, value: string | boolean) => void;
+  revision: number | null;
+  onSaveSku?: (newSku: string, expectedRevision: number) => Promise<void>;
+  isSavingSku: boolean;
 }) {
+  const [editingSku, setEditingSku] = useState(false);
+  const [localSku, setLocalSku] = useState(baseSku);
   const [localEan, setLocalEan] = useState(eanGtin);
   const [localMlb, setLocalMlb] = useState(mainMlb);
   const [localDone, setLocalDone] = useState(mainDone);
 
+  useEffect(() => setLocalSku(baseSku), [baseSku]);
   useEffect(() => setLocalEan(eanGtin), [eanGtin]);
   useEffect(() => setLocalMlb(mainMlb), [mainMlb]);
   useEffect(() => setLocalDone(mainDone), [mainDone]);
@@ -433,20 +483,102 @@ function MainSkuRow({
   return (
     <div className="border-b border-primary/20 bg-primary/5 px-4 py-2.5">
       <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] items-center gap-2">
-        <div className="flex items-center gap-2">
-          <span className="select-all font-mono text-xs font-bold text-primary">{baseSku}</span>
-          <button
-            type="button"
-            onClick={() => onCopy(baseSku)}
-            className="flex-shrink-0 rounded p-0.5 transition-colors hover:bg-primary/10"
-            title="Copiar SKU"
-          >
-            {copied ? (
-              <Check className="h-3 w-3 text-emerald-600" />
-            ) : (
-              <Copy className="h-3 w-3 text-primary/60" />
-            )}
-          </button>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {editingSku ? (
+            <>
+              <input
+                autoFocus
+                value={localSku}
+                onChange={(event) => setLocalSku(event.target.value)}
+                onKeyDown={async (event) => {
+                  if (event.key === "Escape") {
+                    setLocalSku(baseSku);
+                    setEditingSku(false);
+                  }
+                  if (event.key === "Enter" && localSku.trim() && revision != null && onSaveSku) {
+                    event.preventDefault();
+                    if (localSku.trim() === baseSku) {
+                      setEditingSku(false);
+                      return;
+                    }
+                    try {
+                      await onSaveSku(localSku.trim(), revision);
+                      setEditingSku(false);
+                    } catch {
+                      // O toast da mutação mantém o usuário no campo para corrigir.
+                    }
+                  }
+                }}
+                aria-label="Editar SKU principal"
+                className="h-8 min-w-0 flex-1 rounded border border-primary/30 bg-background px-2 font-mono text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary/50"
+              />
+              <button
+                type="button"
+                disabled={isSavingSku || !localSku.trim() || revision == null}
+                onClick={async () => {
+                  if (!onSaveSku || revision == null) return;
+                  if (localSku.trim() === baseSku) {
+                    setEditingSku(false);
+                    return;
+                  }
+                  try {
+                    await onSaveSku(localSku.trim(), revision);
+                    setEditingSku(false);
+                  } catch {
+                    // O toast da mutação mantém o usuário no campo para corrigir.
+                  }
+                }}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-40 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                title="Salvar SKU principal"
+                aria-label="Salvar SKU principal"
+              >
+                {isSavingSku ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                type="button"
+                disabled={isSavingSku}
+                onClick={() => {
+                  setLocalSku(baseSku);
+                  setEditingSku(false);
+                }}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted"
+                title="Cancelar edição"
+                aria-label="Cancelar edição do SKU principal"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="min-w-0 select-all truncate font-mono text-xs font-bold text-primary">{baseSku}</span>
+              <button
+                type="button"
+                onClick={() => onCopy(baseSku)}
+                className="shrink-0 rounded p-0.5 transition-colors hover:bg-primary/10"
+                title="Copiar SKU"
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 text-emerald-600" />
+                ) : (
+                  <Copy className="h-3 w-3 text-primary/60" />
+                )}
+              </button>
+              {onSaveSku ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocalSku(baseSku);
+                    setEditingSku(true);
+                  }}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-primary/70 transition-colors hover:bg-primary/10 hover:text-primary"
+                  title="Editar SKU principal manualmente"
+                  aria-label="Editar SKU principal manualmente"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </>
+          )}
         </div>
 
         <input
@@ -505,7 +637,21 @@ function VariationRowEditor({
       toast.error(error.message || "Não foi possível salvar a variação.");
     },
   });
+  const editSkuMut = trpc.skuSheet.editVariationSku.useMutation({
+    onSuccess: async (updated) => {
+      revisionRef.current = updated.revision;
+      setVariationSku(updated.variationSku);
+      setEditingSku(false);
+      await utils.skuSheet.getVariations.invalidate({ skuRowId, baseSku });
+      toast.success(`SKU da variação alterado para ${updated.variationSku}.`);
+    },
+    onError: async (error) => {
+      await utils.skuSheet.getVariations.invalidate({ skuRowId, baseSku });
+      toast.error(error.message || "Não foi possível alterar o SKU da variação.");
+    },
+  });
 
+  const [editingSku, setEditingSku] = useState(false);
   const [variationSku, setVariationSku] = useState(variation.variationSku);
   const [ean, setEan] = useState(variation.ean);
   const [mlb, setMlb] = useState(variation.mlb);
@@ -522,7 +668,6 @@ function VariationRowEditor({
   }, [variation.revision]);
 
   const saveField = (data: {
-    variationSku?: string;
     ean?: string;
     mlb?: string;
     done?: boolean;
@@ -541,24 +686,96 @@ function VariationRowEditor({
       .catch(() => undefined);
   };
 
+  const saveVariationSku = async () => {
+    const newSku = variationSku.trim();
+    if (!newSku) {
+      toast.error("O SKU da variação não pode ficar vazio.");
+      return;
+    }
+    if (newSku === variation.variationSku) {
+      setEditingSku(false);
+      return;
+    }
+    await editSkuMut.mutateAsync({
+      skuRowId,
+      variationIndex: variation.variationIndex,
+      baseSku,
+      newSku,
+      expectedRevision: revisionRef.current,
+    });
+  };
+
   return (
     <div className="ml-4 rounded-md border border-border/40 bg-card px-3 py-1.5 transition-colors hover:bg-muted/20">
       <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] items-center gap-2">
-        <input
-          value={variationSku}
-          onChange={(event) => setVariationSku(event.target.value)}
-          onBlur={() => {
-            const nextSku = variationSku.trim();
-            if (!nextSku) {
-              setVariationSku(variation.variationSku);
-              toast.error("O SKU da variação não pode ficar vazio.");
-            } else if (nextSku !== variation.variationSku) {
-              saveField({ variationSku: nextSku });
-            }
-          }}
-          aria-label={`SKU da variação ${variation.variationIndex}`}
-          className="w-full rounded bg-transparent px-2 py-0.5 font-mono text-[11px] text-muted-foreground outline-none focus:bg-background focus:ring-1 focus:ring-primary/40"
-        />
+        <div className="flex min-w-0 items-center gap-1">
+          {editingSku ? (
+            <>
+              <input
+                autoFocus
+                value={variationSku}
+                onChange={(event) => setVariationSku(event.target.value)}
+                onKeyDown={async (event) => {
+                  if (event.key === "Escape") {
+                    setVariationSku(variation.variationSku);
+                    setEditingSku(false);
+                  }
+                  if (event.key === "Enter" && variationSku.trim()) {
+                    event.preventDefault();
+                    try {
+                      await saveVariationSku();
+                    } catch {
+                      // O toast da mutação mantém o campo aberto para correção.
+                    }
+                  }
+                }}
+                aria-label={`Editar SKU da variação ${variation.variationIndex}`}
+                className="h-7 min-w-0 flex-1 rounded border border-primary/30 bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40"
+              />
+              <button
+                type="button"
+                disabled={editSkuMut.isPending || !variationSku.trim()}
+                onClick={() => void saveVariationSku().catch(() => undefined)}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                title="Salvar SKU da variação"
+                aria-label={`Salvar SKU da variação ${variation.variationIndex}`}
+              >
+                {editSkuMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                type="button"
+                disabled={editSkuMut.isPending}
+                onClick={() => {
+                  setVariationSku(variation.variationSku);
+                  setEditingSku(false);
+                }}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+                title="Cancelar edição"
+                aria-label={`Cancelar edição da variação ${variation.variationIndex}`}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="min-w-0 flex-1 truncate px-2 font-mono text-[11px] text-muted-foreground">
+                {variationSku}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setVariationSku(variation.variationSku);
+                  setEditingSku(true);
+                }}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-primary/70 hover:bg-primary/10 hover:text-primary"
+                title={`Editar ${variation.variationSku}`}
+                aria-label={`Editar SKU da variação ${variation.variationIndex}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
 
         <input
           value={ean}

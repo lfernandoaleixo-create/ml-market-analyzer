@@ -18,6 +18,8 @@ import {
   deleteVariation,
   getSkuDecisionContext,
   applySkuDecision,
+  editMainSkuManually,
+  editVariationSkuManually,
 } from "../skuSheetDb";
 import { validateSkuPassword, logSkuChange, listSkuChangeLog } from "../skuProtection";
 import mlCategoriesJson from "../../shared/mlCategories.json";
@@ -191,6 +193,41 @@ export const skuSheetRouter = router({
       }
     }),
 
+  /** Edita manualmente o SKU principal, sem senha e sem tocar nos números/variações. */
+  editMainSku: protectedProcedure
+    .input(
+      z.object({
+        skuRowId: z.number().int(),
+        newSku: z.string().max(120),
+        expectedRevision: z.number().int().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await editMainSkuManually({
+          ...input,
+          actor: ctx.user.name || `Usuário #${ctx.user.id}`,
+        });
+        return result.updated;
+      } catch (error: any) {
+        const messages: Record<string, string> = {
+          LINHA_SKU_NAO_ENCONTRADA: "Linha de SKU não encontrada.",
+          SKU_MANUAL_OBRIGATORIO: "O SKU principal não pode ficar vazio.",
+          SKU_MANUAL_DUPLICADO: "Este SKU já pertence a outro produto ou variação.",
+          SKU_VALUE_ALREADY_RESERVED: "Este SKU está reservado e não pode ser reutilizado aqui.",
+          SKU_DECISION_STALE: "A linha mudou em outra aba. Os dados foram recarregados; tente novamente.",
+        };
+        const friendly = messages[error?.message];
+        if (friendly) {
+          throw new TRPCError({
+            code: error?.message === "SKU_DECISION_STALE" ? "CONFLICT" : "BAD_REQUEST",
+            message: friendly,
+          });
+        }
+        throw error;
+      }
+    }),
+
   // --- Colunas personalizadas ---
 
   /** Lista as colunas personalizadas. */
@@ -252,7 +289,6 @@ export const skuSheetRouter = router({
         skuRowId: z.number().int(),
         variationIndex: z.number().int().min(1),
         baseSku: z.string(),
-        variationSku: z.string().max(140).optional(),
         ean: z.string().max(60).optional(),
         mlb: z.string().max(60).optional(),
         done: z.boolean().optional(),
@@ -262,7 +298,6 @@ export const skuSheetRouter = router({
     .mutation(async ({ input }) => {
       try {
         return await upsertVariation(input.skuRowId, input.variationIndex, input.baseSku, {
-          variationSku: input.variationSku,
           ean: input.ean,
           mlb: input.mlb,
           done: input.done,
@@ -291,6 +326,42 @@ export const skuSheetRouter = router({
           });
         }
         throw e;
+      }
+    }),
+
+  /** Edita somente o SKU da variação, sem senha, com histórico e CAS. */
+  editVariationSku: protectedProcedure
+    .input(
+      z.object({
+        skuRowId: z.number().int(),
+        variationIndex: z.number().int().min(1),
+        baseSku: z.string(),
+        newSku: z.string().max(140),
+        expectedRevision: z.number().int().min(0),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await editVariationSkuManually({
+          ...input,
+          actor: ctx.user.name || `Usuário #${ctx.user.id}`,
+        });
+        return result.updated;
+      } catch (error: any) {
+        const messages: Record<string, string> = {
+          SKU_VARIACAO_DUPLICADO: "Este SKU já está sendo usado por outro produto ou variação.",
+          SKU_VARIACAO_OBRIGATORIO: "O SKU da variação não pode ficar vazio.",
+          VARIACAO_EXCLUIDA_PERMANENTE: "Esta variação foi excluída e não pode ser editada.",
+          VARIACAO_CONCORRENTE: "Esta variação mudou em outra aba. Os dados foram recarregados; tente novamente.",
+        };
+        const friendly = messages[error?.message];
+        if (friendly) {
+          throw new TRPCError({
+            code: error?.message === "VARIACAO_CONCORRENTE" ? "CONFLICT" : "BAD_REQUEST",
+            message: friendly,
+          });
+        }
+        throw error;
       }
     }),
 

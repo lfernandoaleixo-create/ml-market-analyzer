@@ -9,6 +9,7 @@ import {
   skuProductNumberReservations,
   skuVariantNumberReservations,
   skuValueReservations,
+  skuChangeLog,
 } from "../drizzle/schema";
 import {
   resolveVariantNumber,
@@ -261,8 +262,8 @@ async function reserveUniqueSkuValue(input: {
   sku: string;
   sourceType: "main" | "variation";
   sourceKey: string;
-}): Promise<boolean> {
-  const db = await getDb();
+}, dbOverride?: any): Promise<boolean> {
+  const db = dbOverride ?? (await getDb());
   if (!db) throw new Error("DB indisponível");
   const normalizedSku = normalizeSku(input.sku);
   if (!normalizedSku) throw new Error("SKU_MANUAL_OBRIGATORIO");
@@ -297,8 +298,8 @@ async function releaseNewSkuValueReservation(input: {
   sku: string;
   sourceType: "main" | "variation";
   sourceKey: string;
-}): Promise<void> {
-  const db = await getDb();
+}, dbOverride?: any): Promise<void> {
+  const db = dbOverride ?? (await getDb());
   if (!db) return;
   await db
     .delete(skuValueReservations)
@@ -315,8 +316,8 @@ async function releaseNewSkuValueReservationIfUnpersisted(input: {
   sku: string;
   sourceType: "main" | "variation";
   sourceKey: string;
-}): Promise<void> {
-  const db = await getDb();
+}, dbOverride?: any): Promise<void> {
+  const db = dbOverride ?? (await getDb());
   if (!db) return;
   const expected = normalizeSku(input.sku);
   if (input.sourceType === "main") {
@@ -341,7 +342,7 @@ async function releaseNewSkuValueReservationIfUnpersisted(input: {
       .limit(1);
     if (normalizeSku(rows[0]?.variationSku) === expected) return;
   }
-  await releaseNewSkuValueReservation(input);
+  await releaseNewSkuValueReservation(input, db);
 }
 
 async function resolvePermanentProductNumber(
@@ -833,6 +834,128 @@ export async function applySkuDecision(input: {
   return updated[0];
 }
 
+/**
+ * Edita somente o texto do SKU principal de uma linha já existente.
+ * Nº Produto, Nº Variante e variações permanecem intocados. O novo valor fica
+ * reservado para esta linha; valores antigos continuam reservados no histórico.
+ */
+export async function editMainSkuManually(input: {
+  skuRowId: number;
+  newSku: string;
+  expectedRevision: number;
+  actor: string;
+}): Promise<{ previousSku: string; updated: SkuSheetRow }> {
+  const rootDb = await getDb();
+  if (!rootDb) throw new Error("DB indisponível");
+  return rootDb.transaction(async (db) => {
+
+  const currentRows = await db
+    .select()
+    .from(skuSheetRows)
+    .where(eq(skuSheetRows.id, input.skuRowId))
+    .limit(1);
+  const current = currentRows[0];
+  if (!current || current.isDeleted) throw new Error("LINHA_SKU_NAO_ENCONTRADA");
+  if (current.revision !== input.expectedRevision) throw new Error("SKU_DECISION_STALE");
+
+  const newSku = input.newSku.trim();
+  if (!newSku) throw new Error("SKU_MANUAL_OBRIGATORIO");
+  const previousSku = current.sku;
+  if (newSku === previousSku) return { previousSku, updated: current };
+
+  const normalized = normalizeSku(newSku);
+  const sameNormalizedValue = normalized === normalizeSku(previousSku);
+  const [allRows, allVariations] = await Promise.all([
+    db.select().from(skuSheetRows),
+    db.select().from(skuVariations),
+  ]);
+  const duplicateVariation = allVariations.some(
+    (variation) => normalizeSku(variation.variationSku) === normalized,
+  );
+  if (duplicateVariation) throw new Error("SKU_MANUAL_DUPLICADO");
+
+  const duplicateMain = sameNormalizedValue
+    ? undefined
+    : allRows.find(
+        (row) => row.id !== current.id && normalizeSku(row.sku) === normalized,
+      );
+  let reservationToRelease: {
+    sku: string;
+    sourceType: "main";
+    sourceKey: string;
+  } | null = null;
+  let skuMode: SkuMode = "manual";
+  let skuSourceRowId: number | null = null;
+
+  if (duplicateMain) {
+    if (duplicateMain.isDeleted || !sameSkuIdentity(current, duplicateMain)) {
+      throw new Error("SKU_MANUAL_DUPLICADO");
+    }
+    // Mesmo produto/variante: a digitação equivale à escolha explícita de reuse.
+    skuMode = "reuse";
+    skuSourceRowId = duplicateMain.id;
+  } else if (!sameNormalizedValue) {
+    const created = await reserveUniqueSkuValue({
+      sku: newSku,
+      sourceType: "main",
+      sourceKey: String(current.id),
+    }, db);
+    if (created) {
+      reservationToRelease = {
+        sku: newSku,
+        sourceType: "main",
+        sourceKey: String(current.id),
+      };
+    }
+  } else {
+    // Alteração somente de caixa/pontuação mantém o vínculo de reuse existente.
+    skuMode = current.skuMode as SkuMode;
+    skuSourceRowId = current.skuSourceRowId;
+  }
+
+  const applied = await db
+    .update(skuSheetRows)
+    .set({
+      sku: newSku,
+      skuMode,
+      skuSourceRowId,
+      skuDecisionAt: Date.now(),
+      revision: sql`${skuSheetRows.revision} + 1`,
+    })
+    .where(
+      and(
+        eq(skuSheetRows.id, current.id),
+        eq(skuSheetRows.revision, input.expectedRevision),
+      ),
+    );
+  if (resultAffectedRows(applied) === 0) {
+    if (reservationToRelease) {
+      await releaseNewSkuValueReservationIfUnpersisted(reservationToRelease, db);
+    }
+    throw new Error("SKU_DECISION_STALE");
+  }
+
+  const updatedRows = await db
+    .select()
+    .from(skuSheetRows)
+    .where(eq(skuSheetRows.id, current.id))
+    .limit(1);
+  const updated = updatedRows[0];
+  if (!updated) throw new Error("LINHA_SKU_NAO_ENCONTRADA");
+  await db.insert(skuChangeLog).values({
+    action: "manual_sku_edit",
+    authorizedBy: "Guilherme",
+    description: `SKU principal da linha ${updated.id} editado manualmente por ${input.actor}, sem renumeração e sem alterar variações.`,
+    affectedRowIds: JSON.stringify([updated.id]),
+    oldValues: JSON.stringify({ sku: previousSku }),
+    newValues: JSON.stringify({ sku: updated.sku }),
+    affectedCount: 1,
+    timestamp: Date.now(),
+  });
+  return { previousSku, updated };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Reparo em massa das variantes (elimina SKUs duplicados)
 // ---------------------------------------------------------------------------
@@ -1098,23 +1221,21 @@ function buildEmptyVariations(baseSku: string): SkuVariationData[] {
   });
 }
 
-/**
- * Insere ou atualiza uma variação específica de uma linha SKU.
- * Recalcula o variationSku com base no baseSku atual.
- */
-export async function upsertVariation(
+/** Persistência interna. `explicitSku` só pode ser usado pelo fluxo manual auditado. */
+async function persistVariation(
   skuRowId: number,
   variationIndex: number,
   baseSku: string,
   data: {
-    variationSku?: string;
+    explicitSku?: string;
     ean?: string;
     mlb?: string;
     done?: boolean;
     expectedRevision: number;
   },
+  dbOverride?: any,
 ): Promise<SkuVariationData> {
-  const db = await getDb();
+  const db = dbOverride ?? (await getDb());
   if (!db) throw new Error("DB indisponível");
 
   const suffix = String(variationIndex).padStart(2, "0");
@@ -1132,7 +1253,7 @@ export async function upsertVariation(
     .limit(1);
 
   const variationSku = (
-    data.variationSku ??
+    data.explicitSku ??
     existing[0]?.variationSku ??
     (baseSku ? `${baseSku}-${suffix}` : "")
   ).trim();
@@ -1150,7 +1271,7 @@ export async function upsertVariation(
   }
 
   // Valida somente o novo valor informado. Nenhum registro antigo é alterado.
-  if (data.variationSku !== undefined) {
+  if (data.explicitSku !== undefined) {
     const normalized = normalizeSku(variationSku);
     const [allVariations, allMainRows] = await Promise.all([
       db.select().from(skuVariations),
@@ -1158,11 +1279,13 @@ export async function upsertVariation(
     ]);
 
     const duplicateVariation = allVariations.some(
-      (row) =>
+      (row: SkuVariation) =>
         !(row.skuRowId === skuRowId && row.variationIndex === variationIndex) &&
         normalizeSku(row.variationSku) === normalized,
     );
-    const duplicateMainSku = allMainRows.some((row) => normalizeSku(row.sku) === normalized);
+    const duplicateMainSku = allMainRows.some(
+      (row: { id: number; sku: string }) => normalizeSku(row.sku) === normalized,
+    );
     if (duplicateVariation || duplicateMainSku) {
       throw new Error("SKU_VARIACAO_DUPLICADO");
     }
@@ -1174,7 +1297,7 @@ export async function upsertVariation(
       sku: variationSku,
       sourceType: "variation",
       sourceKey: `${skuRowId}:${variationIndex}`,
-    });
+    }, db);
   } catch (error: any) {
     if (error?.message === "SKU_VALUE_ALREADY_RESERVED") {
       throw new Error("SKU_VARIACAO_DUPLICADO");
@@ -1204,7 +1327,7 @@ export async function upsertVariation(
           sku: variationSku,
           sourceType: "variation",
           sourceKey: `${skuRowId}:${variationIndex}`,
-        });
+        }, db);
       }
       throw new Error("VARIACAO_CONCORRENTE");
     }
@@ -1227,7 +1350,7 @@ export async function upsertVariation(
             sku: variationSku,
             sourceType: "variation",
             sourceKey: `${skuRowId}:${variationIndex}`,
-          });
+          }, db);
         }
         throw new Error("VARIACAO_CONCORRENTE");
       } else {
@@ -1257,6 +1380,84 @@ export async function upsertVariation(
     done: row?.done ?? data.done ?? false,
     revision: row?.revision ?? 1,
   };
+}
+
+/**
+ * Insere ou atualiza somente metadados da variação. Este contrato não aceita
+ * `variationSku`; mudanças de SKU passam exclusivamente pelo fluxo auditado.
+ */
+export async function upsertVariation(
+  skuRowId: number,
+  variationIndex: number,
+  baseSku: string,
+  data: {
+    ean?: string;
+    mlb?: string;
+    done?: boolean;
+    expectedRevision: number;
+  },
+): Promise<SkuVariationData> {
+  return persistVariation(skuRowId, variationIndex, baseSku, data);
+}
+
+/** Edita exclusivamente o texto do SKU de uma variação e devolve antes/depois. */
+export async function editVariationSkuManually(input: {
+  skuRowId: number;
+  variationIndex: number;
+  baseSku: string;
+  newSku: string;
+  expectedRevision: number;
+  actor: string;
+}): Promise<{ previousSku: string; updated: SkuVariationData }> {
+  const rootDb = await getDb();
+  if (!rootDb) throw new Error("DB indisponível");
+  return rootDb.transaction(async (db) => {
+  const existing = await db
+    .select()
+    .from(skuVariations)
+    .where(
+      and(
+        eq(skuVariations.skuRowId, input.skuRowId),
+        eq(skuVariations.variationIndex, input.variationIndex),
+      ),
+    )
+    .limit(1);
+  if (existing[0]?.isDeleted) throw new Error("VARIACAO_EXCLUIDA_PERMANENTE");
+  const previousSku =
+    existing[0]?.variationSku ||
+    (input.baseSku
+      ? `${input.baseSku}-${String(input.variationIndex).padStart(2, "0")}`
+      : "");
+  const updated = await persistVariation(
+    input.skuRowId,
+    input.variationIndex,
+    input.baseSku,
+    {
+      explicitSku: input.newSku,
+      expectedRevision: input.expectedRevision,
+    },
+    db,
+  );
+  if (previousSku !== updated.variationSku) {
+    await db.insert(skuChangeLog).values({
+      action: "manual_variation_sku_edit",
+      authorizedBy: "Guilherme",
+      description: `SKU da variação ${input.variationIndex} da linha ${input.skuRowId} editado manualmente por ${input.actor}, sem renumeração.`,
+      affectedRowIds: JSON.stringify([input.skuRowId]),
+      oldValues: JSON.stringify({
+        variationIndex: input.variationIndex,
+        variationSku: previousSku,
+      }),
+      newValues: JSON.stringify({
+        variationIndex: input.variationIndex,
+        variationSku: updated.variationSku,
+      }),
+      affectedCount: 1,
+      timestamp: Date.now(),
+    });
+  }
+  return { previousSku, updated };
+  });
 }
 
 /**
