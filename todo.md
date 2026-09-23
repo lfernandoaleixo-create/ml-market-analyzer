@@ -1934,4 +1934,4 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Gerar e abrir cópia interna atualizada: 265.228 bytes, 14 abas e 71 linhas técnicas
 - [x] Confirmar 111 testes focados, TypeScript, build e suíte ampla com 889/889 testes (sem `.live.test.ts`)
 - [x] Concluir segunda revisão independente sem bloqueadores P0/P1
-- [ ] Salvar checkpoint e validar sincronização com GitHub
+- [x] Salvar checkpoint `5de793e3` e validar GitHub alinhado (ahead=0, behind=0)
