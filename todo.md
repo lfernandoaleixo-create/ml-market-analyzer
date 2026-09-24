@@ -1964,4 +1964,4 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Provar que reserva encapsulada de outra origem continua bloqueada como duplicidade real
 - [x] Aprovar 49 testes focados, TypeScript, build e suíte ampla com 895/895 testes (sem `.live.test.ts`)
 - [x] Concluir revisão independente sem bloqueadores P0/P1 e corrigir os dois reforços P2
-- [ ] Salvar checkpoint e sincronizar GitHub
+- [x] Salvar checkpoint `fe44dac5` e sincronizar GitHub
