@@ -45,6 +45,11 @@ let changeLogs: Array<Record<string, unknown>>;
 let changeLogInsertFailureOnce: boolean;
 let customValueConcurrentPatchOnce: { key: string; value: string } | null;
 let wrapSkuValueDuplicateErrorOnce: boolean;
+let manualDuplicateWinnerBeforeCasOnce: {
+  loserRowId: number;
+  winnerRowId: number;
+  sku: string;
+} | null;
 
 // Tabela de SKU sheet rows (simplificada para o teste)
 type SkuRow = {
@@ -273,6 +278,23 @@ function makeDb() {
       set: (patch: any) => ({
         where: async (cond: any) => {
           const arr = dataFor(tableOf(t));
+          if (
+            tableOf(t) === "skuRows" &&
+            typeof patch.sku === "string" &&
+            manualDuplicateWinnerBeforeCasOnce &&
+            patch.sku === manualDuplicateWinnerBeforeCasOnce.sku
+          ) {
+            const race = manualDuplicateWinnerBeforeCasOnce;
+            const loser = arr.find((row) => row.id === race.loserRowId);
+            const winner = arr.find((row) => row.id === race.winnerRowId);
+            if (winner) {
+              winner.sku = race.sku;
+              winner.skuMode = "manual";
+              winner.revision = (winner.revision ?? 0) + 1;
+            }
+            if (loser) loser.revision = (loser.revision ?? 0) + 1;
+            manualDuplicateWinnerBeforeCasOnce = null;
+          }
           if (tableOf(t) === "skuRows" && patch.customValues !== undefined && customValueConcurrentPatchOnce) {
             const target = arr.find((row) => row.id === 1);
             if (target) {
@@ -425,6 +447,7 @@ beforeEach(() => {
   changeLogInsertFailureOnce = false;
   customValueConcurrentPatchOnce = null;
   wrapSkuValueDuplicateErrorOnce = false;
+  manualDuplicateWinnerBeforeCasOnce = null;
   skuRows = [
     {
       id: 1,
@@ -563,6 +586,30 @@ describe("upsertVariation", () => {
     );
   });
 
+  it("permite que uma variação repita exatamente o SKU principal", async () => {
+    variations = [
+      { id: 31, skuRowId: 1, variationIndex: 1, variationSku: "1-SERVICOS-10-1-01", ean: "", mlb: "", done: false, revision: 1 },
+    ];
+
+    const result = await editVariationSkuManually({
+      skuRowId: 1,
+      variationIndex: 1,
+      baseSku: "1-SERVICOS-10-1",
+      newSku: "1-SERVICOS-10-1",
+      expectedRevision: 1,
+      actor: "Teste automatizado",
+    });
+
+    expect(result.updated).toMatchObject({
+      variationSku: "1-SERVICOS-10-1",
+      revision: 2,
+    });
+    expect(skuValueReservationRows.filter((row) => row.normalizedSku === "1-servicos-10-1")).toHaveLength(1);
+    expect(changeLogs).toContainEqual(
+      expect.objectContaining({ action: "manual_variation_sku_edit", affectedCount: 1 }),
+    );
+  });
+
   it("preserva o SKU manual ao editar apenas EAN, MLB ou OK", async () => {
     variations = [
       { id: 31, skuRowId: 1, variationIndex: 2, variationSku: "SKU-MANUAL-02", ean: "antigo", mlb: "", done: false },
@@ -607,7 +654,7 @@ describe("upsertVariation", () => {
     expect(skuValueReservationRows.filter((row) => row.normalizedSku === "1-servicos-10-1-05")).toHaveLength(1);
   });
 
-  it("bloqueia duplicidade encapsulada quando a reserva pertence a outra origem", async () => {
+  it("permite repetição manual mesmo quando a reserva pertence a outra origem", async () => {
     skuValueReservationRows.push({
       id: 2,
       normalizedSku: "sku-de-outra-variacao",
@@ -617,21 +664,38 @@ describe("upsertVariation", () => {
     });
     wrapSkuValueDuplicateErrorOnce = true;
 
-    await expect(
-      editVariationSkuManually({
-        skuRowId: 1,
-        variationIndex: 5,
-        baseSku: "1-SERVICOS-10-1",
-        newSku: "SKU-DE-OUTRA-VARIACAO",
-        expectedRevision: 0,
-        actor: "Teste automatizado",
-      }),
-    ).rejects.toThrow("SKU_VARIACAO_DUPLICADO");
+    const result = await editVariationSkuManually({
+      skuRowId: 1,
+      variationIndex: 5,
+      baseSku: "1-SERVICOS-10-1",
+      newSku: "SKU-DE-OUTRA-VARIACAO",
+      expectedRevision: 0,
+      actor: "Teste automatizado",
+    });
 
-    expect(variations).toHaveLength(0);
+    expect(result.updated.variationSku).toBe("SKU-DE-OUTRA-VARIACAO");
+    expect(variations).toHaveLength(1);
     expect(skuValueReservationRows.find((row) => row.normalizedSku === "sku-de-outra-variacao")).toMatchObject({
       sourceKey: "99:7",
     });
+  });
+
+  it("continua bloqueando repetição na criação automática de uma variação", async () => {
+    skuValueReservationRows.push({
+      id: 2,
+      normalizedSku: "1-servicos-10-1-05",
+      originalSku: "1-SERVICOS-10-1-05",
+      sourceType: "variation",
+      sourceKey: "99:5",
+    });
+
+    await expect(
+      upsertVariation(1, 5, "1-SERVICOS-10-1", {
+        ean: "EAN-AUTOMATICO",
+        expectedRevision: 0,
+      }),
+    ).rejects.toThrow("SKU_VARIACAO_DUPLICADO");
+    expect(variations).toHaveLength(0);
   });
 
   it("reverte SKU e reserva da variação se o histórico falhar", async () => {
@@ -668,21 +732,49 @@ describe("upsertVariation", () => {
     expect(variations).toHaveLength(0);
   });
 
-  it("bloqueia SKU manual duplicado usando normalização de espaços, pontos e caixa", async () => {
+  it("permite SKU manual repetido usando normalização de espaços, pontos e caixa", async () => {
     variations = [
       { id: 32, skuRowId: 1, variationIndex: 2, variationSku: "SKU-EXISTENTE", ean: "", mlb: "", done: false, isDeleted: false },
     ];
-    await expect(
-      editVariationSkuManually({
-        skuRowId: 1,
-        variationIndex: 3,
-        baseSku: "1-SERVICOS-10-1",
-        newSku: " sku.existente ",
-        expectedRevision: 0,
-        actor: "Teste automatizado",
-      }),
-    ).rejects.toThrow("SKU_VARIACAO_DUPLICADO");
-    expect(variations).toHaveLength(1);
+    skuValueReservationRows.push({
+      id: 2,
+      normalizedSku: "sku-existente",
+      originalSku: "SKU-EXISTENTE",
+      sourceType: "variation",
+      sourceKey: "1:2",
+    });
+    const result = await editVariationSkuManually({
+      skuRowId: 1,
+      variationIndex: 3,
+      baseSku: "1-SERVICOS-10-1",
+      newSku: " sku.existente ",
+      expectedRevision: 0,
+      actor: "Teste automatizado",
+    });
+    expect(result.updated.variationSku).toBe("sku.existente");
+    expect(variations).toHaveLength(2);
+    expect(skuValueReservationRows.filter((row) => row.normalizedSku === "sku-existente")).toHaveLength(1);
+  });
+
+  it("preserva um SKU repetido manualmente ao editar seus metadados depois", async () => {
+    variations = [
+      { id: 32, skuRowId: 1, variationIndex: 2, variationSku: "SKU-REPETIDO", ean: "ANTIGO", mlb: "", done: false, revision: 1 },
+      { id: 33, skuRowId: 9, variationIndex: 1, variationSku: "SKU-REPETIDO", ean: "", mlb: "", done: false, revision: 1 },
+    ];
+    skuValueReservationRows.push({
+      id: 2,
+      normalizedSku: "sku-repetido",
+      originalSku: "SKU-REPETIDO",
+      sourceType: "variation",
+      sourceKey: "9:1",
+    });
+
+    const result = await upsertVariation(1, 2, "1-SERVICOS-10-1", {
+      ean: "NOVO",
+      expectedRevision: 1,
+    });
+    expect(result).toMatchObject({ variationSku: "SKU-REPETIDO", ean: "NOVO", revision: 2 });
+    expect(skuValueReservationRows.filter((row) => row.normalizedSku === "sku-repetido")).toHaveLength(1);
   });
 
   it("não permite editar nem ressuscitar um índice já excluído", async () => {
@@ -703,21 +795,28 @@ describe("upsertVariation", () => {
     expect(variations[0].isDeleted).toBe(true);
   });
 
-  it("mantém reservado o SKU de uma variação excluída", async () => {
+  it("permite repetir manualmente o SKU de uma variação excluída sem ressuscitá-la", async () => {
     variations = [
       { id: 34, skuRowId: 1, variationIndex: 6, variationSku: "SKU.RESERVADO", ean: "", mlb: "", done: false, isDeleted: true },
     ];
-    await expect(
-      editVariationSkuManually({
-        skuRowId: 1,
-        variationIndex: 7,
-        baseSku: "1-SERVICOS-10-1",
-        newSku: " sku-reservado ",
-        expectedRevision: 0,
-        actor: "Teste automatizado",
-      }),
-    ).rejects.toThrow("SKU_VARIACAO_DUPLICADO");
-    expect(variations).toHaveLength(1);
+    skuValueReservationRows.push({
+      id: 2,
+      normalizedSku: "sku-reservado",
+      originalSku: "SKU.RESERVADO",
+      sourceType: "variation",
+      sourceKey: "1:6",
+    });
+    const result = await editVariationSkuManually({
+      skuRowId: 1,
+      variationIndex: 7,
+      baseSku: "1-SERVICOS-10-1",
+      newSku: " sku-reservado ",
+      expectedRevision: 0,
+      actor: "Teste automatizado",
+    });
+    expect(result.updated.variationSku).toBe("sku-reservado");
+    expect(variations.find((row) => row.variationIndex === 6)?.isDeleted).toBe(true);
+    expect(variations.find((row) => row.variationIndex === 7)?.isDeleted).toBe(false);
   });
 
   it("não sobrescreve uma variação inserida simultaneamente por outra aba", async () => {
@@ -940,16 +1039,16 @@ describe("política imutável da linha principal", () => {
     expect(context).toMatchObject({ requiresDecision: true, matches: [] });
   });
 
-  it("bloqueia SKU manual que já está reservado", async () => {
+  it("permite SKU repetido quando a decisão é manual", async () => {
     addPendingRow();
-    await expect(
-      applySkuDecision({
-        skuRowId: 2,
-        mode: "manual",
-        manualSku: " 1.servicos.10.1 ",
-        expectedRevision: 1,
-      }),
-    ).rejects.toThrow("SKU_MANUAL_DUPLICADO");
+    const updated = await applySkuDecision({
+      skuRowId: 2,
+      mode: "manual",
+      manualSku: " 1.servicos.10.1 ",
+      expectedRevision: 1,
+    });
+    expect(updated).toMatchObject({ sku: "1.servicos.10.1", skuMode: "manual" });
+    expect(skuValueReservationRows.filter((row) => row.normalizedSku === "1-servicos-10-1")).toHaveLength(1);
   });
 
   it("rejeita uma decisão baseada em revisão desatualizada", async () => {
@@ -1093,7 +1192,7 @@ describe("política imutável da linha principal", () => {
     expect(productReservations.map((row) => row.productNumber).sort((a, b) => a - b)).toEqual([10, 11, 12]);
   });
 
-  it("permite somente uma reserva quando duas linhas tentam o mesmo SKU manual", async () => {
+  it("permite duas linhas escolherem simultaneamente o mesmo SKU manual", async () => {
     addPendingRow();
     skuRows.push({
       ...skuRows[1],
@@ -1119,9 +1218,54 @@ describe("política imutável da linha principal", () => {
       }),
     ]);
 
-    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
-    expect(skuRows.filter((row) => row.skuMode === "manual")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(2);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(0);
+    expect(skuRows.filter((row) => row.skuMode === "manual")).toHaveLength(2);
+    expect(skuValueReservationRows.filter((row) => row.normalizedSku === "sku-concorrente")).toHaveLength(1);
+  });
+
+  it("mantém a reserva append-only quando o criador perde o CAS e outro manual vence", async () => {
+    addPendingRow();
+    skuRows.push({
+      ...skuRows[1],
+      id: 3,
+      position: 3,
+      produto: "Produto vencedor",
+      variante: "Variante vencedora",
+      revision: 1,
+    });
+    manualDuplicateWinnerBeforeCasOnce = {
+      loserRowId: 2,
+      winnerRowId: 3,
+      sku: "1-SERVICOS-10-1-05",
+    };
+
+    await expect(
+      applySkuDecision({
+        skuRowId: 2,
+        mode: "manual",
+        manualSku: "1-SERVICOS-10-1-05",
+        expectedRevision: 1,
+      }),
+    ).rejects.toThrow("SKU_DECISION_STALE");
+
+    expect(skuRows.find((row) => row.id === 3)).toMatchObject({
+      sku: "1-SERVICOS-10-1-05",
+      skuMode: "manual",
+    });
+    expect(skuValueReservationRows).toContainEqual(
+      expect.objectContaining({
+        normalizedSku: "1-servicos-10-1-05",
+        sourceType: "main",
+        sourceKey: "2",
+      }),
+    );
+    await expect(
+      upsertVariation(1, 5, "1-SERVICOS-10-1", {
+        ean: "AUTO-BLOQUEADO",
+        expectedRevision: 0,
+      }),
+    ).rejects.toThrow("SKU_VARIACAO_DUPLICADO");
   });
 
   it("edita manualmente só o texto do SKU principal e preserva números e variações", async () => {
@@ -1179,7 +1323,7 @@ describe("política imutável da linha principal", () => {
     expect(changeLogs).toHaveLength(0);
   });
 
-  it("permite digitar o SKU de outra linha quando é o mesmo produto e registra reuse", async () => {
+  it("permite repetir o SKU de outra linha e registra como edição manual", async () => {
     skuRows.push({
       ...skuRows[0],
       id: 2,
@@ -1206,12 +1350,12 @@ describe("política imutável da linha principal", () => {
       sku: "1-SERVICOS-10-1",
       productNumber: 20,
       variantNumber: 3,
-      skuMode: "reuse",
-      skuSourceRowId: 1,
+      skuMode: "manual",
+      skuSourceRowId: null,
     });
   });
 
-  it("bloqueia digitar o SKU de outro produto diferente", async () => {
+  it("permite digitar o SKU de outro produto diferente", async () => {
     skuRows.push({
       ...skuRows[0],
       id: 2,
@@ -1221,15 +1365,22 @@ describe("política imutável da linha principal", () => {
       sku: "SKU-OUTRO-PRODUTO",
       revision: 1,
     });
-    await expect(
-      editMainSkuManually({
-        skuRowId: 1,
-        newSku: "SKU-OUTRO-PRODUTO",
-        expectedRevision: 1,
-        actor: "Teste automatizado",
-      }),
-    ).rejects.toThrow("SKU_MANUAL_DUPLICADO");
-    expect(skuRows[0].sku).toBe("1-SERVICOS-10-1");
+    skuValueReservationRows.push({
+      id: 2,
+      normalizedSku: "sku-outro-produto",
+      originalSku: "SKU-OUTRO-PRODUTO",
+      sourceType: "main",
+      sourceKey: "2",
+    });
+    const result = await editMainSkuManually({
+      skuRowId: 1,
+      newSku: "SKU-OUTRO-PRODUTO",
+      expectedRevision: 1,
+      actor: "Teste automatizado",
+    });
+    expect(result.updated).toMatchObject({ sku: "SKU-OUTRO-PRODUTO", skuMode: "manual" });
+    expect(skuRows[1].sku).toBe("SKU-OUTRO-PRODUTO");
+    expect(skuValueReservationRows.filter((row) => row.normalizedSku === "sku-outro-produto")).toHaveLength(1);
   });
 
   it("rejeita edição manual principal baseada em revisão desatualizada", async () => {
@@ -1244,18 +1395,25 @@ describe("política imutável da linha principal", () => {
     expect(skuRows[0].sku).toBe("1-SERVICOS-10-1");
   });
 
-  it("rejeita SKU principal manual que pertence a uma variação", async () => {
+  it("permite SKU principal manual que também pertence a uma variação", async () => {
     variations = [
       { id: 81, skuRowId: 1, variationIndex: 1, variationSku: "SKU-DA-VARIACAO", ean: "", mlb: "", done: false },
     ];
-    await expect(
-      editMainSkuManually({
-        skuRowId: 1,
-        newSku: "sku.da.variacao",
-        expectedRevision: 1,
-        actor: "Teste automatizado",
-      }),
-    ).rejects.toThrow("SKU_MANUAL_DUPLICADO");
+    skuValueReservationRows.push({
+      id: 2,
+      normalizedSku: "sku-da-variacao",
+      originalSku: "SKU-DA-VARIACAO",
+      sourceType: "variation",
+      sourceKey: "1:1",
+    });
+    const result = await editMainSkuManually({
+      skuRowId: 1,
+      newSku: "sku.da.variacao",
+      expectedRevision: 1,
+      actor: "Teste automatizado",
+    });
+    expect(result.updated).toMatchObject({ sku: "sku.da.variacao", skuMode: "manual" });
+    expect(variations[0].variationSku).toBe("SKU-DA-VARIACAO");
   });
 
   it("exclui logicamente sem apagar nem renumerar o registro", async () => {

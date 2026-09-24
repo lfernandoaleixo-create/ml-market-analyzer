@@ -59,6 +59,9 @@ const correctedVariantLogs = logs.filter(
 const explicitFinalizationLogs = logs.filter(
   (row) => row.idempotencyKey === "authorized-explicit-sku-finalization-20260924",
 );
+const manualDuplicatePolicyLogs = logs.filter(
+  (row) => row.idempotencyKey === "policy-manual-duplicate-sku-2026-09-24",
+);
 
 const workbookBuffer = await buildSheetsWorkbookBuffer();
 const workbook = XLSX.read(workbookBuffer, { type: "buffer" });
@@ -117,6 +120,9 @@ const report = {
     correctedVariantAuthorizedBy: correctedVariantLogs[0]?.authorizedBy ?? null,
     explicitFinalizationLogs: explicitFinalizationLogs.length,
     explicitFinalizationAffectedCount: explicitFinalizationLogs[0]?.affectedCount ?? null,
+    manualDuplicatePolicyLogs: manualDuplicatePolicyLogs.length,
+    manualDuplicateAuthorizedBy: manualDuplicatePolicyLogs[0]?.authorizedBy ?? null,
+    manualDuplicateAffectedCount: manualDuplicatePolicyLogs[0]?.affectedCount ?? null,
   },
   backup: {
     sheets: workbook.SheetNames,
@@ -161,6 +167,13 @@ if (
   explicitFinalizationLogs[0]?.affectedCount !== 0
 ) {
   throw new Error("A autorização da Variante/finalização explícita está inconsistente.");
+}
+if (
+  manualDuplicatePolicyLogs.length !== 1 ||
+  manualDuplicatePolicyLogs[0]?.authorizedBy !== "Guilherme" ||
+  manualDuplicatePolicyLogs[0]?.affectedCount !== 0
+) {
+  throw new Error("A autorização da repetição manual de SKU está inconsistente.");
 }
 if (!report.backup.includesAllSkuRows || !report.backup.includesProductReservations || !report.backup.includesVariantReservations || !report.backup.includesSkuValueReservations || !report.backup.includesProductNumberVoidMarker) {
   throw new Error("O backup técnico não cobre todo o estado de SKU.");

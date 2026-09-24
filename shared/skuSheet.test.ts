@@ -318,6 +318,22 @@ describe("analyzeDuplicates — decisões explícitas de SKU", () => {
     expect(result.skuCollisions).toHaveLength(0);
   });
 
+  it("não acusa colisão quando uma identidade diferente repetiu o SKU manualmente", () => {
+    const result = analyzeDuplicates([
+      { id: 1, position: 1, ...base, skuMode: "legacy", skuSourceRowId: null },
+      {
+        id: 2,
+        position: 2,
+        ...base,
+        produto: "Outro produto",
+        variante: "Outra variante",
+        skuMode: "manual",
+        skuSourceRowId: null,
+      },
+    ]);
+    expect(result.skuCollisions).toHaveLength(0);
+  });
+
   it("não acusa como erro uma nova linha enquanto ela aguarda decisão", () => {
     const result = analyzeDuplicates([
       { id: 1, position: 1, ...base, skuMode: "legacy", skuSourceRowId: null },

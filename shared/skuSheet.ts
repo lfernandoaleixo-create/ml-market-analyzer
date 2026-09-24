@@ -468,7 +468,7 @@ export interface DuplicateAnalysisRow {
   productNumber: number | null;
   variantNumber: number | null;
   sku: string | null;
-  /** Reutilização explícita de SKU não é tratada como erro de duplicidade. */
+  /** Reutilização ou digitação manual explícita não é tratada como erro. */
   skuMode?: SkuMode | string;
   skuSourceRowId?: number | null;
 }
@@ -609,7 +609,7 @@ export function analyzeDuplicates(rows: DuplicateAnalysisRow[]): DuplicateAnalys
   // Comparação normalizada (case-insensitive, sem espaços/pontos).
   const bySku = new Map<string, DuplicateAnalysisRow[]>();
   for (const r of rows) {
-    if (r.skuMode === "reuse" && r.skuSourceRowId != null) continue;
+    if ((r.skuMode === "reuse" && r.skuSourceRowId != null) || r.skuMode === "manual") continue;
     const s = normalizeSku(r.sku);
     if (!s) continue;
     const bucket = bySku.get(s);

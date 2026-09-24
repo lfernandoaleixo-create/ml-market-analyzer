@@ -1195,9 +1195,10 @@ export const skuVariantNumberReservations = mysqlTable(
 export type SkuVariantNumberReservation = typeof skuVariantNumberReservations.$inferSelect;
 
 /**
- * Reserva global do SKU normalizado. É append-only e impede atomicamente que
- * duas requisições finalizem o mesmo SKU por engano. Reutilizações intencionais
- * não criam outra reserva: apontam para a linha-fonte já reservada.
+ * Reserva histórica global do SKU normalizado. É append-only e impede que a
+ * geração automática finalize o mesmo SKU por engano. Repetições digitadas
+ * manualmente são permitidas e não criam outra reserva; a primeira ocorrência
+ * continua documentando que esse valor já existia.
  */
 export const skuValueReservations = mysqlTable(
   "sku_value_reservations",

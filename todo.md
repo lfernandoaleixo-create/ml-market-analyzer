@@ -2002,3 +2002,23 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Concluir revisão independente final sem P0/P1/P2 bloqueador
 - [x] Gerar e abrir backup interno final: 271.673 bytes, 14 abas, 72 linhas técnicas e logs autorizados
 - [x] Salvar checkpoint conjunto `034d4bc5` e sincronizar GitHub
+
+## Repetição intencional de SKU no fluxo manual (24/set — autorizado por Guilherme)
+- [x] Permitir que o lápis do SKU principal repita qualquer SKU não vazio
+- [x] Permitir que o lápis da variação repita o SKU principal, outra variação, outro produto ou tombstone
+- [x] Permitir repetição também na opção “Editar manualmente” de uma linha nova pendente
+- [x] Manter geração automática e botão Adicionar protegidos contra duplicidade acidental
+- [x] Preservar Nº Produto, Nº Variante, índices, EAN, MLB, OK e demais colunas
+- [x] Manter uma única reserva histórica por valor normalizado, sem apagar reservas antigas
+- [x] Tornar `sku_value_reservations` realmente append-only: nenhum CAS/rollback pode apagar uma reserva
+- [x] Corrigir a corrida “criador perde o CAS + repetidor manual vence” e manter a automação bloqueada
+- [x] Adicionar regressão determinística do interleaving concorrente encontrado na revisão independente
+- [x] Garantir que editar EAN/MLB/OK depois de repetir o SKU não falhe
+- [x] Não exibir repetição manual autorizada como “colisão de SKU” na análise visual
+- [x] Informar no popover que “SKU manual pode repetir”
+- [x] Registrar a política no `sku_change_log` com autorizador Guilherme e `affectedCount=0`
+- [x] Confirmar 124 testes focados, TypeScript, build e suíte ampla com 904/904 testes (sem `.live.test.ts`)
+- [x] Auditar banco: nenhum SKU principal foi alterado; hash imutável preservado; autorização íntegra
+- [x] Concluir segunda revisão independente sem P0/P1/P2; P1 append-only confirmado fechado
+- [x] Gerar e abrir backup interno final: 273.372 bytes, 14 abas, 72 linhas e todas as reservas
+- [ ] Salvar checkpoint final e sincronizar GitHub

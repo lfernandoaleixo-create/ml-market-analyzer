@@ -171,7 +171,6 @@ export const skuSheetRouter = router({
           FONTE_SKU_INVALIDA: "O produto de referência não é mais válido. Atualize o card e tente novamente.",
           DADOS_SKU_INCOMPLETOS: "Preencha tipo, categoria, produto e variante para gerar o SKU.",
           SKU_MANUAL_OBRIGATORIO: "Digite o SKU manual antes de confirmar.",
-          SKU_MANUAL_DUPLICADO: "Este SKU já existe. Para repeti-lo, escolha “Manter o mesmo SKU”.",
           SKU_DECISION_STALE: "A linha mudou enquanto o card estava aberto. Atualize as opções e confirme novamente.",
           SKU_DECISION_NOT_ALLOWED: "Este SKU já foi finalizado e não pode ser redefinido.",
           SKU_VALUE_ALREADY_RESERVED: "Este SKU acabou de ser reservado em outra linha. Atualize o card e tente novamente.",
@@ -182,7 +181,7 @@ export const skuSheetRouter = router({
       }
     }),
 
-  /** Edita manualmente o SKU principal, sem senha e sem tocar nos números/variações. */
+  /** Edita manualmente o SKU principal; repetição intencional é permitida e auditada. */
   editMainSku: protectedProcedure
     .input(
       z.object({
@@ -202,8 +201,6 @@ export const skuSheetRouter = router({
         const messages: Record<string, string> = {
           LINHA_SKU_NAO_ENCONTRADA: "Linha de SKU não encontrada.",
           SKU_MANUAL_OBRIGATORIO: "O SKU principal não pode ficar vazio.",
-          SKU_MANUAL_DUPLICADO: "Este SKU já pertence a outro produto ou variação.",
-          SKU_VALUE_ALREADY_RESERVED: "Este SKU está reservado e não pode ser reutilizado aqui.",
           SKU_DECISION_STALE: "A linha mudou em outra aba. Os dados foram recarregados; tente novamente.",
         };
         const friendly = messages[error?.message];
@@ -330,7 +327,7 @@ export const skuSheetRouter = router({
       }
     }),
 
-  /** Edita somente o SKU da variação, sem senha, com histórico e CAS. */
+  /** Edita o SKU da variação; repetição intencional é permitida, com histórico e CAS. */
   editVariationSku: protectedProcedure
     .input(
       z.object({
@@ -350,7 +347,6 @@ export const skuSheetRouter = router({
         return result.updated;
       } catch (error: any) {
         const messages: Record<string, string> = {
-          SKU_VARIACAO_DUPLICADO: "Este SKU já está sendo usado por outro produto ou variação.",
           SKU_VARIACAO_OBRIGATORIO: "O SKU da variação não pode ficar vazio.",
           VARIACAO_EXCLUIDA_PERMANENTE: "Esta variação foi excluída e não pode ser editada.",
           VARIACAO_CONCORRENTE: "Esta variação mudou em outra aba. Os dados foram recarregados; tente novamente.",

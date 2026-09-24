@@ -50,7 +50,8 @@ type VariationRow = {
 /**
  * Gestão manual das variações do SKU. As variações podem ser adicionadas,
  * editadas e excluídas sem senha. A exclusão sempre exige confirmação e é
- * lógica no servidor, preservando o índice/SKU para nunca ser reutilizado.
+ * lógica no servidor, preservando o índice. O lápis aceita repetição manual
+ * intencional de SKU; a geração automática continua protegida.
  */
 export default function SkuVariationsPopover({
   skuRowId,
@@ -255,6 +256,7 @@ export default function SkuVariationsPopover({
                 <div className="mb-1 flex items-center justify-between gap-2 px-2 pb-1.5">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Variações ({variations?.length ?? 0})
+                    <span className="ml-2 normal-case font-normal tracking-normal">· SKU manual pode repetir</span>
                   </span>
                   <Button
                     type="button"
@@ -388,7 +390,7 @@ function SkuDecisionPanel({
             : "Terminou de preencher o produto? Escolha como definir o SKU."}
         </p>
         <p className="mt-1 text-xs leading-relaxed opacity-80">
-          Até confirmar uma opção, Produto e Variante continuam editáveis. A escolha afeta somente esta nova linha.
+          Até confirmar uma opção, Produto e Variante continuam editáveis. Na edição manual, um SKU já usado pode ser repetido de propósito.
         </p>
       </div>
 
@@ -594,7 +596,7 @@ function MainSkuRow({
                     setEditingSku(true);
                   }}
                   className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-primary/70 transition-colors hover:bg-primary/10 hover:text-primary"
-                  title="Editar SKU principal manualmente"
+                  title="Editar SKU principal manualmente (repetição permitida)"
                   aria-label="Editar SKU principal manualmente"
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -801,7 +803,7 @@ function VariationRowEditor({
                   setEditingSku(true);
                 }}
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-primary/70 hover:bg-primary/10 hover:text-primary"
-                title={`Editar ${variation.variationSku}`}
+                title={`Editar ${variation.variationSku} manualmente (repetição permitida)`}
                 aria-label={`Editar SKU da variação ${variation.variationIndex}`}
               >
                 <Pencil className="h-3.5 w-3.5" />
