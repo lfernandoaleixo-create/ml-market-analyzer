@@ -1951,4 +1951,4 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Corrigir os 3 achados P1 da revisão independente e obter nova revisão sem P0/P1
 - [x] Confirmar 115 testes focados, TypeScript, build e suíte ampla com 893/893 testes (sem `.live.test.ts`)
 - [x] Auditar o banco sem alterações: 71 linhas ativas, 0 excluídas, hash imutável preservado
-- [ ] Salvar checkpoint do release
+- [x] Salvar checkpoint do release (`297158f1`)
