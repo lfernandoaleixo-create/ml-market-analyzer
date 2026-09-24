@@ -135,7 +135,7 @@ export type SkuStyleBinding = {
   customColumns: CustomColumn[] | undefined;
   update: (input: { id: number; expectedRevision: number } & Partial<SkuRow>) => void;
   create: (input: Partial<SkuRow>) => void;
-  remove: (id: number, expectedRevision: number) => void;
+  remove: (id: number) => void;
   createColumn: (name: string) => void;
   renameColumn: (id: number, name: string) => void;
   deleteColumn: (id: number) => void;
@@ -264,8 +264,8 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
   };
   const createMut = { mutate: (input: Partial<SkuRow>) => binding.create(input), isPending: binding.createPending };
   const deleteMut = {
-    mutate: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => {
-      binding.remove(id, expectedRevision);
+    mutate: ({ id }: { id: number }) => {
+      binding.remove(id);
       setDeleteId(null);
     },
   };
@@ -759,9 +759,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                if (deleteId && deletingRow?.revision) {
-                  deleteMut.mutate({ id: deleteId, expectedRevision: deletingRow.revision });
-                }
+                if (deleteId) deleteMut.mutate({ id: deleteId });
               }}
             >
               Sim, excluir logicamente
@@ -939,13 +937,26 @@ type RowEditorProps = {
 
 function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, onField, onFieldNow, onDelete, onEdit, onCustomValue, isLocked, onUnlock, onRelock, supportsSkuDecisions, selection }: RowEditorProps) {
   const [local, setLocal] = useState<SkuRow>(row);
+  const rowElementRef = useRef<HTMLTableRowElement>(null);
+  const lastLocalEditAtRef = useRef(0);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelPendingSync = () => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = null;
+  };
+
+  useEffect(() => () => cancelPendingSync(), []);
 
   const rowRef = useRef(row);
   useEffect(() => {
     const changedRow = rowRef.current.id !== row.id;
     rowRef.current = row;
+    const isEditingThisRow = Boolean(
+      rowElementRef.current && document.activeElement && rowElementRef.current.contains(document.activeElement),
+    ) || Date.now() - lastLocalEditAtRef.current < 1_200;
     setLocal((previous) =>
-      changedRow
+      changedRow || !isEditingThisRow
         ? row
         : {
             ...previous,
@@ -960,28 +971,25 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
             rowColor: row.rowColor,
           },
     );
-  }, [
-    row.id,
-    row.productNumber,
-    row.variantNumber,
-    row.sku,
-    row.skuKit,
-    row.skuMode,
-    row.skuSourceRowId,
-    row.skuDecisionAt,
-    row.revision,
-    row.rowColor,
-  ]);
+  }, [row]);
 
-  const set = (patch: Partial<SkuRow>) => setLocal((p) => ({ ...p, ...patch }));
+  const set = (patch: Partial<SkuRow>) => {
+    cancelPendingSync();
+    lastLocalEditAtRef.current = Date.now();
+    setLocal((p) => ({ ...p, ...patch }));
+  };
 
   // Valores das colunas personalizadas desta linha (estado local p/ digitar sem travar).
   const [customVals, setCustomVals] = useState<Record<string, string>>(() => parseCustomValues(row.customValues));
   const customRef = useRef(row.customValues);
-  if (customRef.current !== row.customValues) {
+  useEffect(() => {
+    if (customRef.current === row.customValues) return;
     customRef.current = row.customValues;
-    setCustomVals(parseCustomValues(row.customValues));
-  }
+    const isEditingThisRow = Boolean(
+      rowElementRef.current && document.activeElement && rowElementRef.current.contains(document.activeElement),
+    ) || Date.now() - lastLocalEditAtRef.current < 1_200;
+    if (!isEditingThisRow) setCustomVals(parseCustomValues(row.customValues));
+  }, [row.customValues]);
 
   // Campos que impactam SKU são apenas enviados ao servidor. O navegador nunca
   // reserva números nem recalcula SKUs, evitando corrida entre abas e reciclagem.
@@ -1121,7 +1129,29 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
   const zebra = local.rowColor ? colorBg : index % 2 === 1 ? "color-mix(in oklch, var(--muted) 40%, transparent)" : "transparent";
 
   return (
-    <tr className="border-b border-border/60 align-top transition-colors" style={{ background: zebra }}>
+    <tr
+      ref={rowElementRef}
+      className="border-b border-border/60 align-top transition-colors"
+      style={{ background: zebra }}
+      onFocusCapture={cancelPendingSync}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          // Ao terminar a edição da linha, aplica a versão mais recente recebida
+          // do servidor (inclusive mudanças feitas por outro usuário).
+          cancelPendingSync();
+          syncTimerRef.current = setTimeout(() => {
+            const focusReturnedToRow = Boolean(
+              rowElementRef.current && document.activeElement && rowElementRef.current.contains(document.activeElement),
+            );
+            if (focusReturnedToRow || Date.now() - lastLocalEditAtRef.current < 1_200) return;
+            setLocal(rowRef.current);
+            customRef.current = rowRef.current.customValues;
+            setCustomVals(parseCustomValues(rowRef.current.customValues));
+            syncTimerRef.current = null;
+          }, 1_250);
+        }
+      }}
+    >
       {selection && (
         <td
           className="sticky left-0 z-10 px-2 py-2 border-r border-border/40 text-center"
@@ -1333,6 +1363,8 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
             disabled={isLocked}
             onChange={(e) => {
               const v = e.target.value;
+              cancelPendingSync();
+              lastLocalEditAtRef.current = Date.now();
               setCustomVals((p) => ({ ...p, [String(c.id)]: v }));
               onCustomValue(row.id, c.id, v);
               autoGrow(e.target);
@@ -1396,7 +1428,14 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
               </div>
             </PopoverContent>
           </Popover>
-          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={onDelete} disabled={isLocked}>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={onDelete}
+            title="Excluir linha (sem senha)"
+            aria-label="Excluir linha"
+          >
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -1561,18 +1600,50 @@ type EditRowDialogProps = {
 function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSaveCustom }: EditRowDialogProps) {
   const [draft, setDraft] = useState<SkuRow | null>(row);
   const [customDraft, setCustomDraft] = useState<Record<string, string>>(() => parseCustomValues(row?.customValues));
+  const dirtyFieldsRef = useRef<Set<keyof SkuRow>>(new Set());
+  const dirtyCustomRef = useRef<Set<string>>(new Set());
 
-  // Sincroniza quando abrir uma linha diferente (key no pai já remonta, mas garantimos).
+  // Mescla atualizações de outras pessoas sem sobrescrever os campos que estão
+  // sendo editados neste modal. Ao trocar de linha, reinicia o rascunho.
   const idRef = useRef(row?.id ?? null);
-  if (idRef.current !== (row?.id ?? null)) {
-    idRef.current = row?.id ?? null;
-    setDraft(row);
-    setCustomDraft(parseCustomValues(row?.customValues));
-  }
+  useEffect(() => {
+    const nextId = row?.id ?? null;
+    if (idRef.current !== nextId) {
+      idRef.current = nextId;
+      dirtyFieldsRef.current.clear();
+      dirtyCustomRef.current.clear();
+      setDraft(row);
+      setCustomDraft(parseCustomValues(row?.customValues));
+      return;
+    }
+    if (!row) {
+      setDraft(null);
+      return;
+    }
+    setDraft((previous) => {
+      if (!previous) return row;
+      const merged = { ...row } as SkuRow;
+      const mergedRecord = merged as unknown as Record<string, unknown>;
+      const previousRecord = previous as unknown as Record<string, unknown>;
+      dirtyFieldsRef.current.forEach((field) => {
+        mergedRecord[String(field)] = previousRecord[String(field)];
+      });
+      return merged;
+    });
+    const serverCustom = parseCustomValues(row.customValues);
+    setCustomDraft((previous) => {
+      const merged = { ...serverCustom };
+      dirtyCustomRef.current.forEach((key) => {
+        merged[key] = previous[key] ?? "";
+      });
+      return merged;
+    });
+  }, [row]);
 
   if (!draft) return null;
 
   const upd = (patch: Partial<SkuRow>) => {
+    for (const field of Object.keys(patch) as (keyof SkuRow)[]) dirtyFieldsRef.current.add(field);
     setDraft((previous) => (previous ? { ...previous, ...patch } : previous));
   };
 
@@ -1582,40 +1653,17 @@ function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSave
   };
 
   const handleSave = () => {
-    const patch: Partial<SkuRow> = {
-      cadastradoMl: draft.cadastradoMl,
-      tipoSku: draft.tipoSku,
-      categoryId: draft.categoryId,
-      categoryName: draft.categoryName,
-      subCategoryId: draft.subCategoryId,
-      subCategoryName: draft.subCategoryName,
-      produto: draft.produto,
-      productNumber: draft.productNumber,
-      variante: draft.variante,
-      variantNumber: draft.variantNumber,
-      sku: draft.sku,
-      gerarSkuKit: draft.gerarSkuKit,
-      skuKit: draft.skuKit,
-      eanGtin: draft.eanGtin,
-      ncm: draft.ncm,
-      gpc: draft.gpc,
-      cest: draft.cest,
-      precoClassico: draft.precoClassico,
-      precoPremium: draft.precoPremium,
-      precoAtacado: draft.precoAtacado,
-      embProfundidade: draft.embProfundidade,
-      embLargura: draft.embLargura,
-      embAltura: draft.embAltura,
-      embPeso: draft.embPeso,
-      caracteristicas: draft.caracteristicas,
-    };
-    onSave(draft.id, patch);
+    const patch: Partial<SkuRow> = {};
+    const patchRecord = patch as Record<string, unknown>;
+    const draftRecord = draft as unknown as Record<string, unknown>;
+    dirtyFieldsRef.current.forEach((field) => {
+      patchRecord[String(field)] = draftRecord[String(field)];
+    });
+    if (dirtyFieldsRef.current.size > 0) onSave(draft.id, patch);
     // Salva valores das colunas personalizadas alterados.
-    const original = parseCustomValues(row?.customValues);
     for (const c of customColumns) {
       const key = String(c.id);
-      const val = customDraft[key] ?? "";
-      if (val !== (original[key] ?? "")) onSaveCustom(draft.id, c.id, val);
+      if (dirtyCustomRef.current.has(key)) onSaveCustom(draft.id, c.id, customDraft[key] ?? "");
     }
     toast.success("Linha salva");
     onClose();
@@ -1785,7 +1833,11 @@ function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSave
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">{c.name || "(sem nome)"}</label>
                     <Input
                       value={customDraft[String(c.id)] ?? ""}
-                      onChange={(e) => setCustomDraft((p) => ({ ...p, [String(c.id)]: e.target.value }))}
+                      onChange={(e) => {
+                        const key = String(c.id);
+                        dirtyCustomRef.current.add(key);
+                        setCustomDraft((p) => ({ ...p, [key]: e.target.value }));
+                      }}
                     />
                   </div>
                 ))}

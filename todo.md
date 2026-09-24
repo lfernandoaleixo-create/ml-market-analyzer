@@ -1935,3 +1935,20 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Confirmar 111 testes focados, TypeScript, build e suíte ampla com 889/889 testes (sem `.live.test.ts`)
 - [x] Concluir segunda revisão independente sem bloqueadores P0/P1
 - [x] Salvar checkpoint `5de793e3` e validar GitHub alinhado (ahead=0, behind=0)
+
+## Exclusão liberada e sincronização colaborativa da Planilha SKU (24/set)
+- [x] Liberar a lixeira de linhas SKU bloqueadas para qualquer usuário autenticado, sem senha adicional
+- [x] Comprovar por teste tRPC que usuário comum (`role=user`, cenário Rafaela) exclui linha e variação
+- [x] Tornar exclusão de linha idempotente e independente da revisão antiga exibida no navegador
+- [x] Tornar exclusão de variação idempotente e resistente à criação simultânea em outra aba
+- [x] Preservar exclusão lógica, tombstones, números e SKUs sem renumerar nem reutilizar
+- [x] Atualizar a lista da planilha automaticamente a cada 1 segundo entre usuários e abas
+- [x] Atualizar o popover de variações e as decisões de SKU automaticamente a cada 1 segundo
+- [x] Atualizar colunas personalizadas automaticamente a cada 1 segundo
+- [x] Preservar o texto local enquanto a pessoa está digitando e aplicar dados remotos ao sair da linha/campo
+- [x] Tornar o modal colaborativo: mesclar dados remotos e salvar somente os campos alterados localmente
+- [x] Tornar `customValues` concorrente seguro com compare-and-swap/retry, sem perda entre chaves diferentes
+- [x] Corrigir os 3 achados P1 da revisão independente e obter nova revisão sem P0/P1
+- [x] Confirmar 115 testes focados, TypeScript, build e suíte ampla com 893/893 testes (sem `.live.test.ts`)
+- [x] Auditar o banco sem alterações: 71 linhas ativas, 0 excluídas, hash imutável preservado
+- [ ] Salvar checkpoint do release

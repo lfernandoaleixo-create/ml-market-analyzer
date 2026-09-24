@@ -72,11 +72,23 @@ export default function SkuVariationsPopover({
 
   const { data: variations, isLoading, refetch } = trpc.skuSheet.getVariations.useQuery(
     { skuRowId, baseSku },
-    { enabled: open && Boolean(baseSku), staleTime: 30_000 },
+    {
+      enabled: open && Boolean(baseSku),
+      staleTime: 0,
+      refetchInterval: open ? 1_000 : false,
+      refetchIntervalInBackground: true,
+      refetchOnWindowFocus: true,
+    },
   );
   const decision = trpc.skuSheet.getSkuDecision.useQuery(
     { skuRowId },
-    { enabled: open && enableSkuDecision, staleTime: 5_000 },
+    {
+      enabled: open && enableSkuDecision,
+      staleTime: 0,
+      refetchInterval: open ? 1_000 : false,
+      refetchIntervalInBackground: true,
+      refetchOnWindowFocus: true,
+    },
   );
   const activeMatches = (decision.data?.matches ?? []).filter((match) => !match.isDeleted);
 
@@ -316,7 +328,6 @@ export default function SkuVariationsPopover({
                   skuRowId,
                   variationIndex: variationToDelete.variationIndex,
                   baseSku,
-                  expectedRevision: variationToDelete.revision,
                 });
               }}
             >
@@ -474,10 +485,18 @@ function MainSkuRow({
   const [localEan, setLocalEan] = useState(eanGtin);
   const [localMlb, setLocalMlb] = useState(mainMlb);
   const [localDone, setLocalDone] = useState(mainDone);
+  const eanInputRef = useRef<HTMLInputElement>(null);
+  const mlbInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setLocalSku(baseSku), [baseSku]);
-  useEffect(() => setLocalEan(eanGtin), [eanGtin]);
-  useEffect(() => setLocalMlb(mainMlb), [mainMlb]);
+  useEffect(() => {
+    if (!editingSku) setLocalSku(baseSku);
+  }, [baseSku, editingSku]);
+  useEffect(() => {
+    if (document.activeElement !== eanInputRef.current) setLocalEan(eanGtin);
+  }, [eanGtin]);
+  useEffect(() => {
+    if (document.activeElement !== mlbInputRef.current) setLocalMlb(mainMlb);
+  }, [mainMlb]);
   useEffect(() => setLocalDone(mainDone), [mainDone]);
 
   return (
@@ -582,6 +601,7 @@ function MainSkuRow({
         </div>
 
         <input
+          ref={eanInputRef}
           value={localEan}
           onChange={(event) => setLocalEan(event.target.value)}
           onBlur={() => {
@@ -592,6 +612,7 @@ function MainSkuRow({
         />
 
         <input
+          ref={mlbInputRef}
           value={localMlb}
           onChange={(event) => setLocalMlb(event.target.value)}
           onBlur={() => {
@@ -658,10 +679,18 @@ function VariationRowEditor({
   const [done, setDone] = useState(variation.done);
   const revisionRef = useRef(variation.revision);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const eanInputRef = useRef<HTMLInputElement>(null);
+  const mlbInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setVariationSku(variation.variationSku), [variation.variationSku]);
-  useEffect(() => setEan(variation.ean), [variation.ean]);
-  useEffect(() => setMlb(variation.mlb), [variation.mlb]);
+  useEffect(() => {
+    if (!editingSku) setVariationSku(variation.variationSku);
+  }, [editingSku, variation.variationSku]);
+  useEffect(() => {
+    if (document.activeElement !== eanInputRef.current) setEan(variation.ean);
+  }, [variation.ean]);
+  useEffect(() => {
+    if (document.activeElement !== mlbInputRef.current) setMlb(variation.mlb);
+  }, [variation.mlb]);
   useEffect(() => setDone(variation.done), [variation.done]);
   useEffect(() => {
     revisionRef.current = variation.revision;
@@ -778,6 +807,7 @@ function VariationRowEditor({
         </div>
 
         <input
+          ref={eanInputRef}
           value={ean}
           onChange={(event) => setEan(event.target.value)}
           onBlur={() => {
@@ -789,6 +819,7 @@ function VariationRowEditor({
         />
 
         <input
+          ref={mlbInputRef}
           value={mlb}
           onChange={(event) => setMlb(event.target.value)}
           onBlur={() => {

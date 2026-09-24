@@ -102,20 +102,9 @@ export const skuSheetRouter = router({
 
   /** Exclui logicamente uma linha, preservando todos os seus dados e números. */
   delete: protectedProcedure
-    .input(z.object({ id: z.number().int(), expectedRevision: z.number().int().min(1) }))
+    .input(z.object({ id: z.number().int(), expectedRevision: z.number().int().min(1).optional() }))
     .mutation(async ({ input, ctx }) => {
-      let deleted;
-      try {
-        deleted = await deleteSkuRow(input.id, input.expectedRevision);
-      } catch (error: any) {
-        if (error?.message === "SKU_DECISION_STALE") {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "A linha mudou depois da confirmação. Atualize a planilha e confirme novamente.",
-          });
-        }
-        throw error;
-      }
+      const deleted = await deleteSkuRow(input.id);
       if (deleted && !deleted.isDeleted) {
         await logSkuChange({
           action: "logical_delete",
@@ -260,7 +249,19 @@ export const skuSheetRouter = router({
         value: z.string().max(2000),
       }),
     )
-    .mutation(({ input }) => setCustomValue(input.rowId, input.columnId, input.value)),
+    .mutation(async ({ input }) => {
+      try {
+        return await setCustomValue(input.rowId, input.columnId, input.value);
+      } catch (error: any) {
+        if (error?.message === "CUSTOM_VALUE_CONCURRENT") {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Outra pessoa atualizou esta linha ao mesmo tempo. O valor foi recarregado; tente novamente.",
+          });
+        }
+        throw error;
+      }
+    }),
 
   /** Diagnóstico somente leitura; aplicação automática foi removida. */
   repairVariants: protectedProcedure
@@ -377,7 +378,7 @@ export const skuSheetRouter = router({
         skuRowId: z.number().int(),
         variationIndex: z.number().int().min(1),
         baseSku: z.string(),
-        expectedRevision: z.number().int().min(0),
+        expectedRevision: z.number().int().min(0).optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -386,7 +387,6 @@ export const skuSheetRouter = router({
           input.skuRowId,
           input.variationIndex,
           input.baseSku,
-          input.expectedRevision,
         );
       } catch (error: any) {
         if (error?.message === "VARIACAO_CONCORRENTE") {

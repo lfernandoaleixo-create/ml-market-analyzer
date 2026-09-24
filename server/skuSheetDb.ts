@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import {
   InsertSkuSheetRow,
@@ -613,14 +613,18 @@ export async function updateSkuRow(
   return rows[0] ?? null;
 }
 
-/** Exclui logicamente uma linha sem tocar nos seus dados, números ou variações. */
-export async function deleteSkuRow(id: number, expectedRevision: number): Promise<SkuSheetRow | null> {
+/**
+ * Exclui logicamente uma linha sem tocar nos seus dados, números ou variações.
+ * A operação é idempotente e não depende da revisão vista no navegador: qualquer
+ * usuário autenticado que confirmar a exclusão consegue concluir a ação mesmo
+ * quando outra pessoa acabou de editar a linha.
+ */
+export async function deleteSkuRow(id: number): Promise<SkuSheetRow | null> {
   const db = await getDb();
   if (!db) throw new Error("DB indisponível");
   const rows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
   const row = rows[0] ?? null;
   if (!row || row.isDeleted) return row;
-  if (row.revision !== expectedRevision) throw new Error("SKU_DECISION_STALE");
   const deleted = await db
     .update(skuSheetRows)
     .set({
@@ -628,8 +632,10 @@ export async function deleteSkuRow(id: number, expectedRevision: number): Promis
       deletedAt: Date.now(),
       revision: sql`${skuSheetRows.revision} + 1`,
     })
-    .where(and(eq(skuSheetRows.id, id), eq(skuSheetRows.revision, expectedRevision)));
-  if (resultAffectedRows(deleted) === 0) throw new Error("SKU_DECISION_STALE");
+    .where(and(eq(skuSheetRows.id, id), eq(skuSheetRows.isDeleted, false)));
+  if (resultAffectedRows(deleted) === 0) {
+    return { ...row, isDeleted: true };
+  }
   return row;
 }
 
@@ -1112,32 +1118,50 @@ export async function setCustomValue(
 ): Promise<SkuSheetRow | null> {
   const db = await getDb();
   if (!db) throw new Error("DB indisponível");
-  const rows = await db
-    .select({ customValues: skuSheetRows.customValues })
-    .from(skuSheetRows)
-    .where(eq(skuSheetRows.id, rowId))
-    .limit(1);
-  if (rows.length === 0) return null;
+  const key = String(columnId);
 
-  let parsed: Record<string, string> = {};
-  if (rows[0].customValues) {
-    try {
-      parsed = JSON.parse(rows[0].customValues) as Record<string, string>;
-    } catch {
-      parsed = {};
+  // Compare-and-swap no próprio JSON: se outra pessoa salvar outra coluna entre
+  // a leitura e a escrita, a condição falha, relê o JSON novo e tenta o merge
+  // novamente. Assim duas chaves diferentes nunca apagam uma à outra.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const rows = await db
+      .select({ customValues: skuSheetRows.customValues })
+      .from(skuSheetRows)
+      .where(eq(skuSheetRows.id, rowId))
+      .limit(1);
+    if (rows.length === 0) return null;
+
+    const snapshot = rows[0].customValues;
+    let parsed: Record<string, string> = {};
+    if (snapshot) {
+      try {
+        parsed = JSON.parse(snapshot) as Record<string, string>;
+      } catch {
+        parsed = {};
+      }
     }
+    parsed[key] = value;
+    const updated = await db
+      .update(skuSheetRows)
+      .set({ customValues: JSON.stringify(parsed) })
+      .where(
+        and(
+          eq(skuSheetRows.id, rowId),
+          snapshot === null
+            ? isNull(skuSheetRows.customValues)
+            : eq(skuSheetRows.customValues, snapshot),
+        ),
+      );
+    if (resultAffectedRows(updated) === 0) continue;
+
+    const fresh = await db
+      .select()
+      .from(skuSheetRows)
+      .where(eq(skuSheetRows.id, rowId))
+      .limit(1);
+    return fresh[0] ?? null;
   }
-  parsed[String(columnId)] = value;
-  await db
-    .update(skuSheetRows)
-    .set({ customValues: JSON.stringify(parsed) })
-    .where(eq(skuSheetRows.id, rowId));
-  const updated = await db
-    .select()
-    .from(skuSheetRows)
-    .where(eq(skuSheetRows.id, rowId))
-    .limit(1);
-  return updated[0] ?? null;
+  throw new Error("CUSTOM_VALUE_CONCURRENT");
 }
 
 // ---------------------------------------------------------------------------
@@ -1526,7 +1550,6 @@ export async function deleteVariation(
   skuRowId: number,
   variationIndex: number,
   baseSku: string,
-  expectedRevision: number,
 ): Promise<{ ok: true }> {
   const db = await getDb();
   if (!db) throw new Error("DB indisponível");
@@ -1543,20 +1566,18 @@ export async function deleteVariation(
     .limit(1);
 
   if (existing.length > 0) {
-    if (existing[0].revision !== expectedRevision) throw new Error("VARIACAO_CONCORRENTE");
-    const deleted = await db
+    if (existing[0].isDeleted) return { ok: true };
+    await db
       .update(skuVariations)
       .set({ isDeleted: true, revision: sql`${skuVariations.revision} + 1` })
       .where(
         and(
           eq(skuVariations.skuRowId, skuRowId),
           eq(skuVariations.variationIndex, variationIndex),
-          eq(skuVariations.revision, expectedRevision),
+          eq(skuVariations.isDeleted, false),
         ),
       );
-    if (resultAffectedRows(deleted) === 0) throw new Error("VARIACAO_CONCORRENTE");
   } else {
-    if (expectedRevision !== 0) throw new Error("VARIACAO_CONCORRENTE");
     const suffix = String(variationIndex).padStart(2, "0");
     const variationSku = baseSku ? `${baseSku}-${suffix}` : "";
     const reservationCreated = await reserveUniqueSkuValue({
@@ -1584,7 +1605,19 @@ export async function deleteVariation(
             sourceKey: `${skuRowId}:${variationIndex}`,
           });
         }
-        throw new Error("VARIACAO_CONCORRENTE");
+        // A outra aba criou o registro entre o SELECT e o INSERT. A intenção de
+        // exclusão continua válida: aplica o tombstone ao registro vencedor.
+        await db
+          .update(skuVariations)
+          .set({ isDeleted: true, revision: sql`${skuVariations.revision} + 1` })
+          .where(
+            and(
+              eq(skuVariations.skuRowId, skuRowId),
+              eq(skuVariations.variationIndex, variationIndex),
+              eq(skuVariations.isDeleted, false),
+            ),
+          );
+        return { ok: true };
       }
       throw error;
     }

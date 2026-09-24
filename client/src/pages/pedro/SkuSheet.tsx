@@ -30,10 +30,18 @@ export default function SkuSheet() {
   const utils = trpc.useUtils();
   const updateQueues = useRef<Map<number, Promise<void>>>(new Map());
   const { data: rows, isLoading } = trpc.skuSheet.list.useQuery(undefined, {
-    refetchOnWindowFocus: false,
+    // A planilha é colaborativa: refaz a leitura a cada segundo para que linhas
+    // criadas, editadas ou excluídas por outra pessoa apareçam automaticamente.
+    refetchInterval: 1_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
   const { data: categories } = trpc.skuSheet.categories.useQuery();
-  const { data: customColumns } = trpc.skuSheet.listCustomColumns.useQuery();
+  const { data: customColumns } = trpc.skuSheet.listCustomColumns.useQuery(undefined, {
+    refetchInterval: 1_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
 
   // Aplica um patch em uma linha diretamente no cache (sem refetch).
   const patchRowInCache = (id: number, patch: Record<string, unknown>) => {
@@ -115,8 +123,8 @@ export default function SkuSheet() {
     onError: () => toast.error("Não foi possível excluir a coluna"),
   });
   const setCustomValueMut = trpc.skuSheet.setCustomValue.useMutation({
-    onError: () => {
-      toast.error("Não foi possível salvar o valor");
+    onError: (error) => {
+      toast.error(error.message || "Não foi possível salvar o valor");
       utils.skuSheet.list.invalidate();
     },
   });
@@ -141,7 +149,7 @@ export default function SkuSheet() {
       updateQueues.current.set(id, settled);
     },
     create: (input) => createMut.mutate(input as never),
-    remove: (id, expectedRevision) => deleteMut.mutate({ id, expectedRevision }),
+    remove: (id) => deleteMut.mutate({ id }),
     createColumn: (name) => createColMut.mutate({ name }),
     renameColumn: (id, name) => renameColMut.mutate({ id, name }),
     deleteColumn: (id) => deleteColMut.mutate({ id }),

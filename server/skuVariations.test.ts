@@ -38,6 +38,7 @@ let skuValueReservationRows: Array<{
 }>;
 let changeLogs: Array<Record<string, unknown>>;
 let changeLogInsertFailureOnce: boolean;
+let customValueConcurrentPatchOnce: { key: string; value: string } | null;
 
 // Tabela de SKU sheet rows (simplificada para o teste)
 type SkuRow = {
@@ -76,6 +77,7 @@ vi.mock("../drizzle/schema", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { __c?: string }, value: unknown) => ({ kind: "eq", col: col?.__c, value }),
+  isNull: (col: { __c?: string }) => ({ kind: "isNull", col: col?.__c }),
   and: (...conds: unknown[]) => ({ kind: "and", conds }),
   asc: (col: { __c?: string }) => ({ kind: "asc", col: col?.__c }),
   sql: (strings: TemplateStringsArray, ..._v: unknown[]) => ({ kind: "sql", raw: strings.join("?") }),
@@ -104,6 +106,7 @@ function matchRow(row: any, cond: any): boolean {
   if (cond.kind === "eq") {
     return row[cond.col] === cond.value;
   }
+  if (cond.kind === "isNull") return row[cond.col] == null;
   return true;
 }
 
@@ -235,6 +238,15 @@ function makeDb() {
       set: (patch: any) => ({
         where: async (cond: any) => {
           const arr = dataFor(tableOf(t));
+          if (tableOf(t) === "skuRows" && patch.customValues !== undefined && customValueConcurrentPatchOnce) {
+            const target = arr.find((row) => row.id === 1);
+            if (target) {
+              const remote = target.customValues ? JSON.parse(target.customValues) : {};
+              remote[customValueConcurrentPatchOnce.key] = customValueConcurrentPatchOnce.value;
+              target.customValues = JSON.stringify(remote);
+            }
+            customValueConcurrentPatchOnce = null;
+          }
           let affectedRows = 0;
           for (const r of arr) {
             if (!matchRow(r, cond)) continue;
@@ -345,6 +357,7 @@ import {
   updateSkuRow,
   editMainSkuManually,
   editVariationSkuManually,
+  setCustomValue,
 } from "./skuSheetDb";
 
 beforeEach(() => {
@@ -373,6 +386,7 @@ beforeEach(() => {
   ];
   changeLogs = [];
   changeLogInsertFailureOnce = false;
+  customValueConcurrentPatchOnce = null;
   skuRows = [
     {
       id: 1,
@@ -671,7 +685,8 @@ describe("gestão manual de variações", () => {
       { id: 41, skuRowId: 1, variationIndex: 4, variationSku: "1-SERVICOS-10-1-04", ean: "EAN4", mlb: "MLB4", done: false, isDeleted: false },
     ];
 
-    await deleteVariation(1, 2, "1-SERVICOS-10-1", 1);
+    variations[0].revision = 9; // outra pessoa editou depois que o diálogo foi aberto
+    await deleteVariation(1, 2, "1-SERVICOS-10-1");
 
     expect(variations.find((row) => row.variationIndex === 2)?.isDeleted).toBe(true);
     expect(variations.find((row) => row.variationIndex === 4)?.variationIndex).toBe(4);
@@ -696,7 +711,7 @@ describe("gestão manual de variações", () => {
   });
 
   it("cria um tombstone ao excluir um placeholder ainda não persistido", async () => {
-    await deleteVariation(1, 5, "1-SERVICOS-10-1", 0);
+    await deleteVariation(1, 5, "1-SERVICOS-10-1");
     expect(variations).toHaveLength(1);
     expect(variations[0]).toMatchObject({
       variationIndex: 5,
@@ -705,6 +720,33 @@ describe("gestão manual de variações", () => {
     });
     const visible = await getVariations(1, "1-SERVICOS-10-1");
     expect(visible.some((row) => row.variationIndex === 5)).toBe(false);
+  });
+
+  it("conclui a exclusão quando outra aba cria o placeholder no mesmo instante", async () => {
+    variationInsertCollisionOnce = true;
+    await expect(deleteVariation(1, 7, "1-SERVICOS-10-1")).resolves.toEqual({ ok: true });
+    expect(variations).toHaveLength(1);
+    expect(variations[0]).toMatchObject({ variationIndex: 7, isDeleted: true, revision: 2 });
+  });
+});
+
+describe("colunas personalizadas colaborativas", () => {
+  it("preserva chaves diferentes quando duas pessoas salvam a mesma linha ao mesmo tempo", async () => {
+    skuRows[0].customValues = JSON.stringify({ "100": "existente" });
+    customValueConcurrentPatchOnce = { key: "102", value: "Rafaela" };
+
+    const updated = await setCustomValue(1, 101, "Guilherme");
+
+    expect(JSON.parse(updated?.customValues ?? "{}")).toEqual({
+      "100": "existente",
+      "101": "Guilherme",
+      "102": "Rafaela",
+    });
+    expect(JSON.parse(skuRows[0].customValues ?? "{}")).toEqual({
+      "100": "existente",
+      "101": "Guilherme",
+      "102": "Rafaela",
+    });
   });
 });
 
@@ -1012,7 +1054,8 @@ describe("política imutável da linha principal", () => {
 
   it("exclui logicamente sem apagar nem renumerar o registro", async () => {
     const before = { ...skuRows[0] };
-    await deleteSkuRow(1, 1);
+    skuRows[0].revision = 7; // simula uma edição feita por outro usuário
+    await deleteSkuRow(1);
     expect(skuRows).toHaveLength(1);
     expect(skuRows[0]).toMatchObject({
       id: before.id,
@@ -1020,8 +1063,8 @@ describe("política imutável da linha principal", () => {
       productNumber: before.productNumber,
       variantNumber: before.variantNumber,
       isDeleted: true,
-      revision: 2,
+      revision: 8,
     });
-    await expect(deleteSkuRow(1, 1)).resolves.toMatchObject({ isDeleted: true });
+    await expect(deleteSkuRow(1)).resolves.toMatchObject({ isDeleted: true });
   });
 });

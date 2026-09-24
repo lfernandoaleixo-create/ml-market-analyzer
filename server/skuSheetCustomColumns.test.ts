@@ -28,6 +28,7 @@ vi.mock("../drizzle/schema", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { __c?: string }, value: unknown) => ({ kind: "eq", col: col?.__c, value }),
+  isNull: (col: { __c?: string }) => ({ kind: "isNull", col: col?.__c }),
   and: (...conds: unknown[]) => ({ kind: "and", conds }),
   asc: (col: { __c?: string }) => ({ kind: "asc", col: col?.__c }),
   sql: (strings: TemplateStringsArray, ..._v: unknown[]) => ({ kind: "sql", raw: strings.join("?") }),
@@ -46,7 +47,8 @@ function dataFor(table: string): any[] {
 function matchRow(row: any, cond: any): boolean {
   if (!cond) return true;
   if (cond.kind === "and") return cond.conds.every((c: any) => matchRow(row, c));
-  if (cond.kind === "eq" && cond.col === "id") return row.id === cond.value;
+  if (cond.kind === "eq") return row[cond.col] === cond.value;
+  if (cond.kind === "isNull") return row[cond.col] == null;
   return true;
 }
 
@@ -103,7 +105,13 @@ function makeDb() {
       set: (patch: any) => ({
         where: async (cond: any) => {
           const arr = dataFor(tableOf(t));
-          for (const r of arr) if (matchRow(r, cond)) Object.assign(r, patch);
+          let affectedRows = 0;
+          for (const r of arr) {
+            if (!matchRow(r, cond)) continue;
+            Object.assign(r, patch);
+            affectedRows += 1;
+          }
+          return { affectedRows };
         },
       }),
     }),
