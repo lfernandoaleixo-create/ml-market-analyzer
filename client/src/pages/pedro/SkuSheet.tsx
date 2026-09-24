@@ -13,8 +13,9 @@ import SkuStyleSheet, { type SkuStyleBinding } from "./SkuStyleSheet";
  * operações que mudam a composição da lista (create/delete/colunas) invalidam.
  *
  * IMUTABILIDADE DE SKU: linhas finalizadas não têm identidade/SKU reescritos.
- * Linhas novas usam reservas monotônicas e, quando idênticas, aguardam a escolha
- * explícita no card. Updates por linha são serializados e validados por revisão.
+ * Linhas novas usam reservas monotônicas e permanecem editáveis até a escolha
+ * explícita no card, sejam produtos únicos ou repetidos. Updates por linha são
+ * serializados e validados por revisão.
  */
 type SkuRowCache = {
   id: number;

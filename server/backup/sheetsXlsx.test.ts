@@ -177,8 +177,9 @@ beforeEach(() => {
     },
   ]);
   listSkuProductNumberReservationsForBackup.mockResolvedValue([
-    { productNumber: 31, skuRowId: 77, createdAt },
-    { productNumber: 32, skuRowId: 78, createdAt },
+    { productNumber: 31, skuRowId: 77, isVoided: false, createdAt },
+    { productNumber: 32, skuRowId: 78, isVoided: false, createdAt },
+    { productNumber: 30_002, skuRowId: null, isVoided: true, createdAt },
   ]);
   listSkuVariantNumberReservationsForBackup.mockResolvedValue([
     {
@@ -273,8 +274,9 @@ describe("buildSheetsWorkbookBuffer", () => {
       workbook.Sheets["_Reservas_Num_Produto"],
       { defval: "" },
     );
-    expect(reservations).toHaveLength(2);
-    expect(reservations[1]).toMatchObject({ productNumber: 32, skuRowId: 78 });
+    expect(reservations).toHaveLength(3);
+    expect(reservations[1]).toMatchObject({ productNumber: 32, skuRowId: 78, isVoided: "NÃO" });
+    expect(reservations[2]).toMatchObject({ productNumber: 30_002, skuRowId: "", isVoided: "SIM" });
     const variantReservations = XLSX.utils.sheet_to_json<Record<string, unknown>>(
       workbook.Sheets["_Reservas_Num_Variante"],
       { defval: "" },

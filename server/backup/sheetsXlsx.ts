@@ -89,7 +89,9 @@ const CHANGE_LOG_FIELDS = [
   "id", "action", "authorizedBy", "description", "affectedRowIds", "oldValues",
   "newValues", "affectedCount", "timestamp", "idempotencyKey", "createdAt",
 ] as const;
-const PRODUCT_NUMBER_RESERVATION_FIELDS = ["productNumber", "skuRowId", "createdAt"] as const;
+const PRODUCT_NUMBER_RESERVATION_FIELDS = [
+  "productNumber", "skuRowId", "isVoided", "createdAt",
+] as const;
 const VARIANT_NUMBER_RESERVATION_FIELDS = [
   "id", "skuRowId", "tipoSku", "categoryKey", "productNumber", "variantNumber", "createdAt",
 ] as const;

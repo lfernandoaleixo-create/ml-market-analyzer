@@ -382,17 +382,21 @@ function SkuDecisionPanel({
   return (
     <div className="space-y-3 border-b border-amber-300/60 bg-amber-50 p-4 text-amber-950 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-100">
       <div>
-        <p className="text-sm font-semibold">Este produto já existe. Quer que eu mantenha o mesmo SKU?</p>
+        <p className="text-sm font-semibold">
+          {activeMatches.length > 0
+            ? "Este produto já existe. Quer manter o mesmo SKU?"
+            : "Terminou de preencher o produto? Escolha como definir o SKU."}
+        </p>
         <p className="mt-1 text-xs leading-relaxed opacity-80">
-          Nada será alterado nas linhas existentes. A escolha afeta somente esta nova linha.
+          Até confirmar uma opção, Produto e Variante continuam editáveis. A escolha afeta somente esta nova linha.
         </p>
       </div>
 
-      <div className="rounded-md border border-amber-300/60 bg-background/80 p-2.5 text-foreground">
-        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Produto de referência
-        </label>
-        {activeMatches.length > 0 ? (
+      {activeMatches.length > 0 ? (
+        <div className="rounded-md border border-amber-300/60 bg-background/80 p-2.5 text-foreground">
+          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Produto de referência
+          </label>
           <select
             value={sourceRowId ?? ""}
             onChange={(event) => onSourceRowIdChange(Number(event.target.value))}
@@ -404,32 +408,32 @@ function SkuDecisionPanel({
               </option>
             ))}
           </select>
-        ) : (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            O produto correspondente está excluído. O SKU histórico continua reservado e não pode ser reutilizado.
-          </p>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <Button
-          type="button"
-          className="h-auto min-h-10 justify-start gap-2 whitespace-normal py-2 text-left"
-          disabled={!sourceRowId || pending}
-          onClick={onReuse}
-        >
-          <Link2 className="h-4 w-4 shrink-0" />
-          Manter o mesmo SKU
-        </Button>
+        {activeMatches.length > 0 ? (
+          <Button
+            type="button"
+            className="h-auto min-h-10 justify-start gap-2 whitespace-normal py-2 text-left"
+            disabled={!sourceRowId || pending}
+            onClick={onReuse}
+          >
+            <Link2 className="h-4 w-4 shrink-0" />
+            Manter o mesmo SKU
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
-          className="h-auto min-h-10 justify-start gap-2 bg-background py-2 text-left"
+          className={`h-auto min-h-10 justify-start gap-2 bg-background py-2 text-left ${
+            activeMatches.length === 0 ? "sm:col-span-2" : ""
+          }`}
           disabled={pending}
           onClick={onAuto}
         >
           <Sparkles className="h-4 w-4 shrink-0" />
-          Gerar novo SKU / variante
+          Gerar SKU pela regra
         </Button>
       </div>
 

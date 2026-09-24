@@ -12,7 +12,6 @@ import {
   skuChangeLog,
 } from "../drizzle/schema";
 import {
-  resolveVariantNumber,
   normalizeVariantNumbers,
   buildSku,
   buildSkuKit,
@@ -20,71 +19,9 @@ import {
   normalizeProductName,
   normalizeSku,
   resolveProductNumber,
-  type VariantNumberRow,
   type VariantFix,
   type SkuMode,
 } from "../shared/skuSheet";
-
-// Campos cuja alteração afeta o SKU final (prefixo do grupo + variante).
-const SKU_AFFECTING_FIELDS = [
-  "tipoSku",
-  "categoryName",
-  "productNumber",
-  "variantNumber",
-  "gerarSkuKit",
-] as const;
-
-/**
- * TRAVA de unicidade (última linha de defesa no servidor).
- * Recebe o estado FINAL pretendido de uma linha (merge do patch) e o conjunto
- * de linhas existentes; recalcula a variante para o próximo Nº livre no grupo
- * (tipo+categoria+Nº produto) e recompõe sku/skuKit. Assim o banco nunca grava
- * um SKU duplicado — mesmo via colagem, importação ou edição concorrente.
- *
- * Retorna os campos que devem ser efetivamente persistidos (variantNumber, sku,
- * skuKit). Se o grupo for inválido (faltando tipo/categoria/Nº produto),
- * apenas recompõe o sku a partir dos dados atuais sem forçar variante.
- */
-function enforceUniqueSku(
-  finalRow: {
-    id: number;
-    tipoSku: string;
-    categoryName: string | null;
-    productNumber: number | null;
-    variantNumber: number | null;
-    gerarSkuKit: boolean;
-  },
-  existingRows: VariantNumberRow[],
-): { variantNumber: number | null; sku: string; skuKit: string } {
-  const variantNumber = resolveVariantNumber(existingRows, finalRow.id, {
-    tipoSku: finalRow.tipoSku,
-    categoryName: finalRow.categoryName,
-    productNumber: finalRow.productNumber,
-    variantNumber: finalRow.variantNumber,
-  });
-  const sku = buildSku({
-    tipoSku: finalRow.tipoSku,
-    categoryName: finalRow.categoryName,
-    productNumber: finalRow.productNumber,
-    variantNumber,
-  });
-  const skuKit = buildSkuKit(sku, finalRow.gerarSkuKit);
-  return { variantNumber, sku, skuKit };
-}
-
-/** Carrega as linhas necessárias para o cálculo de unicidade (formato enxuto). */
-async function loadVariantRows(): Promise<VariantNumberRow[]> {
-  const rows = await listAllSkuRows();
-  return rows.map((r) => ({
-    id: r.id,
-    tipoSku: r.tipoSku,
-    categoryName: r.categoryName,
-    productNumber: r.productNumber,
-    variantNumber: r.variantNumber,
-    skuMode: r.skuMode,
-    skuSourceRowId: r.skuSourceRowId,
-  }));
-}
 
 /** Lista somente as linhas ativas da planilha, ordenadas por posição. */
 export async function listSkuRows(): Promise<SkuSheetRow[]> {
@@ -104,7 +41,7 @@ export async function listAllSkuRows(): Promise<SkuSheetRow[]> {
   return db.select().from(skuSheetRows).orderBy(asc(skuSheetRows.position), asc(skuSheetRows.id));
 }
 
-/** Lista a sequência permanente de Nº Produto para o backup técnico. */
+/** Lista a sequência permanente de Nº Produto, inclusive reservas anuladas. */
 export async function listSkuProductNumberReservationsForBackup() {
   const db = await getDb();
   if (!db) return [];
@@ -142,16 +79,6 @@ async function nextPosition(): Promise<number> {
     .select({ max: sql<number>`COALESCE(MAX(${skuSheetRows.position}), 0)` })
     .from(skuSheetRows);
   return (rows[0]?.max ?? 0) + 1;
-}
-
-function resultInsertId(result: unknown): number | null {
-  const direct = (result as { insertId?: number })?.insertId;
-  if (typeof direct === "number" && direct > 0) return direct;
-  if (Array.isArray(result)) {
-    const nested = (result[0] as { insertId?: number } | undefined)?.insertId;
-    if (typeof nested === "number" && nested > 0) return nested;
-  }
-  return null;
 }
 
 function resultAffectedRows(result: unknown): number | null {
@@ -201,9 +128,12 @@ function isDuplicateEntryError(error: unknown): boolean {
 }
 
 /**
- * Reserva de forma permanente o próximo Nº Produto para uma linha nova.
- * A tabela auto-incremental é inicializada pela migração com todos os números
- * históricos e nunca sofre DELETE, portanto lacunas não são reaproveitadas.
+ * Reserva de forma permanente o próximo Nº Produto comercial.
+ *
+ * Nunca usa o valor gerado pelo AUTO_INCREMENT: bancos distribuídos como TiDB
+ * podem saltar blocos inteiros (ex.: 29 -> 30002). O número comercial é sempre
+ * o maior número válido já reservado + 1. Reservas anuladas continuam no banco
+ * para nunca serem recicladas, mas não avançam a sequência comercial.
  */
 async function reserveNextProductNumber(skuRowId: number): Promise<number> {
   const db = await getDb();
@@ -214,26 +144,46 @@ async function reserveNextProductNumber(skuRowId: number): Promise<number> {
     .from(skuProductNumberReservations)
     .where(eq(skuProductNumberReservations.skuRowId, skuRowId))
     .limit(1);
-  if (alreadyReserved[0]) return alreadyReserved[0].productNumber;
-
-  try {
-    const inserted = await db
-      .insert(skuProductNumberReservations)
-      .values({ skuRowId });
-    const insertId = resultInsertId(inserted);
-    if (insertId) return insertId;
-  } catch (error: any) {
-    // Uma requisição concorrente pode ter reservado o mesmo skuRowId primeiro.
-    if (!isDuplicateEntryError(error)) throw error;
+  if (alreadyReserved[0] && !alreadyReserved[0].isVoided) {
+    return alreadyReserved[0].productNumber;
   }
 
-  const readBack = await db
-    .select()
-    .from(skuProductNumberReservations)
-    .where(eq(skuProductNumberReservations.skuRowId, skuRowId))
-    .limit(1);
-  if (!readBack[0]) throw new Error("Não foi possível reservar o Nº Produto.");
-  return readBack[0].productNumber;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const maximum = await db
+      .select({ max: sql<number>`COALESCE(MAX(${skuProductNumberReservations.productNumber}), 0)` })
+      .from(skuProductNumberReservations)
+      .where(eq(skuProductNumberReservations.isVoided, false));
+    let candidate = (maximum[0]?.max ?? 0) + 1;
+
+    // Uma reserva anulada não dita o próximo número, mas também nunca pode ser
+    // reciclada. Carregamos as ocupações em uma consulta e pulamos localmente,
+    // evitando uma query por tombstone consecutivo.
+    const occupiedRows = await db
+      .select({ productNumber: skuProductNumberReservations.productNumber })
+      .from(skuProductNumberReservations)
+      .orderBy(asc(skuProductNumberReservations.productNumber));
+    const occupiedNumbers = new Set(occupiedRows.map((row) => row.productNumber));
+    while (occupiedNumbers.has(candidate)) candidate += 1;
+
+    try {
+      await db.insert(skuProductNumberReservations).values({
+        productNumber: candidate,
+        skuRowId,
+        isVoided: false,
+      });
+      return candidate;
+    } catch (error: any) {
+      // Outra requisição pode ter reservado o mesmo número ou skuRowId.
+      if (!isDuplicateEntryError(error)) throw error;
+      const concurrent = await db
+        .select()
+        .from(skuProductNumberReservations)
+        .where(eq(skuProductNumberReservations.skuRowId, skuRowId))
+        .limit(1);
+      if (concurrent[0] && !concurrent[0].isVoided) return concurrent[0].productNumber;
+    }
+  }
+  throw new Error("Não foi possível reservar o Nº Produto após tentativas concorrentes.");
 }
 
 /**
@@ -569,83 +519,11 @@ export async function updateSkuRow(
       .where(and(eq(skuSheetRows.id, id), eq(skuSheetRows.revision, expectedRevision)));
     if (resultAffectedRows(updated) === 0) throw new Error("SKU_DECISION_STALE");
   }
-  let rows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
-  const current = rows[0] ?? null;
-  if (!current) return null;
-
-  // Apenas linhas novas ainda pendentes passam pela geração automática. SKUs
-  // legacy, manuais ou reutilizados ficam congelados e jamais são reescritos.
-  const touchesSku = SKU_AFFECTING_FIELDS.some((f) => f in safe) || touchesIdentity;
-  const tipo = (current.tipoSku ?? "").trim();
-  const identityComplete = Boolean(
-    normalizeProductName(current.produto) && normalizeVariantText(current.variante),
-  );
-  if (
-    current.skuMode === "pending" &&
-    touchesSku &&
-    identityComplete &&
-    tipo &&
-    current.categoryName &&
-    current.productNumber != null
-  ) {
-    const matches = await findMatchingSkuRows(current.id, current);
-    if (matches.length > 0) {
-      const pendingPatch = { sku: "", skuKit: "", skuSourceRowId: null, skuDecisionAt: null };
-      const markedPending = await db
-        .update(skuSheetRows)
-        .set({ ...pendingPatch, revision: sql`${skuSheetRows.revision} + 1` })
-        .where(and(eq(skuSheetRows.id, id), eq(skuSheetRows.revision, current.revision)));
-      if (resultAffectedRows(markedPending) === 0) throw new Error("SKU_DECISION_STALE");
-      rows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
-      return rows[0] ?? null;
-    }
-
-    const variantNumber = await reserveNextVariantNumber({
-      skuRowId: current.id,
-      tipoSku: current.tipoSku,
-      categoryName: current.categoryName,
-      productNumber: current.productNumber,
-    });
-    const sku = buildSku({
-      tipoSku: current.tipoSku,
-      categoryName: current.categoryName,
-      productNumber: current.productNumber,
-      variantNumber,
-    });
-    const reservationCreated = await reserveUniqueSkuValue({
-      sku,
-      sourceType: "main",
-      sourceKey: String(current.id),
-    });
-    const autoPatch = {
-      variantNumber,
-      sku,
-      skuKit: buildSkuKit(sku, current.gerarSkuKit),
-      ...(identityComplete ? { skuMode: "auto", skuDecisionAt: Date.now() } : {}),
-    };
-    if (
-      variantNumber !== current.variantNumber ||
-      sku !== current.sku ||
-      autoPatch.skuKit !== current.skuKit ||
-      identityComplete
-    ) {
-      const finalized = await db
-        .update(skuSheetRows)
-        .set({ ...autoPatch, revision: sql`${skuSheetRows.revision} + 1` })
-        .where(and(eq(skuSheetRows.id, id), eq(skuSheetRows.revision, current.revision)));
-      if (resultAffectedRows(finalized) === 0) {
-        if (reservationCreated) {
-          await releaseNewSkuValueReservationIfUnpersisted({
-            sku,
-            sourceType: "main",
-            sourceKey: String(current.id),
-          });
-        }
-        throw new Error("SKU_DECISION_STALE");
-      }
-      rows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
-    }
-  }
+  const rows = await db.select().from(skuSheetRows).where(eq(skuSheetRows.id, id)).limit(1);
+  // Uma linha nova nunca é finalizada por digitação/blur. Produto e Variante
+  // permanecem editáveis enquanto skuMode="pending". A reserva de Nº Variante,
+  // o valor do SKU e o congelamento da identidade acontecem exclusivamente em
+  // applySkuDecision, depois de uma escolha explícita no card.
   return rows[0] ?? null;
 }
 
@@ -716,7 +594,7 @@ export async function getSkuDecisionContext(skuRowId: number): Promise<SkuDecisi
     currentSku: row.sku,
     revision: row.revision,
     identityComplete,
-    requiresDecision: row.skuMode === "pending" && matches.length > 0,
+    requiresDecision: row.skuMode === "pending" && identityComplete,
     matches: matches.map((match) => ({
       id: match.id,
       position: match.position,

@@ -1965,3 +1965,40 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Aprovar 49 testes focados, TypeScript, build e suíte ampla com 895/895 testes (sem `.live.test.ts`)
 - [x] Concluir revisão independente sem bloqueadores P0/P1 e corrigir os dois reforços P2
 - [x] Salvar checkpoint `fe44dac5` e sincronizar GitHub
+
+## Correção definitiva da sequência de Nº Produto (24/set — autorizado por Guilherme)
+- [x] Identificar a causa raiz: `AUTO_INCREMENT` do TiDB Serverless saltou blocos técnicos (29 → 30002; contador interno 60002)
+- [x] Confirmar que não existem produtos 30–30001 e que o Nº Produto comercial 30 estava livre
+- [x] Corrigir somente a linha 330001: Nº Produto `30002` → `30` e SKU `2-JOIAS-30002-1` → `2-JOIAS-30-1`
+- [x] Preservar todas as demais colunas, produtos e variações; linha nova não possuía variações
+- [x] Aposentar permanentemente a reserva técnica 30002 (`isVoided=true`, sem proprietário), sem apagá-la ou reutilizá-la
+- [x] Manter o SKU antigo `2-JOIAS-30002-1` reservado no histórico global
+- [x] Criar reserva comercial 30 e alinhar a reserva de variante da própria linha
+- [x] Substituir o uso de `insertId` pela regra comercial: maior reserva não anulada + 1
+- [x] Garantir concorrência segura por chave única e retry quando duas pessoas criam ao mesmo tempo
+- [x] Pular qualquer número aposentado sem limite arbitrário e sem reciclagem
+- [x] Incluir `isVoided` na aba técnica `_Reservas_Num_Produto` do backup
+- [x] Atualizar auditores para comparar a quantidade real de linhas e validar 30002 → 30
+- [x] Confirmar sequência atual: maior Nº Produto comercial 30; próximo produto novo será 31
+- [x] Confirmar 55 testes focados, TypeScript, build e suíte ampla com 897/897 testes (sem `.live.test.ts`)
+- [x] Gerar e validar backup interno: 14 abas, 72 linhas técnicas e marcador `isVoided`
+- [x] Concluir revisão independente da sequência sem P0/P1; corrigir migração, consulta em lote, teste paralelo e documentação
+- [ ] Salvar checkpoint conjunto após a correção da Variante/finalização explícita
+
+## Variante editável até confirmação explícita do SKU (24/set — autorizado por Guilherme)
+- [x] Identificar a causa: a linha era finalizada automaticamente assim que Produto + Variante ficavam completos
+- [x] Confirmar que o valor antigo não foi copiado automaticamente; era o último texto persistido antes do bloqueio
+- [x] Corrigir somente a Variante da linha 330001 para `LIGADEZINCO - CONJUNTO CORAÇÃO - CHINA`
+- [x] Preservar Nº Produto 30, Nº Variante 1, SKU `2-JOIAS-30-1`, produto e todas as outras colunas
+- [x] Registrar a alteração localizada no `sku_change_log`, autorizada por Guilherme
+- [x] Fazer toda linha nova permanecer `pending` durante a digitação, sem reservar Nº Variante nem SKU
+- [x] Exigir escolha explícita no card também para produto novo único: gerar pela regra ou editar manualmente
+- [x] Mostrar “Manter o mesmo SKU” somente quando existir produto/variante correspondente
+- [x] Manter linhas finalizadas antigas imutáveis e números/SKUs deletados não reutilizáveis
+- [x] Tornar Nº Variante somente leitura no modal e explicar quando ele é definido
+- [x] Adicionar regressão que edita Variante antes da confirmação e confirma `skuMode=pending`
+- [x] Confirmar 66 testes focados, TypeScript, build e suíte ampla com 899/899 testes (sem `.live.test.ts`)
+- [x] Auditar banco: linha 330001 correta; reservas 30 e 30002 preservadas; próximo Nº Produto 31
+- [x] Concluir revisão independente final sem P0/P1/P2 bloqueador
+- [x] Gerar e abrir backup interno final: 271.673 bytes, 14 abas, 72 linhas técnicas e logs autorizados
+- [ ] Salvar checkpoint conjunto e sincronizar GitHub

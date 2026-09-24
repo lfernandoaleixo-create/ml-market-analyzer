@@ -1143,15 +1143,18 @@ export type SkuSheetRow = typeof skuSheetRows.$inferSelect;
 export type InsertSkuSheetRow = typeof skuSheetRows.$inferInsert;
 
 /**
- * Reserva monotônica de Nº Produto. Cada produto realmente novo consome um ID
- * auto-incremental; registros desta tabela nunca são apagados. A unicidade por
- * skuRowId também torna a alocação idempotente em requisições concorrentes.
+ * Reserva monotônica de Nº Produto comercial. A aplicação grava explicitamente
+ * maior reserva válida + 1 e nunca usa o insertId técnico do banco distribuído.
+ * Registros nunca são apagados; números anulados permanecem bloqueados. A
+ * unicidade por skuRowId torna a alocação idempotente em concorrência.
  */
 export const skuProductNumberReservations = mysqlTable(
   "sku_product_number_reservations",
   {
     productNumber: int("productNumber").autoincrement().primaryKey(),
     skuRowId: int("skuRowId"),
+    /** Número permanentemente bloqueado, mas excluído do cálculo comercial max+1. */
+    isVoided: boolean("isVoided").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (t) => ({

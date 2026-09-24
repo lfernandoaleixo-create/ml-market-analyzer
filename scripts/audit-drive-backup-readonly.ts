@@ -3,9 +3,11 @@ import { getDriveBackupConfig, isConnected } from "../server/driveBackupDb";
 import { refreshAccessToken } from "../server/backup/googleDrive";
 import { listHeartbeatJobs } from "../server/_core/heartbeat";
 import { storageGetSignedUrl } from "../server/storage";
+import { listAllSkuRows } from "../server/skuSheetDb";
 import * as XLSX from "xlsx";
 
 const config = await getDriveBackupConfig();
+const expectedTechnicalProductRows = (await listAllSkuRows()).length;
 let tokenStatus: "missing" | "valid" | "invalid" = "missing";
 let tokenError = "";
 if (isConnected(config)) {
@@ -33,6 +35,7 @@ let internalBackup = {
   sheetCount: 0,
   technicalProductRows: 0,
   includesSkuValueReservations: false,
+  includesProductNumberVoidMarker: false,
 };
 if (config.lastInternalBackupKey) {
   const signedUrl = await storageGetSignedUrl(config.lastInternalBackupKey);
@@ -44,12 +47,17 @@ if (config.lastInternalBackupKey) {
       workbook.Sheets["_Produtos_Tecnico"],
       { defval: "" },
     );
+    const productReservationRows = XLSX.utils.sheet_to_json<unknown[]>(
+      workbook.Sheets["_Reservas_Num_Produto"],
+      { header: 1, defval: "" },
+    );
     internalBackup = {
       exists: true,
       bytes: bytes.length,
       sheetCount: workbook.SheetNames.length,
       technicalProductRows: technicalRows.length,
       includesSkuValueReservations: workbook.SheetNames.includes("_Reservas_Valor_SKU"),
+      includesProductNumberVoidMarker: productReservationRows[0]?.includes("isVoided") ?? false,
     };
   }
 }
@@ -72,6 +80,7 @@ console.log(JSON.stringify({
 }, null, 2));
 const validInternalBackup =
   internalBackup.exists &&
-  internalBackup.technicalProductRows === 71 &&
-  internalBackup.includesSkuValueReservations;
+  internalBackup.technicalProductRows === expectedTechnicalProductRows &&
+  internalBackup.includesSkuValueReservations &&
+  internalBackup.includesProductNumberVoidMarker;
 process.exit(validInternalBackup ? 0 : 1);

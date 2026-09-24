@@ -20,7 +20,12 @@ type VarRow = {
 let variations: VarRow[];
 let varSeq: number;
 let variationInsertCollisionOnce: boolean;
-let productReservations: Array<{ productNumber: number; skuRowId: number }>;
+let productReservationInsertCollisionOnce: boolean;
+let productReservations: Array<{
+  productNumber: number;
+  skuRowId: number | null;
+  isVoided: boolean;
+}>;
 let variantReservations: Array<{
   id: number;
   skuRowId: number;
@@ -141,7 +146,14 @@ function makeDb() {
             if (isMax) {
               const max = this._rows.reduce(
                 (m: number, r: any) =>
-                  Math.max(m, table === "variantReservations" ? (r.variantNumber ?? 0) : (r.position ?? 0)),
+                  Math.max(
+                    m,
+                    table === "variantReservations"
+                      ? (r.variantNumber ?? 0)
+                      : table === "productReservations"
+                        ? (r.productNumber ?? 0)
+                        : (r.position ?? 0),
+                  ),
                 0,
               );
               resolve([{ max }]);
@@ -198,15 +210,27 @@ function makeDb() {
             customValues: vals.customValues ?? null,
           });
         } else if (tableOf(t) === "productReservations") {
-          if (productReservations.some((row) => row.skuRowId === vals.skuRowId)) {
+          if (productReservationInsertCollisionOnce) {
+            productReservationInsertCollisionOnce = false;
+            productReservations.push({
+              productNumber: vals.productNumber,
+              skuRowId: 999,
+              isVoided: false,
+            });
             throw Object.assign(new Error("duplicate"), { code: "ER_DUP_ENTRY" });
           }
-          const productNumber = productReservations.reduce(
-            (max, row) => Math.max(max, row.productNumber),
-            0,
-          ) + 1;
-          productReservations.push({ productNumber, skuRowId: vals.skuRowId });
-          return { insertId: productNumber };
+          const duplicate = productReservations.some(
+            (row) =>
+              row.productNumber === vals.productNumber ||
+              (row.skuRowId != null && row.skuRowId === vals.skuRowId),
+          );
+          if (duplicate) throw Object.assign(new Error("duplicate"), { code: "ER_DUP_ENTRY" });
+          productReservations.push({
+            productNumber: vals.productNumber,
+            skuRowId: vals.skuRowId,
+            isVoided: vals.isVoided ?? false,
+          });
+          return { insertId: 30_002 };
         } else if (tableOf(t) === "variantReservations") {
           const duplicate = variantReservations.some(
             (row) =>
@@ -341,6 +365,7 @@ import {
 
 (skuProductNumberReservations as any).productNumber = { __c: "productNumber" };
 (skuProductNumberReservations as any).skuRowId = { __c: "skuRowId" };
+(skuProductNumberReservations as any).isVoided = { __c: "isVoided" };
 
 (skuVariantNumberReservations as any).id = { __c: "id" };
 (skuVariantNumberReservations as any).skuRowId = { __c: "skuRowId" };
@@ -375,7 +400,8 @@ beforeEach(() => {
   variations = [];
   varSeq = 1;
   variationInsertCollisionOnce = false;
-  productReservations = [{ productNumber: 10, skuRowId: 1 }];
+  productReservationInsertCollisionOnce = false;
+  productReservations = [{ productNumber: 10, skuRowId: 1, isVoided: false }];
   variantReservations = [
     {
       id: 1,
@@ -889,6 +915,31 @@ describe("política imutável da linha principal", () => {
     expect(variantReservations.map((row) => row.variantNumber)).toEqual([1, 2]);
   });
 
+  it("mantém a Variante editável em uma linha nova até a confirmação no card", async () => {
+    addPendingRow();
+    const named = await updateSkuRow(2, { produto: "Produto novo editável" }, 1);
+    expect(named).toMatchObject({
+      productNumber: 11,
+      variantNumber: null,
+      sku: "",
+      skuMode: "pending",
+      revision: 2,
+    });
+
+    const edited = await updateSkuRow(2, { variante: "VARIANTE FINAL CORRETA" }, 2);
+    expect(edited).toMatchObject({
+      productNumber: 11,
+      variante: "VARIANTE FINAL CORRETA",
+      variantNumber: null,
+      sku: "",
+      skuMode: "pending",
+      revision: 3,
+    });
+
+    const context = await getSkuDecisionContext(2);
+    expect(context).toMatchObject({ requiresDecision: true, matches: [] });
+  });
+
   it("bloqueia SKU manual que já está reservado", async () => {
     addPendingRow();
     await expect(
@@ -948,17 +999,98 @@ describe("política imutável da linha principal", () => {
     expect(skuRows[0].eanGtin).toBeUndefined();
   });
 
-  it("não reutiliza o Nº Produto de uma linha excluída ao recriar o mesmo nome", async () => {
+  it("ignora o insertId técnico do TiDB e não reutiliza Nº Produto excluído", async () => {
     skuRows[0].isDeleted = true;
     addPendingRow();
-    const updated = await updateSkuRow(2, { produto: "Produto A" }, 1);
-    expect(updated).toMatchObject({
+    const pending = await updateSkuRow(2, { produto: "Produto A" }, 1);
+    expect(pending).toMatchObject({
       productNumber: 11,
-      variantNumber: 1,
-      sku: "1-SERVICOS-11-1",
-      skuMode: "auto",
+      variantNumber: null,
+      sku: "",
+      skuMode: "pending",
+      revision: 2,
     });
+    const updated = await applySkuDecision({
+      skuRowId: 2,
+      mode: "auto",
+      expectedRevision: 2,
+    });
+    expect(updated).toMatchObject({ productNumber: 11, variantNumber: 1, sku: "1-SERVICOS-11-1", skuMode: "auto" });
     expect(productReservations.map((row) => row.productNumber)).toEqual([10, 11]);
+  });
+
+  it("ignora reserva técnica anulada e continua após o maior número comercial válido", async () => {
+    productReservations.push({
+      productNumber: 30_002,
+      skuRowId: null,
+      isVoided: true,
+    });
+    addPendingRow();
+
+    const pending = await updateSkuRow(2, { produto: "Produto realmente novo" }, 1);
+
+    expect(pending).toMatchObject({
+      productNumber: 11,
+      variantNumber: null,
+      sku: "",
+      skuMode: "pending",
+    });
+    const context = await getSkuDecisionContext(2);
+    expect(context).toMatchObject({ requiresDecision: true, matches: [] });
+    const updated = await applySkuDecision({ skuRowId: 2, mode: "auto", expectedRevision: 2 });
+    expect(updated).toMatchObject({ productNumber: 11, variantNumber: 1, sku: "1-SERVICOS-11-1", skuMode: "auto" });
+    expect(productReservations).toContainEqual({
+      productNumber: 11,
+      skuRowId: 2,
+      isVoided: false,
+    });
+    expect(productReservations).toContainEqual({
+      productNumber: 30_002,
+      skuRowId: null,
+      isVoided: true,
+    });
+  });
+
+  it("tenta o próximo número quando outra pessoa reserva o mesmo candidato", async () => {
+    productReservationInsertCollisionOnce = true;
+    addPendingRow();
+
+    const pending = await updateSkuRow(2, { produto: "Produto concorrente" }, 1);
+
+    expect(pending).toMatchObject({
+      productNumber: 12,
+      variantNumber: null,
+      sku: "",
+      skuMode: "pending",
+    });
+    const updated = await applySkuDecision({ skuRowId: 2, mode: "auto", expectedRevision: 2 });
+    expect(updated).toMatchObject({ productNumber: 12, variantNumber: 1, sku: "1-SERVICOS-12-1", skuMode: "auto" });
+    expect(productReservations.map((row) => row.productNumber)).toEqual([10, 11, 12]);
+  });
+
+  it("atribui números comerciais diferentes a duas criações paralelas", async () => {
+    addPendingRow();
+    skuRows.push({
+      ...skuRows[1],
+      id: 3,
+      position: 3,
+      revision: 1,
+    });
+
+    const [firstPending, secondPending] = await Promise.all([
+      updateSkuRow(2, { produto: "Produto paralelo A" }, 1),
+      updateSkuRow(3, { produto: "Produto paralelo B" }, 1),
+    ]);
+
+    expect([firstPending?.productNumber, secondPending?.productNumber].sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([11, 12]);
+    expect(firstPending).toMatchObject({ sku: "", skuMode: "pending", revision: 2 });
+    expect(secondPending).toMatchObject({ sku: "", skuMode: "pending", revision: 2 });
+    const [first, second] = await Promise.all([
+      applySkuDecision({ skuRowId: 2, mode: "auto", expectedRevision: 2 }),
+      applySkuDecision({ skuRowId: 3, mode: "auto", expectedRevision: 2 }),
+    ]);
+    expect(new Set([first.sku, second.sku]).size).toBe(2);
+    expect(productReservations.map((row) => row.productNumber).sort((a, b) => a - b)).toEqual([10, 11, 12]);
   });
 
   it("permite somente uma reserva quando duas linhas tentam o mesmo SKU manual", async () => {

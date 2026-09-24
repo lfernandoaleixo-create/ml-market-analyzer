@@ -232,6 +232,13 @@
       "when": 1790099499195,
       "tag": "0032_careful_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1790259673169,
+      "tag": "0033_silky_doctor_doom",
+      "breakpoints": true
     }
   ]
 }

@@ -1084,7 +1084,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
           isIdentical
             ? "LINHA IDÊNTICA: outra linha já tem estes mesmos dados. Ajuste a variante ou remova a linha repetida."
             : flag
-              ? "SKU IGUAL gerado para variações diferentes. Use 'Corrigir automaticamente' no topo."
+              ? "SKU igual em variações diferentes. Revise a linha e o card de SKU."
               : val
                 ? undefined
                 : "Preencha Tipo, Categoria e números"
@@ -1689,7 +1689,7 @@ function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSave
         <DialogHeader>
           <DialogTitle className="font-display">Editar linha</DialogTitle>
           <DialogDescription>
-            Os campos SKU, SKU Kit e Nº do produto são gerados automaticamente.
+            O Nº Produto é reservado pelo servidor. Em linhas novas, confirme o SKU pelo card somente depois de terminar Produto e Variante.
           </DialogDescription>
         </DialogHeader>
 
@@ -1764,13 +1764,13 @@ function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSave
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Variante</label>
             <Input value={draft.variante} onChange={(e) => upd({ variante: e.target.value })} placeholder="Ex.: 12,5 CM - 100 UN" />
           </div>
-          {/* Nº variante (editável) */}
+          {/* Nº variante permanente (somente leitura) */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nº da variante</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nº da variante (permanente)</label>
             <Input
               value={draft.variantNumber ?? ""}
-              onChange={(e) => upd({ variantNumber: e.target.value === "" ? null : Number(e.target.value.replace(/\D/g, "")) })}
-              inputMode="numeric"
+              placeholder="Definido ao confirmar o SKU"
+              disabled
             />
           </div>
           {/* Gerar Kit */}
