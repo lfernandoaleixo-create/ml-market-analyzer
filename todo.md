@@ -1983,7 +1983,7 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Confirmar 55 testes focados, TypeScript, build e suíte ampla com 897/897 testes (sem `.live.test.ts`)
 - [x] Gerar e validar backup interno: 14 abas, 72 linhas técnicas e marcador `isVoided`
 - [x] Concluir revisão independente da sequência sem P0/P1; corrigir migração, consulta em lote, teste paralelo e documentação
-- [ ] Salvar checkpoint conjunto após a correção da Variante/finalização explícita
+- [x] Salvar checkpoint conjunto `034d4bc5` após a correção da Variante/finalização explícita
 
 ## Variante editável até confirmação explícita do SKU (24/set — autorizado por Guilherme)
 - [x] Identificar a causa: a linha era finalizada automaticamente assim que Produto + Variante ficavam completos
@@ -2001,4 +2001,4 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Auditar banco: linha 330001 correta; reservas 30 e 30002 preservadas; próximo Nº Produto 31
 - [x] Concluir revisão independente final sem P0/P1/P2 bloqueador
 - [x] Gerar e abrir backup interno final: 271.673 bytes, 14 abas, 72 linhas técnicas e logs autorizados
-- [ ] Salvar checkpoint conjunto e sincronizar GitHub
+- [x] Salvar checkpoint conjunto `034d4bc5` e sincronizar GitHub
