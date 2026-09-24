@@ -1952,3 +1952,16 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Confirmar 115 testes focados, TypeScript, build e suíte ampla com 893/893 testes (sem `.live.test.ts`)
 - [x] Auditar o banco sem alterações: 71 linhas ativas, 0 excluídas, hash imutável preservado
 - [x] Salvar checkpoint do release (`297158f1`)
+
+## Correção do salvamento da variação 05 (24/set)
+- [x] Identificar a causa raiz: `DrizzleQueryError` encapsulava `ER_DUP_ENTRY` em `cause`
+- [x] Confirmar que a reserva `2-joias-11-1-05` já pertence corretamente à própria origem `38:5`
+- [x] Tratar reservas idempotentes encapsuladas sem aceitar duplicidade de outra origem
+- [x] Centralizar a detecção segura para reservas de produto, variante, SKU e corridas entre abas
+- [x] Adicionar regressão fiel ao erro exibido: metadados salvam e a reserva continua única
+- [x] Confirmar que nenhum SKU/EAN/MLB real foi alterado durante a correção
+- [x] Restringir a detecção de duplicidade aos códigos MySQL `ER_DUP_ENTRY`/1062, sem heurística textual
+- [x] Provar que reserva encapsulada de outra origem continua bloqueada como duplicidade real
+- [x] Aprovar 49 testes focados, TypeScript, build e suíte ampla com 895/895 testes (sem `.live.test.ts`)
+- [x] Concluir revisão independente sem bloqueadores P0/P1 e corrigir os dois reforços P2
+- [ ] Salvar checkpoint e sincronizar GitHub

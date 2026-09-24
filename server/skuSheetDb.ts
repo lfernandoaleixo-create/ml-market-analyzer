@@ -165,6 +165,42 @@ function resultAffectedRows(result: unknown): number | null {
 }
 
 /**
+ * O DrizzleQueryError guarda o erro original do MySQL em `cause`. Verificar só
+ * `error.code` deixa uma colisão idempotente escapar como "Failed query".
+ */
+function isDuplicateEntryError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current = error;
+
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (!current || (typeof current !== "object" && typeof current !== "function")) {
+      return false;
+    }
+    if (seen.has(current)) return false;
+    seen.add(current);
+
+    const candidate = current as {
+      code?: unknown;
+      errno?: unknown;
+      cause?: unknown;
+      originalError?: unknown;
+      driverError?: unknown;
+    };
+    if (
+      candidate.code === "ER_DUP_ENTRY" ||
+      candidate.errno === 1062 ||
+      candidate.errno === "1062"
+    ) {
+      return true;
+    }
+
+    current = candidate.cause ?? candidate.originalError ?? candidate.driverError;
+  }
+
+  return false;
+}
+
+/**
  * Reserva de forma permanente o próximo Nº Produto para uma linha nova.
  * A tabela auto-incremental é inicializada pela migração com todos os números
  * históricos e nunca sofre DELETE, portanto lacunas não são reaproveitadas.
@@ -188,7 +224,7 @@ async function reserveNextProductNumber(skuRowId: number): Promise<number> {
     if (insertId) return insertId;
   } catch (error: any) {
     // Uma requisição concorrente pode ter reservado o mesmo skuRowId primeiro.
-    if (error?.code !== "ER_DUP_ENTRY" && error?.errno !== 1062) throw error;
+    if (!isDuplicateEntryError(error)) throw error;
   }
 
   const readBack = await db
@@ -245,7 +281,7 @@ async function reserveNextVariantNumber(input: {
       });
       return candidate;
     } catch (error: any) {
-      if (error?.code !== "ER_DUP_ENTRY" && error?.errno !== 1062) throw error;
+      if (!isDuplicateEntryError(error)) throw error;
       const concurrent = await db
         .select()
         .from(skuVariantNumberReservations)
@@ -276,7 +312,7 @@ async function reserveUniqueSkuValue(input: {
     });
     return true;
   } catch (error: any) {
-    if (error?.code !== "ER_DUP_ENTRY" && error?.errno !== 1062) throw error;
+    if (!isDuplicateEntryError(error)) throw error;
   }
 
   const existing = await db
@@ -1368,7 +1404,7 @@ async function persistVariation(
         revision: 1,
       });
     } catch (err: any) {
-      if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062) {
+      if (isDuplicateEntryError(err)) {
         if (reservationCreated) {
           await releaseNewSkuValueReservationIfUnpersisted({
             sku: variationSku,
@@ -1529,7 +1565,7 @@ export async function addVariation(
       });
       return { variationIndex, variationSku, ean: "", mlb: "", done: false, revision: 1 };
     } catch (error: any) {
-      if (error?.code !== "ER_DUP_ENTRY" && error?.errno !== 1062) throw error;
+      if (!isDuplicateEntryError(error)) throw error;
       if (reservationCreated) {
         await releaseNewSkuValueReservationIfUnpersisted({
           sku: variationSku,
@@ -1597,7 +1633,7 @@ export async function deleteVariation(
         revision: 1,
       });
     } catch (error: any) {
-      if (error?.code === "ER_DUP_ENTRY" || error?.errno === 1062) {
+      if (isDuplicateEntryError(error)) {
         if (reservationCreated) {
           await releaseNewSkuValueReservationIfUnpersisted({
             sku: variationSku,

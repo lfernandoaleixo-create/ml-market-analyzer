@@ -39,6 +39,7 @@ let skuValueReservationRows: Array<{
 let changeLogs: Array<Record<string, unknown>>;
 let changeLogInsertFailureOnce: boolean;
 let customValueConcurrentPatchOnce: { key: string; value: string } | null;
+let wrapSkuValueDuplicateErrorOnce: boolean;
 
 // Tabela de SKU sheet rows (simplificada para o teste)
 type SkuRow = {
@@ -220,7 +221,17 @@ function makeDb() {
           return { insertId: variantReservations.length };
         } else if (tableOf(t) === "skuValueReservations") {
           if (skuValueReservationRows.some((row) => row.normalizedSku === vals.normalizedSku)) {
-            throw Object.assign(new Error("duplicate"), { code: "ER_DUP_ENTRY" });
+            const mysqlError = Object.assign(new Error("Duplicate entry"), {
+              code: "ER_DUP_ENTRY",
+              errno: 1062,
+            });
+            if (wrapSkuValueDuplicateErrorOnce) {
+              wrapSkuValueDuplicateErrorOnce = false;
+              throw Object.assign(new Error("Failed query: insert into `sku_value_reservations`"), {
+                cause: mysqlError,
+              });
+            }
+            throw mysqlError;
           }
           skuValueReservationRows.push({ id: skuValueReservationRows.length + 1, ...vals });
           return { insertId: skuValueReservationRows.length };
@@ -387,6 +398,7 @@ beforeEach(() => {
   changeLogs = [];
   changeLogInsertFailureOnce = false;
   customValueConcurrentPatchOnce = null;
+  wrapSkuValueDuplicateErrorOnce = false;
   skuRows = [
     {
       id: 1,
@@ -532,6 +544,68 @@ describe("upsertVariation", () => {
     const result = await upsertVariation(1, 2, "1-SERVICOS-10-1", { ean: "novo", expectedRevision: 1 });
     expect(result.variationSku).toBe("SKU-MANUAL-02");
     expect(variations[0].variationSku).toBe("SKU-MANUAL-02");
+  });
+
+  it("salva metadados quando a reserva idempotente vem encapsulada pelo Drizzle", async () => {
+    variations = [
+      {
+        id: 310,
+        skuRowId: 1,
+        variationIndex: 5,
+        variationSku: "1-SERVICOS-10-1-05",
+        ean: "EAN-ANTIGO",
+        mlb: "",
+        done: false,
+        revision: 1,
+      },
+    ];
+    skuValueReservationRows.push({
+      id: 2,
+      normalizedSku: "1-servicos-10-1-05",
+      originalSku: "1-SERVICOS-10-1-05",
+      sourceType: "variation",
+      sourceKey: "1:5",
+    });
+    wrapSkuValueDuplicateErrorOnce = true;
+
+    const result = await upsertVariation(1, 5, "1-SERVICOS-10-1", {
+      ean: "EAN-NOVO",
+      expectedRevision: 1,
+    });
+
+    expect(result).toMatchObject({
+      variationSku: "1-SERVICOS-10-1-05",
+      ean: "EAN-NOVO",
+      revision: 2,
+    });
+    expect(skuValueReservationRows.filter((row) => row.normalizedSku === "1-servicos-10-1-05")).toHaveLength(1);
+  });
+
+  it("bloqueia duplicidade encapsulada quando a reserva pertence a outra origem", async () => {
+    skuValueReservationRows.push({
+      id: 2,
+      normalizedSku: "sku-de-outra-variacao",
+      originalSku: "SKU-DE-OUTRA-VARIACAO",
+      sourceType: "variation",
+      sourceKey: "99:7",
+    });
+    wrapSkuValueDuplicateErrorOnce = true;
+
+    await expect(
+      editVariationSkuManually({
+        skuRowId: 1,
+        variationIndex: 5,
+        baseSku: "1-SERVICOS-10-1",
+        newSku: "SKU-DE-OUTRA-VARIACAO",
+        expectedRevision: 0,
+        actor: "Teste automatizado",
+      }),
+    ).rejects.toThrow("SKU_VARIACAO_DUPLICADO");
+
+    expect(variations).toHaveLength(0);
+    expect(skuValueReservationRows.find((row) => row.normalizedSku === "sku-de-outra-variacao")).toMatchObject({
+      sourceKey: "99:7",
+    });
   });
 
   it("reverte SKU e reserva da variação se o histórico falhar", async () => {
