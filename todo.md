@@ -2021,4 +2021,4 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Auditar banco: nenhum SKU principal foi alterado; hash imutável preservado; autorização íntegra
 - [x] Concluir segunda revisão independente sem P0/P1/P2; P1 append-only confirmado fechado
 - [x] Gerar e abrir backup interno final: 273.372 bytes, 14 abas, 72 linhas e todas as reservas
-- [ ] Salvar checkpoint final e sincronizar GitHub
+- [x] Salvar checkpoint final `477efa2e` e sincronizar GitHub
