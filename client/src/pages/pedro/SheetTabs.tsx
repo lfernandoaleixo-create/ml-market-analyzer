@@ -1,17 +1,17 @@
 import { useLocation } from "wouter";
 import { Package, Table2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { PACKAGING_SHEET_PATH, SKU_SHEET_PATH } from "@shared/mercatoNavigation";
 
 /**
- * Abas internas da Planilha do Pedro: Produtos | Embalagens.
- * Exibidas no topo de cada uma das três planilhas, permitindo alternar
- * entre elas sem voltar para a tela da Linha do Tempo.
+ * Abas internas do tópico principal Planilha SKU: Produtos | Embalagens.
+ * Mantêm as planilhas existentes sem passar pelo cronograma E-commerce.
  */
 type TabDef = { label: string; path: string; icon: LucideIcon };
 
 const TABS: TabDef[] = [
-  { label: "Produtos", path: "/pedro-timeline/planilha-sku", icon: Table2 },
-  { label: "Embalagens", path: "/pedro-timeline/embalagens", icon: Package },
+  { label: "Produtos", path: SKU_SHEET_PATH, icon: Table2 },
+  { label: "Embalagens", path: PACKAGING_SHEET_PATH, icon: Package },
 ];
 
 export default function SheetTabs() {

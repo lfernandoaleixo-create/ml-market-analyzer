@@ -22,31 +22,20 @@ import {
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
+import { MERCATO_MENU_GROUPS, isMercatoNavItemActive, type MercatoNavId } from "@shared/mercatoNavigation";
 import { Input } from "./ui/input";
 import { toast } from "sonner";
 import { Lock, Loader2 } from "lucide-react";
 import {
-  BarChart3,
-  Bell,
-  GitCompareArrows,
   LayoutGrid,
-  LineChart,
   LogOut,
-  Search,
   Settings,
-  Sparkles,
-  TrendingUp,
-  Store,
-  Radar,
   Megaphone,
-  Wallet,
   Calculator,
   ShoppingBag,
   Package,
-  Undo2,
-  Award,
   FolderKanban,
-  GitBranch,
+  Table2,
   GripVertical,
   PanelLeftClose,
   PanelLeftOpen,
@@ -56,48 +45,21 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 
-type MenuItem = { icon: typeof LayoutGrid; label: string; path: string; comingSoon?: boolean };
-type MenuGroup = { title: string | null; items: MenuItem[] };
-
-const menuGroups: MenuGroup[] = [
-  {
-    title: "Disponível",
-    items: [
-      { icon: LayoutGrid, label: "Painel", path: "/" },
-      { icon: ShoppingBag, label: "Vendas", path: "/vendas" },
-      { icon: Package, label: "Meus anúncios", path: "/anuncios" },
-      { icon: Megaphone, label: "ADS", path: "/ads" },
-      { icon: Wallet, label: "Lucratividade", path: "/lucratividade" },
-      { icon: Calculator, label: "Calculadora de precificação", path: "/calculadora" },
-      { icon: FolderKanban, label: "Projeto", path: "/projeto" },
-      { icon: GitBranch, label: "Linha do Tempo Negociação", path: "/luis-timeline" },
-      { icon: GitBranch, label: "Linha do Tempo E-commerce", path: "/pedro-timeline" },
-    ],
-  },
-  {
-    title: "Em construção",
-    items: [
-      { icon: Undo2, label: "Pós-venda", path: "/pos-venda", comingSoon: true },
-      { icon: Award, label: "Reputação", path: "/reputacao", comingSoon: true },
-      { icon: Radar, label: "Radar de concorrentes", path: "/radar", comingSoon: true },
-      { icon: TrendingUp, label: "Mais vendidos", path: "/mais-vendidos", comingSoon: true },
-      { icon: Search, label: "Buscar produtos", path: "/buscar", comingSoon: true },
-      { icon: Sparkles, label: "Oportunidades", path: "/oportunidades", comingSoon: true },
-      { icon: GitCompareArrows, label: "Comparar", path: "/comparar", comingSoon: true },
-      { icon: BarChart3, label: "Categorias", path: "/categorias", comingSoon: true },
-      { icon: LineChart, label: "Monitoramento", path: "/monitoramento", comingSoon: true },
-      { icon: Bell, label: "Alertas", path: "/alertas", comingSoon: true },
-    ],
-  },
-  {
-    title: null,
-    items: [
-      { icon: Settings, label: "Configurações", path: "/configuracoes" },
-    ],
-  },
-];
-
-const menuItems: MenuItem[] = menuGroups.flatMap((g) => g.items);
+const menuIcons: Record<MercatoNavId, typeof LayoutGrid> = {
+  painel: LayoutGrid,
+  vendas: ShoppingBag,
+  anuncios: Package,
+  projeto: FolderKanban,
+  sku: Table2,
+  calculadora: Calculator,
+  publicidade: Megaphone,
+  configuracoes: Settings,
+};
+const menuGroups = MERCATO_MENU_GROUPS.map((group) => ({
+  ...group,
+  items: group.items.map((item) => ({ ...item, icon: menuIcons[item.id] })),
+}));
+const menuItems = menuGroups.flatMap((g) => g.items);
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 268;
@@ -271,7 +233,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
-  const activeMenuItem = menuItems.find((item) => item.path === location);
+  const activeMenuItem = menuItems.find((item) => isMercatoNavItemActive(item, location));
   const isMobile = useIsMobile();
 
   // Always scroll back to the top of the page whenever the route changes, so
@@ -280,11 +242,6 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
     mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [location]);
-
-  const { data: alerts } = trpc.monitor.alerts.useQuery(undefined, {
-    refetchInterval: 60_000,
-  });
-  const unread = (alerts ?? []).filter((a) => !a.isRead).length;
 
   useEffect(() => {
     if (isCollapsed) setIsResizing(false);
@@ -355,36 +312,20 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                     </p>
                   )}
                   {group.items.map((item) => {
-                    const isActive =
-                      location === item.path ||
-                      (item.path === "/calculadora" && location.startsWith("/calculadora")) ||
-                      (item.path === "/projeto" && location.startsWith("/projeto")) ||
-                      (item.path === "/luis-timeline" && location.startsWith("/luis-timeline")) ||
-                      (item.path === "/pedro-timeline" && location.startsWith("/pedro-timeline"));
-                    const showBadge = item.path === "/alertas" && unread > 0;
+                    const isActive = isMercatoNavItemActive(item, location);
                     return (
                       <SidebarMenuItem key={item.path}>
                         <SidebarMenuButton
                           isActive={isActive}
                           onClick={() => setLocation(item.path)}
-                          tooltip={item.comingSoon ? `${item.label} — em breve` : item.label}
-                          className={`relative h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground ${item.comingSoon && !isActive ? "text-muted-foreground/70" : ""}`}
+                          tooltip={item.label}
+                          className="relative h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground"
                         >
                           {isActive && (
                             <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary group-data-[collapsible=icon]:hidden" aria-hidden />
                           )}
-                          <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : item.comingSoon ? "opacity-70" : ""}`} />
+                          <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
                           <span>{item.label}</span>
-                          {item.comingSoon && (
-                            <span className="ml-auto rounded-full border border-amber-300/60 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 group-data-[collapsible=icon]:hidden">
-                              Em breve
-                            </span>
-                          )}
-                          {showBadge && !item.comingSoon && (
-                            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
-                              {unread}
-                            </span>
-                          )}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );

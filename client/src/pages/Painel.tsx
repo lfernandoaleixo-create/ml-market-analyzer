@@ -666,8 +666,7 @@ function SummaryStat({
 /**
  * Compact account-health chip shown in the page header (top-right), next to the
  * title. Surfaces the current reputation level (label + mini 5-step bar) and a
- * link to the full Reputação page — a space-efficient replacement for the old
- * full-width "Saúde da conta" card.
+ * reputation summary without linking to the retired Reputação module.
  */
 function AccountHealthBadge({
   loading,
@@ -687,11 +686,10 @@ function AccountHealthBadge({
   const total = positive + negative;
   const posPct = total > 0 ? Math.round((positive / total) * 100) : null;
   return (
-    <Link
-      href="/reputacao"
-      className="group flex items-center gap-2.5 rounded-xl border bg-card px-3 py-1.5 transition-colors hover:border-primary/40"
+    <div
+      className="flex items-center gap-2.5 rounded-xl border bg-card px-3 py-1.5"
       style={{ borderColor: "var(--border)" }}
-      title="Ver detalhes da reputação"
+      title="Resumo da reputação da conta"
     >
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
@@ -717,8 +715,7 @@ function AccountHealthBadge({
           ))}
         </div>
       </div>
-      <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
-    </Link>
+    </div>
   );
 }
 
@@ -1298,11 +1295,7 @@ function HistoricProfitCard({
         <div className="flex items-center justify-center gap-2 px-3 py-2.5 text-center">
           <Receipt className="h-4 w-4 text-muted-foreground/50" />
           <p className="text-[11px] text-muted-foreground">
-            Configure os custos (BaseLinker e impostos) na{" "}
-            <Link href="/lucratividade" className="font-medium text-primary hover:underline">
-              Lucratividade
-            </Link>{" "}
-            para ver a quebra de lucro.
+            Os custos e impostos ainda não estão configurados. A quebra de lucro fica indisponível até essa configuração.
           </p>
         </div>
       ) : loading ? (

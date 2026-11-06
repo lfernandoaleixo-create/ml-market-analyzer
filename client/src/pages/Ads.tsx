@@ -111,7 +111,7 @@ export default function Ads() {
   if (access.isLoading) {
     return (
       <PageShell>
-        <PageHeader title="ADS" subtitle="Carregando dados de Mercado Ads…" />
+        <PageHeader title="Publicidade Mercado Livre" subtitle="Carregando dados de Mercado Ads…" />
         <KpiSkeletonRow count={4} />
       </PageShell>
     );
@@ -126,7 +126,7 @@ export default function Ads() {
   if (access.data && access.data.connected && !access.data.hasAds) {
     return (
       <PageShell>
-        <PageHeader title="ADS" subtitle="Gestão de Mercado Ads" />
+        <PageHeader title="Publicidade Mercado Livre" subtitle="Acompanhe os anúncios patrocinados da sua conta" />
         <SectionCard>
           <div className="py-10 text-center space-y-3">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -151,10 +151,10 @@ export default function Ads() {
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/12 text-primary">
               <Megaphone className="h-5 w-5" />
             </span>
-            ADS
+            Publicidade Mercado Livre
           </span>
         }
-        subtitle="Central de Mercado Ads — campanhas, anúncios patrocinados e inteligência com dados reais da sua conta."
+        subtitle="Veja quanto foi gasto, as vendas atribuídas aos anúncios e o desempenho das campanhas. Acompanhamento sem alterar sua conta."
       />
 
       {/* Unified period selector (system-wide standard). */}
@@ -177,9 +177,9 @@ export default function Ads() {
       )}
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-        <TabsList className="bg-muted/60">
+        <TabsList className="bg-muted/60 w-full justify-start overflow-x-auto">
           <TabsTrigger value="dashboard" className="gap-1.5">
-            <Layers className="h-4 w-4" /> Dashboard
+            <Layers className="h-4 w-4" /> Resumo
           </TabsTrigger>
           <TabsTrigger value="campaigns" className="gap-1.5">
             <Target className="h-4 w-4" /> Campanhas
@@ -252,31 +252,57 @@ function DashboardTab({ period }: { period: TabPeriod }) {
 
   return (
     <div className="space-y-6">
+      <SectionCard title="Como ler os resultados" description={`Período: ${period.periodLabel}`}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-2 text-sm max-w-3xl">
+            <p>
+              Neste período, você gastou <strong>{formatBRL(m.cost)}</strong> em publicidade e o Mercado Livre atribuiu <strong>{formatBRL(m.totalAmount)}</strong> em vendas aos anúncios.
+            </p>
+            <p className="text-muted-foreground">
+              {d.roas != null ? `Cada R$ 1 em anúncios corresponde a R$ ${d.roas.toFixed(2).replace(".", ",")} em vendas atribuídas. ` : "O retorno ainda não pode ser calculado com os dados disponíveis. "}
+              Receita não é lucro: estes números não descontam produto, impostos, comissão e frete.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => q.refetch()} disabled={q.isFetching}>
+            <RefreshCw className={cn("h-3.5 w-3.5", q.isFetching && "animate-spin")} />
+            Atualizar resumo
+          </Button>
+        </div>
+        <details className="mt-4 border-t pt-3 text-sm">
+          <summary className="cursor-pointer font-medium text-primary">Entender as siglas e os números</summary>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2 text-muted-foreground">
+            <div><dt className="font-medium text-foreground">ROAS</dt><dd>Receita atribuída dividida pelo gasto em publicidade. Mostra o retorno em vendas, não o lucro.</dd></div>
+            <div><dt className="font-medium text-foreground">ACOS</dt><dd>Percentual da receita atribuída consumido por publicidade. Um ACOS de 20% representa R$ 20 de publicidade a cada R$ 100 em vendas atribuídas.</dd></div>
+            <div><dt className="font-medium text-foreground">Cliques, impressões e CTR</dt><dd>Impressões são exibições do anúncio. CTR é a proporção das exibições que geraram um clique.</dd></div>
+            <div><dt className="font-medium text-foreground">CPC e conversão</dt><dd>CPC é o gasto médio por clique. A conversão aqui relaciona as unidades atribuídas aos cliques.</dd></div>
+          </dl>
+        </details>
+      </SectionCard>
       {/* Primary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          label="Investimento"
+          label="Gasto em publicidade"
           value={formatBRL(m.cost)}
           icon={DollarSign}
           accent="primary"
           sublabel={`Orçamento diário: ${formatBRL(d.totalBudget)}`}
         />
         <KpiCard
-          label="Receita atribuída"
+          label="Vendas atribuídas aos anúncios"
           value={formatBRL(m.totalAmount)}
           icon={TrendingUp}
           accent="emerald"
           sublabel={`Direta ${formatBRL(m.directAmount)} · Indireta ${formatBRL(m.indirectAmount)}`}
         />
         <KpiCard
-          label="ROAS"
+          label="Retorno por R$ 1 (ROAS)"
           value={d.roas != null ? `${d.roas.toFixed(2)}x` : "—"}
           icon={Target}
           accent="blue"
-          sublabel="Retorno sobre investimento em ads"
+          sublabel="Retorno em vendas; não é lucro"
         />
         <KpiCard
-          label="ACOS"
+          label="Custo sobre vendas (ACOS)"
           value={d.acos != null ? formatRatePct(d.acos) : "—"}
           icon={Target}
           accent={d.acos != null && d.acos < 20 ? "emerald" : "amber"}

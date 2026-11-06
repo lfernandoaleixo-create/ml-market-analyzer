@@ -2022,3 +2022,19 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Concluir segunda revisão independente sem P0/P1/P2; P1 append-only confirmado fechado
 - [x] Gerar e abrir backup interno final: 273.372 bytes, 14 abas, 72 linhas e todas as reservas
 - [x] Salvar checkpoint final `477efa2e` e sincronizar GitHub
+
+## Mercato — navegação, Calculadora Alpha e PDFs (06/nov)
+- [x] Comparar em leitura o endereço publicado https://mlmarketanl-kcmkt5tl.manus.space/ com o banco atual: 28 linhas ativas SKU, 278 variações exibidas (incluindo placeholders) e 1 coluna personalizada, com assinaturas SHA-256 idênticas
+- [x] Não copiar/sobrescrever registros: os dois acessos consultam os mesmos dados atuais; nenhuma mudança de SKU realizada nesta reorganização
+- [x] Manter Painel, Vendas, Meus anúncios, Projeto e Configurações
+- [x] Promover Planilha SKU a tópico principal em /planilha-sku; preservar Embalagens e redirecionar endereços antigos
+- [x] Retirar Lucratividade, Negociação e Em construção da interface, sem apagar tabelas ou arquivos históricos
+- [x] Publicidade: Resumo, rótulos claros, explicação de ROAS/ACOS e atualização manual; campanhas não alteradas
+- [x] TypeScript válido e 15 testes de navegação aprovados
+- [ ] Integrar código Alpha fornecido sem sobrescrever framework nem tabelas SKU
+- [ ] Preservar motor, tarifas, bloqueios de frete, fluxograma e margens compactas 10/15/20/25%
+- [ ] Adaptar catálogo privado e sugestão de categoria ao login/tRPC do Mercato
+- [ ] Salvar automaticamente os PDFs Alpha no site e vinculá-los ao produto de Projeto em Documentos & Fotos, com destino explícito
+- [ ] Manter Projeto editável e facilitar anexos PDF de preço por produto
+- [ ] Validar testes, build e navegação no navegador sem testes de escrita sobre SKUs reais
+- [ ] Conferir dados, backup e checkpoint final antes da publicação

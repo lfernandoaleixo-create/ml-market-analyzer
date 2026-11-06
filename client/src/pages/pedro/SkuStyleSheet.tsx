@@ -473,7 +473,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
             variant="ghost"
             size="sm"
             className="h-9"
-            onClick={() => setLocation("/pedro-timeline/timeline")}
+            onClick={() => setLocation("/")}
           >
             <ArrowLeft className="w-4 h-4 mr-1.5" />
             Voltar

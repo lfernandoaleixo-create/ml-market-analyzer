@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import GenericSheet, { type ColumnDef, type GenericRow, type SheetApi } from "./GenericSheet";
 import SheetTabs from "./SheetTabs";
+import { SKU_SHEET_PATH } from "@shared/mercatoNavigation";
 
 const COLUMNS: ColumnDef[] = [
   { field: "produto", label: "Produto", kind: "area", minWidth: "min-w-[240px]" },
@@ -75,7 +76,7 @@ export default function EmbalagemSheet() {
       headColor="#1e3a5f"
       columns={COLUMNS}
       searchFields={SEARCH_FIELDS}
-      backTo="/pedro-timeline"
+      backTo={SKU_SHEET_PATH}
       tabsSlot={<SheetTabs />}
       api={api}
     />
