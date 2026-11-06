@@ -11,6 +11,7 @@ import {
 import { listKitRows, listKitCustomColumns } from "../kitSheetDb";
 import { listEmbalagemRows, listEmbalagemCustomColumns } from "../embalagemSheetDb";
 import { listSkuChangeLogForBackup } from "../skuProtection";
+import { buildBackupJsonAoa, loadAlphaProjectBackupRecords } from "./alphaProjectBackup";
 
 /**
  * Colunas fixas (na ordem da planilha) compartilhadas por SKU e Kits, que usam
@@ -157,6 +158,8 @@ function appendSheet(
  * "_" são cópias técnicas completas, preservando IDs, metadados, colunas
  * personalizadas, variações (inclusive tombstones) e histórico de SKU para uma
  * restauração fiel sem renumeração ou reconstrução automática.
+ * As quatro abas Alpha/Projeto usam JSON em chunks (contrato em
+ * alphaProjectBackup.ts); PDFs/documentos preservam referências, não arquivos.
  */
 export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
   const [
@@ -172,6 +175,7 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     numberReservations,
     variantReservations,
     skuValueReservations,
+    alphaProjectRecords,
   ] = await Promise.all([
     listSkuRows(),
     listAllSkuRows(),
@@ -185,6 +189,7 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     listSkuProductNumberReservationsForBackup(),
     listSkuVariantNumberReservationsForBackup(),
     listSkuValueReservationsForBackup(),
+    loadAlphaProjectBackupRecords(),
   ]);
 
   const wb = XLSX.utils.book_new();
@@ -226,6 +231,27 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     wb,
     "_Reservas_Valor_SKU",
     buildRawAoa(skuValueReservations as AnyRow[], SKU_VALUE_RESERVATION_FIELDS),
+  );
+
+  appendSheet(
+    wb,
+    "_Alpha_Catalogo",
+    buildBackupJsonAoa(alphaProjectRecords.alphaCatalogProducts, "id", "ownerId"),
+  );
+  appendSheet(
+    wb,
+    "_Alpha_PDFs",
+    buildBackupJsonAoa(alphaProjectRecords.alphaPdfExports, "exportId", "ownerId"),
+  );
+  appendSheet(
+    wb,
+    "_Projeto_Produtos",
+    buildBackupJsonAoa(alphaProjectRecords.projectProducts, "id"),
+  );
+  appendSheet(
+    wb,
+    "_Projeto_Documentos",
+    buildBackupJsonAoa(alphaProjectRecords.projectDocuments, "id"),
   );
 
   const out = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });

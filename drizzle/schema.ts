@@ -13,6 +13,9 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 
+// Calculadora Alpha: catálogo e arquivos próprios; nenhum identificador SKU é alterado.
+export * from "./alphaSchema";
+
 /**
  * Core user table backing auth flow.
  */

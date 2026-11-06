@@ -22,6 +22,7 @@ import {
   Clock,
   MessageSquare,
   Send,
+  Calculator,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -610,14 +611,20 @@ export default function ProjetoProduto({
 
           {/* Documentos */}
           <div className="rounded-2xl bg-card card-soft p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="font-display font-semibold text-foreground">Documentos & Fotos</h3>
+              {ns === "project" && (
+                <Button size="sm" variant="outline" className="bg-card gap-1.5" onClick={() => setLocation(`/calculadora/final?projectProductId=${productId}`)}>
+                  <Calculator className="w-3.5 h-3.5" /> Calculadora Final
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={() => requireGuestName(() => fileInputRef.current?.click())} disabled={uploadingDoc} className="gap-1.5 text-muted-foreground hover:text-foreground">
                 {uploadingDoc ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                 Enviar
               </Button>
               <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={handleFileUpload} />
             </div>
+            {ns === "project" && <p className="mb-4 text-xs text-muted-foreground">Os PDFs de preço da Calculadora Final podem ser salvos diretamente neste produto, junto dos documentos e fotos.</p>}
             {loadingDocs ? (
               <div className="space-y-2">
                 {[1, 2].map((i) => (

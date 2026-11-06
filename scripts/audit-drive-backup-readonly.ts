@@ -36,6 +36,7 @@ let internalBackup = {
   technicalProductRows: 0,
   includesSkuValueReservations: false,
   includesProductNumberVoidMarker: false,
+  includesAlphaAndProjectData: false,
 };
 if (config.lastInternalBackupKey) {
   const signedUrl = await storageGetSignedUrl(config.lastInternalBackupKey);
@@ -58,6 +59,7 @@ if (config.lastInternalBackupKey) {
       technicalProductRows: technicalRows.length,
       includesSkuValueReservations: workbook.SheetNames.includes("_Reservas_Valor_SKU"),
       includesProductNumberVoidMarker: productReservationRows[0]?.includes("isVoided") ?? false,
+      includesAlphaAndProjectData: ["_Alpha_Catalogo", "_Alpha_PDFs", "_Projeto_Produtos", "_Projeto_Documentos"].every(name => workbook.SheetNames.includes(name)),
     };
   }
 }
@@ -82,5 +84,6 @@ const validInternalBackup =
   internalBackup.exists &&
   internalBackup.technicalProductRows === expectedTechnicalProductRows &&
   internalBackup.includesSkuValueReservations &&
-  internalBackup.includesProductNumberVoidMarker;
+  internalBackup.includesProductNumberVoidMarker &&
+  internalBackup.includesAlphaAndProjectData;
 process.exit(validInternalBackup ? 0 : 1);

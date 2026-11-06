@@ -36,6 +36,7 @@ function Router() {
         <Route path="/anuncios" component={Anuncios} />
         <Route path="/ads" component={Ads} />
         <Route path="/calculadora" component={Calculadora} />
+        <Route path="/calculadora/final" component={Calculadora} />
         <Route path="/calculadora/precificacao" component={Calculadora} />
         <Route path="/calculadora/ponto-equilibrio" component={Calculadora} />
         <Route path="/calculadora/referencia-preco" component={Calculadora} />

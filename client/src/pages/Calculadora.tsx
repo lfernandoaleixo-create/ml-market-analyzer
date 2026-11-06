@@ -6,8 +6,10 @@ import { Calculator, Globe, ArrowLeft, ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import PrecificacaoCalc from "@/components/calculadora/PrecificacaoCalc";
 import CustoAlvoCalc from "@/components/calculadora/CustoAlvoCalc";
+import CalculadoraFinal from "./CalculadoraFinal";
 
 type ModelKey =
+  | "final"
   | "precificacao"
   | "custo-alvo";
 
@@ -23,6 +25,21 @@ type Model = {
 };
 
 const MODELS: Model[] = [
+  {
+    key: "final",
+    path: "/calculadora/final",
+    title: "Calculadora Final",
+    tagline: "Calculadora Alpha integrada ao Mercato",
+    description:
+      "A nova calculadora completa em um único lugar: preço, margens, composição de kits, frete e fluxogramas. Todo PDF gerado é salvo no Mercato, com opção de anexar ao produto em Documentos & Fotos.",
+    bullets: [
+      "Mesmas regras e cálculos da Alpha fornecida",
+      "Fluxos compacto, selecionado e completo em PDF",
+      "Arquivos de preço organizados por produto do Projeto",
+    ],
+    icon: Calculator,
+    accent: "bg-amber-100 text-amber-800",
+  },
   {
     key: "precificacao",
     path: "/calculadora/precificacao",
@@ -58,6 +75,8 @@ const MODELS: Model[] = [
 /** Renderiza o componente do modelo ativo. */
 function ModelView({ modelKey }: { modelKey: ModelKey }) {
   switch (modelKey) {
+    case "final":
+      return <CalculadoraFinal />;
     case "precificacao":
       return <PrecificacaoCalc />;
     case "custo-alvo":
@@ -154,9 +173,9 @@ export default function Calculadora() {
     <PageShell>
       <PageHeader
         title="Calculadoras"
-        subtitle="Escolha a calculadora que você precisa. As ferramentas usam apenas os dados que você informar — nada é enviado para fora."
+        subtitle="Escolha a calculadora que você precisa. Na Calculadora Final, os PDFs são salvos no Mercato e podem ser anexados ao produto do Projeto."
       />
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {MODELS.map((m) => (
           <ModelCard key={m.key} model={m} onSelect={() => setLocation(m.path)} />
         ))}

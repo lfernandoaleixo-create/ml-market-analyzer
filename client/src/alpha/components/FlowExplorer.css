@@ -1,0 +1,993 @@
+/* Alpha FlowExplorer styles isolated with PostCSS selector ASTs. This inline overlay inherits local font tokens from .alpha-calculator; no global styles or framework imports. */
+
+.alpha-calculator .flow-explorer__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(35, 25, 54, 0.62);
+  font-family: var(--alpha-font-family);
+}
+
+.alpha-calculator .flow-explorer__dialog {
+  width: min(1480px, calc(100vw - 36px));
+  height: min(96dvh, 920px);
+  max-height: 96dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #29242e;
+  background: #fbfbf8;
+  border: 1px solid rgba(71, 52, 111, 0.2);
+  border-radius: 22px;
+  box-shadow: 0 28px 90px rgba(39, 25, 63, 0.3);
+}
+
+.alpha-calculator .flow-explorer__header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 23px 29px 18px;
+  background: #fff;
+  border-bottom: 1px solid #ece8e2;
+}
+
+.alpha-calculator .flow-explorer__header > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.alpha-calculator .flow-explorer__header-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  margin-top: 3px;
+  color: #fff;
+  background: linear-gradient(145deg, #4b3574, #7454a0);
+  border-radius: 11px;
+  box-shadow: 0 5px 12px rgba(71, 52, 111, 0.2);
+  vertical-align: middle;
+}
+
+.alpha-calculator .flow-explorer__eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: #78658f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.7px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.alpha-calculator .flow-explorer__header h2 {
+  margin: 0;
+  color: #332358;
+  font-size: clamp(21px, 2vw, 30px);
+  font-weight: 850;
+  letter-spacing: -0.8px;
+  line-height: 1.12;
+}
+
+.alpha-calculator .flow-explorer__header p {
+  max-width: 720px;
+  margin: 7px 0 0;
+  color: #766f79;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.alpha-calculator .flow-explorer__header p strong {
+  color: #4b3771;
+}
+
+.alpha-calculator .flow-explorer__close {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0 0 3px;
+  color: #544263;
+  background: #f5f2fa;
+  border: 1px solid #e4dced;
+  border-radius: 50%;
+  font-family: inherit;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: normal;
+  line-height: 1;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.alpha-calculator .flow-explorer__close:hover {
+  color: #fff;
+  background: #47346f;
+  transform: rotate(4deg);
+}
+
+.alpha-calculator .flow-explorer__notice {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 7px 29px;
+  color: #554d58;
+  background: #fffdf2;
+  border-bottom: 1px solid #eee6c5;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.alpha-calculator .flow-explorer__notice-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  background: #16805b;
+  border: 2px solid #c8efde;
+  border-radius: 50%;
+}
+
+.alpha-calculator .flow-explorer__notice strong {
+  color: #44305f;
+}
+
+.alpha-calculator .flow-explorer__notice-profile {
+  min-width: 180px;
+  flex: 1 1 360px;
+  overflow-wrap: anywhere;
+  color: #756b57;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.alpha-calculator .flow-explorer__notice-count {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #84743f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  line-height: 1.25;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.alpha-calculator .flow-explorer__stage-rail {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 9px;
+  padding: 13px 29px 12px;
+  overflow-x: auto;
+  background: #fff;
+  border-bottom: 1px solid #ece8e2;
+  scrollbar-color: #c5b9d2 #f1efeb;
+  scrollbar-width: thin;
+}
+
+.alpha-calculator .flow-explorer__stage-card {
+  min-width: 0;
+  flex: 1 1 0;
+  min-height: 90px;
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 9px;
+  row-gap: 3px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #faf9fc;
+  border: 1px solid #ebe5f2;
+  border-radius: 12px;
+}
+
+.alpha-calculator .flow-explorer__stage-index {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  color: #60437f;
+  background: #eee8f6;
+  border: 1px solid #dfd3ed;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.alpha-calculator .flow-explorer__stage-copy {
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.alpha-calculator .flow-explorer__stage-copy strong {
+  overflow-wrap: anywhere;
+  color: #493469;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.4px;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.alpha-calculator .flow-explorer__stage-copy span {
+  overflow-wrap: anywhere;
+  color: #77717b;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.alpha-calculator .flow-explorer__stage-toggle {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 25px;
+  padding: 3px 0 1px;
+  color: #6a4d92;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: normal;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.alpha-calculator .flow-explorer__stage-toggle:hover {
+  color: #2b7d60;
+  text-decoration: underline;
+}
+
+.alpha-calculator .flow-explorer__stage-fixed {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 3px 8px 2px;
+  color: #19734f;
+  background: #e2f5e9;
+  border: 1px solid #c5e7d2;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.6px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.alpha-calculator .flow-explorer__stage-card.is-fixed {
+  background: #f4fbf7;
+  border-color: #cde7d8;
+}
+
+.alpha-calculator .flow-explorer__stage-card.is-fixed .flow-explorer__stage-index {
+  color: #19734f;
+  background: #e2f5e9;
+  border-color: #c5e7d2;
+}
+
+.alpha-calculator .flow-explorer__stage-card.is-expanded {
+  border-color: #b8a0d0;
+  background: #f4effa;
+}
+
+.alpha-calculator .flow-explorer__toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 29px;
+  background: #f8f7f3;
+  border-bottom: 1px solid #e8e5df;
+}
+
+.alpha-calculator .flow-explorer__toolbar-copy {
+  min-width: 0;
+  flex: 1 1 320px;
+  display: grid;
+  gap: 2px;
+}
+
+.alpha-calculator .flow-explorer__toolbar-copy strong {
+  color: #3e2c60;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.8px;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.alpha-calculator .flow-explorer__toolbar-copy span {
+  overflow-wrap: anywhere;
+  color: #6e6872;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.alpha-calculator .flow-explorer__toolbar-copy small {
+  max-width: 740px;
+  overflow-wrap: anywhere;
+  color: #a75b48;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.alpha-calculator .flow-explorer__toolbar-actions,.alpha-calculator 
+.flow-explorer__zoom-group,.alpha-calculator 
+.flow-explorer__pan-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.alpha-calculator .flow-explorer__toolbar-actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.alpha-calculator .flow-explorer__zoom-group {
+  padding: 3px;
+  background: #fff;
+  border: 1px solid #e1dcd5;
+  border-radius: 9px;
+}
+
+.alpha-calculator .flow-explorer__zoom-group > span {
+  min-width: 38px;
+  color: #5c5364;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: normal;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.alpha-calculator .flow-explorer__tool-button,.alpha-calculator 
+.flow-explorer__read-button {
+  min-height: 36px;
+  padding: 8px 11px;
+  color: #5f477c;
+  background: #fff;
+  border: 1px solid #ddd5e7;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: normal;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.alpha-calculator .flow-explorer__tool-button:hover,.alpha-calculator 
+.flow-explorer__read-button:hover {
+  color: #fff;
+  background: #5b3d81;
+  border-color: #5b3d81;
+}
+
+.alpha-calculator .flow-explorer__icon-button {
+  width: 36px;
+  min-width: 36px;
+  padding: 8px 0;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.alpha-calculator .flow-explorer__viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background-color: #f7f7f3;
+  background-image: radial-gradient(#ded8e5 0.8px, transparent 0.8px);
+  background-position: 0 0;
+  background-size: 19px 19px;
+  cursor: grab;
+  scrollbar-color: #b8a8cb #eeece8;
+  scrollbar-width: thin;
+}
+
+.alpha-calculator .flow-explorer__viewport:active {
+  cursor: grabbing;
+}
+
+.alpha-calculator .flow-explorer__canvas {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.alpha-calculator .flow-explorer__scene {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+}
+
+.alpha-calculator .flow-explorer__edges {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.alpha-calculator .flow-explorer__edges line,.alpha-calculator 
+.flow-explorer__edges > path {
+  fill: none;
+  stroke: #c7bcd5;
+  stroke-width: 1.5;
+  opacity: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.alpha-calculator .flow-explorer__edges line.is-selected,.alpha-calculator 
+.flow-explorer__edges > path.is-selected {
+  stroke: #16805b;
+  stroke-width: 3;
+  opacity: 1;
+}
+
+.alpha-calculator .flow-explorer__edges marker path {
+  fill: #b6a8c4;
+}
+
+.alpha-calculator .flow-explorer__edges line.is-selected + path,.alpha-calculator 
+.flow-explorer__edges line.is-selected {
+  --active-edge: #16805b;
+}
+
+.alpha-calculator .flow-explorer__column-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.alpha-calculator .flow-explorer__column-labels span {
+  position: absolute;
+  top: 34px;
+  width: 226px;
+  overflow-wrap: anywhere;
+  color: #988da5;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1px;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.alpha-calculator .flow-explorer__node {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 226px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 15px 16px 14px;
+  color: #3b3441;
+  background: #fff;
+  border: 1.5px solid #d9d0e3;
+  border-radius: 14px;
+  box-shadow: 0 7px 15px rgba(65, 48, 86, 0.08);
+  text-align: left;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease,
+    background 150ms ease;
+}
+
+.alpha-calculator button.flow-explorer__node {
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: normal;
+}
+
+.alpha-calculator button.flow-explorer__node:hover {
+  border-color: #8c6caf;
+  box-shadow: 0 10px 21px rgba(65, 48, 86, 0.15);
+  transform: translateY(-2px);
+}
+
+.alpha-calculator .flow-explorer__node.is-fixed {
+  cursor: default;
+}
+
+.alpha-calculator .flow-explorer__node.is-root {
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(145deg, #4b3574, #684d91);
+  border-color: #4a336f;
+  box-shadow: 0 11px 24px rgba(64, 43, 99, 0.25);
+}
+
+.alpha-calculator .flow-explorer__node.is-root .flow-explorer__node-kicker,.alpha-calculator 
+.flow-explorer__node.is-root small {
+  color: #d9cbed;
+}
+
+.alpha-calculator .flow-explorer__node.is-root .flow-explorer__node-value {
+  color: #fff;
+  font-size: 18px;
+}
+
+.alpha-calculator .flow-explorer__node.is-selected {
+  background: #f4fbf7;
+  border-color: #16805b;
+  box-shadow:
+    0 0 0 3px rgba(22, 128, 91, 0.1),
+    0 10px 22px rgba(22, 128, 91, 0.13);
+}
+
+.alpha-calculator .flow-explorer__node.is-root.is-selected {
+  color: #fff;
+  background: linear-gradient(145deg, #4b3574, #684d91);
+  border-color: #16805b;
+}
+
+.alpha-calculator .flow-explorer__node.is-unavailable {
+  color: #6f626b;
+  background: #fffafa;
+  border-color: #dbb4ad;
+}
+
+.alpha-calculator .flow-explorer__node.is-root.is-unavailable {
+  color: #fff;
+  background: linear-gradient(145deg, #6d526d, #7f607b);
+  border-color: #b6746b;
+}
+
+.alpha-calculator .flow-explorer__node.is-margin {
+  gap: 7px;
+  padding: 14px 15px 13px;
+}
+
+.alpha-calculator .flow-explorer__node-kicker {
+  color: #967fae;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.8px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.alpha-calculator .flow-explorer__node strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #3f2c5f;
+  font-size: 16px;
+  font-weight: 850;
+  letter-spacing: normal;
+  line-height: 1.2;
+}
+
+.alpha-calculator .flow-explorer__node.is-root strong {
+  color: #fff;
+}
+
+.alpha-calculator .flow-explorer__node-value {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #3c2e5b;
+  font-size: 18px;
+  font-weight: 850;
+  letter-spacing: normal;
+  line-height: 1.2;
+}
+
+.alpha-calculator .flow-explorer__node-detail,.alpha-calculator 
+.flow-explorer__node-custom {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #756d79;
+  font-size: 12px;
+  letter-spacing: normal;
+  line-height: 1.4;
+}
+
+.alpha-calculator .flow-explorer__node small {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #9b6b61;
+  font-size: 11px;
+  letter-spacing: normal;
+  line-height: 1.3;
+}
+
+.alpha-calculator .flow-explorer__node-active {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  max-width: 100%;
+  margin-top: 1px;
+  padding: 4px 7px;
+  color: #116a4b;
+  background: #dff4e9;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: normal;
+  line-height: 1.1;
+}
+
+.alpha-calculator .flow-explorer__node-error {
+  display: block;
+  max-width: 100%;
+  max-height: 55px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  color: #9d5b51;
+  font-size: 11px;
+  letter-spacing: normal;
+  line-height: 1.35;
+}
+
+.alpha-calculator .flow-explorer__terminal-result {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.alpha-calculator .flow-explorer__terminal-result span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: #777079;
+  font-size: 11px;
+  letter-spacing: normal;
+  line-height: 1.25;
+}
+
+.alpha-calculator .flow-explorer__terminal-result em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-style: normal;
+}
+
+.alpha-calculator .flow-explorer__terminal-result b {
+  flex: 0 0 auto;
+  color: #1a7959;
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: normal;
+  line-height: 1.2;
+}
+
+.alpha-calculator .flow-explorer__terminal-result > span:first-child b {
+  font-size: 18px;
+  color: #3f2c5f;
+}
+
+.alpha-calculator .flow-explorer__footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding: 13px 29px;
+  background: #fff;
+  border-top: 1px solid #e8e3dc;
+}
+
+.alpha-calculator .flow-explorer__footer-copy {
+  min-width: 0;
+  flex: 1 1 250px;
+  display: grid;
+  gap: 3px;
+}
+
+.alpha-calculator .flow-explorer__footer-copy strong {
+  color: #3e2c60;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.3;
+}
+
+.alpha-calculator .flow-explorer__footer-copy span {
+  overflow-wrap: anywhere;
+  color: #7d7581;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.alpha-calculator .flow-explorer__summary {
+  display: flex;
+  align-items: center;
+  flex: 1 1 320px;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  min-width: 0;
+}
+
+.alpha-calculator .flow-explorer__summary span {
+  display: grid;
+  gap: 2px;
+  min-width: 72px;
+}
+
+.alpha-calculator .flow-explorer__summary small {
+  color: #8b8192;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.alpha-calculator .flow-explorer__summary b {
+  color: #3e2c60;
+  font-size: 17px;
+  font-weight: 850;
+  letter-spacing: normal;
+  line-height: 1.25;
+}
+
+.alpha-calculator .flow-explorer__footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.alpha-calculator .flow-explorer__cancel,.alpha-calculator 
+.flow-explorer__apply {
+  min-height: 40px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: normal;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.alpha-calculator .flow-explorer__cancel {
+  color: #654f79;
+  background: #f6f3f8;
+  border: 1px solid #e3dbe9;
+}
+
+.alpha-calculator .flow-explorer__cancel:hover {
+  background: #ece5f1;
+}
+
+.alpha-calculator .flow-explorer__apply {
+  color: #fff;
+  background: #47346f;
+  border: 1px solid #47346f;
+  box-shadow: 0 5px 12px rgba(71, 52, 111, 0.2);
+}
+
+.alpha-calculator .flow-explorer__apply:hover:not(:disabled) {
+  background: #2f825f;
+  border-color: #2f825f;
+}
+
+.alpha-calculator .flow-explorer__apply:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 1180px) {
+  .alpha-calculator .flow-explorer__stage-card {
+    flex: 0 0 202px;
+  }
+}
+
+@media (max-width: 1040px) {
+  .alpha-calculator .flow-explorer__toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .alpha-calculator .flow-explorer__toolbar-copy {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .alpha-calculator .flow-explorer__toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 700px) {
+  .alpha-calculator .flow-explorer__overlay {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .alpha-calculator .flow-explorer__dialog {
+    width: 100%;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .alpha-calculator .flow-explorer__header,.alpha-calculator 
+  .flow-explorer__notice,.alpha-calculator 
+  .flow-explorer__stage-rail,.alpha-calculator 
+  .flow-explorer__toolbar,.alpha-calculator 
+  .flow-explorer__footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .alpha-calculator .flow-explorer__header {
+    gap: 12px;
+    padding-top: 18px;
+    padding-bottom: 15px;
+  }
+
+  .alpha-calculator .flow-explorer__header p {
+    max-width: calc(100vw - 82px);
+  }
+
+  .alpha-calculator .flow-explorer__header-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 5px;
+  }
+
+  .alpha-calculator .flow-explorer__notice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+
+  .alpha-calculator .flow-explorer__notice-count {
+    width: 100%;
+    margin-left: 17px;
+    text-align: left;
+  }
+
+  .alpha-calculator .flow-explorer__notice-profile {
+    flex-basis: 100%;
+    margin-left: 17px;
+  }
+
+  .alpha-calculator .flow-explorer__stage-rail {
+    gap: 8px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .alpha-calculator .flow-explorer__stage-card {
+    flex-basis: 188px;
+  }
+
+  .alpha-calculator .flow-explorer__toolbar-actions {
+    gap: 5px;
+  }
+
+  .alpha-calculator .flow-explorer__pan-group {
+    margin-left: auto;
+  }
+
+  .alpha-calculator .flow-explorer__footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+
+  .alpha-calculator .flow-explorer__footer-copy,.alpha-calculator 
+  .flow-explorer__summary {
+    flex-basis: auto;
+  }
+
+  .alpha-calculator .flow-explorer__footer-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 701px) {
+  .alpha-calculator .flow-explorer__header {
+    padding-top: 16px;
+    padding-bottom: 13px;
+  }
+
+  .alpha-calculator .flow-explorer__stage-rail {
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+
+  .alpha-calculator .flow-explorer__toolbar {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .alpha-calculator .flow-explorer__footer {
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alpha-calculator .flow-explorer__node,.alpha-calculator 
+  .flow-explorer__close,.alpha-calculator 
+  .flow-explorer__tool-button,.alpha-calculator 
+  .flow-explorer__read-button {
+    transition: none;
+  }
+}
+
+/* The interactive reputation axis reuses the original first column. */
+.alpha-calculator .flow-explorer__node.is-reputation {
+  --reputation-color: #85758f;
+  border-left: 4px solid var(--reputation-color);
+}
+.alpha-calculator .flow-explorer__node.is-reputation[data-reputation="green"] {
+  --reputation-color: #27855c;
+}
+.alpha-calculator .flow-explorer__node.is-reputation[data-reputation="new"] {
+  --reputation-color: #85758f;
+}
+.alpha-calculator .flow-explorer__node.is-reputation[data-reputation="yellow"] {
+  --reputation-color: #c59d22;
+}
+.alpha-calculator .flow-explorer__node.is-reputation[data-reputation="red"] {
+  --reputation-color: #c65d47;
+}
+.alpha-calculator .flow-explorer__node.is-reputation.is-selected {
+  border-color: #bba4d3;
+  border-left-color: var(--reputation-color);
+  background: #f8f4fd;
+  box-shadow:
+    0 0 0 2px rgb(104 72 142 / 10%),
+    0 8px 18px rgb(48 36 62 / 7%);
+}
+.alpha-calculator .flow-explorer__node.is-reputation .flow-explorer__node-kicker::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--reputation-color);
+}

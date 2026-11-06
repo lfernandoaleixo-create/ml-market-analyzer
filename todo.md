@@ -2031,10 +2031,17 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Retirar Lucratividade, Negociação e Em construção da interface, sem apagar tabelas ou arquivos históricos
 - [x] Publicidade: Resumo, rótulos claros, explicação de ROAS/ACOS e atualização manual; campanhas não alteradas
 - [x] TypeScript válido e 15 testes de navegação aprovados
-- [ ] Integrar código Alpha fornecido sem sobrescrever framework nem tabelas SKU
-- [ ] Preservar motor, tarifas, bloqueios de frete, fluxograma e margens compactas 10/15/20/25%
-- [ ] Adaptar catálogo privado e sugestão de categoria ao login/tRPC do Mercato
-- [ ] Salvar automaticamente os PDFs Alpha no site e vinculá-los ao produto de Projeto em Documentos & Fotos, com destino explícito
-- [ ] Manter Projeto editável e facilitar anexos PDF de preço por produto
-- [ ] Validar testes, build e navegação no navegador sem testes de escrita sobre SKUs reais
-- [ ] Conferir dados, backup e checkpoint final antes da publicação
+- [x] Integrar Alpha no card Calculadora Final, preservando os outros dois modelos da central; namespace isolado client/src/alpha, shared/alpha, server/alpha e duas tabelas novas pela migração aditiva 0034
+- [x] Preservar motor, tarifas, bloqueios de frete, fluxograma e margens compactas 10/15/20/25%: 23 módulos compartilhados idênticos ao código fornecido, somente imports adaptados; const/types do framework atual não substituídos
+- [x] Adaptar catálogo privado e sugestão de categoria ao login/tRPC do Mercato; estilos Alpha escopados e recursos grandes em armazenamento externo
+- [x] Salvar todos PDFs novos na central Alpha; vincular também ao ID explicitamente selecionado do Projeto, com hash, bytes e contexto idempotentes; novas gerações têm títulos distintos e retries reaproveitam ID/bytes/nome
+- [x] Exibir somente nomes correspondentes de produtos/kit já existentes junto ao campo Nome/Descrição; seleção não cria nem altera produtos/SKUs; destino explícito também no diálogo PDF
+- [x] Manter Projeto editável; em Documentos & Fotos há atalho para a calculadora com o ID real do produto, inclusive IDs técnicos altos
+- [x] Corrigir os dois P2 da revisão independente: bloquear continuação após desmontagem/logoff e desconsiderar renomeação do rótulo de destino na assinatura do retry
+- [x] Validar suíte completa sem .live.test.ts: 124 arquivos / 1.355 testes aprovados; TypeScript sem cache incremental antigo e build de produção aprovados
+- [x] Conferir visualmente card, calculadora, planilha e ADS; testar seletor e diálogo PDF com dados simulados e APIs bloqueadas, sem criar registros de teste no banco real
+- [x] Comprovar por SHA-256 preservação integral de 11 tabelas comerciais existentes, inclusive 81 linhas SKU históricas, 50 variações persistidas e 16 produtos do Projeto; nenhuma coluna de SKU/números/reservas reescrita pela integração
+- [x] Ampliar backup XLSX de 14 para 18 abas com catálogo Alpha, referências/hash dos PDFs e registros de Projeto/Documentos; JSON longo em chunks reassembláveis, sem gravar bytes dos PDFs no XLSX
+- [x] Gerar e baixar cópia interna validada em 06/nov 08:51 BRT: 330.705 bytes, 18 abas e 81 linhas técnicas; rotina diária existente mantida
+- [x] Finalizar verificação de dados, tipos e build; mudanças preparadas para checkpoint final e publicação pelo painel
+- [ ] Pendência externa: reconectar Google Drive em Configurações — token ainda retorna invalid_grant; cópia interna funcional, sem prometer backup Drive bem-sucedido
