@@ -2057,3 +2057,14 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Comparar assinaturas SHA-256 das 11 tabelas comerciais com o baseline: changed=[] e preservedAll=true, inclusive 81 linhas SKU históricas; nenhuma mutação em anúncios, campanhas, SKUs, produtos, credenciais ou schema nesta correção
 - [x] Conferir diff sem erros, scan de segredos sem achados e runtime atual sem erro de importação; /painel e /anuncios retornam HTTP 200 na prévia
 - [ ] Pendência externa: reconectar a conta que realmente possui os anúncios em Configurações > Reconectar ao Mercado Livre e validar novamente por leitura; não contornar o 403 nem afirmar que os 47 anúncios pertencem à TOUJOURS sem confirmação
+
+## Mercato — investigação da divergência 47 → 0 e Raio-X (06/nov)
+- [x] Comparar a85409c3 com e99dbe43: resolvedores de token/vendedor, OAuth e seleção da conexão compartilhada não mudaram; namespace de cache por vendedor mudou e pode deixar de reutilizar um snapshot antigo, sem comprovar a origem dos 47
+- [x] Auditar as duas linhas de credenciais em leitura: apenas a linha do proprietário tem tokens; /users/me identifica MANICARDIGUILHERME (197259225), busca ativa HTTP 200 total 0 e consulta à referência histórica 3308178634 HTTP 403; assinatura das credenciais intacta durante a auditoria
+- [x] Registrar metadado temporal sem inferir causa: linha selecionada atualizada em 06/nov 09:06:20 BRT, antes do checkpoint e99dbe43; nenhuma troca ou renovação manual realizada na investigação
+- [x] Buscar referências MLB já existentes em leitura na planilha: nenhuma referência preenchida encontrada nos campos mainMlb/mlb; solicitar um link ou MLB real ao usuário para identificar o vendedor sem presumir a referência histórica
+- [x] Corrigir achado concreto no Raio-X: multiget nulo/incompleto/HTTP não 200/IDs duplicados/dados malformados e catálogo de categoria indisponível não geram resumo zero ou fichas falsamente 100% completas
+- [x] UI do Raio-X exibe travessão e consulta não confirmada sem resumo válido; remove tudo certo da lista vazia não consultada e preserva dados anteriores com aviso de falha
+- [x] Validar 23 novas regressões, 163 testes focados, TypeScript, build e suíte sem live de 127 arquivos / 1.488 testes aprovados; 47 anúncios cobertos somente em cenário simulado
+- [x] Auditoria SHA-256 mantém preservedAll=true e changed=[] nas 11 tabelas comerciais; diff e scan de segredos aprovados; nenhum anúncio, campanha, SKU, produto ou credencial alterado
+- [ ] Pendência real: receber link/código MLB de anúncio ativo, identificar seu vendedor e validar a autorização necessária; origem efetiva dos 47 anteriores e recuperação da listagem ainda não comprovadas

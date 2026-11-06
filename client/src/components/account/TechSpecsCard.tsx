@@ -85,6 +85,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
 
   const items = useMemo<TechSpecListing[]>(() => data?.items ?? [], [data]);
   const summary = data?.summary;
+  const unavailableLabel = connected ? "Consulta não confirmada" : "Conta não conectada";
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -170,35 +171,35 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
       <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Fichas completas"
-          value={isLoading ? "" : `${formatNumber(summary?.complete ?? 0)} / ${formatNumber(summary?.total ?? 0)}`}
+          value={isLoading ? "" : summary ? `${formatNumber(summary.complete)} / ${formatNumber(summary.total)}` : "—"}
           loading={isLoading}
           icon={CheckCircle2}
           accent="emerald"
-          sublabel={isLoading ? undefined : `${completePct}% dos ativos`}
+          sublabel={isLoading ? undefined : summary ? summary.total > 0 ? `${completePct}% dos ativos` : "nenhum ativo retornado" : unavailableLabel}
         />
         <KpiCard
           label="Fichas incompletas"
-          value={isLoading ? "" : formatNumber(summary?.incomplete ?? 0)}
+          value={isLoading ? "" : summary ? formatNumber(summary.incomplete) : "—"}
           loading={isLoading}
           icon={AlertTriangle}
           accent="amber"
-          sublabel="com algum atributo faltando"
+          sublabel={summary ? "com algum atributo faltando" : unavailableLabel}
         />
         <KpiCard
           label="Faltam obrigatórios"
-          value={isLoading ? "" : formatNumber(summary?.withMissingRequired ?? 0)}
+          value={isLoading ? "" : summary ? formatNumber(summary.withMissingRequired) : "—"}
           loading={isLoading}
           icon={CircleDot}
           accent="rose"
-          sublabel="atributos exigidos em falta"
+          sublabel={summary ? "atributos exigidos em falta" : unavailableLabel}
         />
         <KpiCard
           label="Completude média"
-          value={isLoading ? "" : `${Math.round((summary?.avgCompleteness ?? 0) * 100)}%`}
+          value={isLoading ? "" : summary && summary.total > 0 ? `${Math.round(summary.avgCompleteness * 100)}%` : "—"}
           loading={isLoading}
           icon={ListChecks}
           accent="violet"
-          sublabel={isLoading ? undefined : `${formatNumber(summary?.totalMissing ?? 0)} atributos a preencher`}
+          sublabel={isLoading ? undefined : summary ? `${formatNumber(summary.totalMissing)} atributos a preencher` : unavailableLabel}
         />
       </div>
 
@@ -242,11 +243,13 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
           ))
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center">
-            <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+            {summary && summary.total > 0 ? <CheckCircle2 className="h-8 w-8 text-emerald-500" /> : <AlertTriangle className="h-8 w-8 text-muted-foreground" />}
             <p className="text-sm font-medium">
-              {mode === "all"
-                ? "Nenhum anúncio encontrado."
-                : "Nenhum anúncio nesta condição — tudo certo por aqui!"}
+              {!summary
+                ? "As fichas técnicas ainda não foram consultadas com sucesso."
+                : summary.total === 0
+                  ? "Nenhum anúncio ativo foi retornado para a conta conectada nesta consulta."
+                  : "Nenhum anúncio nos filtros atuais."}
             </p>
           </div>
         ) : (

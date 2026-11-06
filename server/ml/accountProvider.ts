@@ -1420,7 +1420,13 @@ export class AccountProvider {
     const cached = this.categoryAttrCache.get(categoryId);
     if (cached) return cached;
     const data = await this.get(`/categories/${categoryId}/attributes`);
-    const list: RawCategoryAttribute[] = Array.isArray(data) ? data : [];
+    if (!Array.isArray(data) || data.some((attribute) =>
+      !attribute || typeof attribute.id !== "string" || !attribute.id ||
+      typeof attribute.name !== "string"
+    )) {
+      throw new MLDataUnavailableError("Não foi possível consultar os atributos exigidos pelo Mercado Livre. A completude das fichas não foi confirmada.");
+    }
+    const list: RawCategoryAttribute[] = data;
     this.categoryAttrCache.set(categoryId, list);
     return list;
   }
@@ -1441,11 +1447,29 @@ export class AccountProvider {
           this.get(`/items?ids=${batch.join(",")}&attributes=${attributes}`),
         ),
       );
-      for (const data of results) {
-        if (Array.isArray(data)) {
-          for (const row of data) {
-            if (row?.code === 200 && row?.body) out.push(row.body);
+      for (let j = 0; j < results.length; j += 1) {
+        const data = results[j];
+        const batch = slice[j];
+        if (!Array.isArray(data) || data.length !== batch.length) {
+          throw new MLDataUnavailableError("Não foi possível consultar os detalhes de todas as fichas técnicas. Isso não significa que a loja está sem anúncios.");
+        }
+        const confirmed = new Set<string>();
+        for (const row of data) {
+          if (row?.code === 429) throw new MLRateLimitError();
+          const item = row?.body;
+          if (
+            row?.code !== 200 || !item || typeof item !== "object" || Array.isArray(item) ||
+            typeof item.id !== "string" || !batch.includes(item.id) || confirmed.has(item.id) ||
+            typeof item.status !== "string" || !item.status ||
+            typeof item.category_id !== "string" || !item.category_id ||
+            !Array.isArray(item.attributes) || item.attributes.some((attribute: any) =>
+              !attribute || typeof attribute.id !== "string" || !attribute.id
+            )
+          ) {
+            throw new MLDataUnavailableError("Não foi possível consultar os detalhes de todas as fichas técnicas. Isso não significa que a loja está sem anúncios.");
           }
+          confirmed.add(item.id);
+          out.push(item);
         }
       }
     }
