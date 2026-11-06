@@ -133,4 +133,18 @@ describe("Raio-X — UI diferencia consulta indisponível de zero real", () => {
     expect(html).toContain("47 / 47");
     expect(html).not.toContain("0 / 0");
   });
+
+  it("abre em Todos e exibe a lista inteira, inclusive fichas completas além das primeiras oito", () => {
+    const items = Array.from({ length: 12 }, (_, i) => diagnoseListing({
+      itemId: `MLB${20000000 + i}`, title: `Ficha completa de teste ${i}`, status: "active", categoryId: "MLBTEST",
+      categoryAttributes: [], itemAttributes: [],
+    }));
+    query.data = buildTechSpecsResult(items);
+    const html = render();
+    expect(html).toContain("Ficha completa de teste 0");
+    expect(html).toContain("Ficha completa de teste 11");
+    expect(html).toContain("12 / 12");
+    expect(html).toContain("Ver menos");
+    expect(html).not.toContain("Nenhum anúncio nos filtros atuais");
+  });
 });

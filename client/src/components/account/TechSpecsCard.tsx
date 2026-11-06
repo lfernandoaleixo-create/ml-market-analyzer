@@ -76,11 +76,10 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
   );
 
   const [search, setSearch] = useState("");
-  const [mode, setMode] = useState<FilterMode>("incomplete");
+  const [mode, setMode] = useState<FilterMode>("all");
   const [openId, setOpenId] = useState<string | null>(null);
-  // Inner sub-expansion: cap the product list and reveal the rest on demand so
-  // accounts with many listings stay tidy.
-  const [showAll, setShowAll] = useState(false);
+  // Restore the full list shown in the reference; the user may collapse it.
+  const [showAll, setShowAll] = useState(true);
   const INITIAL_VISIBLE = 8;
 
   const items = useMemo<TechSpecListing[]>(() => data?.items ?? [], [data]);

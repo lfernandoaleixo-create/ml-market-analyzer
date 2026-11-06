@@ -2068,3 +2068,12 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validar 23 novas regressões, 163 testes focados, TypeScript, build e suíte sem live de 127 arquivos / 1.488 testes aprovados; 47 anúncios cobertos somente em cenário simulado
 - [x] Auditoria SHA-256 mantém preservedAll=true e changed=[] nas 11 tabelas comerciais; diff e scan de segredos aprovados; nenhum anúncio, campanha, SKU, produto ou credencial alterado
 - [ ] Pendência real: receber link/código MLB de anúncio ativo, identificar seu vendedor e validar a autorização necessária; origem efetiva dos 47 anteriores e recuperação da listagem ainda não comprovadas
+
+## Mercato — restauração do Raio-X em Meus anúncios (06/nov)
+- [x] Atender prioridade de Fernando de voltar ao card de ficha técnica: seção aberta, filtro Todos selecionado e lista integral visível, incluindo fichas completas
+- [x] Colocar o Raio-X no início de Meus anúncios e manter seu acesso independente de erros na listagem/visitas; os demais indicadores falhos recebem aviso e botão de nova tentativa
+- [x] Preservar os quatro indicadores, fotos, títulos, completude, pendências e abertura das fichas; sem preencher manualmente os valores 47/28/19/96% da captura
+- [x] Retirar da entrega a proteção de loja que estava em preparação e não havia sido publicada: código e patch preservados fora do projeto, resolutores e credenciais permanecem na versão validada ea097423; sem reset de Git ou alterações no banco
+- [x] Validar 26 testes focados, TypeScript, build e suíte sem live: 128 arquivos / 1.491 testes aprovados; regressões provam que Todos inclui fichas completas após as oito primeiras e que falha de listagem não oculta o Raio-X
+- [x] Auditoria comercial confirma preservedAll=true e changed=[] nas 11 tabelas comerciais; diff e scan de segredos aprovados; nenhum anúncio, campanha, SKU, produto ou token modificado pela restauração
+- [ ] Recuperar a leitura real dos 47 anúncios da Toujours: API ainda não autoriza a consulta ao MLB7699004738 com a conexão observada; restaurar o card não equivale a recuperar dados nem confirma a origem da contagem anterior

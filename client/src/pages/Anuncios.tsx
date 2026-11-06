@@ -365,16 +365,23 @@ export default function Anuncios() {
       </PageShell>
     );
   }
-  if (conn.error && !conn.data && !data) {
-    return <ErrorState onRetry={() => conn.refetch()} retrying={conn.isFetching} />;
-  }
-  if (conn.data && conn.data.connected !== true && !conn.isFetching && !data) {
-    return <NotConnected />;
-  }
-  if (error && !data)
-    return <ErrorState onRetry={() => void updateDashboard()} retrying={isFetching || refreshDashboard.isPending} />;
-  if (data?.summary.total === 0 && data.summary.capped) {
-    return <ErrorState onRetry={() => void updateDashboard()} retrying={isFetching || refreshDashboard.isPending} />;
+  const listingUnavailable =
+    (conn.error && !conn.data && !data) ||
+    (conn.data && conn.data.connected !== true && !conn.isFetching && !data) ||
+    (error && !data) ||
+    (data?.summary.total === 0 && data.summary.capped);
+  if (listingUnavailable) {
+    return (
+      <PageShell>
+        <PageHeader title="Meus anúncios" subtitle="Raio-X da ficha técnica dos anúncios consultados." />
+        <TechSpecsCard connected={conn.data?.connected === true} />
+        <SectionCard title="Demais indicadores de anúncios" description="A consulta da lista e das visitas é independente da ficha técnica.">
+          <p className="text-sm text-amber-700" role="status">Não foi possível consultar os demais indicadores nesta tentativa. Isso não apaga as fichas técnicas já consultadas.</p>
+          <Button className="mt-3" size="sm" variant="outline" onClick={() => void updateDashboard()} disabled={isFetching || conn.isFetching || refreshDashboard.isPending}>Tentar novamente</Button>
+          <a className="ml-3 text-sm text-primary underline" href="/configuracoes">Conferir conexão</a>
+        </SectionCard>
+      </PageShell>
+    );
   }
 
   const s = data?.summary;
@@ -446,6 +453,9 @@ export default function Anuncios() {
           </div>
         }
       />
+
+      {/* Keep the restored Raio-X visible before the other analytics. */}
+      <TechSpecsCard connected={conn.data?.connected === true} />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <KpiCard label="Anúncios consultados" value={s ? formatNumber(s.total) : "—"} loading={isLoading} icon={Package} accent="blue" />
@@ -752,9 +762,6 @@ export default function Anuncios() {
           if (!o) setVisitsDay(null);
         }}
       />
-
-      {/* Raio-X da Ficha Técnica */}
-      <TechSpecsCard connected={conn.data?.connected === true} />
 
       {/* Actionable insights */}
       <SectionCard
