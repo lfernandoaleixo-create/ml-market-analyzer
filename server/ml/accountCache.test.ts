@@ -3,6 +3,7 @@ import {
   cachedAccount,
   cachedAccountResilient,
   invalidateAccount,
+  expireAccount,
   swrAccount,
   __clearAccountCache,
 } from "./accountCache";
@@ -149,6 +150,50 @@ describe("cachedAccountResilient (stale-while-error)", () => {
     const fresh = await cachedAccountResilient(104, "k", loader, ttl);
     expect(fresh.stale).toBe(false);
     expect(fresh.value).toEqual({ n: 2 });
+  });
+});
+
+describe("expireAccount (atualização manual)", () => {
+  it("atualiza dentro do TTL sem reutilizar o snapshot antigo como fresco", async () => {
+    const loader = vi.fn().mockResolvedValueOnce({ total: 47 }).mockResolvedValueOnce({ total: 48 });
+    await cachedAccountResilient(1, "listings:v2:shop", loader);
+    expireAccount(1, "listings:v2:");
+    const fresh = await cachedAccountResilient(1, "listings:v2:shop", loader);
+    expect(fresh.value.total).toBe(48);
+    expect(fresh.stale).toBe(false);
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserva o último resultado válido se a atualização forçada falhar", async () => {
+    const loader = vi.fn().mockResolvedValueOnce({ total: 47 }).mockRejectedValueOnce(new Error("ML unavailable"));
+    const original = await cachedAccountResilient(1, "listings:v2:shop", loader);
+    expireAccount(1, "listings:v2:");
+    const fallback = await cachedAccountResilient(1, "listings:v2:shop", loader);
+    expect(fallback.value.total).toBe(47);
+    expect(fallback.stale).toBe(true);
+    expect(fallback.asOf).toBe(original.asOf);
+  });
+
+  it("não expira outro usuário nem caches fora do prefixo pedido", async () => {
+    const loader = vi.fn(async () => "OK");
+    await cachedAccount(1, "sales", loader);
+    await cachedAccount(2, "listings:v2:shop", loader);
+    expireAccount(1, "listings:v2:");
+    await cachedAccount(1, "sales", loader);
+    await cachedAccount(2, "listings:v2:shop", loader);
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it("mantém a mesma chamada em andamento ao receber atualizações repetidas", async () => {
+    let finish!: (value: number) => void;
+    const loader = vi.fn(() => new Promise<number>((resolve) => { finish = resolve; }));
+    const first = cachedAccountResilient(1, "listings:v2:shop", loader);
+    expireAccount(1, "listings:v2:");
+    const second = cachedAccountResilient(1, "listings:v2:shop", loader);
+    finish(47);
+    expect((await first).value).toBe(47);
+    expect((await second).value).toBe(47);
+    expect(loader).toHaveBeenCalledTimes(1);
   });
 });
 

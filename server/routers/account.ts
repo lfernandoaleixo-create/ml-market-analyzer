@@ -2,11 +2,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { ensureUserAccessToken, forceRefreshUserAccessToken } from "../ml/oauthMl";
-import { AccountProvider } from "../ml/accountProvider";
+import { AccountProvider, MLDataUnavailableError, MLRateLimitError } from "../ml/accountProvider";
 import { getCredentials, upsertCredentials, resolveMlOwnerUserId } from "../dbMl";
 import { resolveMlUserId } from "../ml/resolveMlUserId";
-import { cachedAccount, cachedAccountResilient, swrAccount } from "../ml/accountCache";
-import { MLRateLimitError } from "../ml/accountProvider";
+import { cachedAccount, cachedAccountResilient, swrAccount, expireAccount } from "../ml/accountCache";
 import { buildActiveListings } from "../ml/activeListings";
 
 /**
@@ -21,6 +20,9 @@ async function runAccount<T>(loader: () => Promise<T>): Promise<T> {
   } catch (err) {
     if (err instanceof MLRateLimitError) {
       throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });
+    }
+    if (err instanceof MLDataUnavailableError) {
+      throw new TRPCError({ code: "BAD_GATEWAY", message: err.message });
     }
     throw err;
   }
@@ -291,6 +293,14 @@ export const accountRouter = router({
     }),
 
   /** Listings performance (visits, sales, conversion, stock, status). */
+  /** Manual refresh only expires app snapshots; it never changes ML listings. */
+  refreshDashboard: protectedProcedure.mutation(({ ctx }) => {
+    for (const prefix of ["listings:v2:", "visitsSeries:v2:", "technicalSpecs:v2:"]) {
+      expireAccount(ctx.user.id, prefix);
+    }
+    return { success: true as const };
+  }),
+
   listings: protectedProcedure
     .input(
       z
@@ -302,36 +312,27 @@ export const accountRouter = router({
         })
         .optional(),
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }) => runAccount(async () => {
       const lastDays = input?.lastDays ?? 30;
       const includeVisitsSeries = input?.includeVisitsSeries ?? false;
-      // Resilient: on a transient ML 429/timeout we serve the last known-good
-      // snapshot (clearly labelled `stale`) instead of crashing the page. This is
-      // what guarantees the Anúncios screen never shows "Não foi possível
-      // carregar" during a live demo.
+      // Resolve BEFORE the cache: snapshots belong to the actual ML seller, not
+      // only to the app login. Never serve the previous shop after reconnecting.
+      const account = await resolveAccount(ctx.user.id);
       const { value, stale, asOf } = await cachedAccountResilient(
         ctx.user.id,
-        `listings:${lastDays}:vs${includeVisitsSeries ? 1 : 0}`,
-        async () => {
-          const account = await resolveAccount(ctx.user.id);
-          return account.getListings({ lastDays, includeVisitsSeries });
-        },
+        `listings:v2:${account.sellerId}:${lastDays}:vs${includeVisitsSeries ? 1 : 0}`,
+        () => account.getListings({ lastDays, includeVisitsSeries }),
         // Short TTL (12s): the heavy visits work now runs in a BACKGROUND
         // collector (server/ml/visitsStore.ts), so getListings itself is cheap
         // and a short TTL lets the client poll and watch the visits total fill
         // in progressively — instead of being frozen on a 5-min cached snapshot.
         12 * 1000,
-      ).catch((err) => {
-        if (err instanceof MLRateLimitError) {
-          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });
-        }
-        throw err;
-      });
+      );
       return { ...value, stale, asOf };
-    }),
+    })),
 
   /**
-   * Daily visits series for the evolution chart.
+    * Daily visits series for the evolution chart.
    *
    * IMPORTANT — why this is NOT the non-blocking SWR pattern anymore:
    * The chart used to be served by `swrAccount`, which returns the cached series
@@ -353,34 +354,35 @@ export const accountRouter = router({
    */
   visitsSeries: protectedProcedure
     .input(z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional() }).optional())
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }) => runAccount(async () => {
       const days = input?.days ?? 30;
+      const account = await resolveAccount(ctx.user.id);
       // Window anchored to BRT inside the provider. Keep a collected series
       // "fresh" for only 3 min so TODAY's partial bar updates frequently, but
       // repeated opens within that window still hit the cache (no ML burst).
       const { value, stale, asOf } = await cachedAccountResilient(
         ctx.user.id,
-        `visitsSeries:${days}`,
+        `visitsSeries:v2:${account.sellerId}:${days}`,
         async () => {
-          const account = await resolveAccount(ctx.user.id);
-          return account.getVisitsSeriesOnly(days);
+          const collected = await account.getVisitsSeriesOnly(days);
+          if (collected.attempted > 0 && collected.resolved === 0) {
+            throw new MLDataUnavailableError("Não foi possível consultar as visitas dos anúncios no Mercado Livre. Tente atualizar novamente.");
+          }
+          return collected;
         },
         3 * 60 * 1000,
-      ).catch((err) => {
-        if (err instanceof MLRateLimitError) throw err;
-        // No cache and the collection failed: surface an empty series rather than
-        // a hard error so the chart shows its honest "sem dados ainda" state.
-        return { value: { series: [], attempted: 0, resolved: 0 }, stale: false, asOf: 0 };
-      });
+      );
+      const partial = value.resolved < value.attempted;
       return {
-        series: value?.series ?? [],
-        // We now always return real data (or an explicit empty series); there is
-        // no "cold start with nothing" anymore, so pending stays false.
+        series: value.series,
         pending: false,
-        status: stale ? ("stale" as const) : ("fresh" as const),
+        partial,
+        attempted: value.attempted,
+        resolved: value.resolved,
+        status: stale ? ("stale" as const) : partial ? ("partial" as const) : ("fresh" as const),
         asOf,
       };
-    }),
+    })),
 
   /**
    * Visitas DIÁRIAS por anúncio (últimos N dias, default 4 = hoje + 3 dias atrás).
@@ -451,10 +453,10 @@ export const accountRouter = router({
    */
   technicalSpecs: protectedProcedure.query(async ({ ctx }) =>
     runAccount(() =>
-      cachedAccount(ctx.user.id, "technicalSpecs", async () => {
+      (async () => {
         const account = await resolveAccount(ctx.user.id);
-        return account.getTechnicalSpecs();
-      }),
+        return cachedAccount(ctx.user.id, `technicalSpecs:v2:${account.sellerId}`, () => account.getTechnicalSpecs());
+      })(),
     ),
   ),
 });

@@ -65,6 +65,14 @@ export class MLRateLimitError extends Error {
   }
 }
 
+/** Essential account data could not be confirmed; never cache it as empty. */
+export class MLDataUnavailableError extends Error {
+  constructor(message = "Não foi possível confirmar os dados da sua conta no Mercado Livre. Tente novamente em instantes.") {
+    super(message);
+    this.name = "MLDataUnavailableError";
+  }
+}
+
 /**
  * Extrai o peso da embalagem do vendedor (gramas) a partir dos atributos do ML.
  * O ML usa o `SELLER_PACKAGE_WEIGHT` para calcular o frete. O valor vem como
@@ -114,6 +122,10 @@ export class AccountProvider {
      */
     private onUnauthorized?: (staleToken: string) => Promise<string | null>,
   ) {}
+
+  get sellerId(): number {
+    return this.userId;
+  }
 
   /** Cache of ALL paid orders for this provider instance (one request burst per
    *  request lifecycle). Multiple period summaries reuse it without re-paging. */
@@ -281,23 +293,7 @@ export class AccountProvider {
   /** Fetch all of the seller's item ids (paged, capped for safety). Returns the
    *  ids plus whether the cap was hit (more items exist beyond the cap). */
   private async getAllItemIds(maxItems = 600): Promise<{ ids: string[]; capped: boolean }> {
-    const ids: string[] = [];
-    let offset = 0;
-    const limit = 50;
-    let total = maxItems;
-    while (ids.length < maxItems) {
-      const data = await this.get(
-        `/users/${this.userId}/items/search?limit=${limit}&offset=${offset}`,
-      );
-      const results: string[] = Array.isArray(data?.results) ? data.results : [];
-      if (results.length === 0) break;
-      ids.push(...results);
-      total = data?.paging?.total ?? ids.length;
-      offset += limit;
-      if (offset >= total) break;
-    }
-    const capped = total > ids.length || ids.length > maxItems;
-    return { ids: ids.slice(0, maxItems), capped };
+    return this.getItemIds(maxItems);
   }
 
   /** Fetch ALL of the seller's ACTIVE item ids (paged). Uses the ML search
@@ -306,23 +302,50 @@ export class AccountProvider {
   private async getActiveItemIds(
     maxItems = 5000,
   ): Promise<{ ids: string[]; capped: boolean }> {
-    const ids: string[] = [];
+    return this.getItemIds(maxItems, "active");
+  }
+
+  /** Only an explicit, valid search response can confirm an empty account. */
+  private async getItemIds(
+    maxItems: number,
+    status?: "active",
+  ): Promise<{ ids: string[]; capped: boolean }> {
+    const ids = new Set<string>();
     let offset = 0;
     const limit = 50;
-    let total = maxItems;
-    while (ids.length < maxItems) {
+    const statusParam = status ? `status=${status}&` : "";
+    // Always confirm the first page, even when the requested cap is zero.
+    while (true) {
       const data = await this.get(
-        `/users/${this.userId}/items/search?status=active&limit=${limit}&offset=${offset}`,
+        `/users/${this.userId}/items/search?${statusParam}limit=${limit}&offset=${offset}`,
       );
-      const results: string[] = Array.isArray(data?.results) ? data.results : [];
-      if (results.length === 0) break;
-      ids.push(...results);
-      total = data?.paging?.total ?? ids.length;
-      offset += limit;
-      if (offset >= total) break;
+      const total = data?.paging?.total;
+      if (
+        !data || typeof data !== "object" || Array.isArray(data) ||
+        !Number.isSafeInteger(total) || total < 0 ||
+        !Array.isArray(data.results) ||
+        !data.results.every((id: unknown) => typeof id === "string" && id.trim().length > 0)
+      ) {
+        throw new MLDataUnavailableError();
+      }
+      const results: string[] = data.results;
+      // Read paging.total BEFORE deciding whether an empty page is a real end.
+      if (results.length === 0) {
+        if (offset < total) throw new MLDataUnavailableError();
+        return { ids: Array.from(ids).slice(0, maxItems), capped: ids.size > maxItems };
+      }
+      if (offset >= total) throw new MLDataUnavailableError();
+      for (const id of results) ids.add(id);
+      // Pagination counts rows consumed, not unique ids. Deduplication must not
+      // create a false cap at the true end, or consume the unique-item budget.
+      offset += results.length;
+      if (offset >= total || ids.size >= maxItems) {
+        return {
+          ids: Array.from(ids).slice(0, maxItems),
+          capped: ids.size > maxItems || offset < total,
+        };
+      }
     }
-    const capped = total > ids.length;
-    return { ids: ids.slice(0, maxItems), capped };
   }
 
   /** Cache of user-product id -> SKU (lives for the provider instance lifetime). */
@@ -405,8 +428,9 @@ export class AccountProvider {
 
   /** Multiget item details in batches of 20 (ML multiget cap), in parallel. */
   private async getItemsDetails(ids: string[]): Promise<any[]> {
+    const uniqueIds = Array.from(new Set(ids));
     const batches: string[][] = [];
-    for (let i = 0; i < ids.length; i += 20) batches.push(ids.slice(i, i + 20));
+    for (let i = 0; i < uniqueIds.length; i += 20) batches.push(uniqueIds.slice(i, i + 20));
     const attributes =
       "id,title,price,currency_id,available_quantity,sold_quantity,status," +
       "listing_type_id,health,category_id,permalink,thumbnail,pictures," +
@@ -422,11 +446,33 @@ export class AccountProvider {
       const results = await Promise.all(
         slice.map((batch) => this.get(`/items?ids=${batch.join(",")}&attributes=${attributes}`)),
       );
-      for (const data of results) {
-        if (Array.isArray(data)) {
-          for (const row of data) {
-            if (row?.code === 200 && row?.body) out.push(row.body);
+      for (let j = 0; j < results.length; j += 1) {
+        const data = results[j];
+        const batch = slice[j];
+        if (!Array.isArray(data) || data.length !== batch.length) {
+          throw new MLDataUnavailableError();
+        }
+        const confirmed = new Set<string>();
+        for (let k = 0; k < data.length; k += 1) {
+          const row = data[k];
+          if (row?.code === 429) throw new MLRateLimitError();
+          if (row?.code === 404) {
+            // Explicit per-item 404 means the id no longer exists, not that the
+            // entire multiget failed. ML preserves request order for error rows.
+            const id = typeof row.body?.id === "string" ? row.body.id : batch[k];
+            if (!batch.includes(id) || confirmed.has(id)) throw new MLDataUnavailableError();
+            confirmed.add(id);
+            continue;
           }
+          if (
+            row?.code !== 200 || !row.body || typeof row.body !== "object" ||
+            Array.isArray(row.body) || typeof row.body.id !== "string" ||
+            !batch.includes(row.body.id) || confirmed.has(row.body.id)
+          ) {
+            throw new MLDataUnavailableError();
+          }
+          confirmed.add(row.body.id);
+          out.push(row.body);
         }
       }
     }
@@ -514,12 +560,16 @@ export class AccountProvider {
     // A null body (network/HTTP failure after retries) is NOT a valid answer.
     // A valid answer has the time_window shape (item_id + results array), even
     // when results is empty / all-zero.
-    const answered =
-      data != null &&
-      typeof data === "object" &&
-      (Array.isArray(data.results) || typeof data.total_visits === "number");
-    if (!answered) return { ok: false, days };
-    const results: any[] = Array.isArray(data?.results) ? data.results : [];
+    if (!data || typeof data !== "object" || Array.isArray(data)) return { ok: false, days };
+    const hasResults = Array.isArray(data.results);
+    const totalValid = typeof data.total_visits === "number" && Number.isFinite(data.total_visits) && data.total_visits >= 0;
+    if (!hasResults) {
+      // A positive aggregate alone cannot establish its DAILY distribution.
+      // Only an explicit real zero permits an absent bucket list.
+      return { ok: totalValid && data.total_visits === 0 && data.results == null, days };
+    }
+    if (data.total_visits != null && !totalValid) return { ok: false, days };
+    const results: any[] = data.results;
     for (const r of results) {
       // ML returns the bucket date in one of two shapes, and it VARIES per item:
       //   - Brazil offset:  "2026-06-01T00:00:00.000-04:00"  → slice(0,10) is the BRT day
@@ -530,8 +580,13 @@ export class AccountProvider {
       // (the infamous "parou na quinta"). Normalize EVERY bucket to the BRT
       // calendar day via brtDateKey so keys always line up with the axis.
       const iso = visitBucketBrtKey(r?.date);
-      const total = typeof r?.total === "number" ? r.total : 0;
-      if (iso) days.set(iso, (days.get(iso) ?? 0) + total);
+      if (!iso || typeof r?.total !== "number" || !Number.isFinite(r.total) || r.total < 0) {
+        return { ok: false, days: new Map() };
+      }
+      days.set(iso, (days.get(iso) ?? 0) + r.total);
+    }
+    if (totalValid && data.total_visits > 0 && Array.from(days.values()).every((value) => value === 0)) {
+      return { ok: false, days: new Map() };
     }
     return { ok: true, days };
   }
@@ -599,7 +654,11 @@ export class AccountProvider {
     cap = 200,
   ): Promise<{ series: VisitsDayPoint[]; attempted: number; resolved: number }> {
     const { ids } = await this.getActiveItemIds(cap);
-    return this.getVisitsSeries(ids, lastDays, cap);
+    const result = await this.getVisitsSeries(ids, lastDays, cap);
+    if ((ids.length > 0 || result.attempted > 0) && result.resolved === 0) {
+      throw new MLDataUnavailableError();
+    }
+    return result;
   }
 
   /**
@@ -1502,7 +1561,14 @@ export function visitBucketBrtKey(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.length < 10) return null;
   // Fast path: the date portion is the bucket day for every shape ML emits.
   const datePart = raw.slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    const midnight = Date.parse(`${datePart}T00:00:00.000Z`);
+    // Date.parse can roll February 30 into March; reject rather than zero-fill
+    // an impossible date outside the requested axis as a resolved item.
+    return Number.isFinite(midnight) && new Date(midnight).toISOString().slice(0, 10) === datePart
+      ? datePart
+      : null;
+  }
   // Fallback: let Date parse it, then key by BRT calendar day.
   const ms = Date.parse(raw);
   return Number.isFinite(ms) ? brtDateKey(ms) : null;

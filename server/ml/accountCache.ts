@@ -311,6 +311,22 @@ export function swrAccount<T>(
   return { value: undefined, status: "loading", asOf: 0 };
 }
 
+/** Expire matching snapshots without deleting their last-good fallback.
+ * In-flight loads remain shared, so repeated clicks cannot create parallel bursts. */
+export function expireAccount(userId: number, keyPrefix: string): void {
+  const b = store.get(userId);
+  if (!b) return;
+  for (const [key, entry] of b) {
+    if (!key.startsWith(keyPrefix) || entry.inflight) continue;
+    b.set(key, {
+      ...entry,
+      at: 0,
+      lastGood: entry.lastGood ?? entry.value,
+      lastGoodAt: entry.lastGoodAt ?? (entry.value !== undefined ? entry.at : undefined),
+    });
+  }
+}
+
 /** Invalidate one key (or the whole user bucket when key is omitted). */
 export function invalidateAccount(userId: number, key?: string): void {
   if (key === undefined) {

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatNumber, formatCompact, isoToWeekdayLong } from "@/lib/format";
 import { DayAxisTick, dayAxisProps } from "@/components/charts/DayAxisTick";
-import { TrendingUp, Eye, Loader2, RefreshCw } from "lucide-react";
+import { TrendingUp, Eye, Loader2, RefreshCw, AlertCircle } from "lucide-react";
 import {
   Area,
   ComposedChart,
@@ -30,6 +30,9 @@ export function VisitsEvolutionChart({
   onRetry,
   refreshing = false,
   onSelectDay,
+  error,
+  partial = false,
+  stale = false,
 }: {
   series: VisitsDayPoint[];
   loading?: boolean;
@@ -44,12 +47,31 @@ export function VisitsEvolutionChart({
   /** When provided, clicking a day on the chart calls back with the ISO date
    *  (yyyy-mm-dd) so the parent can show the per-listing breakdown for that day. */
   onSelectDay?: (date: string) => void;
+  /** Failed request with no usable snapshot must not look like zero visits. */
+  error?: string;
+  /** Only a subset of the active listings answered; displayed totals are partial. */
+  partial?: boolean;
+  /** Last confirmed snapshot was served after a failed refresh. */
+  stale?: boolean;
 }) {
   if (loading) {
     return <Skeleton className="h-52 w-full" />;
   }
 
   const total = series.reduce((s, p) => s + p.visits, 0);
+  if (error && series.length === 0) {
+    return (
+      <div className="flex h-52 flex-col items-center justify-center gap-3 text-center" role="alert">
+        <AlertCircle className="h-8 w-8 text-amber-600" />
+        <p className="text-sm font-medium text-foreground">Visitas indisponíveis no momento</p>
+        <p className="max-w-xl text-xs text-muted-foreground">{error} Isso não significa que seus anúncios tiveram zero visitas.</p>
+        {onRetry && <Button variant="outline" size="sm" onClick={onRetry} disabled={refreshing} className="gap-1.5">
+          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+          {refreshing ? "Atualizando…" : "Tentar novamente"}
+        </Button>}
+      </div>
+    );
+  }
 
   // The backend asked ML for the series but nothing came back in time (timeout /
   // rate limit). This is NOT a real zero — be honest and offer a refresh.
@@ -60,8 +82,8 @@ export function VisitsEvolutionChart({
         <div className="space-y-1">
           <p className="text-sm font-medium text-foreground">Carregando as visitas dos seus anúncios…</p>
           <p className="text-xs text-muted-foreground">
-            O Mercado Livre está demorando para responder (muitos anúncios ou limite temporário).
-            Os números aparecem assim que a coleta terminar.
+            Ainda não recebemos dados suficientes do Mercado Livre.
+            As visitas não estão confirmadas; tente atualizar novamente.
           </p>
         </div>
         {onRetry && (
@@ -79,8 +101,15 @@ export function VisitsEvolutionChart({
       <div className="flex h-52 flex-col items-center justify-center gap-2 text-center">
         <TrendingUp className="h-8 w-8 text-muted-foreground/40" />
         <p className="text-sm text-muted-foreground">
-          Sem visitas registradas nos anúncios ativos nos últimos {windowDays} dias.
+          {partial
+            ? "Nenhuma visita na parcela consultada. O total do período ainda não está confirmado."
+            : stale || error
+              ? "O último snapshot consultado não registrou visitas. A atualização atual não foi confirmada."
+              : `Sem visitas registradas nos anúncios ativos nos últimos ${windowDays} dias.`}
         </p>
+        {(partial || stale || error) && onRetry && (
+          <Button variant="outline" size="sm" onClick={onRetry} disabled={refreshing}>Atualizar visitas</Button>
+        )}
       </div>
     );
   }
@@ -90,6 +119,9 @@ export function VisitsEvolutionChart({
   // in Brazil (after 21:00 BRT it is already the next day in UTC), making the
   // "Hoje (parcial)" card read 0 and hiding the highlighted dot.
   const todayKey = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const yesterdayKey = new Date(Date.now() - 3 * 60 * 60 * 1000 - 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
   // 7-day trailing moving average to smooth the daily noise. Null until there
@@ -105,15 +137,21 @@ export function VisitsEvolutionChart({
   });
   const peak = Math.max(...series.map((p) => p.visits));
   const avg = Math.round(total / series.length);
-  const todayVisits = series.find((p) => p.date === todayKey)?.visits ?? 0;
-  const yesterdayVisits = series.length >= 2 ? series[series.length - 2].visits : 0;
+  const todayVisits = series.find((p) => p.date === todayKey)?.visits;
+  const yesterdayVisits = series.find((p) => p.date === yesterdayKey)?.visits;
   const showMA = series.length >= 7;
 
   return (
     <div className="space-y-3">
+      {(partial || stale || error) && (
+        <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
+          {stale || error ? "Exibindo o último resultado disponível; a atualização atual não foi confirmada. " : ""}
+          {partial ? "Dados parciais: nem todos os anúncios responderam. Os totais ainda não estão completos." : ""}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-        <SummaryMini label="Hoje (parcial)" value={formatNumber(todayVisits)} tone="primary" />
-        <SummaryMini label="Ontem" value={formatNumber(yesterdayVisits)} tone="muted" />
+        <SummaryMini label={todayVisits === undefined ? "Hoje · não consultado" : "Hoje (parcial)"} value={todayVisits === undefined ? "—" : formatNumber(todayVisits)} tone="primary" />
+        <SummaryMini label={yesterdayVisits === undefined ? "Ontem · não consultado" : "Ontem"} value={yesterdayVisits === undefined ? "—" : formatNumber(yesterdayVisits)} tone="muted" />
         <SummaryMini label={`Total ${windowDays}d`} value={formatNumber(total)} tone="muted" />
         <SummaryMini label="Média/dia" value={formatNumber(avg)} tone="muted" />
         <SummaryMini label="Pico" value={formatNumber(peak)} tone="muted" />

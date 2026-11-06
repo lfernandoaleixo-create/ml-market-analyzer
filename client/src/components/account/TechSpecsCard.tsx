@@ -70,9 +70,9 @@ function completenessColor(c: number): string {
  * The seller then copies the full adjusted sheet to paste back into ML.
  */
 export function TechSpecsCard({ connected }: { connected: boolean }) {
-  const { data, isLoading, isFetching } = trpc.account.technicalSpecs.useQuery(
+  const { data, isLoading, isFetching, error, refetch } = trpc.account.technicalSpecs.useQuery(
     undefined,
-    { enabled: connected, staleTime: 5 * 60 * 1000 },
+    { enabled: connected, staleTime: 5 * 60 * 1000, refetchInterval: 5 * 60 * 1000, refetchOnWindowFocus: true },
   );
 
   const [search, setSearch] = useState("");
@@ -129,6 +129,12 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
         ) : undefined
       }
     >
+      {error && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-700" role="status">
+          <p>{data ? "A ficha técnica não foi atualizada nesta consulta. Exibindo o resultado anterior." : "Não foi possível consultar as fichas técnicas no Mercado Livre."}</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>Tentar novamente</Button>
+        </div>
+      )}
       {/* Global status banner */}
       {isLoading ? (
         <Skeleton className="h-16 w-full rounded-xl" />
@@ -144,7 +150,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
             </p>
           </div>
         </div>
-      ) : summary ? (
+      ) : summary && summary.total > 0 ? (
         <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3.5 text-amber-900">
           <AlertTriangle className="h-6 w-6 shrink-0 text-amber-600" />
           <div>
@@ -156,6 +162,8 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
             </p>
           </div>
         </div>
+      ) : summary && summary.total === 0 ? (
+        <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">Nenhum anúncio ativo foi retornado para a conta conectada nesta consulta.</p>
       ) : null}
 
       {/* Summary KPIs */}

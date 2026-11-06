@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AccountProvider, brtDateKey } from "./accountProvider";
+import { AccountProvider, MLDataUnavailableError, MLRateLimitError, brtDateKey } from "./accountProvider";
 import { __clearVisitsStore } from "./visitsStore";
 import { __clearVisitsDailyStore } from "./visitsDailyStore";
 
@@ -1500,5 +1500,345 @@ describe("AccountProvider.getDailyVisitsByListing", () => {
     const res = await provider.getDailyVisitsByListing(7);
     expect(res.listings.length).toBe(1);
     expect(res.listings[0].permalink).toContain("MLB7");
+  });
+});
+describe("AccountProvider essential listing data", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    __clearVisitsStore();
+    __clearVisitsDailyStore();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("exposes sellerId without exposing its token", () => {
+    const provider = new AccountProvider("SECRET_TOKEN", USER_ID);
+    expect(provider.sellerId).toBe(USER_ID);
+    const error = new MLDataUnavailableError();
+    expect(error.name).toBe("MLDataUnavailableError");
+    expect(error.message).toContain("Tente novamente");
+    expect(error.message).not.toContain("SECRET_TOKEN");
+    expect(error.message).not.toContain(String(USER_ID));
+    expect(error.message).not.toContain("/users/");
+  });
+
+  it("returns total=0 and capped=false only for a confirmed 200 empty listing search", async () => {
+    const fetchSpy = makeFetchRouter([
+      { match: /\/users\/\d+\/items\/search/, body: { paging: { total: 0 }, results: [] } },
+    ]);
+    global.fetch = fetchSpy as unknown as typeof fetch;
+    const result = await new AccountProvider("token", USER_ID).getListings();
+    expect(result.items).toEqual([]);
+    expect(result.summary.total).toBe(0);
+    expect(result.summary.capped).toBe(false);
+    expect(result.summary.visitsAttempted).toBe(0);
+    expect(result.summary.visitsPending).toBe(false);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a failed HTTP listing search instead of promoting an empty success", async () => {
+    global.fetch = makeFetchRouter([
+      { match: /\/items\/search/, body: { paging: { total: 0 }, results: [] }, ok: false },
+    ]) as unknown as typeof fetch;
+    await expect(new AccountProvider("token", USER_ID).getListings()).rejects.toBeInstanceOf(MLDataUnavailableError);
+  });
+
+  describe.each(["getAllItemIds", "getActiveItemIds"] as const)("%s pagination", (method) => {
+    const search = (provider: AccountProvider, cap = 600): Promise<{ ids: string[]; capped: boolean }> =>
+      (provider as any)[method](cap);
+    const ids = (count: number, start = 1) => Array.from({ length: count }, (_, i) => `MLB${start + i}`);
+
+    it("confirms zero before breaking and applies the correct status filter", async () => {
+      const fetchSpy = makeFetchRouter([
+        { match: /\/items\/search/, body: { paging: { total: 0 }, results: [] } },
+      ]);
+      global.fetch = fetchSpy as unknown as typeof fetch;
+      expect(await search(new AccountProvider("token", USER_ID))).toEqual({ ids: [], capped: false });
+      const url = String(fetchSpy.mock.calls[0][0]);
+      expect(url.includes("status=active")).toBe(method === "getActiveItemIds");
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      { label: "null", body: null },
+      { label: "missing results", body: { paging: { total: 0 } } },
+      { label: "missing total", body: { results: [] } },
+      { label: "wrong results shape", body: { paging: { total: 0 }, results: {} } },
+      { label: "string total", body: { paging: { total: "0" }, results: [] } },
+      { label: "negative total", body: { paging: { total: -1 }, results: [] } },
+      { label: "fractional total", body: { paging: { total: 0.5 }, results: [] } },
+      { label: "non-finite total", body: { paging: { total: NaN }, results: [] } },
+      { label: "invalid id", body: { paging: { total: 1 }, results: [null] } },
+      { label: "blank id", body: { paging: { total: 1 }, results: [""] } },
+      { label: "empty despite a positive total", body: { paging: { total: 1 }, results: [] } },
+      { label: "items despite a zero total", body: { paging: { total: 0 }, results: ["MLB1"] } },
+    ])("rejects $label instead of returning a false empty result", async ({ body }) => {
+      global.fetch = makeFetchRouter([{ match: /\/items\/search/, body }]) as unknown as typeof fetch;
+      await expect(search(new AccountProvider("token", USER_ID))).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("rejects HTTP errors even when their body resembles a confirmed zero", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /\/items\/search/, body: { paging: { total: 0 }, results: [] }, ok: false },
+      ]) as unknown as typeof fetch;
+      await expect(search(new AccountProvider("token", USER_ID))).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("rejects an empty later page contradicting the total", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /offset=0$/, body: { paging: { total: 51 }, results: ids(50) } },
+        { match: /offset=50$/, body: { paging: { total: 51 }, results: [] } },
+      ]) as unknown as typeof fetch;
+      await expect(search(new AccountProvider("token", USER_ID))).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("rejects a later HTTP failure instead of returning a partial list as complete", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /offset=0$/, body: { paging: { total: 51 }, results: ids(50) } },
+        { match: /offset=50$/, body: null, ok: false },
+      ]) as unknown as typeof fetch;
+      await expect(search(new AccountProvider("token", USER_ID))).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("slices an overflowing page and marks capped even at the true last page", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /\/items\/search/, body: { paging: { total: 50 }, results: ids(50) } },
+      ]) as unknown as typeof fetch;
+      expect(await search(new AccountProvider("token", USER_ID), 7)).toEqual({ ids: ids(7), capped: true });
+    });
+
+    it("marks an exact cap as capped when more pages exist", async () => {
+      const fetchSpy = makeFetchRouter([
+        { match: /\/items\/search/, body: { paging: { total: 51 }, results: ids(50) } },
+      ]);
+      global.fetch = fetchSpy as unknown as typeof fetch;
+      expect(await search(new AccountProvider("token", USER_ID), 50)).toEqual({ ids: ids(50), capped: true });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not mark capped at an exact, confirmed final page", async () => {
+      const fetchSpy = makeFetchRouter([
+        { match: /offset=0$/, body: { paging: { total: 55 }, results: ids(50) } },
+        { match: /offset=50$/, body: { paging: { total: 55 }, results: ids(5, 51) } },
+      ]);
+      global.fetch = fetchSpy as unknown as typeof fetch;
+      expect(await search(new AccountProvider("token", USER_ID), 55)).toEqual({ ids: ids(55), capped: false });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("deduplicates IDs without consuming the unique cap or producing a false final cap", async () => {
+      const fetchSpy = makeFetchRouter([
+        { match: /offset=0$/, body: { paging: { total: 55 }, results: [...ids(49), "MLB1"] } },
+        { match: /offset=50$/, body: { paging: { total: 55 }, results: ["MLB49", "MLB50", "MLB51", "MLB52", "MLB53"] } },
+      ]);
+      global.fetch = fetchSpy as unknown as typeof fetch;
+      expect(await search(new AccountProvider("token", USER_ID), 55)).toEqual({ ids: ids(53), capped: false });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("continues past duplicate rows until the unique cap or the true final page", async () => {
+      const fetchSpy = makeFetchRouter([
+        { match: /offset=0$/, body: { paging: { total: 52 }, results: [...ids(49), "MLB1"] } },
+        { match: /offset=50$/, body: { paging: { total: 52 }, results: ["MLB49", "MLB50"] } },
+      ]);
+      global.fetch = fetchSpy as unknown as typeof fetch;
+      expect(await search(new AccountProvider("token", USER_ID), 50)).toEqual({ ids: ids(50), capped: false });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("advances by consumed rows when a non-final page is short", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /offset=0$/, body: { paging: { total: 3 }, results: ["MLB1", "MLB2"] } },
+        { match: /offset=2$/, body: { paging: { total: 3 }, results: ["MLB3"] } },
+      ]) as unknown as typeof fetch;
+      expect(await search(new AccountProvider("token", USER_ID))).toEqual({ ids: ids(3), capped: false });
+    });
+
+    it("preserves an exhausted rate-limit error rather than converting it to unavailable", async () => {
+      const provider = new AccountProvider("token", USER_ID);
+      const error = new MLRateLimitError(45);
+      vi.spyOn(provider as any, "get").mockRejectedValue(error);
+      await expect(search(provider)).rejects.toBe(error);
+    });
+  });
+
+  describe("getItemsDetails", () => {
+    const details = (provider: AccountProvider, ids = ["MLB1"]): Promise<any[]> =>
+      (provider as any).getItemsDetails(ids);
+
+    it("returns [] without multiget only when there are no IDs", async () => {
+      const fetchSpy = makeFetchRouter([]);
+      global.fetch = fetchSpy as unknown as typeof fetch;
+      expect(await details(new AccountProvider("token", USER_ID), [])).toEqual([]);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { label: "HTTP failure", body: null, ok: false },
+      { label: "null 200", body: null },
+      { label: "invalid shape", body: {} },
+      { label: "empty multiget", body: [] },
+      { label: "per-item 500", body: [{ code: 500, body: { message: "private upstream data" } }] },
+      { label: "per-item 403", body: [{ code: 403, body: {} }] },
+      { label: "missing body", body: [{ code: 200 }] },
+      { label: "missing item id", body: [{ code: 200, body: {} }] },
+      { label: "unrequested item", body: [{ code: 200, body: { id: "MLB2" } }] },
+    ])("rejects $label as unavailable when IDs exist", async ({ body, ok }) => {
+      global.fetch = makeFetchRouter([{ match: /\/items\?ids=/, body, ok }]) as unknown as typeof fetch;
+      await expect(details(new AccountProvider("token", USER_ID))).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("propagates detail failure through getListings instead of returning total=0", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /\/items\/search/, body: { paging: { total: 1 }, results: ["MLB1"] } },
+        { match: /\/items\?ids=/, body: null, ok: false },
+      ]) as unknown as typeof fetch;
+      await expect(new AccountProvider("token", USER_ID).getListings()).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("accepts explicit per-item 404s as legitimately nonexistent IDs", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /\/items\?ids=/, body: [{ code: 404, body: { error: "not_found" } }] },
+      ]) as unknown as typeof fetch;
+      expect(await details(new AccountProvider("token", USER_ID))).toEqual([]);
+    });
+
+    it("keeps valid details while omitting an explicitly nonexistent item", async () => {
+      const item = { id: "MLB1", title: "Existe" };
+      global.fetch = makeFetchRouter([
+        { match: /\/items\?ids=/, body: [{ code: 200, body: item }, { code: 404, body: { error: "not_found" } }] },
+      ]) as unknown as typeof fetch;
+      expect(await details(new AccountProvider("token", USER_ID), ["MLB1", "MLB2"])).toEqual([item]);
+    });
+
+    it("does not hide a failed item behind another successful detail", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /\/items\?ids=/, body: [{ code: 200, body: { id: "MLB1" } }, { code: 500, body: {} }] },
+      ]) as unknown as typeof fetch;
+      await expect(details(new AccountProvider("token", USER_ID), ["MLB1", "MLB2"])).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("rejects a response that omits a requested item", async () => {
+      global.fetch = makeFetchRouter([
+        { match: /\/items\?ids=/, body: [{ code: 200, body: { id: "MLB1" } }] },
+      ]) as unknown as typeof fetch;
+      await expect(details(new AccountProvider("token", USER_ID), ["MLB1", "MLB2"])).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("deduplicates requested IDs and keeps multiget batches at 20", async () => {
+      const requested = Array.from({ length: 21 }, (_, i) => `MLB${i + 1}`);
+      const fetchSpy = vi.fn(async (input: string | URL) => {
+        const batch = new URL(String(input)).searchParams.get("ids")!.split(",");
+        expect(batch.length).toBeLessThanOrEqual(20);
+        return jsonResponse(batch.map((id) => ({ code: 200, body: { id } })));
+      });
+      global.fetch = fetchSpy as unknown as typeof fetch;
+      expect(await details(new AccountProvider("token", USER_ID), [...requested, "MLB1"]))
+        .toEqual(requested.map((id) => ({ id })));
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("rejects the whole essential detail fetch when any batch fails", async () => {
+      const requested = Array.from({ length: 21 }, (_, i) => `MLB${i + 1}`);
+      global.fetch = vi.fn(async (input: string | URL) => {
+        const batch = new URL(String(input)).searchParams.get("ids")!.split(",");
+        return batch.includes("MLB21") ? jsonResponse(null, false) : jsonResponse(batch.map((id) => ({ code: 200, body: { id } })));
+      }) as unknown as typeof fetch;
+      await expect(details(new AccountProvider("token", USER_ID), requested)).rejects.toBeInstanceOf(MLDataUnavailableError);
+    });
+
+    it("preserves rate-limit errors from both multiget HTTP and per-item responses", async () => {
+      const provider = new AccountProvider("token", USER_ID);
+      const error = new MLRateLimitError(45);
+      const getSpy = vi.spyOn(provider as any, "get").mockRejectedValue(error);
+      await expect(details(provider)).rejects.toBe(error);
+      getSpy.mockResolvedValue([{ code: 429, body: {} }]);
+      await expect(details(provider)).rejects.toBeInstanceOf(MLRateLimitError);
+    });
+  });
+});
+
+describe("AccountProvider.getVisitsSeriesOnly confirmed data", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns confirmed zeros with attempted=resolved=0 for a truly empty active search", async () => {
+    const fetchSpy = makeFetchRouter([
+      { match: /status=active/, body: { paging: { total: 0 }, results: [] } },
+    ]);
+    global.fetch = fetchSpy as unknown as typeof fetch;
+    const result = await new AccountProvider("token", USER_ID).getVisitsSeriesOnly(7);
+    expect(result.series).toHaveLength(7);
+    expect(result.series.every((point) => point.visits === 0)).toBe(true);
+    expect(result.attempted).toBe(0);
+    expect(result.resolved).toBe(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an unavailable active ID search rather than caching a zero series", async () => {
+    global.fetch = makeFetchRouter([]) as unknown as typeof fetch;
+    await expect(new AccountProvider("token", USER_ID).getVisitsSeriesOnly()).rejects.toBeInstanceOf(MLDataUnavailableError);
+  });
+
+  it.each([
+    { label: "HTTP failures", body: null, ok: false },
+    { label: "null bodies", body: null },
+    { label: "invalid visit bodies", body: {} },
+    { label: "positive aggregate without buckets", body: { total_visits: 12 } },
+    { label: "positive aggregate with empty buckets", body: { total_visits: 12, results: [] } },
+    { label: "positive aggregate with invalid dates", body: { total_visits: 12, results: [{ date: "invalid", total: 12 }] } },
+    { label: "impossible calendar month", body: { total_visits: 12, results: [{ date: "2026-99-99", total: 12 }] } },
+    { label: "impossible February day", body: { total_visits: 12, results: [{ date: "2026-02-30T00:00:00Z", total: 12 }] } },
+    { label: "non-leap February 29", body: { total_visits: 12, results: [{ date: "2026-02-29", total: 12 }] } },
+    { label: "invalid bucket totals", body: { results: [{ date: "2026-11-06", total: "12" }] } },
+    { label: "invalid negative totals", body: { total_visits: -1, results: [] } },
+    { label: "positive aggregate with zero buckets", body: { total_visits: 12, results: [{ date: "2026-11-06", total: 0 }] } },
+  ])("rejects all $label when active IDs exist", async ({ body, ok }) => {
+    global.fetch = makeFetchRouter([
+      { match: /status=active/, body: { paging: { total: 2 }, results: ["MLB1", "MLB2"] } },
+      { match: /\/visits\/time_window/, body, ok },
+    ]) as unknown as typeof fetch;
+    await expect(new AccountProvider("token", USER_ID).getVisitsSeriesOnly(7)).rejects.toBeInstanceOf(MLDataUnavailableError);
+  });
+
+  it.each([
+    { item_id: "MLB1", total_visits: 0, results: [] },
+    { item_id: "MLB1", results: [] },
+    { total_visits: 0 },
+  ])("counts a valid real zero as resolved instead of unavailable (%j)", async (body) => {
+    global.fetch = makeFetchRouter([
+      { match: /status=active/, body: { paging: { total: 1 }, results: ["MLB1"] } },
+      { match: /\/visits\/time_window/, body },
+    ]) as unknown as typeof fetch;
+    const result = await new AccountProvider("token", USER_ID).getVisitsSeriesOnly(7);
+    expect(result.attempted).toBe(1);
+    expect(result.resolved).toBe(1);
+    expect(result.series).toHaveLength(7);
+    expect(result.series.every((point) => point.visits === 0)).toBe(true);
+  });
+
+  it("keeps partial visits and the correct attempted/resolved counts", async () => {
+    const today = brtDateKey(Date.now());
+    global.fetch = makeFetchRouter([
+      { match: /status=active/, body: { paging: { total: 3 }, results: ["MLB1", "MLB2", "MLB3"] } },
+      { match: /\/items\/MLB1\/visits/, body: { results: [{ date: `${today}T00:00:00Z`, total: 12 }], total_visits: 12 } },
+      { match: /\/items\/MLB2\/visits/, body: { results: [], total_visits: 0 } },
+      { match: /\/items\/MLB3\/visits/, body: null, ok: false },
+    ]) as unknown as typeof fetch;
+    const result = await new AccountProvider("token", USER_ID).getVisitsSeriesOnly(7);
+    expect(result.attempted).toBe(3);
+    expect(result.resolved).toBe(2);
+    expect(result.series.find((point) => point.date === today)?.visits).toBe(12);
+  });
+
+  it("applies the unique ID cap to visits and does not count duplicate attempts", async () => {
+    const fetchSpy = makeFetchRouter([
+      { match: /status=active/, body: { paging: { total: 4 }, results: ["MLB1", "MLB1", "MLB2", "MLB3"] } },
+      { match: /\/visits\/time_window/, body: { total_visits: 0, results: [] } },
+    ]);
+    global.fetch = fetchSpy as unknown as typeof fetch;
+    const result = await new AccountProvider("token", USER_ID).getVisitsSeriesOnly(7, 2);
+    expect(result.attempted).toBe(2);
+    expect(result.resolved).toBe(2);
+    expect(fetchSpy.mock.calls.filter(([url]) => String(url).includes("/visits/time_window"))).toHaveLength(2);
   });
 });

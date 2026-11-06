@@ -2045,3 +2045,15 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Gerar e baixar cópia interna validada em 06/nov 08:51 BRT: 330.705 bytes, 18 abas e 81 linhas técnicas; rotina diária existente mantida
 - [x] Finalizar verificação de dados, tipos e build; mudanças preparadas para checkpoint final e publicação pelo painel
 - [ ] Pendência externa: reconectar Google Drive em Configurações — token ainda retorna invalid_grant; cópia interna funcional, sem prometer backup Drive bem-sucedido
+
+## Mercato — anúncios e visitas reais no dashboard (06/nov)
+- [x] Corrigir consultas essenciais de listagens/paginação/multiget: indisponibilidade ou limite da API não pode virar sucesso com zero anúncios
+- [x] Separar snapshots de anúncios, visitas e ficha técnica por vendedor ML; atualização manual protegida expira somente caches analíticos e preserva o último resultado válido
+- [x] Adicionar Atualizar agora em Painel e Meus anúncios; restaurar Raio-X da Ficha Técnica em Meus anúncios com atualização por foco/intervalo e estados de erro/resultado anterior
+- [x] Exibir dados indisponíveis, parciais e snapshot anterior explicitamente; visita desconhecida não entra no filtro de zero visitas
+- [x] Validar payloads, totais, buckets e datas calendáricas das visitas; Hoje/Ontem usam a data BRT e dias ausentes no snapshot anterior aparecem como não consultados
+- [x] Auditar conexão em leitura, sem renovar ou trocar token: MANICARDIGUILHERME (197259225) retornou HTTP 200 e total 0 em buscas active/all/scan; referência histórica 3308178634 retornou nickname TOUJOURS, mas a listagem com a autorização atual foi bloqueada por HTTP 403
+- [x] Validar TypeScript, build de produção e suíte sem .live.test.ts: 126 arquivos / 1.465 testes aprovados; cenário de 47 anúncios é coberto por teste simulado, não apresentado como consulta real bem-sucedida
+- [x] Comparar assinaturas SHA-256 das 11 tabelas comerciais com o baseline: changed=[] e preservedAll=true, inclusive 81 linhas SKU históricas; nenhuma mutação em anúncios, campanhas, SKUs, produtos, credenciais ou schema nesta correção
+- [x] Conferir diff sem erros, scan de segredos sem achados e runtime atual sem erro de importação; /painel e /anuncios retornam HTTP 200 na prévia
+- [ ] Pendência externa: reconectar a conta que realmente possui os anúncios em Configurações > Reconectar ao Mercado Livre e validar novamente por leitura; não contornar o 403 nem afirmar que os 47 anúncios pertencem à TOUJOURS sem confirmação

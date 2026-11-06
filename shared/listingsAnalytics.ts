@@ -218,6 +218,7 @@ export function filterListings(items: ListingRow[], f: ListingFilters): ListingR
     if (f.freeShipping != null && (r.freeShipping ?? false) !== f.freeShipping) return false;
 
     if (f.visitBucketIds && f.visitBucketIds.length) {
+      if (r.visitsAvailable === false) return false;
       const id = bucketIdFor(r.visits, VISIT_BUCKETS);
       if (!id || !f.visitBucketIds.includes(id)) return false;
     }

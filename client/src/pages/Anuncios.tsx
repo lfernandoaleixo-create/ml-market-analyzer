@@ -155,6 +155,8 @@ const defaultFilters: ListingFilters = {
 };
 
 export default function Anuncios() {
+  const utils = trpc.useUtils();
+  const refreshDashboard = trpc.account.refreshDashboard.useMutation();
   // Visits window in days. The Visits card reflects REAL visits over this
   // period (via ML's dated time_window endpoint, one item per request).
   const [visitWindow, setVisitWindow] = useState<7 | 30 | 90>(30);
@@ -178,18 +180,14 @@ export default function Anuncios() {
       refetchOnWindowFocus: true,
     },
   );
-  // Daily visits chart via the dedicated NON-BLOCKING endpoint (background
-  // collection + cheap cached read). Polled every 60s so it never freezes the
-  // page on "Carregando as visitas".
+  // Daily visits chart is collected in the request on a cache miss. Failed or
+  // partial collection stays distinguishable from a confirmed zero.
   const visits = trpc.account.visitsSeries.useQuery(
     { days: visitWindow },
     {
       enabled: conn.data?.connected === true,
-      // While the cold-start background collection is still running (pending),
-      // poll quickly (4s) so the chart fills in within seconds; relax to 60s once
-      // the data has landed.
       refetchInterval: (query) =>
-        query.state.data?.pending ? 4 * 1000 : 60 * 1000,
+        query.state.data?.partial ? 30 * 1000 : 60 * 1000,
       refetchOnWindowFocus: true,
     },
   );
@@ -232,9 +230,21 @@ export default function Anuncios() {
     [adsQuery.data],
   );
 
+  const updateDashboard = async () => {
+    try {
+      await refreshDashboard.mutateAsync();
+      await Promise.all([
+        conn.refetch(), refetch(), visits.refetch(), utils.account.technicalSpecs.invalidate(),
+        ...(dailyItemIds.length ? [visitsDaily.refetch()] : []),
+      ]);
+    } catch {
+      toast.error("Não foi possível iniciar a atualização. Tente novamente.");
+    }
+  };
+
   const insights = useMemo(() => computeInsights(items), [items]);
 
-  const visitDist = useMemo(() => bucketCounts(items, VISIT_BUCKETS, (r) => r.visits), [items]);
+  const visitDist = useMemo(() => bucketCounts(items.filter((r) => r.visitsAvailable), VISIT_BUCKETS, (r) => r.visits), [items]);
   const visitsSeries = useMemo<VisitsDayPoint[]>(() => visits.data?.series ?? [], [visits.data]);
 
   // PRIMARY source for the hero "Visitas (Nd)" card: the aggregated active-items
@@ -355,11 +365,17 @@ export default function Anuncios() {
       </PageShell>
     );
   }
+  if (conn.error && !conn.data && !data) {
+    return <ErrorState onRetry={() => conn.refetch()} retrying={conn.isFetching} />;
+  }
   if (conn.data && conn.data.connected !== true && !conn.isFetching && !data) {
     return <NotConnected />;
   }
   if (error && !data)
-    return <ErrorState onRetry={() => refetch()} retrying={isFetching} />;
+    return <ErrorState onRetry={() => void updateDashboard()} retrying={isFetching || refreshDashboard.isPending} />;
+  if (data?.summary.total === 0 && data.summary.capped) {
+    return <ErrorState onRetry={() => void updateDashboard()} retrying={isFetching || refreshDashboard.isPending} />;
+  }
 
   const s = data?.summary;
   const availableTypes = Array.from(new Set(items.map((i) => i.listingType).filter(Boolean)));
@@ -377,7 +393,7 @@ export default function Anuncios() {
   // only truly "pending" (show a dash) when the series itself has not landed yet
   // AND there is no per-item fallback total. Once the series arrives we always
   // have a real number, so the card never stays frozen on "—".
-  const heroVisitsValue = seriesTotalVisits ?? (visitsPending ? null : (s?.totalVisits ?? 0));
+  const heroVisitsValue = seriesTotalVisits ?? (visitsPending || !s ? null : s.totalVisits);
   const heroVisitsPending = heroVisitsValue == null && (seriesPending || visitsPending);
   const visitsResolved = s?.visitsResolved ?? 0;
   const visitsAttempted = s?.visitsAttempted ?? 0;
@@ -386,16 +402,16 @@ export default function Anuncios() {
   const LOADING = "—";
   /** Show the real (or growing partial) number; a dash only on a cold start. */
   const visitVal = (n: number | undefined) =>
-    isLoading ? "" : visitsPending ? LOADING : formatNumber(n ?? 0);
+    isLoading ? "" : visitsPending || n == null ? LOADING : formatNumber(n);
 
   return (
     <PageShell>
       <PageHeader
         title="Meus anúncios"
-        subtitle="Central analítica dos seus anúncios: cruze visitas, vendas, conversão, estoque e saúde para agir onde rende mais."
+        subtitle={`Veja quais anúncios estão na conta${conn.data?.nickname ? ` ${conn.data.nickname}` : " conectada"}, quantos são e o desempenho de visitas.`}
         actions={
           <div className="flex flex-wrap items-center gap-2.5">
-            {!isLoading && data?.stale ? (
+            {!isLoading && (data?.stale || (error && data)) ? (
               <span className="hidden items-center gap-1.5 text-xs text-amber-600 sm:inline-flex" title="O Mercado Livre estava congestionado; exibindo os últimos dados confirmados.">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                 {`Dados em cache · ${data?.asOf ? `de ${new Date(data.asOf).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "recentes"}`}
@@ -410,8 +426,8 @@ export default function Anuncios() {
               size="sm"
               variant="outline"
               className="h-9 gap-1.5 bg-card"
-              onClick={() => refetch()}
-              disabled={isLoading || isFetching}
+              onClick={() => void updateDashboard()}
+              disabled={isLoading || isFetching || visits.isFetching || refreshDashboard.isPending}
               title="Buscar os dados mais recentes agora"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
@@ -431,14 +447,27 @@ export default function Anuncios() {
         }
       />
 
-      {s?.capped && (
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <KpiCard label="Anúncios consultados" value={s ? formatNumber(s.total) : "—"} loading={isLoading} icon={Package} accent="blue" />
+        <KpiCard label="Ativos" value={s ? formatNumber(s.active) : "—"} loading={isLoading} icon={PlayCircle} accent="emerald" />
+        <KpiCard label="Pausados" value={s ? formatNumber(s.paused) : "—"} loading={isLoading} icon={PauseCircle} accent="amber" />
+        <KpiCard label="Encerrados" value={s ? formatNumber(s.closed) : "—"} loading={isLoading} icon={XCircle} accent="rose" />
+      </div>
+
+      {(data?.stale || (error && data)) && (
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-700" role="status">
+          A atualização não foi concluída. Exibindo os últimos anúncios confirmados desta conta, não uma lista vazia.
+        </p>
+      )}
+
+      {s?.capped && s.total > 0 && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-700">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          Mostrando os primeiros {formatNumber(s.total)} anúncios. Há mais itens na conta — em breve podemos paginar/expandir o limite.
+          Foram consultados {formatNumber(s.total)} anúncios. A coleta atingiu o limite desta consulta; o total da conta pode ser maior.
         </div>
       )}
 
-      {heroVisitsPending && (
+      {(heroVisitsPending || visitsCollecting) && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-2.5 text-sm text-blue-700">
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 shrink-0 animate-spin" />
@@ -626,8 +655,13 @@ export default function Anuncios() {
           <div className="flex flex-col items-center gap-2 py-12 text-center">
             <Filter className="h-8 w-8 text-muted-foreground/40" />
             <p className="text-sm text-muted-foreground">
-              Nenhum anúncio corresponde aos filtros atuais.
+              {items.length === 0
+                ? `O Mercado Livre não retornou anúncios para a conta ${conn.data?.nickname ?? "conectada"}.`
+                : "Nenhum anúncio corresponde aos filtros atuais."}
             </p>
+            {items.length === 0 && <p className="max-w-xl text-xs text-muted-foreground">
+              Se você tem anúncios em outra loja, confira em Configurações qual conta Mercado Livre está conectada.
+            </p>}
           </div>
         ) : (
           <ListingsTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} dailyVisits={dailyVisitsMap} />
@@ -702,8 +736,11 @@ export default function Anuncios() {
           loading={visits.isLoading}
           windowDays={visitWindow}
           pending={visits.data?.pending === true}
-          onRetry={() => visits.refetch()}
-          refreshing={visits.isFetching}
+          error={visits.error?.message ?? (!conn.data?.connected ? "A conexão com o Mercado Livre não está disponível." : undefined)}
+          partial={visits.data?.partial === true}
+          stale={visits.data?.status === "stale"}
+          onRetry={() => void updateDashboard()}
+          refreshing={visits.isFetching || refreshDashboard.isPending}
           onSelectDay={(d) => setVisitsDay(d)}
         />
       </SectionCard>
@@ -1139,4 +1176,3 @@ function ListingsTable({
     </div>
   );
 }
-

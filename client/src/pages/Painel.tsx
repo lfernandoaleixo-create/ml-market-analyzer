@@ -6,6 +6,7 @@ import {
   KpiSkeletonRow,
   SectionCard,
   NotConnected,
+  ErrorState,
 } from "@/components/account/AccountUI";
 import { BrandHero } from "@/components/account/BrandHero";
 import { Card } from "@/components/ui/card";
@@ -71,6 +72,7 @@ import { Link, useLocation } from "wouter";
 
 export default function Painel() {
   const conn = trpc.account.connection.useQuery();
+  const refreshDashboard = trpc.account.refreshDashboard.useMutation();
   const connected = conn.data?.connected === true;
   // Lightweight credentials read to surface a discreet "connection expired" reminder.
   const creds = trpc.monitor.getCredentials.useQuery(undefined, {
@@ -180,6 +182,9 @@ export default function Painel() {
   // Only show "connect your account" when we have a definitive negative answer
   // and we are not merely refetching after a transient session drop.
   const hasCachedData = !!sales.data || !!listings.data || !!rep.data;
+  if (conn.error && !conn.data && !hasCachedData) {
+    return <ErrorState onRetry={() => conn.refetch()} retrying={conn.isFetching} />;
+  }
   if (conn.data && !connected && !conn.isFetching && !hasCachedData) {
     return <NotConnected />;
   }
@@ -199,14 +204,16 @@ export default function Painel() {
   const isRateLimited = [sales.error, listings.error, rep.error, lifetime.error].some(
     (e) => (e?.data as { code?: string } | undefined)?.code === "TOO_MANY_REQUESTS",
   );
-  const retryAll = () => {
-    sales.refetch();
-    listings.refetch();
-    rep.refetch();
-    lifetime.refetch();
+  const retryAll = async () => {
+    try {
+      await refreshDashboard.mutateAsync();
+      await Promise.all([conn.refetch(), sales.refetch(), listings.refetch(), visits.refetch(), rep.refetch(), lifetime.refetch()]);
+    } catch {
+      // A failed refresh keeps the current snapshot and query-level error state.
+    }
   };
   const anyRefetching =
-    sales.isFetching || listings.isFetching || rep.isFetching || lifetime.isFetching;
+    refreshDashboard.isPending || visits.isFetching || sales.isFetching || listings.isFetching || rep.isFetching || lifetime.isFetching;
 
   // Whether the range spans more than ~45 days (then label by month-day, else day).
   const bars = sales.data?.daily ?? [];
@@ -223,10 +230,14 @@ export default function Painel() {
   return (
     <PageShell>
       <BrandHero
-        subtitle="Visão geral da sua loja no Mercado Livre — vendas, anúncios e reputação em tempo real."
+        subtitle={`Visão geral da conta ${conn.data?.nickname ?? "conectada"} no Mercado Livre — vendas, anúncios e reputação.`}
         actions={
           <>
             {connectionStale && <ConnectionReminder />}
+            <Button variant="outline" size="sm" onClick={() => void retryAll()} disabled={anyRefetching} className="gap-1.5">
+              <RefreshCw className={cn("h-3.5 w-3.5", anyRefetching && "animate-spin")} />
+              {anyRefetching ? "Atualizando…" : "Atualizar agora"}
+            </Button>
             <AccountHealthBadge
               loading={rep.isLoading}
               levelId={r?.levelId ?? null}
@@ -261,6 +272,13 @@ export default function Painel() {
         </div>
       )}
 
+      {(listings.error || listings.data?.stale) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-700" role="status">
+          <p>{listings.data ? "A atualização dos anúncios não foi concluída. Exibindo o último resultado confirmado desta conta." : "Os anúncios estão indisponíveis nesta consulta. Isso não significa que sua loja tenha zero anúncios."}</p>
+          <Button variant="outline" size="sm" onClick={() => void retryAll()} disabled={anyRefetching}>Atualizar anúncios</Button>
+        </div>
+      )}
+
       {/* Two compact summary cards pulled tight to the top, stacked with minimal
           spacing so they take the least vertical room possible. */}
       <div className="-mt-2 space-y-2">
@@ -291,8 +309,11 @@ export default function Painel() {
           loading={visits.isLoading}
           windowDays={30}
           pending={visitsSeriesPending}
-          onRetry={() => visits.refetch()}
-          refreshing={visits.isFetching}
+          error={visits.error?.message ?? (!connected ? "A conexão com o Mercado Livre não está disponível." : undefined)}
+          partial={visits.data?.partial === true}
+          stale={visits.data?.status === "stale"}
+          onRetry={() => void retryAll()}
+          refreshing={visits.isFetching || refreshDashboard.isPending}
           onSelectDay={(d) => setVisitsDay(d)}
         />
       </SectionCard>
@@ -325,6 +346,7 @@ export default function Painel() {
         activeListings={s?.active ?? 0}
         totalListings={s?.total ?? 0}
         listingsLoading={listings.isLoading}
+        listingsUnavailable={!s || (s.total === 0 && s.capped)}
         notConfigured={financeStatus.data?.baselinkerConfigured !== true}
         profitLoading={periodProfit.isLoading}
         breakdown={periodProfit.data && periodProfit.data.totals.revenue > 0 ? periodProfit.data.totals : null}
@@ -1354,6 +1376,7 @@ function PeriodFlowStrip({
   activeListings,
   totalListings,
   listingsLoading,
+  listingsUnavailable = false,
   notConfigured,
   profitLoading,
   breakdown,
@@ -1365,6 +1388,7 @@ function PeriodFlowStrip({
   activeListings: number;
   totalListings: number;
   listingsLoading: boolean;
+  listingsUnavailable?: boolean;
   notConfigured: boolean;
   profitLoading: boolean;
   breakdown: ProfitBreakdown | null;
@@ -1450,8 +1474,8 @@ function PeriodFlowStrip({
     {
       icon: Package,
       label: "Anúncios ativos",
-      value: `${formatNumber(activeListings)} / ${formatNumber(totalListings)}`,
-      sub: "ativos / total",
+      value: listingsUnavailable ? "—" : `${formatNumber(activeListings)} / ${formatNumber(totalListings)}`,
+      sub: listingsUnavailable ? "consulta indisponível" : "ativos / total",
       tint: "bg-blue-500/12 text-blue-600",
       valueClass: "text-blue-600",
       loading: listingsLoading,

@@ -122,6 +122,15 @@ describe("filterListings", () => {
     const res = filterListings(items, { statuses: ["active"], visitBucketIds: ["v1_10"] });
     expect(res.map((r) => r.itemId)).toEqual(["A"]);
   });
+
+  it("não classifica visitas indisponíveis como zero confirmado", () => {
+    const candidates = [
+      row({ itemId: "unknown", visits: 0, visitsAvailable: false }),
+      row({ itemId: "confirmed", visits: 0, visitsAvailable: true }),
+    ];
+    expect(filterListings(candidates, { visitBucketIds: ["v0"] }).map((r) => r.itemId)).toEqual(["confirmed"]);
+    expect(filterListings(candidates, {}).map((r) => r.itemId)).toEqual(["unknown", "confirmed"]);
+  });
 });
 
 describe("sortListings", () => {
