@@ -2108,3 +2108,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Aplicar revisão independente e regressões dos pagamentos incompletos e deduplicação com datas ausentes; suíte definitiva sem live: 141 arquivos / 1.973 testes aprovados, TypeScript e build aprovados; TSX da UI incorporado à suíte normal
 - [x] Auditoria SHA-256 das 11 tabelas comerciais: preservedAll=true e changed=[]; scan de segredos sem achados, diff sem erros e runtime saudável; navegador isolado exige login, UI coberta por 26 testes SSR e leitura financeira real
 - [ ] Publicar o checkpoint validado no WebDev para disponibilizar a nova aba à equipe no domínio definitivo; não publicar automaticamente nem afirmar que a nova interface já está em produção
+
+## Mercato — documentação da API atualizada após Margem por pedido (12/nov)
+- [x] Atualizar references/api-leitura-mercato.md para revisão documental 1.1, mantendo o contrato externo e o OpenAPI inalterados
+- [x] Explicar que URL, Bearer, escopos, parâmetros e respostas externas continuam iguais; GET /sales não oferece margem e a chave externa não acessa salesMargin interno
+- [x] Documentar fontes ML/MP, conciliação de relatórios, custos totais por pedido, fórmulas, pendências, cobranças separadas e distinção entre líquido e lucro
+- [x] Registrar fotografias históricas com data, armazenamento aditivo e backup de 20 abas; preservar referências oficiais e evidências dos 1.973 testes do release funcional
+- [x] Regenerar PDF da revisão 1.1 usando a base existente; compilação estrita e verificação aprovadas, onze páginas revisadas visualmente, sem chave real no documento
+- [x] Atualização exclusivamente documental, sem criação de endpoint, troca de chave, alteração de credencial ou mutação em anúncios, campanhas, produtos e SKUs
