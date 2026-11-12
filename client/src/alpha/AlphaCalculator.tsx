@@ -80,13 +80,17 @@ import {
 } from "@shared/alpha/interfaceInput";
 import { getProductType } from "@shared/alpha/productIdentification";
 import { useProductCatalog } from "@/alpha/hooks/useProductCatalog";
+import { usePricingCalculationInput } from "@/alpha/hooks/usePricingCalculationInput";
 import { HistoryWorkspaceDialog } from "@/alpha/components/HistoryWorkspaceDialog";
 import {
   readProductLoginDraft,
   clearProductLoginDraft,
 } from "@/alpha/lib/productCatalogResume";
 import { restorePricingInput as restoreInput } from "@shared/alpha/restorePricingInput";
-import { getAcquisition, hydrateKitComposition } from "@shared/alpha/kitComposition";
+import {
+  getAcquisition,
+  hydrateKitComposition,
+} from "@shared/alpha/kitComposition";
 import { getStateTaxSettings } from "@shared/alpha/stateTaxSettings";
 import { KitItemsEditor } from "@/alpha/components/KitItemsEditor";
 import {
@@ -434,11 +438,15 @@ export default function Home() {
     )
       setFeeConfirmed(false);
   }
+  const calculationInput = usePricingCalculationInput(input);
   const { result, target } = useMemo(
-    () => resolvePricingFlow(input, mode, goal),
-    [input, mode, goal]
+    () => resolvePricingFlow(calculationInput, mode, goal),
+    [calculationInput, mode, goal]
   );
-  const breakEven = useMemo(() => solveTarget(input, 0), [input]);
+  const breakEven = useMemo(
+    () => solveTarget(calculationInput, 0),
+    [calculationInput]
+  );
   const commissionConfirmedForResult =
     result.valid &&
     feeConfirmed &&
@@ -582,8 +590,8 @@ export default function Home() {
     value => !Number.isFinite(value) || value <= 0
   );
   const freeShippingState = useMemo(
-    () => evaluateFreeShippingControl(input, mode, goal, result),
-    [input, mode, goal, result]
+    () => evaluateFreeShippingControl(calculationInput, mode, goal, result),
+    [calculationInput, mode, goal, result]
   );
   function toggleFreeShipping(enabled: boolean) {
     if (!freeShippingState.canToggle) {
@@ -1565,13 +1573,17 @@ export default function Home() {
           >
             Guia das modalidades de envio (PDF)
           </a>
-          <a href="/manus-storage/estudo-frete-mercado-livre_40125432.md" download>
+          <a
+            href="/manus-storage/estudo-frete-mercado-livre_40125432.md"
+            download
+          >
             Baixar o estudo das regras
           </a>
           <div>
             Ferramenta independente, sem vínculo oficial com o Mercado Livre.
             <br />
-            Tabela pública consultada em 26/10/2026 · cálculo pela tabela, sem aplicar cotação específica da conta conectada ao Mercato.
+            Tabela pública consultada em 26/10/2026 · cálculo pela tabela, sem
+            aplicar cotação específica da conta conectada ao Mercato.
           </div>
           <button onClick={() => setModal("help")}>
             Ver regras, fontes e limites da simulação{" "}

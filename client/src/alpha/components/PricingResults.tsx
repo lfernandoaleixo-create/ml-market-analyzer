@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ArrowDownToLine, BookmarkPlus, Copy, Info } from "lucide-react";
 import {
   calculate,
@@ -8,6 +9,7 @@ import {
 import { getAcquisition } from "@shared/alpha/kitComposition";
 import { money, percent } from "@/alpha/lib/format";
 import { NumberField } from "./PricingFields";
+import { usePricingCalculationInput } from "../hooks/usePricingCalculationInput";
 
 export type PricingResult = ReturnType<typeof calculate>;
 export function resultLines(r: PricingResult) {
@@ -234,6 +236,15 @@ export function MarginResults({
   onSelect: (n: number) => void;
   onRemove: (n: number) => void;
 }) {
+  const calculationInput = usePricingCalculationInput(input);
+  const targets = useMemo(
+    () =>
+      goals.map(g => ({
+        g,
+        t: solveTarget(calculationInput, g),
+      })),
+    [calculationInput, goals]
+  );
   return (
     <section className="panel margins-panel">
       <h2>Quanto vender para lucrar?</h2>
@@ -242,8 +253,7 @@ export function MarginResults({
         preço. A comissão também verifica a faixa especial quando o benefício da
         categoria está habilitado.
       </p>
-      {goals.map(g => {
-        const t = solveTarget(input, g);
+      {targets.map(({ g, t }) => {
         return (
           <div
             style={{ display: "flex", gap: 4, alignItems: "center" }}
@@ -291,6 +301,15 @@ export function CompareResults({
   input: PricingInput;
   goal: number;
 }) {
+  const calculationInput = usePricingCalculationInput(input);
+  const comparisons = useMemo(
+    () =>
+      (["classic", "premium"] as const).map(l => ({
+        l,
+        s: solveTarget(calculationInput, goal, l),
+      })),
+    [calculationInput, goal]
+  );
   return (
     <section className="panel margins-panel">
       <h2>Clássico ou Premium?</h2>
@@ -299,8 +318,7 @@ export function CompareResults({
         confirmada na sua categoria.
       </p>
       <div className="compare-row">
-        {(["classic", "premium"] as const).map(l => {
-          const s = solveTarget(input, goal, l);
+        {comparisons.map(({ l, s }) => {
           return (
             <div className="compare-cell" key={l}>
               <span>

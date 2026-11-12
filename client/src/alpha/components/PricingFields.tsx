@@ -159,6 +159,26 @@ export function Segment({
     </div>
   );
 }
+const openModals: HTMLDivElement[] = [];
+let originalBodyOverflow = "";
+let nextModalLayer = 2000;
+let originalModalFocus: HTMLElement | null = null;
+function modalFocusables(element: HTMLDivElement): HTMLElement[] {
+  return Array.from(
+    element.querySelectorAll<HTMLElement>(
+      'button,a[href],input,select,textarea,[tabindex="0"]'
+    )
+  ).filter(
+    control =>
+      control.tabIndex >= 0 &&
+      !control.matches(
+        ':disabled,[aria-disabled="true"],input[type="hidden"]'
+      ) &&
+      !control.closest("[hidden],[inert]") &&
+      getComputedStyle(control).display !== "none" &&
+      getComputedStyle(control).visibility !== "hidden"
+  );
+}
 export function Modal({
   title,
   children,
@@ -169,22 +189,44 @@ export function Modal({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Opening focus, scroll lock and restoration belong to the modal lifetime,
+  // not to the identity of the caller's (often inline) close callback.
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
     const previous = document.activeElement as HTMLElement | null;
-    const old = document.body.style.overflow;
+    if (openModals.length === 0) {
+      originalBodyOverflow = document.body.style.overflow;
+      originalModalFocus = previous;
+      nextModalLayer = 2000;
+    }
+    openModals.push(element);
+    // A PDF can be mounted before the already-open History sibling in DOM order.
+    // Keep the most recently opened dialog visually above it as well.
+    const backdrop = element.parentElement;
+    const oldZIndex = backdrop?.style.zIndex ?? "";
+    if (backdrop) backdrop.style.zIndex = String(++nextModalLayer);
     document.body.style.overflow = "hidden";
-    ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    modalFocusables(element)[0]?.focus();
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.defaultPrevented || openModals.at(-1) !== element) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCloseRef.current();
+      }
       if (e.key === "Tab") {
-        const els = Array.from(
-          ref.current?.querySelectorAll<HTMLElement>(
-            'button,a[href],input,select,[tabindex="0"]'
-          ) ?? []
-        );
+        const els = modalFocusables(element);
         const first = els[0],
           last = els[els.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
+        if (!els.includes(document.activeElement as HTMLElement)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first)?.focus();
+        } else if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last?.focus();
         } else if (!e.shiftKey && document.activeElement === last) {
@@ -195,16 +237,30 @@ export function Modal({
     };
     document.addEventListener("keydown", key);
     return () => {
-      document.body.style.overflow = old;
+      const wasTop = openModals.at(-1) === element;
+      const index = openModals.indexOf(element);
+      if (index >= 0) openModals.splice(index, 1);
+      document.body.style.overflow = openModals.length
+        ? "hidden"
+        : originalBodyOverflow;
+      if (backdrop) backdrop.style.zIndex = oldZIndex;
       document.removeEventListener("keydown", key);
-      previous?.focus();
+      if (!openModals.length) {
+        if (originalModalFocus?.isConnected) originalModalFocus.focus();
+        originalModalFocus = null;
+      } else if (wasTop) {
+        const top = openModals.at(-1);
+        if (previous?.isConnected && (!top || top.contains(previous)))
+          previous.focus();
+        else if (top) modalFocusables(top)[0]?.focus();
+      }
     };
-  }, [onClose]);
+  }, []);
   return (
     <div
       className="modal-backdrop"
       onMouseDown={e => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) onCloseRef.current();
       }}
     >
       <div
@@ -216,7 +272,7 @@ export function Modal({
       >
         <div className="modal-header">
           <h2>{title}</h2>
-          <button aria-label="Fechar" onClick={onClose}>
+          <button aria-label="Fechar" onClick={() => onCloseRef.current()}>
             <X size={16} />
           </button>
         </div>

@@ -61,17 +61,66 @@ export function MarginPriceControl({
           </button>
         ))}
       </div>
-      {mode === "target" ? (
-        <>
-          <div className="automatic-price-output">
-            <NumberField
-              label={priceLabel}
-              value={priceValue}
-              onChange={handlePriceChange}
-              prefix="R$"
-              hint="Você informa os custos e a margem. A Alpha determina o preço de venda; edite este campo para conferir um preço real/manual."
-            />
+      {/* Keep the price field and its ancestor stable when editing switches modes. */}
+      <div
+        className={
+          mode === "target" ? "automatic-price-output" : "manual-price-check"
+        }
+      >
+        {mode === "sale" && (
+          <div className="callout">
+            <Info size={13} />
+            <span>
+              Conferência opcional: este preço é real/manual e não é determinado
+              pela margem. Para precificar a partir dos custos, volte ao cálculo
+              automático.
+            </span>
           </div>
+        )}
+        <NumberField
+          label={priceLabel}
+          value={priceValue}
+          onChange={handlePriceChange}
+          prefix="R$"
+          hint={
+            mode === "target"
+              ? "Você informa os custos e a margem. A Alpha determina o preço de venda; edite este campo para conferir um preço real/manual."
+              : undefined
+          }
+        />
+        {mode === "sale" && (
+          <>
+            {hasObtainedResult && (
+              <div
+                className="obtained-result"
+                aria-label="Resultado obtido com o preço real/manual"
+              >
+                {hasObtainedMargin && (
+                  <div>
+                    <span>Margem obtida</span>
+                    <strong>{percent(obtainedMargin!)}</strong>
+                  </div>
+                )}
+                {hasObtainedProfit && (
+                  <div>
+                    <span>Lucro</span>
+                    <strong>{money(obtainedProfit!)}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => onMode("target")}
+            >
+              Voltar ao preço calculado pela margem <ArrowRight size={11} />
+            </button>
+          </>
+        )}
+      </div>
+      {mode === "target" && (
+        <>
           {error && (
             <div className="callout error" role="alert">
               <Info size={13} />
@@ -91,49 +140,6 @@ export function MarginPriceControl({
             Já tenho um preço: apenas conferir <ArrowRight size={13} />
           </button>
         </>
-      ) : (
-        <div className="manual-price-check">
-          <div className="callout">
-            <Info size={13} />
-            <span>
-              Conferência opcional: este preço é real/manual e não é determinado
-              pela margem. Para precificar a partir dos custos, volte ao cálculo
-              automático.
-            </span>
-          </div>
-          <NumberField
-            label={priceLabel}
-            value={priceValue}
-            onChange={handlePriceChange}
-            prefix="R$"
-          />
-          {hasObtainedResult && (
-            <div
-              className="obtained-result"
-              aria-label="Resultado obtido com o preço real/manual"
-            >
-              {hasObtainedMargin && (
-                <div>
-                  <span>Margem obtida</span>
-                  <strong>{percent(obtainedMargin!)}</strong>
-                </div>
-              )}
-              {hasObtainedProfit && (
-                <div>
-                  <span>Lucro</span>
-                  <strong>{money(obtainedProfit!)}</strong>
-                </div>
-              )}
-            </div>
-          )}
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => onMode("target")}
-          >
-            Voltar ao preço calculado pela margem <ArrowRight size={11} />
-          </button>
-        </div>
       )}
     </div>
   );

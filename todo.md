@@ -2116,3 +2116,14 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Registrar fotografias históricas com data, armazenamento aditivo e backup de 20 abas; preservar referências oficiais e evidências dos 1.973 testes do release funcional
 - [x] Regenerar PDF da revisão 1.1 usando a base existente; compilação estrita e verificação aprovadas, onze páginas revisadas visualmente, sem chave real no documento
 - [x] Atualização exclusivamente documental, sem criação de endpoint, troca de chave, alteração de credencial ou mutação em anúncios, campanhas, produtos e SKUs
+
+## Mercato — Calculadora Final sem travar ao digitar (12/nov)
+- [x] Confirmar gargalo: identificação textual disparava cerca de 10 solveTarget síncronos por tecla; regressões DOM reproduziram chamadas repetidas sem alteração financeira
+- [x] Estabilizar exclusivamente a entrada computacional e memoizar cenários de margem/Clássico/Premium; nome, categoria e SKUs não refazem preço quando parâmetros efetivos continuam iguais
+- [x] Manter todos os parâmetros financeiros, benefícios, metas/modos e valores inválidos na invalidação; nomes de itens de KIT preservam a validação de vazio/não vazio e custos/quantidades continuam recalculando
+- [x] Manter input completo e atual nos campos, catálogo e snapshots/PDF; testes confirmam nome/SKU recém-digitados sem usar metadados antigos do cache
+- [x] Corrigir foco do preço na troca automático→manual e callbacks inline do Modal; teclado/rolagem coordenados entre Histórico e PDF, Escape atua no superior e Tab ignora controles desabilitados durante geração
+- [x] Incorporar jsdom somente como dependência de desenvolvimento e 45 regressões da calculadora; suíte definitiva sem live: 144 arquivos / 2.018 testes aprovados, TypeScript e build aprovados
+- [x] Auditoria SHA-256 confirma as 11 tabelas comerciais e o catálogo/PDF da Alpha idênticos aos baselines: preservedAll=true e changed=[]; sem mudanças em motor de preços, produtos, SKUs, schema, APIs ou credenciais
+- [x] Diff sem erros, scan sem segredos e runtime sem erros atuais; navegador isolado mostrou login, digitação/foco validados em DOM com componentes reais e serviços simulados, sem gravar dados reais
+- [ ] Publicar exatamente o checkpoint desta correção para disponibilizá-la no site usado pela equipe; notificações de deployment sem versão não comprovam que o novo checkpoint já foi publicado
