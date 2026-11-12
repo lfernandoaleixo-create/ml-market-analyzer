@@ -15,6 +15,7 @@ const {
   listEmbalagemCustomColumns,
   listSkuChangeLogForBackup,
   loadAlphaProjectBackupRecords,
+  loadSalesMarginBackupRecords,
 } = vi.hoisted(() => ({
   listSkuRows: vi.fn(),
   listAllSkuRows: vi.fn(),
@@ -29,6 +30,7 @@ const {
   listEmbalagemCustomColumns: vi.fn(),
   listSkuChangeLogForBackup: vi.fn(),
   loadAlphaProjectBackupRecords: vi.fn(),
+  loadSalesMarginBackupRecords: vi.fn(),
 }));
 
 vi.mock("../skuSheetDb", () => ({
@@ -60,6 +62,8 @@ vi.mock("./alphaProjectBackup", async importOriginal => ({
   loadAlphaProjectBackupRecords,
 }));
 
+vi.mock("./salesMarginBackup", () => ({ loadSalesMarginBackupRecords }));
+
 import { backupFileName, buildSheetsWorkbookBuffer } from "./sheetsXlsx";
 import {
   BACKUP_JSON_CHUNK_FIELDS,
@@ -68,6 +72,7 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  loadSalesMarginBackupRecords.mockResolvedValue({ reports: [], costs: [] });
   loadAlphaProjectBackupRecords.mockResolvedValue({
     alphaCatalogProducts: [],
     alphaPdfExports: [],
@@ -246,8 +251,19 @@ describe("buildSheetsWorkbookBuffer", () => {
       "_Alpha_PDFs",
       "_Projeto_Produtos",
       "_Projeto_Documentos",
+      "_Margem_Relatorios",
+      "_Margem_Custos",
     ]);
     expect(loadAlphaProjectBackupRecords).toHaveBeenCalledOnce();
+    expect(loadSalesMarginBackupRecords).toHaveBeenCalledOnce();
+  });
+
+  it("preserva relatórios e custos da margem em JSON restaurável separado do SKU", async () => {
+    const record = { id: 5, ownerUserId: 1, operationId: "2000019501120666", productCost: "40.00", extraCosts: "0.00", note: "Custo explícito" };
+    loadSalesMarginBackupRecords.mockResolvedValue({ reports: [], costs: [record] });
+    const workbook = XLSX.read(await buildSheetsWorkbookBuffer(), { type: "buffer" });
+    const cells = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets["_Margem_Custos"], { header: 1 });
+    expect(JSON.parse(String(cells[1][5]))).toEqual(record);
   });
 
   it("preserva IDs, SKU manual, tombstone e histórico necessários para restauração", async () => {

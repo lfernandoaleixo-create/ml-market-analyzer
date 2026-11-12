@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  decimal,
   double,
   index,
   int,
@@ -1598,4 +1599,39 @@ export const readApiKeys = mysqlTable("mercato_read_api_keys", {
 }, (t) => ({
   hashUnique: uniqueIndex("read_api_key_hash_unique").on(t.keyHash),
   ownerIdx: index("read_api_key_owner_idx").on(t.ownerUserId),
+}));
+
+/** Financial reconciliation snapshots; never stores the original buyer report. */
+export const salesMarginReports = mysqlTable("sales_margin_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerUserId: int("ownerUserId").notNull(),
+  sellerId: varchar("sellerId", { length: 30 }).notNull(),
+  fileName: varchar("fileName", { length: 160 }).notNull(),
+  fileHash: varchar("fileHash", { length: 64 }).notNull(),
+  format: varchar("format", { length: 30 }).notNull(),
+  rowCount: int("rowCount").notNull(),
+  operations: json("operations").notNull(),
+  fromDate: varchar("fromDate", { length: 10 }).notNull(),
+  toDate: varchar("toDate", { length: 10 }).notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  fileUnique: uniqueIndex("sales_margin_report_file_unique").on(t.ownerUserId, t.sellerId, t.fileHash),
+  ownerIdx: index("sales_margin_report_owner_idx").on(t.ownerUserId, t.sellerId),
+}));
+
+/** Explicit historical per-order costs; unrelated to SKU generation or prices. */
+export const salesMarginCosts = mysqlTable("sales_margin_costs", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerUserId: int("ownerUserId").notNull(),
+  sellerId: varchar("sellerId", { length: 30 }).notNull(),
+  operationId: varchar("operationId", { length: 100 }).notNull(),
+  productCost: decimal("productCost", { precision: 18, scale: 2 }),
+  extraCosts: decimal("extraCosts", { precision: 18, scale: 2 }),
+  note: varchar("note", { length: 1000 }).default("").notNull(),
+  updatedBy: int("updatedBy").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  operationUnique: uniqueIndex("sales_margin_cost_operation_unique").on(t.ownerUserId, t.sellerId, t.operationId),
+  ownerIdx: index("sales_margin_cost_owner_idx").on(t.ownerUserId, t.sellerId),
 }));

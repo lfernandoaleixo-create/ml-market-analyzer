@@ -12,6 +12,7 @@ import { listKitRows, listKitCustomColumns } from "../kitSheetDb";
 import { listEmbalagemRows, listEmbalagemCustomColumns } from "../embalagemSheetDb";
 import { listSkuChangeLogForBackup } from "../skuProtection";
 import { buildBackupJsonAoa, loadAlphaProjectBackupRecords } from "./alphaProjectBackup";
+import { loadSalesMarginBackupRecords } from "./salesMarginBackup";
 
 /**
  * Colunas fixas (na ordem da planilha) compartilhadas por SKU e Kits, que usam
@@ -176,6 +177,7 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     variantReservations,
     skuValueReservations,
     alphaProjectRecords,
+    marginRecords,
   ] = await Promise.all([
     listSkuRows(),
     listAllSkuRows(),
@@ -190,6 +192,7 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     listSkuVariantNumberReservationsForBackup(),
     listSkuValueReservationsForBackup(),
     loadAlphaProjectBackupRecords(),
+    loadSalesMarginBackupRecords(),
   ]);
 
   const wb = XLSX.utils.book_new();
@@ -253,6 +256,8 @@ export async function buildSheetsWorkbookBuffer(): Promise<Buffer> {
     "_Projeto_Documentos",
     buildBackupJsonAoa(alphaProjectRecords.projectDocuments, "id"),
   );
+  appendSheet(wb, "_Margem_Relatorios", buildBackupJsonAoa(marginRecords.reports, "id"));
+  appendSheet(wb, "_Margem_Custos", buildBackupJsonAoa(marginRecords.costs, "id"));
 
   const out = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   return Buffer.from(out);

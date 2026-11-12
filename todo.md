@@ -2093,3 +2093,18 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Auditoria SHA-256: preservedAll=true e changed=[] nas 11 tabelas comerciais; scan sem segredos; nenhum anúncio, campanha, SKU, produto ou documento alterado
 - [x] Confirmar resolução da divergência histórica de conta: reconexão de Fernando em 06/nov foi validada como TOUJOURS com47 ativos; hoje a API devolve49 fichas ativas, sem fixar números antigos
 - [ ] Publicar o checkpoint validado no WebDev para ativar endpoints novos em produção; a prévia foi testada, mas a publicação nova não foi realizada nesta tarefa
+
+## Mercato — Margem por pedido em Vendas (12/nov)
+- [x] Criar subaba Margem por pedido preservando integralmente a Visão geral de Vendas e o seletor comum de período; consulta financeira só monta ao abrir a nova aba
+- [x] Ler automaticamente pedidos e pagamentos ML/MP da Toujours (3308178634), verificando /users/me antes do cache; líquido informado pela API é autoritativo, sem somar novamente sale_fee, frete ou impostos já descontados
+- [x] Exibir bruto, descontos, líquido, percentual que restou, CMV total por pedido, despesas extras, resultado em reais e percentual; custos/financeiro/SKU desconhecidos bloqueiam resultado sem fabricar zero
+- [x] Manter pagamentos parciais, estados não finais, estornos e contestações como pendentes; coleta com paginação, orçamento/limites explícitos, cache limitado por loja/período e fotografia anterior com aviso
+- [x] Implementar prévia e importação confirmada dos relatórios oficiais ML Por venda e MP dinheiro em conta com referência inequívoca de pedido; CSV/XLSX até 2 MB, 5.000 linhas, identificadores preservados, BRL/calendário BRT e ZIP XLSX defensivamente validado
+- [x] Agrupar linhas de cada operação com sinais corretos; rejeitar eventos identificados conflitantes/ambíguos independentemente da ordem das linhas; arquivo duplicado idempotente e última fotografia por operação substitui as anteriores sem somar relatórios sobrepostos
+- [x] Guardar somente projeções financeiras e custos manuais explícitos nas duas tabelas aditivas de 0036; nenhum arquivo bruto com compradores, SKU, produto, anúncio ou campanha alterado
+- [x] Custos manuais são totais do pedido e separados da planilha SKU; branco continua null, zero exige confirmação na UI e não representa custo desconhecido; avisos distinguem resultado após custos de lucro contábil e cobranças posteriores/Full/ADS de descontos do pagamento
+- [x] Estender backup diário com _Margem_Relatorios e _Margem_Custos mantendo as 18 abas anteriores; workbook real validado com 20 abas e 337.176 bytes sem exportar dados comerciais para entrega
+- [x] Validar leitura real de 11/nov: 15 operações, bruto R$ 2.070,61, líquido informado nos pagamentos R$ 1.488,97, percentual 71,909727%; todas com financeiro/SKU confirmados e resultado corretamente pendente por custos não preenchidos
+- [x] Aplicar revisão independente e regressões dos pagamentos incompletos e deduplicação com datas ausentes; suíte definitiva sem live: 141 arquivos / 1.973 testes aprovados, TypeScript e build aprovados; TSX da UI incorporado à suíte normal
+- [x] Auditoria SHA-256 das 11 tabelas comerciais: preservedAll=true e changed=[]; scan de segredos sem achados, diff sem erros e runtime saudável; navegador isolado exige login, UI coberta por 26 testes SSR e leitura financeira real
+- [ ] Publicar o checkpoint validado no WebDev para disponibilizar a nova aba à equipe no domínio definitivo; não publicar automaticamente nem afirmar que a nova interface já está em produção

@@ -24,6 +24,7 @@ import { embalagemSheetRouter } from "./routers/embalagemSheet";
 import { driveBackupRouter } from "./routers/driveBackup";
 import { alphaRouter } from "./alpha/router";
 import { readApiKeysRouter } from "./routers/readApiKeys";
+import { salesMarginRouter } from "./routers/salesMargin";
 
 // Constant-time-ish string comparison to avoid trivially leaking length/early
 // mismatch timing. Not security-critical here (single shared password), but
@@ -134,6 +135,7 @@ export const appRouter = router({
   driveBackup: driveBackupRouter,
   alpha: alphaRouter,
   readApiKeys: readApiKeysRouter,
+  salesMargin: salesMarginRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -14,6 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MargemVendas } from "@/components/sales/MargemVendas";
 import {
   Select,
   SelectContent,
@@ -121,6 +123,12 @@ export default function Vendas() {
         title={periodTitle}
       />
 
+      <Tabs defaultValue="visao-geral" className="gap-5">
+        <TabsList aria-label="Análise de vendas" className="bg-primary/5">
+          <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
+          <TabsTrigger value="margem">Margem por pedido</TabsTrigger>
+        </TabsList>
+        <TabsContent value="visao-geral" className="space-y-6">
       {/* KPI row for the active period */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
@@ -294,6 +302,16 @@ export default function Vendas() {
         loading={loadingSales}
         periodTitle={periodTitle}
       />
+        </TabsContent>
+        <TabsContent value="margem">
+          <MargemVendas
+            fromMs={activeRange.fromMs}
+            toMs={activeRange.toMs}
+            title={periodTitle}
+            enabled={connected}
+          />
+        </TabsContent>
+      </Tabs>
     </PageShell>
   );
 }
