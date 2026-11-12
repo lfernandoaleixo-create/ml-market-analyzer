@@ -44,17 +44,17 @@ vi.mock("../ml/accountProvider", () => ({
   MLRateLimitError: class extends Error {},
 }));
 
-function protectedContext() {
+function protectedContext(userId = 4242) {
   return {
-    user: { id: 4242, role: "user" },
+    user: { id: userId, role: "user" },
     req: { protocol: "https", headers: { cookie: "" } },
     res: {},
   } as never;
 }
 
-async function makeCaller() {
+async function makeCaller(userId = 4242) {
   const { appRouter } = await import("../routers");
-  return appRouter.createCaller(protectedContext());
+  return appRouter.createCaller(protectedContext(userId));
 }
 
 const PAYLOAD = {
@@ -109,7 +109,9 @@ describe("account.activeListings (non-blocking SWR contract)", () => {
 
   it("returns ready:true with the full payload once the background load lands", async () => {
     buildActiveListings.mockResolvedValue(PAYLOAD);
-    const caller = await makeCaller();
+    // The previous scenario intentionally leaves a 200ms loader in flight.
+    // Its process-local cache must not delay or contaminate this independent case.
+    const caller = await makeCaller(4243);
 
     const ready = await waitReady(caller);
     expect(ready.ready).toBe(true);

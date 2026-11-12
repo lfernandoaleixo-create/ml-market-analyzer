@@ -1582,3 +1582,20 @@ export const skuChangeLog = mysqlTable(
 );
 export type SkuChangeLog = typeof skuChangeLog.$inferSelect;
 export type InsertSkuChangeLog = typeof skuChangeLog.$inferInsert;
+
+/** External read API. Stores hashes only, never raw API keys or ML tokens. */
+export const readApiKeys = mysqlTable("mercato_read_api_keys", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerUserId: int("ownerUserId").notNull(),
+  createdBy: int("createdBy").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  prefix: varchar("prefix", { length: 24 }).notNull(),
+  keyHash: varchar("keyHash", { length: 64 }).notNull(),
+  scopes: json("scopes").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  revokedAt: timestamp("revokedAt"),
+}, (t) => ({
+  hashUnique: uniqueIndex("read_api_key_hash_unique").on(t.keyHash),
+  ownerIdx: index("read_api_key_owner_idx").on(t.ownerUserId),
+}));

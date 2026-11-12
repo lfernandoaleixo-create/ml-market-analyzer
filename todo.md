@@ -2077,3 +2077,19 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validar 26 testes focados, TypeScript, build e suíte sem live: 128 arquivos / 1.491 testes aprovados; regressões provam que Todos inclui fichas completas após as oito primeiras e que falha de listagem não oculta o Raio-X
 - [x] Auditoria comercial confirma preservedAll=true e changed=[] nas 11 tabelas comerciais; diff e scan de segredos aprovados; nenhum anúncio, campanha, SKU, produto ou token modificado pela restauração
 - [ ] Recuperar a leitura real dos 47 anúncios da Toujours: API ainda não autoriza a consulta ao MLB7699004738 com a conexão observada; restaurar o card não equivale a recuperar dados nem confirma a origem da contagem anterior
+
+## Mercato — API externa de leitura com chave (12/nov)
+- [x] Criar /api/public/v1 público na internet e protegido por Bearer; somente GET/OPTIONS, parâmetros estritos, sem proxy genérico, SQL, credenciais ou escrita comercial
+- [x] Adicionar tabela isolada mercato_read_api_keys pela migração 0035; chaves aleatórias de 256 bits, só hash SHA-256 no banco, permissões por módulo, validade e revogação conferidas em cada request
+- [x] Gestão em Configurações restrita a administradores; exibição única, sem localStorage/logs, limpeza após logout e confirmação antes de revogar; todas as chaves visíveis/revogáveis
+- [x] Consultar loja/anúncios/visitas/ficha técnica, vendas agregadas sem compradores, resumo ADS, Projeto, SKU ativo/variações/colunas/kits/embalagens, documentos e catálogo/PDFs Alpha do owner; SELECTs com projeções explícitas e paginação
+- [x] Confirmar vendedor 3308178634 (TOUJOURS) antes do cache ML; snapshots por seller/janela, TTL5min; falhas não viram zeros; partial/stale/capped e ISO UTC; tetos de 600 anúncios/fichas, 200 ativos nas visitas e 1000 pedidos/status sinalizados
+- [x] Limitar por instância a 60 consultas/min e duas simultâneas por chave; 429/Retry-After, erros sanitizados e CORS sem cookies
+- [x] Fechar HTTP anônimo das rotas tRPC comerciais legadas no contexto, preservando login/logout/saúde sem dados; Bearer externo não cria sessão e batches não contornam proteção
+- [x] OpenAPI 3.0.3 com DTOs por recurso, unidades, nulabilidade, permissões e paginação; guia em references/api-leitura-mercato.md e PDF fora do projeto sem chave real
+- [x] Criar a chave inicial solicitada por Fernando com mercado:read e 30 dias; segredo em arquivo confidencial fora do projeto, nunca no PDF/Git/OpenAPI; demais escopos exigem chave explícita
+- [x] Testar HTTP real pela internet na prévia: TOUJOURS confirmada, 49 fichas (28 completas/21 incompletas, média96.18%); 200 com chave, 403 em SKU sem escopo, 401 sem chave, 405 em escrita; atalhos antigos Projeto/kits/embalagens sem login retornam401
+- [x] Validar TypeScript, build e suíte sem live: 135 arquivos / 1747 testes aprovados; isolar cache no teste SWR sem mudar a implementação comercial
+- [x] Auditoria SHA-256: preservedAll=true e changed=[] nas 11 tabelas comerciais; scan sem segredos; nenhum anúncio, campanha, SKU, produto ou documento alterado
+- [x] Confirmar resolução da divergência histórica de conta: reconexão de Fernando em 06/nov foi validada como TOUJOURS com47 ativos; hoje a API devolve49 fichas ativas, sem fixar números antigos
+- [ ] Publicar o checkpoint validado no WebDev para ativar endpoints novos em produção; a prévia foi testada, mas a publicação nova não foi realizada nesta tarefa

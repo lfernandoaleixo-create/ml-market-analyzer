@@ -27,6 +27,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import DriveBackupCard from "./DriveBackupCard";
+import ReadApiKeysCard from "@/components/settings/ReadApiKeysCard";
 
 const CRON_PRESETS = [
   { label: "A cada 6 horas", value: "0 0 */6 * * *" },
@@ -50,6 +51,7 @@ export default function Configuracoes() {
         <DriveBackupCard />
         <ThresholdsCard />
         <MethodologyCard />
+        <ReadApiKeysCard />
       </div>
     </PageContainer>
   );

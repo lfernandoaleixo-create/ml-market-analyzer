@@ -16,6 +16,7 @@ import { profitSnapshotScheduledHandler } from "../scheduled/profitSnapshot";
 import { refreshActiveListingsScheduledHandler } from "../scheduled/refreshActiveListings";
 import { registerGdriveOAuthRoutes } from "../backup/oauthGdrive";
 import { driveBackupScheduledHandler } from "../scheduled/driveBackup";
+import { registerReadApiRoutes } from "../readApi/http";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -46,6 +47,7 @@ async function startServer() {
   registerOAuthRoutes(app);
   registerMlOAuthRoutes(app);
   registerGdriveOAuthRoutes(app);
+  registerReadApiRoutes(app);
   // Scheduled (Heartbeat cron) callbacks — must be registered before Vite/static fallthrough.
   app.post("/api/scheduled/monitor", monitorScheduledHandler);
   app.post("/api/scheduled/radarSweep", radarSweepScheduledHandler);

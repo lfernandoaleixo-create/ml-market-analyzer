@@ -246,6 +246,13 @@
       "when": 1793965057059,
       "tag": "0034_spicy_maddog",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1794482791425,
+      "tag": "0035_good_maddog",
+      "breakpoints": true
     }
   ]
 }
