@@ -2127,3 +2127,13 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Auditoria SHA-256 confirma as 11 tabelas comerciais e o catálogo/PDF da Alpha idênticos aos baselines: preservedAll=true e changed=[]; sem mudanças em motor de preços, produtos, SKUs, schema, APIs ou credenciais
 - [x] Diff sem erros, scan sem segredos e runtime sem erros atuais; navegador isolado mostrou login, digitação/foco validados em DOM com componentes reais e serviços simulados, sem gravar dados reais
 - [ ] Publicar exatamente o checkpoint desta correção para disponibilizá-la no site usado pela equipe; notificações de deployment sem versão não comprovam que o novo checkpoint já foi publicado
+
+## Mercato — links oficiais dos anúncios em Vendas (13/nov)
+- [x] Conferir a gravação enviada: clique na cabana em Vendas do dia abria produto.mercadolivre.com.br/MLB5446974387 e o ML informava página inexistente; não era o link do checkpoint
+- [x] Confirmar em leitura com /users/me e /items/MLB5446974387: Toujours (3308178634), anúncio ativo e permalink oficial com MLB-5446974387 e caminho completo; sem renovação ou alteração de credencial
+- [x] Remover URLs inferidas por ID dos agregados de vendas; usar somente permalink informado pela fonte, rejeitando vazio, malformado ou o antigo endereço abreviado
+- [x] Enriquecer itens sem imagem OU sem link, completar link em pedido posterior e aplicar detalhes a vendidos e cancelados; manter teto de 80 itens no ranking e não gerar link quando a API não o confirma
+- [x] Validar a consulta real de Vendas do dia 13/11: cabana encontrada e seu permalink é idêntico ao oficial retornado pela API; navegador isolado pediu autenticação ML, sem alegar validação pública além disso
+- [x] Acrescentar 23 regressões de provedor/validação/SSR da tela real; TypeScript, build e suíte sem live de 146 arquivos / 2.041 testes aprovados
+- [x] Auditoria SHA-256 confirma preservedAll=true e changed=[] nas 11 tabelas comerciais; diff e scan aprovados; nenhum anúncio, preço, SKU, produto, credencial, schema ou contrato de API alterado
+- [ ] Publicar exatamente o checkpoint desta correção e atualizar a página de Vendas para aplicar os links corretos no site da equipe

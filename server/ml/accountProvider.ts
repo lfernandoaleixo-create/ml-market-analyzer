@@ -26,6 +26,7 @@ import {
 import { mlLimiter } from "./mlRateLimiter";
 import { readVisits, ensureCollecting } from "./visitsStore";
 import { readDailyVisits, ensureCollectingDaily } from "./visitsDailyStore";
+import { salesPermalink } from "./salesPermalink";
 
 /**
  * AccountProvider — reads REAL data from the connected seller account using the
@@ -1066,10 +1067,11 @@ export class AccountProvider {
           unitsSold: 0,
           revenue: 0,
           thumbnail: thumb,
-          permalink: item.permalink ?? (id !== "?" ? `https://produto.mercadolivre.com.br/${id}` : undefined),
+          permalink: salesPermalink(item.permalink),
         };
         // Backfill thumbnail/permalink if a later order item exposes it.
         if (!existing.thumbnail && thumb) existing.thumbnail = thumb;
+        if (!existing.permalink) existing.permalink = salesPermalink(item.permalink);
         existing.unitsSold += qty;
         existing.revenue += (oi.unit_price ?? 0) * qty;
         productMap.set(id, existing);
@@ -1118,14 +1120,14 @@ export class AccountProvider {
     const topProducts = limit > 0 ? rankedAll.slice(0, limit) : rankedAll;
 
     // Enrich the ranking with real thumbnails/permalinks via multiget.
-    // Order items rarely carry a picture, so we fetch the ranked items missing one.
+    // A picture does not imply we have the official public listing URL.
     // Cap enrichment to the top 80 ranked items so a huge full ranking (e.g. 500
     // distinct products) never blows the request budget; lower-ranked rows still
-    // render (text-only) and most carry a permalink fallback already.
+    // render without a link when no official permalink has been obtained.
     const ENRICH_CAP = 80;
     const missing = topProducts
       .slice(0, ENRICH_CAP)
-      .filter((p) => !p.thumbnail && p.itemId && p.itemId !== "?");
+      .filter((p) => (!p.thumbnail || !p.permalink) && p.itemId && p.itemId !== "?");
     if (missing.length > 0) {
       try {
         const details = await this.getItemsDetails(missing.map((p) => p.itemId));
@@ -1136,7 +1138,8 @@ export class AccountProvider {
           const raw: string =
             d.thumbnail ?? d.secure_thumbnail ?? (d.pictures?.[0]?.secure_url ?? d.pictures?.[0]?.url) ?? "";
           if (!p.thumbnail && raw) p.thumbnail = raw.replace(/^http:\/\//, "https://");
-          if (!p.permalink && d.permalink) p.permalink = d.permalink;
+          const permalink = salesPermalink(d.permalink);
+          if (permalink) p.permalink = permalink;
         }
       } catch {
         // Non-fatal: ranking still renders without pictures.
@@ -1283,9 +1286,10 @@ export class AccountProvider {
           unitsSold: 0,
           revenue: 0,
           thumbnail: thumb,
-          permalink: item.permalink ?? (id !== "?" ? `https://produto.mercadolivre.com.br/${id}` : undefined),
+          permalink: salesPermalink(item.permalink),
         };
         if (!existing.thumbnail && thumb) existing.thumbnail = thumb;
+        if (!existing.permalink) existing.permalink = salesPermalink(item.permalink);
         existing.unitsSold += qty;
         existing.revenue += (oi.unit_price ?? 0) * qty;
         productMap.set(id, existing);
@@ -1320,9 +1324,10 @@ export class AccountProvider {
           unitsSold: 0,
           revenue: 0,
           thumbnail: thumb,
-          permalink: item.permalink ?? (id !== "?" ? `https://produto.mercadolivre.com.br/${id}` : undefined),
+          permalink: salesPermalink(item.permalink),
         };
         if (!existing.thumbnail && thumb) existing.thumbnail = thumb;
+        if (!existing.permalink) existing.permalink = salesPermalink(item.permalink);
         existing.unitsSold += qty;
         existing.revenue += (oi.unit_price ?? 0) * qty;
         cancelledMap.set(id, existing);
@@ -1330,19 +1335,21 @@ export class AccountProvider {
     }
     const cancelledProducts = Array.from(cancelledMap.values()).sort((a, b) => b.revenue - a.revenue);
 
-    // Enrich missing thumbnails via multiget (best-effort) for BOTH lists.
-    const missing = [...products, ...cancelledProducts].filter((p) => !p.thumbnail && p.itemId && p.itemId !== "?");
+    // Enrich missing pictures OR official listing URLs for BOTH lists.
+    const allProducts = [...products, ...cancelledProducts];
+    const missing = allProducts.filter((p) => (!p.thumbnail || !p.permalink) && p.itemId && p.itemId !== "?");
     if (missing.length > 0) {
       try {
         const details = await this.getItemsDetails(missing.map((p) => p.itemId));
         const byId = new Map<string, any>(details.map((d: any) => [d.id, d]));
-        for (const p of products) {
+        for (const p of allProducts) {
           const d = byId.get(p.itemId);
           if (!d) continue;
           const raw: string =
             d.thumbnail ?? d.secure_thumbnail ?? (d.pictures?.[0]?.secure_url ?? d.pictures?.[0]?.url) ?? "";
           if (!p.thumbnail && raw) p.thumbnail = raw.replace(/^http:\/\//, "https://");
-          if (!p.permalink && d.permalink) p.permalink = d.permalink;
+          const permalink = salesPermalink(d.permalink);
+          if (permalink) p.permalink = permalink;
         }
       } catch {
         // Non-fatal.
