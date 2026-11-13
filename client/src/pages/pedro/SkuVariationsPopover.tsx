@@ -175,7 +175,7 @@ export default function SkuVariationsPopover({
           side="bottom"
           align="start"
           sideOffset={6}
-          className="w-[min(860px,calc(100vw-24px))] p-0 overflow-hidden"
+          className="w-[min(860px,calc(100vw-24px))] max-h-[min(calc(100dvh-24px),var(--radix-popover-content-available-height))] overflow-y-auto overscroll-contain p-0"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           {(isLoading && Boolean(baseSku)) || (enableSkuDecision && decision.isLoading) ? (
@@ -221,7 +221,7 @@ export default function SkuVariationsPopover({
 
               {baseSku ? (
                 <>
-              <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] gap-2 border-b border-border/60 bg-muted/30 px-4 py-2">
+              <div className="hidden md:grid md:grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] gap-2 border-b border-border/60 bg-muted/30 px-4 py-2">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SKU</span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">EAN</span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">MLB</span>
@@ -253,8 +253,8 @@ export default function SkuVariationsPopover({
               />
 
               <div className="border-t border-border/30 px-2 py-2">
-                <div className="mb-1 flex items-center justify-between gap-2 px-2 pb-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2 px-2 pb-1.5">
+                  <span className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Variações ({variations?.length ?? 0})
                     <span className="ml-2 normal-case font-normal tracking-normal">· SKU manual pode repetir</span>
                   </span>
@@ -262,7 +262,7 @@ export default function SkuVariationsPopover({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-7 gap-1.5 px-2.5 text-xs"
+                    className="h-9 shrink-0 gap-1.5 px-2.5 text-xs md:h-7"
                     disabled={!baseSku || addMut.isPending}
                     onClick={() => addMut.mutate({ skuRowId, baseSku })}
                     title={baseSku ? "Adicionar nova variação" : "Preencha o SKU principal primeiro"}
@@ -276,7 +276,7 @@ export default function SkuVariationsPopover({
                   </Button>
                 </div>
 
-                <div className="max-h-[320px] overflow-y-auto flex flex-col gap-0.5">
+                <div className="flex flex-col gap-2 md:max-h-[320px] md:overflow-y-auto md:gap-0.5">
                   {(variations ?? []).map((variation) => (
                     <VariationRowEditor
                       key={variation.variationIndex}
@@ -305,13 +305,13 @@ export default function SkuVariationsPopover({
           if (!dialogOpen && !deleteMut.isPending) setVariationToDelete(null);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto break-words">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir variação de SKU?</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir a variação
               {variationToDelete?.variationSku ? (
-                <strong className="ml-1 font-mono text-foreground">
+                <strong className="ml-1 break-all font-mono text-foreground">
                   {variationToDelete.variationSku}
                 </strong>
               ) : null}
@@ -402,7 +402,7 @@ function SkuDecisionPanel({
           <select
             value={sourceRowId ?? ""}
             onChange={(event) => onSourceRowIdChange(Number(event.target.value))}
-            className="w-full rounded-md border border-border bg-background px-2.5 py-2 font-mono text-xs"
+            className="w-full min-w-0 max-w-full rounded-md border border-border bg-background px-2.5 py-2 font-mono text-xs"
           >
             {activeMatches.map((match) => (
               <option key={match.id} value={match.id}>
@@ -428,7 +428,7 @@ function SkuDecisionPanel({
         <Button
           type="button"
           variant="outline"
-          className={`h-auto min-h-10 justify-start gap-2 bg-background py-2 text-left ${
+          className={`h-auto min-h-10 justify-start gap-2 whitespace-normal bg-background py-2 text-left ${
             activeMatches.length === 0 ? "sm:col-span-2" : ""
           }`}
           disabled={pending}
@@ -439,8 +439,8 @@ function SkuDecisionPanel({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-2 rounded-md border border-border bg-background/90 p-2.5 text-foreground sm:flex-row">
-        <div className="relative flex-1">
+      <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border bg-background/90 p-2.5 text-foreground md:flex-row">
+        <div className="relative min-w-0 flex-1">
           <Pencil className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={manualSku}
@@ -507,8 +507,8 @@ function MainSkuRow({
 
   return (
     <div className="border-b border-primary/20 bg-primary/5 px-4 py-2.5">
-      <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] items-center gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div className="grid min-w-0 grid-cols-2 items-center gap-2 md:grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px]">
+        <div className="col-span-2 flex min-w-0 items-center gap-1.5 md:col-span-1">
           {editingSku ? (
             <>
               <input
@@ -535,7 +535,7 @@ function MainSkuRow({
                   }
                 }}
                 aria-label="Editar SKU principal"
-                className="h-8 min-w-0 flex-1 rounded border border-primary/30 bg-background px-2 font-mono text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary/50"
+                className="h-9 min-w-0 flex-1 rounded border border-primary/30 bg-background px-2 font-mono text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary/50 md:h-8"
               />
               <button
                 type="button"
@@ -553,7 +553,7 @@ function MainSkuRow({
                     // O toast da mutação mantém o usuário no campo para corrigir.
                   }
                 }}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-40 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-40 dark:text-emerald-400 dark:hover:bg-emerald-950/40 md:h-7 md:w-7"
                 title="Salvar SKU principal"
                 aria-label="Salvar SKU principal"
               >
@@ -566,7 +566,7 @@ function MainSkuRow({
                   setLocalSku(baseSku);
                   setEditingSku(false);
                 }}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted md:h-7 md:w-7"
                 title="Cancelar edição"
                 aria-label="Cancelar edição do SKU principal"
               >
@@ -575,12 +575,13 @@ function MainSkuRow({
             </>
           ) : (
             <>
-              <span className="min-w-0 select-all truncate font-mono text-xs font-bold text-primary">{baseSku}</span>
+              <span className="min-w-0 select-all break-all font-mono text-xs font-bold text-primary">{baseSku}</span>
               <button
                 type="button"
                 onClick={() => onCopy(baseSku)}
-                className="shrink-0 rounded p-0.5 transition-colors hover:bg-primary/10"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded transition-colors hover:bg-primary/10 md:h-auto md:w-auto md:p-0.5"
                 title="Copiar SKU"
+                aria-label="Copiar SKU"
               >
                 {copied ? (
                   <Check className="h-3 w-3 text-emerald-600" />
@@ -595,7 +596,7 @@ function MainSkuRow({
                     setLocalSku(baseSku);
                     setEditingSku(true);
                   }}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-primary/70 transition-colors hover:bg-primary/10 hover:text-primary"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-primary/70 transition-colors hover:bg-primary/10 hover:text-primary md:h-7 md:w-7"
                   title="Editar SKU principal manualmente (repetição permitida)"
                   aria-label="Editar SKU principal manualmente"
                 >
@@ -606,6 +607,8 @@ function MainSkuRow({
           )}
         </div>
 
+        <label className="min-w-0">
+          <span className="mb-1 block text-[10px] font-semibold text-muted-foreground md:sr-only">EAN principal</span>
         <input
           ref={eanInputRef}
           value={localEan}
@@ -614,9 +617,13 @@ function MainSkuRow({
             if (localEan !== eanGtin) onFieldChange?.("eanGtin", localEan);
           }}
           placeholder="—"
-          className="w-full rounded border border-primary/20 bg-white/60 px-2 py-1 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40 dark:bg-white/5"
+          aria-label="EAN principal"
+          className="min-h-9 w-full min-w-0 rounded border border-primary/20 bg-white/60 px-2 py-1 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40 dark:bg-white/5 md:min-h-0"
         />
+        </label>
 
+        <label className="min-w-0">
+          <span className="mb-1 block text-[10px] font-semibold text-muted-foreground md:sr-only">MLB principal</span>
         <input
           ref={mlbInputRef}
           value={localMlb}
@@ -625,10 +632,13 @@ function MainSkuRow({
             if (localMlb !== mainMlb) onFieldChange?.("mainMlb", localMlb);
           }}
           placeholder="—"
-          className="w-full rounded border border-primary/20 bg-white/60 px-2 py-1 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40 dark:bg-white/5"
+          aria-label="MLB principal"
+          className="min-h-9 w-full min-w-0 rounded border border-primary/20 bg-white/60 px-2 py-1 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40 dark:bg-white/5 md:min-h-0"
         />
+        </label>
 
-        <div className="flex justify-center">
+        <label className="flex min-h-9 items-center gap-2 md:min-h-0 md:justify-center">
+          <span className="text-[10px] font-semibold text-muted-foreground md:sr-only">OK principal</span>
           <input
             type="checkbox"
             checked={localDone}
@@ -636,9 +646,10 @@ function MainSkuRow({
               setLocalDone(event.target.checked);
               onFieldChange?.("mainDone", event.target.checked);
             }}
+            aria-label="Marcar SKU principal como concluído"
             className="h-4 w-4 cursor-pointer accent-emerald-600"
           />
-        </div>
+        </label>
         <div />
       </div>
     </div>
@@ -741,9 +752,9 @@ function VariationRowEditor({
   };
 
   return (
-    <div className="ml-4 rounded-md border border-border/40 bg-card px-3 py-1.5 transition-colors hover:bg-muted/20">
-      <div className="grid grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px] items-center gap-2">
-        <div className="flex min-w-0 items-center gap-1">
+    <div className="min-w-0 rounded-md border border-border/40 bg-card px-3 py-1.5 transition-colors hover:bg-muted/20 md:ml-4">
+      <div className="grid min-w-0 grid-cols-2 items-center gap-2 md:grid-cols-[minmax(190px,1fr)_130px_130px_40px_32px]">
+        <div className="col-span-2 flex min-w-0 items-center gap-1 md:col-span-1">
           {editingSku ? (
             <>
               <input
@@ -765,13 +776,13 @@ function VariationRowEditor({
                   }
                 }}
                 aria-label={`Editar SKU da variação ${variation.variationIndex}`}
-                className="h-7 min-w-0 flex-1 rounded border border-primary/30 bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-9 min-w-0 flex-1 rounded border border-primary/30 bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary/40 md:h-7"
               />
               <button
                 type="button"
                 disabled={editSkuMut.isPending || !variationSku.trim()}
                 onClick={() => void saveVariationSku().catch(() => undefined)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 dark:text-emerald-400 dark:hover:bg-emerald-950/40 md:h-7 md:w-7"
                 title="Salvar SKU da variação"
                 aria-label={`Salvar SKU da variação ${variation.variationIndex}`}
               >
@@ -784,7 +795,7 @@ function VariationRowEditor({
                   setVariationSku(variation.variationSku);
                   setEditingSku(false);
                 }}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted md:h-7 md:w-7"
                 title="Cancelar edição"
                 aria-label={`Cancelar edição da variação ${variation.variationIndex}`}
               >
@@ -793,7 +804,7 @@ function VariationRowEditor({
             </>
           ) : (
             <>
-              <span className="min-w-0 flex-1 truncate px-2 font-mono text-[11px] text-muted-foreground">
+              <span className="min-w-0 flex-1 break-all px-2 font-mono text-[11px] text-muted-foreground">
                 {variationSku}
               </span>
               <button
@@ -802,7 +813,7 @@ function VariationRowEditor({
                   setVariationSku(variation.variationSku);
                   setEditingSku(true);
                 }}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-primary/70 hover:bg-primary/10 hover:text-primary"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-primary/70 hover:bg-primary/10 hover:text-primary md:h-7 md:w-7"
                 title={`Editar ${variation.variationSku} manualmente (repetição permitida)`}
                 aria-label={`Editar SKU da variação ${variation.variationIndex}`}
               >
@@ -812,6 +823,8 @@ function VariationRowEditor({
           )}
         </div>
 
+        <label className="min-w-0">
+          <span className="mb-1 block text-[10px] font-semibold text-muted-foreground md:sr-only">EAN</span>
         <input
           ref={eanInputRef}
           value={ean}
@@ -821,9 +834,12 @@ function VariationRowEditor({
           }}
           aria-label={`EAN da variação ${variation.variationIndex}`}
           placeholder="—"
-          className="w-full rounded bg-transparent px-2 py-0.5 font-mono text-[11px] outline-none focus:bg-background focus:ring-1 focus:ring-primary/40"
+          className="min-h-9 w-full min-w-0 rounded bg-transparent px-2 py-0.5 font-mono text-[11px] outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 md:min-h-0"
         />
+        </label>
 
+        <label className="min-w-0">
+          <span className="mb-1 block text-[10px] font-semibold text-muted-foreground md:sr-only">MLB</span>
         <input
           ref={mlbInputRef}
           value={mlb}
@@ -833,10 +849,12 @@ function VariationRowEditor({
           }}
           aria-label={`MLB da variação ${variation.variationIndex}`}
           placeholder="—"
-          className="w-full rounded bg-transparent px-2 py-0.5 font-mono text-[11px] outline-none focus:bg-background focus:ring-1 focus:ring-primary/40"
+          className="min-h-9 w-full min-w-0 rounded bg-transparent px-2 py-0.5 font-mono text-[11px] outline-none focus:bg-background focus:ring-1 focus:ring-primary/40 md:min-h-0"
         />
+        </label>
 
-        <div className="flex justify-center">
+        <label className="flex min-h-9 items-center gap-2 md:min-h-0 md:justify-center">
+          <span className="text-[10px] font-semibold text-muted-foreground md:sr-only">OK</span>
           <input
             type="checkbox"
             checked={done}
@@ -847,12 +865,12 @@ function VariationRowEditor({
             aria-label={`Marcar variação ${variation.variationIndex} como concluída`}
             className="h-3.5 w-3.5 cursor-pointer accent-emerald-600"
           />
-        </div>
+        </label>
 
         <button
           type="button"
           onClick={onRequestDelete}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
+          className="inline-flex h-9 w-9 justify-self-end items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 md:h-7 md:w-7 md:justify-self-auto"
           title={`Excluir ${variation.variationSku}`}
           aria-label={`Excluir variação ${variation.variationSku}`}
         >

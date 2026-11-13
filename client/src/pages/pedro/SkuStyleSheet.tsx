@@ -464,11 +464,11 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
   const deletingRow = (rows ?? []).find((r) => r.id === deleteId);
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 max-w-full space-y-5">
       <SheetTabs />
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
@@ -478,11 +478,11 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
             <ArrowLeft className="w-4 h-4 mr-1.5" />
             Voltar
           </Button>
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg bg-primary/12 flex items-center justify-center">
+          <div className="flex min-w-0 max-w-full items-center gap-2">
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-primary/12 flex items-center justify-center">
               <Table2 className="w-5 h-5 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0 [overflow-wrap:anywhere]">
               <h2 className="text-xl font-display font-semibold text-foreground leading-tight">{title}</h2>
               <p className="text-xs text-muted-foreground">
                 {filtered.length} {filtered.length === 1 ? "item" : "itens"} · {subtitle}
@@ -490,14 +490,15 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex min-w-0 w-full max-w-full flex-wrap items-center gap-2 lg:w-auto">
+          <div className="relative min-w-0 w-full sm:w-60">
             <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar produto, SKU, EAN, NCM…"
-              className="h-9 pl-8 w-60"
+              className="h-9 pl-8 min-w-0 w-full"
+              aria-label="Buscar na planilha"
             />
           </div>
           {activeFilterCount > 0 && (
@@ -596,24 +597,24 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
 
       {/* Barra de seleção (somente quando há itens marcados) */}
       {selection && selection.renderBar && selection.selectedIds.length > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
           <span className="text-sm font-medium text-foreground">
             {selection.selectedIds.length}{" "}
             {selection.selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
           </span>
-          <div className="flex items-center gap-2">{selection.renderBar(selection.selectedIds)}</div>
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{selection.renderBar(selection.selectedIds)}</div>
         </div>
       )}
 
       {/* Tabela */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+      <div className="min-w-0 max-w-full rounded-xl border border-border bg-card overflow-hidden shadow-sm">
         {/*
-          zoom levemente reduzido p/ caber mais colunas e deixar as linhas mais baixas.
+          Zoom levemente reduzido no desktop; no celular mantém o tamanho dos controles.
           A rolagem (horizontal + vertical) acontece DENTRO deste contêiner para que o
           cabeçalho (thead sticky) permaneça fixo no topo ao rolar a lista, como
           "congelar painéis" no Excel. A altura usa a viewport para se adaptar à tela.
         */}
-        <div className="overflow-auto max-h-[calc(100vh-220px)]" style={{ zoom: 0.85 } as React.CSSProperties}>
+        <div className="min-w-0 max-w-full overflow-x-auto overflow-y-auto overscroll-contain max-h-[60dvh] lg:max-h-[calc(100dvh-220px)] [zoom:1] lg:[zoom:0.85] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40" role="region" aria-label="Planilha completa com rolagem horizontal e vertical" tabIndex={0}>
           <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-30">
               <tr className="text-[11px] uppercase tracking-wide text-white">
@@ -707,7 +708,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
                     {c.name || "(sem nome)"}
                   </Th>
                 ))}
-                <Th style={{ background: "var(--sku-head)" }} className="w-24 text-center sticky right-0 z-20">Ações</Th>
+                <Th style={{ background: "var(--sku-head)" }} className="w-24 text-center sm:sticky sm:right-0 sm:z-20">Ações</Th>
               </tr>
             </thead>
             <tbody>
@@ -747,7 +748,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
       <style>{`:root { --sku-head: #0f3b4c; } .dark { --sku-head: #0b2d3a; }`}</style>
 
       <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="min-w-0 max-w-[calc(100%-2rem)] sm:max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto [overflow-wrap:anywhere] p-4 sm:p-6">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir linha?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -770,7 +771,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
 
       {/* Dialog: desbloquear linha (senha) */}
       <AlertDialog open={unlockTarget !== null} onOpenChange={(o) => { if (!o) { setUnlockTarget(null); setUnlockPwd(""); } }}>
-        <AlertDialogContent>
+        <AlertDialogContent className="min-w-0 max-w-[calc(100%-2rem)] sm:max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto [overflow-wrap:anywhere] p-4 sm:p-6">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Lock className="w-5 h-5 text-amber-600" />
@@ -824,7 +825,7 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
 
       {/* Confirmação: excluir coluna personalizada */}
       <AlertDialog open={deleteColumnId !== null} onOpenChange={(o) => !o && setDeleteColumnId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="min-w-0 max-w-[calc(100%-2rem)] sm:max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto [overflow-wrap:anywhere] p-4 sm:p-6">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir coluna?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -845,10 +846,10 @@ export default function SkuStyleSheet({ binding, title, subtitle, exportTitle, h
 
       {/* Dialog: Histórico de alterações de SKU */}
       <Dialog open={showHistory} onOpenChange={setShowHistory}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="min-w-0 max-w-[calc(100%-2rem)] sm:max-w-3xl max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="w-5 h-5" />
+            <DialogTitle className="flex items-center gap-2 [overflow-wrap:anywhere]">
+              <History className="w-5 h-5 shrink-0" />
               Histórico de Alterações de SKU
             </DialogTitle>
           </DialogHeader>
@@ -865,8 +866,8 @@ function SkuChangeHistoryPanel() {
   if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   if (!history || history.length === 0) return <p className="text-muted-foreground text-center py-8">Nenhuma alteração registrada ainda.</p>;
   return (
-    <div className="overflow-y-auto flex-1 -mx-2 px-2">
-      <table className="w-full text-sm">
+    <div className="min-w-0 min-h-0 max-w-full overflow-x-auto overflow-y-auto overscroll-contain flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40" role="region" aria-label="Histórico de SKU com rolagem horizontal e vertical" tabIndex={0}>
+      <table className="w-full min-w-[640px] text-sm">
         <thead className="sticky top-0 bg-background">
           <tr className="border-b">
             <th className="text-left py-2 px-2 font-semibold">Data/Hora</th>
@@ -1096,8 +1097,9 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
           <button
             type="button"
             onClick={() => copyToClipboard(field, val)}
-            className="ml-auto shrink-0 opacity-0 group-hover/sku:opacity-100 transition-opacity duration-150 p-0.5 rounded hover:bg-muted"
+            className="ml-auto shrink-0 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 group-hover/sku:opacity-100 group-focus-within/sku:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 h-10 w-10 sm:h-6 sm:w-6 flex items-center justify-center rounded hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             title="Copiar SKU"
+            aria-label="Copiar SKU"
           >
             {copiedField === field ? (
               <Check className="h-3 w-3 text-emerald-600" />
@@ -1302,8 +1304,9 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
           >
             <button
               type="button"
-              className="flex items-center justify-center w-8 h-8 mx-auto rounded-md hover:bg-primary/10 transition-colors group/skuicon"
+              className="flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 mx-auto rounded-md hover:bg-primary/10 transition-colors group/skuicon focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               title={local.sku ? "Ver SKU e variações" : "Escolher como definir o SKU"}
+              aria-label={local.sku ? "Ver SKU e variações" : "Escolher como definir o SKU"}
             >
               <svg className="h-5 w-5 text-primary group-hover/skuicon:scale-110 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="8" width="16" height="13" rx="2" /><path d="M4 8l8-5 8 5" /><path d="M14 12l3-3m0 0l-3-3m3 3H9" /></svg>
             </button>
@@ -1376,18 +1379,18 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
       ))}
 
       {/* Ações: cadeado + editar + cor da linha + excluir */}
-      <td className="px-2 py-2 sticky right-0 z-10" style={{ background: local.rowColor ? colorBg : "var(--card)" }}>
+      <td className="px-2 py-2 sm:sticky sm:right-0 sm:z-10" style={{ background: local.rowColor ? colorBg : "var(--card)" }}>
         <div className="flex items-center justify-center gap-0.5">
           {isLocked ? (
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-600" title="Linha bloqueada — clique para desbloquear" onClick={onUnlock}>
+            <Button size="icon" variant="ghost" className="h-10 w-10 sm:h-8 sm:w-8 text-amber-600" title="Linha bloqueada — clique para desbloquear" aria-label="Desbloquear linha" onClick={onUnlock}>
               <Lock className="w-4 h-4" />
             </Button>
           ) : (row.sku && row.variante && row.variante.trim()) ? (
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" title="Clique para bloquear novamente" onClick={onRelock}>
+            <Button size="icon" variant="ghost" className="h-10 w-10 sm:h-8 sm:w-8 text-emerald-600" title="Clique para bloquear novamente" aria-label="Bloquear linha novamente" onClick={onRelock}>
               <LockOpen className="w-4 h-4" />
             </Button>
           ) : null}
-          <Button size="icon" variant="ghost" className="h-8 w-8" title="Editar linha" onClick={onEdit} disabled={isLocked}>
+          <Button size="icon" variant="ghost" className="h-10 w-10 sm:h-8 sm:w-8" title="Editar linha" aria-label="Editar linha" onClick={onEdit} disabled={isLocked}>
             <Pencil className="w-4 h-4" />
           </Button>
           <Popover>
@@ -1395,8 +1398,9 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8"
+                className="h-10 w-10 sm:h-8 sm:w-8"
                 title="Cor da linha"
+                aria-label="Cor da linha"
               >
                 <Palette className="w-4 h-4" style={{ color: ROW_COLOR_MAP[local.rowColor]?.swatch !== "transparent" ? ROW_COLOR_MAP[local.rowColor]?.swatch : undefined }} />
               </Button>
@@ -1412,7 +1416,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
                       set({ rowColor: c.value });
                       onFieldNow(row.id, Number(local.revision ?? 1), { rowColor: c.value });
                     }}
-                    className="w-7 h-7 rounded-md border border-border flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
+                    className="w-10 h-10 sm:w-7 sm:h-7 rounded-md border border-border flex items-center justify-center transition-transform hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     style={{
                       background: c.value === "" ? "var(--background)" : c.swatch,
                     }}
@@ -1431,7 +1435,7 @@ function SkuRowEditorImpl({ row, index, problemType, categories, customColumns, 
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 text-destructive hover:text-destructive"
+            className="h-10 w-10 sm:h-8 sm:w-8 text-destructive hover:text-destructive"
             onClick={onDelete}
             title="Excluir linha (sem senha)"
             aria-label="Excluir linha"
@@ -1507,23 +1511,23 @@ function ManageColumnsDialog({ open, onOpenChange, columns, onCreate, onRename, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="min-w-0 max-w-[calc(100%-2rem)] sm:max-w-lg max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col p-4 sm:p-6">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="font-display">Colunas personalizadas</DialogTitle>
           <DialogDescription>
             Crie colunas extras de texto livre. Elas aparecem para todas as linhas da planilha.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
+        <div className="min-w-0 min-h-0 overflow-y-auto overscroll-contain space-y-4 py-1">
           {/* Criar nova coluna */}
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
               placeholder="Nome da nova coluna (ex.: Fornecedor)"
-              className="flex-1"
+              className="min-w-0 w-full sm:flex-1"
             />
             <Button onClick={handleCreate} disabled={!newName.trim() || creating}>
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4 mr-1.5" />Criar</>}
@@ -1536,7 +1540,7 @@ function ManageColumnsDialog({ open, onOpenChange, columns, onCreate, onRename, 
               Nenhuma coluna personalizada ainda.
             </p>
           ) : (
-            <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            <div className="min-w-0 space-y-2">
               {columns.map((c) => (
                 <ColumnRow key={c.id} column={c} onRename={onRename} onAskDelete={onAskDelete} />
               ))}
@@ -1544,7 +1548,7 @@ function ManageColumnsDialog({ open, onOpenChange, columns, onCreate, onRename, 
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 sm:flex-wrap">
           <Button variant="outline" className="bg-card" onClick={() => onOpenChange(false)}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
@@ -1566,19 +1570,20 @@ function ColumnRow({ column, onRename, onAskDelete }: { column: CustomColumn; on
   };
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border p-2 bg-card">
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border p-2 bg-card">
       <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        className="flex-1 h-9"
+        className="min-w-0 flex-1 h-9"
       />
       <Button
         size="icon"
         variant="ghost"
         className="h-9 w-9 text-destructive hover:text-destructive"
         title="Excluir coluna"
+        aria-label="Excluir coluna"
         onClick={() => onAskDelete(column.id)}
       >
         <Trash2 className="w-4 h-4" />
@@ -1685,15 +1690,15 @@ function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSave
 
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-3xl max-h-[88vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="min-w-0 max-w-[calc(100%-2rem)] sm:max-w-3xl max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col p-4 sm:p-6">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="font-display">Editar linha</DialogTitle>
           <DialogDescription>
             O Nº Produto é reservado pelo servidor. Em linhas novas, confirme o SKU pelo card somente depois de terminar Produto e Variante.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-1">
+        <div className="min-w-0 min-h-0 overflow-y-auto overscroll-contain grid grid-cols-1 sm:grid-cols-2 gap-4 py-1 [&>div]:min-w-0 [overflow-wrap:anywhere]">
           {/* Cadastrado ML */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Cadastrado ML</label>
@@ -1793,7 +1798,7 @@ function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSave
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">SKU (auto)</label>
-            <div className="w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-mono font-semibold">{draft.sku || "auto"}</div>
+            <div className="min-w-0 w-full rounded-md px-3 py-2 text-sm bg-muted/50 border border-border font-mono font-semibold [overflow-wrap:anywhere]">{draft.sku || "auto"}</div>
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">SKU Kit (auto)</label>
@@ -1827,7 +1832,7 @@ function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSave
           {customColumns.length > 0 && (
             <div className="sm:col-span-2 border-t border-border pt-3 mt-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Colunas personalizadas</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-4 [&>div]:min-w-0">
                 {customColumns.map((c) => (
                   <div key={c.id}>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">{c.name || "(sem nome)"}</label>
@@ -1846,7 +1851,7 @@ function EditRowDialog({ row, categories, customColumns, onClose, onSave, onSave
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 sm:flex-wrap">
           <Button variant="outline" className="bg-card" onClick={onClose}>Cancelar</Button>
           <Button onClick={handleSave}>Salvar</Button>
         </DialogFooter>

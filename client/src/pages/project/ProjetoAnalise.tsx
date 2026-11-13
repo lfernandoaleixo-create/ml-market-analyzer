@@ -86,9 +86,13 @@ function HoverTooltip({ data, x, y }: { data: TooltipData; x: number; y: number 
     <div
       style={{
         position: "fixed",
-        left: x + 14,
-        top: y - 20,
+        left: typeof window === "undefined" ? x + 14 : Math.max(8, Math.min(x + 14, window.innerWidth - W - 8)),
+        top: typeof window === "undefined" ? y - 20 : Math.max(8, Math.min(y - 20, window.innerHeight - 320)),
         width: W,
+        maxWidth: "calc(100vw - 1rem)",
+        maxHeight: "calc(100dvh - 1rem)",
+        overflowY: "auto",
+        overflowWrap: "anywhere",
         background: "#ffffff",
         border: `1px solid ${data.barColor}44`,
         borderRadius: 12,
@@ -237,16 +241,16 @@ export default function ProjetoAnalise({
   const yScale = (pct: number) => innerH - (pct / 100) * innerH;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="min-w-0 flex flex-col gap-6">
       {hovered && <HoverTooltip data={hovered.data} x={hovered.x} y={hovered.y} />}
 
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <TrendingUp className="w-5 h-5 text-primary" />
-          <h2 className="text-xl font-display font-semibold text-foreground">Análise do Portfólio</h2>
+          <TrendingUp className="w-5 h-5 shrink-0 text-primary" />
+          <h2 className="min-w-0 break-words text-xl font-display font-semibold text-foreground">Análise do Portfólio</h2>
         </div>
         <p className="text-muted-foreground text-xs">
-          Cada barra = um produto · Altura = progresso real · Sombra = 100% do pipeline · Passe o mouse para detalhes
+          Cada barra = um produto · Altura = progresso real · Sombra = 100% do pipeline · Passe o mouse ou expanda os detalhes abaixo · Arraste o gráfico para ver todos os produtos
         </p>
       </div>
 
@@ -269,7 +273,7 @@ export default function ProjetoAnalise({
         </div>
       )}
 
-      <div className="rounded-2xl p-5 bg-card card-soft">
+      <div className="min-w-0 rounded-2xl p-4 sm:p-5 bg-card card-soft">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <p className="text-sm font-medium text-foreground">Progresso × Etapas por Produto</p>
           <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap">
@@ -295,7 +299,7 @@ export default function ProjetoAnalise({
             Nenhum produto encontrado.
           </div>
         ) : (
-          <div ref={svgContainerRef} style={{ overflowX: "auto" }}>
+          <div ref={svgContainerRef} className="min-w-0 max-w-full overflow-x-auto" role="region" aria-label="Gráfico de progresso dos produtos com rolagem horizontal" tabIndex={0}>
             <svg
               width="100%"
               viewBox={`0 0 ${innerW + CHART_MARGIN.left + CHART_MARGIN.right} ${CHART_HEIGHT}`}
@@ -375,6 +379,47 @@ export default function ProjetoAnalise({
         )}
       </div>
 
+      {chartData.length > 0 && (
+        <details className="min-w-0 rounded-2xl p-4 sm:p-5 bg-card card-soft">
+          <summary className="cursor-pointer text-sm font-medium text-foreground py-2">
+            Detalhes dos produtos — toque ou clique para expandir
+          </summary>
+          <div className="min-w-0 max-w-full overflow-x-auto mt-3" role="region" aria-label="Detalhes do progresso dos produtos" tabIndex={0}>
+            <table className="w-full min-w-[760px] text-xs text-left">
+              <thead className="text-muted-foreground">
+                <tr className="border-b border-border">
+                  {["Produto", "Prioridade", "Progresso", "Etapas concluídas", "Etapa atual", "Prazo esperado", "Chegada prevista"].map((label) => (
+                    <th key={label} className="p-2 font-medium">{label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {chartData.map((product) => {
+                  const stepKey = product.inProgressStepKey || product.currentStep;
+                  const delayed = product.expectedPct !== null && product.progressPct < product.expectedPct - 10;
+                  const days = daysUntil(product.expectedArrival);
+                  return (
+                    <tr key={product.id} className="border-b border-border/60 align-top">
+                      <td className="p-2 min-w-40 break-words">
+                        <a href={`${basePath}/produto/${product.id}`} className="text-primary underline underline-offset-2">{product.name}</a>
+                      </td>
+                      <td className="p-2">{PRIORITY_LABEL[product.priority]}</td>
+                      <td className="p-2">{product.progressPct}%</td>
+                      <td className="p-2">{product.completedCount} / 10</td>
+                      <td className="p-2">{STEP_LABELS[stepKey ?? ""] ?? "—"}</td>
+                      <td className="p-2">{product.expectedPct === null ? "Sem prazo" : `${product.expectedPct}% — ${delayed ? "atrasado" : "em dia"}`}</td>
+                      <td className="p-2">
+                        {formatDate(product.expectedArrival)}{days !== null ? ` · ${days < 0 ? `${Math.abs(days)}d atrás` : `em ${days}d`}` : ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
       {chartData.length > 0 &&
         (() => {
           const alta = chartData.filter((p) => p.priority === "alta").length;
@@ -395,11 +440,13 @@ export default function ProjetoAnalise({
           ];
           return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-2xl p-5 bg-card card-soft">
+              <div className="min-w-0 rounded-2xl p-4 sm:p-5 bg-card card-soft">
                 <div className="flex items-center gap-2 mb-4">
                   <PieChartIcon className="w-4 h-4 text-primary" />
                   <p className="text-sm font-medium text-foreground">Distribuição por Prioridade</p>
                 </div>
+                <div className="max-w-full overflow-x-auto">
+                <div className="min-w-[300px]">
                 <ResponsiveContainer width="100%" height={320}>
                   <PieChart>
                     <Pie
@@ -424,9 +471,11 @@ export default function ProjetoAnalise({
                     <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>
+                </div>
+                </div>
               </div>
 
-              <div className="rounded-2xl p-5 bg-card card-soft">
+              <div className="min-w-0 rounded-2xl p-4 sm:p-5 bg-card card-soft">
                 <div className="flex items-center gap-2 mb-4">
                   <TrendingUp className="w-4 h-4 text-primary" />
                   <p className="text-sm font-medium text-foreground">Progresso Médio do Portfólio</p>

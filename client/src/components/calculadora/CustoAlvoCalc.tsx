@@ -238,7 +238,7 @@ export default function CustoAlvoCalc() {
 
   /* Barra de controles globais — fica fixa (sticky) dentro do card da planilha. */
   const controlsBar = (
-    <div className="sticky top-2 z-30 mb-4 rounded-xl border border-border bg-card/95 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <div className="relative md:sticky md:top-2 z-30 mb-4 rounded-xl border border-border bg-card/95 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* Regime TTS */}
           <div className="flex items-center gap-1.5">
@@ -496,8 +496,8 @@ function SpreadsheetTable({
   onDelete: (id: number) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border">
-      <table className="w-full table-fixed border-collapse text-sm">
+    <div role="region" aria-label="Matriz de preços completa, com rolagem horizontal" tabIndex={0} className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-border">
+      <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm">
         <colgroup>
           <col className="w-[24%] min-w-[180px]" />
           <col className="w-[12%]" />
@@ -509,7 +509,7 @@ function SpreadsheetTable({
         </colgroup>
         <thead>
           <tr className="bg-muted/50">
-            <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2.5 text-left text-xs font-semibold">
+            <th className="md:sticky left-0 z-10 bg-muted/50 px-3 py-2.5 text-left text-xs font-semibold">
               Produto
             </th>
             <th className="border-l border-border px-2 py-2.5 text-right text-xs font-semibold">
@@ -862,7 +862,7 @@ function ProductRow({
   if (editing) {
     return (
       <tr className="border-t border-border bg-primary/5">
-        <td className="sticky left-0 z-10 bg-primary/5 px-3 py-2.5">
+        <td className="md:sticky left-0 z-10 bg-primary/5 px-3 py-2.5">
           <div className="space-y-2">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" className="h-8" />
             <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU (opcional)" className="h-8" />
@@ -915,7 +915,7 @@ function ProductRow({
   return (
     <>
     <tr className={cn("border-t border-border transition-colors odd:bg-muted/20 hover:bg-muted/40", simOpen && "bg-primary/[0.04]")}>
-      <td className="sticky left-0 z-10 bg-inherit px-3 py-2.5 align-top">
+      <td className="md:sticky left-0 z-10 bg-inherit px-3 py-2.5 align-top">
         <div className="flex items-start gap-1.5">
           <p className="text-sm font-medium leading-snug break-words">{row.name}</p>
         </div>

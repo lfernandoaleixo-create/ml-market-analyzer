@@ -86,14 +86,15 @@ function StepTimelineBar({
 }) {
   const progressPct = Math.round((completedCount / TOTAL_STEPS) * 100);
   return (
-    <div className="w-full space-y-2">
-      <div className="relative flex w-full justify-between" style={{ paddingTop: "28px" }}>
+    <div className="w-full min-w-0 space-y-2">
+      <div className="w-full max-w-full overflow-x-auto pb-2">
+      <div className="relative flex w-full min-w-[560px] justify-between px-6" style={{ paddingTop: "28px" }}>
         <div
-          className="absolute left-0 right-0 h-0.5 bg-muted"
+          className="absolute left-6 right-6 h-0.5 bg-muted"
           style={{ top: "28px", transform: "translateY(10px)" }}
         />
         <div
-          className="absolute left-0 h-0.5 transition-all duration-700"
+          className="absolute left-6 h-0.5 transition-all duration-700"
           style={{
             top: "28px",
             transform: "translateY(10px)",
@@ -153,6 +154,7 @@ function StepTimelineBar({
           );
         })}
       </div>
+      </div>
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
           {completedCount} de {TOTAL_STEPS} etapas concluídas
@@ -188,7 +190,7 @@ function ProductRow({
       <div className="relative flex items-stretch gap-0 rounded-2xl overflow-hidden bg-card card-soft transition-all duration-200 hover:card-lift">
         <div className="w-1 shrink-0 rounded-l-2xl" style={{ background: pStyle.dot }} />
         <div className="flex-1 min-w-0 p-4 sm:p-5 space-y-4">
-          <div className="flex items-start gap-3">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] sm:flex items-start gap-3">
             <span
               className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
               style={{ background: pStyle.bg, color: pStyle.text, border: `1px solid ${pStyle.border}` }}
@@ -197,7 +199,7 @@ function ProductRow({
             </span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-display font-semibold text-foreground text-base leading-tight">
+                <h3 className="min-w-0 break-words font-display font-semibold text-foreground text-base leading-tight">
                   {product.name}
                 </h3>
                 <span
@@ -214,10 +216,10 @@ function ProductRow({
                 )}
               </div>
               {product.supplier && (
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">{product.supplier}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 break-words sm:truncate">{product.supplier}</p>
               )}
             </div>
-            <div className="shrink-0 flex flex-col items-end gap-1.5 ml-2">
+            <div className="col-start-2 min-w-0 flex flex-wrap items-center gap-1.5 sm:shrink-0 sm:flex-col sm:items-end sm:ml-2">
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
                 style={{
@@ -326,7 +328,7 @@ export default function ProjetoTimeline() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="min-w-0 max-w-3xl mx-auto space-y-8">
       <div>
         <h2 className="text-2xl font-display font-semibold text-foreground">Cronograma de Chegadas</h2>
         <p className="text-muted-foreground mt-1 text-sm">

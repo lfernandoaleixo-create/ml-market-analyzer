@@ -1145,7 +1145,9 @@ export default function Home() {
                   placeholder="Ex.: Kit de 3 potes organizadores de cozinha"
                 />
               </label>
-              <ProjectProductSuggestions description={input.description} />
+              <div className="project-product-suggestions">
+                <ProjectProductSuggestions description={input.description} />
+              </div>
               <label className="field">
                 <span className="field-label">
                   {input.productType === "kit"
@@ -1278,7 +1280,7 @@ export default function Home() {
                     />
                     {f("cost", "Custo da mercadoria", "rs")}
                   </div>
-                  <div className="field-row field-space">
+                  <div className="field-row field-space quantity-cost-row">
                     <NumberField
                       label="Quantidade de unidades"
                       value={input.itemQuantity}
@@ -1891,7 +1893,7 @@ export default function Home() {
       {pdfRecord && (
         <Suspense
           fallback={
-            <div className="fixed bottom-5 right-5 z-50 rounded-xl bg-[#67458b] px-5 py-3 text-white">
+            <div className="fixed bottom-5 left-4 right-4 z-50 rounded-xl bg-[#67458b] px-5 py-3 text-white sm:left-auto sm:max-w-sm">
               Preparando a ficha PDF…
             </div>
           }
@@ -1907,7 +1909,7 @@ export default function Home() {
           fallback={
             <div
               role="status"
-              className="fixed bottom-5 right-5 z-50 rounded-xl bg-[#67458b] px-5 py-3 text-white"
+              className="fixed bottom-5 left-4 right-4 z-50 rounded-xl bg-[#67458b] px-5 py-3 text-white sm:left-auto sm:max-w-sm"
             >
               Abrindo o fluxograma…
             </div>

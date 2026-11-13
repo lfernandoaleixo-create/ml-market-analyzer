@@ -191,12 +191,12 @@ export default function ReadApiKeysCard() {
   }
 
   return (
-    <Card className="p-5 lg:col-span-2">
+    <Card className="min-w-0 p-5 lg:col-span-2 [overflow-wrap:anywhere] [&_[data-slot=button]]:h-auto [&_[data-slot=button]]:min-h-9 [&_[data-slot=button]]:whitespace-normal [&_[data-slot=button]]:py-2">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
           <KeyRound className="h-4 w-4" aria-hidden="true" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1 basis-[12rem]">
           <h2 className="font-display text-lg font-600">
             API de leitura para outra IA
           </h2>
@@ -255,7 +255,7 @@ export default function ReadApiKeysCard() {
               <code className="block select-all break-all rounded-md border border-emerald-500/20 bg-background p-3 text-sm text-foreground">
                 {visibleDisclosure.key}
               </code>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button
                   type="button"
                   size="sm"
@@ -284,10 +284,10 @@ export default function ReadApiKeysCard() {
             </section>
           )}
 
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-2">
             <form
               onSubmit={handleGenerate}
-              className="space-y-4 rounded-lg border border-border/70 p-4"
+              className="min-w-0 space-y-4 rounded-lg border border-border/70 p-4"
             >
               <h3 className="text-sm font-semibold">Gerar nova chave</h3>
               <div className="space-y-1.5">
@@ -311,7 +311,7 @@ export default function ReadApiKeysCard() {
                   onValueChange={value => setExpiresDays(Number(value))}
                   disabled={create.isPending}
                 >
-                  <SelectTrigger id={`${formId}-expires`}>
+                  <SelectTrigger id={`${formId}-expires`} className="w-full min-w-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -323,7 +323,7 @@ export default function ReadApiKeysCard() {
                   </SelectContent>
                 </Select>
               </div>
-              <fieldset disabled={create.isPending} className="space-y-2">
+              <fieldset disabled={create.isPending} className="min-w-0 space-y-2">
                 <legend className="mb-2 text-sm font-medium">
                   Escopos permitidos
                 </legend>
@@ -334,7 +334,7 @@ export default function ReadApiKeysCard() {
                   >
                     <Checkbox
                       id={`${formId}-${scope}`}
-                      className="mt-0.5"
+                      className="mt-0.5 shrink-0"
                       checked={scopes.includes(scope)}
                       disabled={create.isPending}
                       onCheckedChange={checked =>
@@ -347,7 +347,7 @@ export default function ReadApiKeysCard() {
                     />
                     <Label
                       htmlFor={`${formId}-${scope}`}
-                      className="block cursor-pointer text-xs leading-relaxed"
+                      className="block min-w-0 flex-1 cursor-pointer text-xs leading-relaxed"
                     >
                       {READ_API_SCOPE_LABELS[scope]}
                       <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">
@@ -396,7 +396,7 @@ export default function ReadApiKeysCard() {
 
             <section
               aria-label="Chaves cadastradas"
-              className="space-y-3 rounded-lg border border-border/70 p-4"
+              className="min-w-0 space-y-3 rounded-lg border border-border/70 p-4"
             >
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">Chaves cadastradas</h3>
@@ -524,7 +524,7 @@ export default function ReadApiKeysCard() {
 
           <section
             aria-label="Documentação da API"
-            className="space-y-3 rounded-lg border border-border/70 p-4"
+            className="min-w-0 space-y-3 rounded-lg border border-border/70 p-4"
           >
             <h3 className="text-sm font-semibold">Conectar a outra IA</h3>
             <p className="text-xs leading-relaxed text-muted-foreground">
@@ -533,7 +533,7 @@ export default function ReadApiKeysCard() {
               <code>Authorization: Bearer SUA_CHAVE</code>. Não coloque a chave
               na URL.
             </p>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
               <code className="min-w-0 flex-1 break-all rounded-md bg-muted/50 p-2 text-xs">
                 {baseUrl}
               </code>
@@ -546,7 +546,7 @@ export default function ReadApiKeysCard() {
                 <Copy aria-hidden="true" /> Copiar URL base
               </Button>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Button type="button" size="sm" variant="outline" asChild>
                 <a href={openApiUrl} download="read-api-openapi.json">
                   <Download aria-hidden="true" /> Baixar OpenAPI
@@ -573,7 +573,7 @@ export default function ReadApiKeysCard() {
               </a>{" "}
               contém somente o schema da API, sem dados da conta e sem chaves.
             </p>
-            <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+            <div className="grid min-w-0 gap-2 text-xs text-muted-foreground sm:grid-cols-3 [&>*]:min-w-0">
               <p className="rounded-md bg-muted/50 p-3">
                 <strong className="block text-foreground">
                   {READ_API_LIMIT_PER_MINUTE} requisições/minuto por chave
@@ -594,12 +594,12 @@ export default function ReadApiKeysCard() {
                 anterior. Não interprete esses estados como zero confirmado.
               </p>
             </div>
-            <details className="rounded-md border border-border/70 p-3">
+            <details className="min-w-0 rounded-md border border-border/70 p-3">
               <summary className="cursor-pointer text-sm font-medium">
                 Exemplos e endpoints disponíveis
               </summary>
-              <div className="mt-3 space-y-3">
-                <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 text-xs">
+              <div className="mt-3 min-w-0 space-y-3">
+                <pre tabIndex={0} aria-label="Exemplo curl com rolagem horizontal" className="max-w-full min-w-0 overflow-x-auto rounded-md bg-muted/50 p-3 text-xs focus-visible:outline-2 focus-visible:outline-ring">
                   <code>{curlExample}</code>
                 </pre>
                 <Button
@@ -615,7 +615,7 @@ export default function ReadApiKeysCard() {
                 >
                   <Copy aria-hidden="true" /> Copiar exemplo seguro
                 </Button>
-                <ul className="grid gap-2 sm:grid-cols-2">
+                <ul className="grid min-w-0 gap-2 sm:grid-cols-2 [&>*]:min-w-0">
                   {READ_API_ROUTES.map(route => (
                     <li
                       key={route.path}

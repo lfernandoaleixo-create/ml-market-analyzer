@@ -108,7 +108,7 @@ function Notice({
       )}
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-      <div className="min-w-0 space-y-1">{children}</div>
+      <div className="min-w-0 space-y-1 break-words">{children}</div>
     </div>
   );
 }
@@ -176,9 +176,9 @@ export function MargemVendas({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/5 p-4">
-        <div className="space-y-1">
+    <div className="min-w-0 space-y-5">
+      <div className="flex min-w-0 flex-col items-start justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/5 p-4 lg:flex-row">
+        <div className="min-w-0 flex-1 space-y-1">
           <h2 className="font-display text-lg">Margem por pedido</h2>
           <p className="text-sm text-muted-foreground">
             {title} · Descontos reais do ML/MP e custos informados por você.
@@ -203,7 +203,7 @@ export function MargemVendas({
         </div>
         <Button
           variant="outline"
-          className="gap-2 bg-background"
+          className="min-h-11 w-full gap-2 bg-background sm:min-h-9 sm:w-auto"
           disabled={!enabled || refresh.isPending || dashboard.isFetching}
           onClick={refreshFinancials}
         >
@@ -250,8 +250,8 @@ export function MargemVendas({
           if (!open && !saveCost.isPending) setEditing(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="min-w-0 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain p-4 sm:p-6">
+          <DialogHeader className="min-w-0 pr-6">
             <DialogTitle>Custos totais do pedido</DialogTitle>
             <DialogDescription>
               Informe o CMV de todos os produtos e as despesas extras da
@@ -352,7 +352,7 @@ export function MarginDashboardView({
     ).length ?? 0;
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {error && (
         <Notice danger>
           <p>
@@ -528,7 +528,7 @@ export function MarginDashboardView({
                 : "Nenhuma operação retornada para este período."}
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="min-w-0 max-w-full overflow-x-auto" role="region" aria-label="Margem por operação, com rolagem horizontal" tabIndex={0}>
             <table className="w-full min-w-[1180px] text-sm">
               <caption className="sr-only">
                 Margem por operação; valores desconhecidos são representados por
@@ -689,7 +689,7 @@ function MarginOrderRow({
             type="button"
             variant="ghost"
             size="sm"
-            className="flex h-auto gap-1 px-1 py-1 text-xs"
+            className="flex h-auto min-h-11 gap-1 px-2 py-2 text-xs sm:min-h-8 sm:px-1 sm:py-1"
             onClick={() => setExpanded(value => !value)}
             aria-expanded={expanded}
             aria-controls={detailsId}
@@ -705,7 +705,7 @@ function MarginOrderRow({
             type="button"
             variant="outline"
             size="sm"
-            className="h-auto whitespace-normal px-2 py-1 text-xs"
+            className="h-auto min-h-11 whitespace-normal px-2 py-2 text-xs sm:min-h-8 sm:py-1"
             disabled={!canEdit || !onEditCost}
             onClick={() => onEditCost?.(row)}
           >
@@ -716,7 +716,7 @@ function MarginOrderRow({
       {expanded && (
         <tr id={detailsId} className="border-b bg-secondary/30">
           <td colSpan={10} className="p-4">
-            <h3 className="mb-2 text-sm font-semibold">
+            <h3 className="mb-2 break-words text-sm font-semibold">
               Descontos e ajustes reais da operação {row.operationId}
             </h3>
             {row.charges.length === 0 ? (
@@ -729,9 +729,9 @@ function MarginOrderRow({
                 {row.charges.map((charge, index) => (
                   <li
                     key={`${charge.key}-${index}`}
-                    className="flex justify-between gap-3 rounded-lg border bg-background p-2"
+                    className="flex min-w-0 flex-wrap justify-between gap-3 rounded-lg border bg-background p-2"
                   >
-                    <span>
+                    <span className="min-w-0 break-words">
                       <span className="block font-medium">
                         {CHARGE_LABELS[charge.category]}
                       </span>
@@ -756,7 +756,7 @@ function MarginOrderRow({
               retidos novamente.
             </p>
             {row.costNote && (
-              <p className="mt-2 whitespace-pre-wrap text-xs">
+              <p className="mt-2 whitespace-pre-wrap break-words text-xs">
                 Nota dos custos: {row.costNote}
               </p>
             )}
@@ -839,7 +839,7 @@ export function OrderCostForm({
     }
   }
   return (
-    <form className="space-y-4" onSubmit={submit}>
+    <form className="min-w-0 space-y-4" onSubmit={submit}>
       <p className="break-all text-sm">
         Pedido/operação:{" "}
         <span className="font-mono font-semibold">{row.operationId}</span>
@@ -918,11 +918,12 @@ export function OrderCostForm({
         />
       </div>
       {error && <Notice danger>{error}</Notice>}
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col justify-end gap-2 sm:flex-row">
         {onCancel && (
           <Button
             type="button"
             variant="outline"
+            className="min-h-11 w-full sm:min-h-9 sm:w-auto"
             disabled={saving}
             onClick={onCancel}
           >
@@ -931,6 +932,7 @@ export function OrderCostForm({
         )}
         <Button
           type="submit"
+          className="h-auto min-h-11 w-full whitespace-normal sm:min-h-9 sm:w-auto"
           disabled={saving || !valuesValid || (needsZero && !confirmZero)}
         >
           {saving ? "Salvando…" : "Salvar custos totais"}
@@ -1105,7 +1107,7 @@ function ReportImporter({
             accept=".csv,.xlsx"
             disabled={!enabled || busy}
             onChange={selectFile}
-            className="max-w-lg"
+            className="min-h-11 min-w-0 max-w-lg"
           />
           <p className="text-xs text-muted-foreground">
             Não exibimos dados originais de compradores na prévia: apenas
@@ -1166,7 +1168,7 @@ export function MarginReportPreviewPanel({
       ? "Mercado Livre — conciliação por venda"
       : "Mercado Pago — dinheiro em conta";
   return (
-    <div className="space-y-4 rounded-xl border border-primary/20 p-4">
+    <div className="min-w-0 space-y-4 rounded-xl border border-primary/20 p-3 sm:p-4">
       <div>
         <h3 className="font-display text-base">
           Prévia do relatório — ainda não importado
@@ -1191,7 +1193,7 @@ export function MarginReportPreviewPanel({
         automática do Mercado Livre. Para incluir eventos posteriores, gere e
         importe um relatório novo do mesmo período.
       </p>
-      <div className="max-h-72 overflow-auto">
+      <div className="max-h-72 min-w-0 max-w-full overflow-auto overscroll-contain" role="region" aria-label="Prévia financeira do relatório, com rolagem" tabIndex={0}>
         <table className="w-full min-w-[600px] text-xs">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -1215,9 +1217,9 @@ export function MarginReportPreviewPanel({
                 </td>
                 <td className="p-2">
                   {operation.items.map((item, index) => (
-                    <p key={index} className="whitespace-pre-wrap">
+                    <p key={index} className="whitespace-pre-wrap break-words">
                       {item.title} · SKU:{" "}
-                      <span className="font-mono">
+                      <span className="break-all font-mono">
                         {item.sku?.trim() ? item.sku : "Ausente na fonte"}
                       </span>
                     </p>
@@ -1271,7 +1273,7 @@ export function MarginReportPreviewPanel({
           !enabled || !confirmed || importing || preview.operations.length === 0
         }
         onClick={onImport}
-        className="gap-2"
+        className="h-auto min-h-11 w-full gap-2 whitespace-normal sm:min-h-9 sm:w-auto"
       >
         <Upload className="h-4 w-4" />
         {importing ? "Importando…" : "Importar relatório confirmado"}

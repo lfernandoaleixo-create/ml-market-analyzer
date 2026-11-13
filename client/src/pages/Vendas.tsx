@@ -123,14 +123,14 @@ export default function Vendas() {
         title={periodTitle}
       />
 
-      <Tabs defaultValue="visao-geral" className="gap-5">
-        <TabsList aria-label="Análise de vendas" className="bg-primary/5">
-          <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
-          <TabsTrigger value="margem">Margem por pedido</TabsTrigger>
+      <Tabs defaultValue="visao-geral" className="min-w-0 gap-5">
+        <TabsList aria-label="Análise de vendas" className="grid h-auto w-full grid-cols-2 bg-primary/5 sm:inline-flex sm:w-fit">
+          <TabsTrigger value="visao-geral" className="min-h-11 whitespace-normal sm:min-h-8">Visão geral</TabsTrigger>
+          <TabsTrigger value="margem" className="min-h-11 whitespace-normal sm:min-h-8">Margem por pedido</TabsTrigger>
         </TabsList>
-        <TabsContent value="visao-geral" className="space-y-6">
+        <TabsContent value="visao-geral" className="min-w-0 space-y-6">
       {/* KPI row for the active period */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Faturamento"
           value={loadingSales ? "" : formatBRL(k?.revenue ?? 0)}
@@ -199,12 +199,12 @@ export default function Vendas() {
           </div>
         ) : (
           <>
-            <div className="mb-5 grid grid-cols-2 gap-3">
+            <div className="mb-5 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <SummaryStat label="Vendas totais" value={formatBRL(totalRevenue)} tone="emerald" />
               <SummaryStat label="Cancelamentos" value={formatBRL(totalCancelledAmount)} tone="rose" />
             </div>
 
-            <div className="overflow-x-auto pb-1">
+            <div className="min-w-0 max-w-full overflow-x-auto pb-1" role="region" aria-label="Gráfico diário de vendas, com rolagem horizontal" tabIndex={0}>
               <div
                 className="h-72"
                 style={{ minWidth: `${Math.max(bars.length * perDayWidth, 320)}px`, width: "100%" }}
@@ -275,7 +275,7 @@ export default function Vendas() {
                 Dica: arraste o gráfico para o lado para ver todos os dias.
               </p>
             )}
-            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Faturamento
               </span>
@@ -303,7 +303,7 @@ export default function Vendas() {
         periodTitle={periodTitle}
       />
         </TabsContent>
-        <TabsContent value="margem">
+        <TabsContent value="margem" className="min-w-0">
           <MargemVendas
             fromMs={activeRange.fromMs}
             toMs={activeRange.toMs}
@@ -378,8 +378,8 @@ function DayDetail({
             setExpanded(false);
           }}
         >
-          <SelectTrigger className="h-10 w-[230px] gap-1.5">
-            <CalendarDays className="h-4 w-4 text-primary" />
+          <SelectTrigger className="h-11 w-full max-w-full gap-1.5 sm:h-10 sm:w-[230px]">
+            <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
             <SelectValue placeholder="Escolha um dia" />
           </SelectTrigger>
           <SelectContent className="max-h-96">
@@ -408,19 +408,19 @@ function DayDetail({
         </Select>
       }
     >
-      <div className="mb-4 inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
-        <CalendarDays className="h-4 w-4" /> {capitalize(dayLongLabel(effectiveDay))}
+      <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
+        <CalendarDays className="h-4 w-4 shrink-0" /> {capitalize(dayLongLabel(effectiveDay))}
       </div>
 
       {/* Summary band */}
       {dayQuery.isLoading ? (
-        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="mb-5 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-20 w-full" />
           ))}
         </div>
       ) : (
-        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="mb-5 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <DaySummaryCard
             tone="emerald"
             icon={DollarSign}
@@ -470,8 +470,9 @@ function DayDetail({
           <p className="text-xs text-muted-foreground/70">Escolha outro dia no seletor acima.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="min-w-0 max-w-full">
+          <div className="min-w-0 max-w-full overflow-x-auto" role="region" aria-label="Produtos vendidos no dia, com rolagem horizontal" tabIndex={0}>
+          <table className="w-full min-w-[580px] text-sm">
             <thead>
               <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
                 <th className="py-2.5 pr-2 text-left font-semibold">#</th>
@@ -511,12 +512,13 @@ function DayDetail({
               })}
             </tbody>
           </table>
+          </div>
           {hasMore && (
             <div className="mt-3 flex justify-center">
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 bg-secondary/40"
+                className="h-auto min-h-11 max-w-full gap-1.5 whitespace-normal bg-secondary/40 py-2 sm:min-h-8 sm:py-1"
                 onClick={() => setExpanded((v) => !v)}
               >
                 {expanded ? (
@@ -536,8 +538,8 @@ function DayDetail({
 
       {!dayQuery.isLoading && cancelledProducts.length > 0 && (
         <div className="mt-5 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-rose-600" />
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
             <p className="font-display text-sm font-semibold tracking-tight text-rose-700">
               Produtos cancelados neste dia
             </p>
@@ -545,8 +547,8 @@ function DayDetail({
               · {formatNumber(data?.cancelledUnits ?? 0)} un. · {formatBRL(data?.cancelledRevenue ?? 0)}
             </span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="min-w-0 max-w-full overflow-x-auto" role="region" aria-label="Produtos cancelados no dia, com rolagem horizontal" tabIndex={0}>
+            <table className="w-full min-w-[440px] text-sm">
               <thead>
                 <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="py-2.5 pr-2 text-left font-semibold">Produto</th>
@@ -634,20 +636,22 @@ function FullRanking({
       }
       actions={
         !loading && products.length > 0 ? (
-          <div className="relative w-[240px] max-w-[60vw]">
+          <div className="relative w-full min-w-0 max-w-full sm:w-[240px]">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar produto por nome"
-              className="h-10 pl-8 pr-8"
+              aria-label="Buscar produto por nome no ranking"
+              className="h-11 pl-8 pr-11 sm:h-10"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
                 title="Limpar busca"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Limpar busca"
+                className="absolute right-0.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -677,8 +681,9 @@ function FullRanking({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="min-w-0 max-w-full">
+          <div className="min-w-0 max-w-full overflow-x-auto" role="region" aria-label="Ranking completo de produtos vendidos, com rolagem horizontal" tabIndex={0}>
+          <table className="w-full min-w-[660px] text-sm">
             <thead>
               <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
                 <th className="py-2.5 pr-2 text-left font-semibold">#</th>
@@ -734,7 +739,7 @@ function FullRanking({
                           href={p.permalink}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-xs text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary sm:min-h-0 sm:px-0"
                         >
                           Ver <ExternalLink className="h-3 w-3" />
                         </a>
@@ -747,12 +752,13 @@ function FullRanking({
               })}
             </tbody>
           </table>
+          </div>
           {hasMore && (
             <div className="mt-3 flex justify-center">
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 bg-secondary/40"
+                className="h-auto min-h-11 max-w-full gap-1.5 whitespace-normal bg-secondary/40 py-2 sm:min-h-8 sm:py-1"
                 onClick={() => setExpanded((v) => !v)}
               >
                 {expanded ? (
@@ -819,11 +825,11 @@ function SummaryStat({
   const dot =
     tone === "emerald" ? "bg-emerald-500" : tone === "rose" ? "bg-rose-500" : "bg-muted-foreground";
   return (
-    <div className={`rounded-xl p-3.5 ${bgCls}`}>
+    <div className={`min-w-0 rounded-xl p-3.5 ${bgCls}`}>
       <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span className={`h-2 w-2 rounded-full ${dot}`} /> {label}
       </p>
-      <p className={`mt-1.5 font-display text-xl font-bold leading-none tracking-tight ${toneCls}`}>
+      <p className={`mt-1.5 break-words font-display text-xl font-bold leading-tight tracking-tight ${toneCls}`}>
         {value}
       </p>
     </div>
@@ -854,11 +860,11 @@ function DaySummaryCard({
               ? "bg-slate-400/15 text-slate-600"
               : "bg-rose-500/12 text-rose-600";
   return (
-    <div className="flex flex-col items-center gap-2 rounded-xl bg-secondary/50 p-4 text-center">
+    <div className="flex min-w-0 flex-col items-center gap-2 rounded-xl bg-secondary/50 p-4 text-center">
       <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tint}`}>
         <Icon className="h-4.5 w-4.5" />
       </span>
-      <p className="font-display text-2xl font-bold leading-none tracking-tight tabular-nums">{value}</p>
+      <p className="max-w-full break-words font-display text-2xl font-bold leading-tight tracking-tight tabular-nums">{value}</p>
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     </div>
   );

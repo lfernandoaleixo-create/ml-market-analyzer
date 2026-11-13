@@ -73,26 +73,26 @@ export default function ProjectProductCard({
     return (
       <button
         onClick={onClick}
-        className="w-full text-left rounded-xl p-4 bg-card card-soft hover:card-lift transition-all duration-200 active:scale-[0.995] group"
+        className="w-full min-w-0 text-left rounded-xl p-4 bg-card card-soft hover:card-lift transition-all duration-200 active:scale-[0.995] group"
       >
-        <div className="flex items-center gap-4">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] md:grid-cols-[auto_minmax(0,1fr)_auto_10rem_auto] lg:grid-cols-[auto_minmax(0,1fr)_auto_10rem_6rem_auto] items-center gap-3 md:gap-4">
           <div
             className="w-2.5 h-2.5 rounded-full shrink-0"
             style={{ background: pConfig.dot }}
           />
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
+            <h3 className="font-semibold text-foreground break-words md:truncate">{product.name}</h3>
             {product.supplier && (
-              <p className="text-xs text-muted-foreground truncate mt-0.5">{product.supplier}</p>
+              <p className="text-xs text-muted-foreground break-words md:truncate mt-0.5">{product.supplier}</p>
             )}
           </div>
           <span className={cn("shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border", pConfig.badge)}>
             {pConfig.label}
           </span>
-          <span className="shrink-0 text-xs text-muted-foreground hidden md:block w-40 text-right">
+          <span className="min-w-0 break-words text-xs text-muted-foreground col-start-2 md:col-start-4 md:row-start-1 md:text-right">
             {stepLabel}
           </span>
-          <div className="shrink-0 w-24 hidden lg:block">
+          <div className="min-w-0 col-start-2 col-span-2 md:col-span-4 lg:col-start-5 lg:col-span-1 lg:row-start-1">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-muted-foreground">{Math.round(progress)}%</span>
             </div>
@@ -103,7 +103,7 @@ export default function ProjectProductCard({
               />
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0 col-start-3 row-start-2 md:col-start-5 md:row-start-1 lg:col-start-6" />
         </div>
         {product.expectedArrival && (
           <div className="mt-2 pt-2 border-t border-border/60 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -127,15 +127,15 @@ export default function ProjectProductCard({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left rounded-xl p-5 bg-card card-soft hover:card-lift transition-all duration-200 active:scale-[0.98] group flex flex-col gap-4"
+      className="w-full min-w-0 text-left rounded-xl p-4 sm:p-5 bg-card card-soft hover:card-lift transition-all duration-200 active:scale-[0.98] group flex flex-col gap-4"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+          <h3 className="font-semibold text-foreground leading-snug break-words sm:line-clamp-2 group-hover:text-primary transition-colors">
             {product.name}
           </h3>
           {product.supplier && (
-            <p className="text-xs text-muted-foreground mt-1 truncate">{product.supplier}</p>
+            <p className="text-xs text-muted-foreground mt-1 break-words sm:truncate">{product.supplier}</p>
           )}
         </div>
         <span className={cn("shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border", pConfig.badge)}>
@@ -144,8 +144,8 @@ export default function ProjectProductCard({
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} />
-        <span className="text-xs text-muted-foreground">
+        <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: accent }} />
+        <span className="min-w-0 break-words text-xs text-muted-foreground">
           {stepLabel}
         </span>
       </div>
@@ -179,7 +179,7 @@ export default function ProjectProductCard({
       </div>
 
       {product.expectedArrival && (
-        <div className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-primary/8 border border-primary/20">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-primary/8 border border-primary/20">
           <Calendar className="w-3.5 h-3.5 shrink-0 text-primary" />
           <span className="text-muted-foreground">Chegada prevista:</span>
           <span className="font-semibold text-primary">

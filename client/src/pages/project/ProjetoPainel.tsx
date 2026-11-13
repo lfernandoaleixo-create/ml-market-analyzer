@@ -155,8 +155,8 @@ export default function ProjetoPainel({
   ];
 
   return (
-    <div>
-      <div className="flex items-start justify-between mb-6 gap-4">
+    <div className="min-w-0">
+      <div className="flex flex-col sm:flex-row items-start justify-between mb-6 gap-4">
         <div>
           <h2 className="text-2xl font-display font-semibold text-foreground">Painel de Produtos</h2>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -165,7 +165,7 @@ export default function ProjetoPainel({
         </div>
         <Button
           onClick={() => requireGuestName(() => setShowNewProduct(true))}
-          className="gap-2 shrink-0"
+          className="gap-2 shrink-0 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           Novo Produto
@@ -188,18 +188,19 @@ export default function ProjetoPainel({
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative w-full min-w-0 sm:flex-1 sm:basis-[200px] sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Buscar produto..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 pr-11"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Limpar busca"
+              className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-foreground"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -207,7 +208,7 @@ export default function ProjetoPainel({
         </div>
 
         <Select value={priority} onValueChange={setPriority}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full min-w-0 sm:w-48">
             <SelectValue placeholder="Prioridade" />
           </SelectTrigger>
           <SelectContent>
@@ -219,13 +220,13 @@ export default function ProjetoPainel({
         </Select>
 
         <Select value={currentStep} onValueChange={setCurrentStep}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-full min-w-0 h-auto min-h-9 whitespace-normal text-left [&_[data-slot=select-value]]:line-clamp-none [&_[data-slot=select-value]]:break-words sm:w-52">
             <SelectValue placeholder="Etapa atual" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[calc(100vw-2rem)]">
             <SelectItem value="todos">Todas as etapas</SelectItem>
             {dynamicStages.map((stage) => (
-              <SelectItem key={stage.id} value={stage.label}>
+              <SelectItem key={stage.id} value={stage.label} className="whitespace-normal break-words">
                 {stage.label}
               </SelectItem>
             ))}
@@ -251,13 +252,17 @@ export default function ProjetoPainel({
         <div className="ml-auto flex items-center gap-1 p-1 rounded-lg bg-muted">
           <button
             onClick={() => setViewMode("grid")}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            aria-label="Visualizar em cards"
+            aria-pressed={viewMode === "grid"}
+            className={`p-2.5 sm:p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
           >
             <LayoutGrid className="w-4 h-4" />
           </button>
           <button
             onClick={() => setViewMode("list")}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            aria-label="Visualizar em lista"
+            aria-pressed={viewMode === "list"}
+            className={`p-2.5 sm:p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
           >
             <List className="w-4 h-4" />
           </button>
@@ -329,7 +334,7 @@ export default function ProjetoPainel({
       />
 
       <Dialog open={showNewProduct} onOpenChange={setShowNewProduct}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">Novo Produto</DialogTitle>
           </DialogHeader>
@@ -349,7 +354,7 @@ export default function ProjetoPainel({
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Prioridade</label>
               <Select value={newPriority} onValueChange={(v) => setNewPriority(v as any)}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

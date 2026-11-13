@@ -26,10 +26,10 @@ export function GuestNameDialog({ open, onConfirm, onCancel }: GuestNameDialogPr
   };
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="font-display flex items-center gap-2">
-            <User className="w-4 h-4 text-primary" />
+      <DialogContent className="sm:max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        <DialogHeader className="pr-6">
+          <DialogTitle className="font-display flex items-center gap-2 break-words">
+            <User className="w-4 h-4 text-primary shrink-0" />
             Como você se chama?
           </DialogTitle>
         </DialogHeader>

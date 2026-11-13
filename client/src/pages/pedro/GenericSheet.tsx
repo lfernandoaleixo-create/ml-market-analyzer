@@ -244,20 +244,20 @@ export default function GenericSheet({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 max-w-full space-y-5">
       {tabsSlot}
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="h-9" onClick={() => setLocation(backTo)}>
+        <div className="flex min-w-0 items-center gap-3">
+          <Button variant="ghost" size="sm" className="h-9 shrink-0" onClick={() => setLocation(backTo)}>
             <ArrowLeft className="w-4 h-4 mr-1.5" />
             Voltar
           </Button>
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg bg-primary/12 flex items-center justify-center">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-primary/12 flex items-center justify-center">
               <Table2 className="w-5 h-5 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0 break-words">
               <h2 className="text-xl font-display font-semibold text-foreground leading-tight">{title}</h2>
               <p className="text-xs text-muted-foreground">
                 {filtered.length} {filtered.length === 1 ? "item" : "itens"} · {subtitle}
@@ -265,14 +265,15 @@ export default function GenericSheet({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:w-auto">
+          <div className="relative w-full min-w-0 sm:w-60">
             <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar…"
-              className="h-9 pl-8 w-60"
+              aria-label="Buscar na planilha"
+              className="h-9 pl-8 w-full min-w-0"
             />
           </div>
           <Button size="sm" variant="outline" className="h-9 bg-card" onClick={() => setManageColumns(true)}>
@@ -305,8 +306,8 @@ export default function GenericSheet({
       </div>
 
       {/* Tabela */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+      <div className="min-w-0 max-w-full rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+        <div className="w-full max-w-full overflow-x-auto overscroll-x-contain" role="region" aria-label={`Tabela de ${title}, com rolagem horizontal`} tabIndex={0}>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-white">
@@ -321,7 +322,7 @@ export default function GenericSheet({
                     {c.name || "(sem nome)"}
                   </Th>
                 ))}
-                <Th style={{ background: headColor }} className="w-24 text-center sticky right-0 z-20">Ações</Th>
+                <Th style={{ background: headColor }} className="w-24 text-center sm:sticky sm:right-0 z-20">Ações</Th>
               </tr>
             </thead>
             <tbody>
@@ -352,7 +353,7 @@ export default function GenericSheet({
       </div>
 
       <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto break-words">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir linha?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -400,7 +401,7 @@ export default function GenericSheet({
 
       {/* Confirmação: excluir coluna personalizada */}
       <AlertDialog open={deleteColumnId !== null} onOpenChange={(o) => !o && setDeleteColumnId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto break-words">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir coluna?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -542,29 +543,30 @@ function GenericRowEditor({ row, index, columns, customColumns, onField, onField
       ))}
 
       {/* Ações */}
-      <td className="px-2 py-2 sticky right-0 z-10" style={{ background: local.rowColor ? colorBg : "var(--card)" }}>
+      <td className="px-2 py-2 sm:sticky sm:right-0 z-10" style={{ background: local.rowColor ? colorBg : "var(--card)" }}>
         <div className="flex items-center justify-center gap-0.5">
-          <Button size="icon" variant="ghost" className="h-8 w-8" title="Editar linha" onClick={onEdit}>
+          <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 sm:h-8 sm:w-8" title="Editar linha" aria-label="Editar linha" onClick={onEdit}>
             <Pencil className="w-4 h-4" />
           </Button>
           <Popover>
             <PopoverTrigger asChild>
-              <Button size="icon" variant="ghost" className="h-8 w-8" title="Cor da linha">
+              <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 sm:h-8 sm:w-8" title="Cor da linha" aria-label="Cor da linha">
                 <Palette className="w-4 h-4" style={{ color: ROW_COLOR_MAP[local.rowColor]?.swatch !== "transparent" ? ROW_COLOR_MAP[local.rowColor]?.swatch : undefined }} />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" align="end">
+            <PopoverContent className="w-auto max-w-[calc(100vw-24px)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-2" align="end">
               <p className="text-xs font-medium text-muted-foreground px-1 pb-1.5">Cor da linha</p>
               <div className="grid grid-cols-5 gap-1.5">
                 {ROW_COLORS.map((c) => (
                   <button
                     key={c.value}
                     title={c.label}
+                    aria-label={c.label}
                     onClick={() => {
                       set({ rowColor: c.value });
                       onFieldNow(row.id, { rowColor: c.value });
                     }}
-                    className="w-7 h-7 rounded-md border border-border flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
+                    className="w-9 h-9 sm:w-7 sm:h-7 rounded-md border border-border flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
                     style={{ background: c.value === "" ? "var(--background)" : c.swatch }}
                   >
                     {local.rowColor === c.value && (
@@ -578,7 +580,7 @@ function GenericRowEditor({ row, index, columns, customColumns, onField, onField
               </div>
             </PopoverContent>
           </Popover>
-          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={onDelete}>
+          <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 sm:h-8 sm:w-8 text-destructive hover:text-destructive" title="Excluir linha" aria-label="Excluir linha" onClick={onDelete}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -608,7 +610,7 @@ function ManageColumnsDialog({ open, onOpenChange, columns, onCreate, onRename, 
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display">Colunas personalizadas</DialogTitle>
           <DialogDescription>
@@ -616,13 +618,13 @@ function ManageColumnsDialog({ open, onOpenChange, columns, onCreate, onRename, 
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
               placeholder="Nome da nova coluna (ex.: Fornecedor)"
-              className="flex-1"
+              className="min-w-0 flex-1"
             />
             <Button onClick={handleCreate} disabled={!newName.trim() || creating}>
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4 mr-1.5" />Criar</>}
@@ -664,9 +666,9 @@ function ColumnRow({ column, onRename, onAskDelete }: { column: CustomColumn; on
         onChange={(e) => setName(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        className="flex-1 h-9"
+        className="min-w-0 flex-1 h-9"
       />
-      <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive hover:text-destructive" title="Excluir coluna" onClick={() => onAskDelete(column.id)}>
+      <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-destructive hover:text-destructive" title="Excluir coluna" aria-label="Excluir coluna" onClick={() => onAskDelete(column.id)}>
         <Trash2 className="w-4 h-4" />
       </Button>
     </div>
@@ -712,15 +714,15 @@ function EditRowDialog({ row, columns, customColumns, onClose, onSave, onSaveCus
 
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-3xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display">Editar linha</DialogTitle>
           <DialogDescription>Edite os campos abaixo. As alterações são salvas ao clicar em Salvar.</DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-1">
+        <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 gap-4 py-1">
           {columns.map((c) => (
-            <div key={c.field} className={c.kind === "area" ? "sm:col-span-2" : ""}>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">{c.label}</label>
+            <div key={c.field} className={`min-w-0 ${c.kind === "area" ? "sm:col-span-2" : ""}`}>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block break-words">{c.label}</label>
               {c.kind === "area" ? (
                 <Textarea
                   value={(draft[c.field] as string) ?? ""}
@@ -740,12 +742,12 @@ function EditRowDialog({ row, columns, customColumns, onClose, onSave, onSaveCus
             </div>
           ))}
           {customColumns.length > 0 && (
-            <div className="sm:col-span-2 border-t border-border pt-3 mt-1">
+            <div className="min-w-0 sm:col-span-2 border-t border-border pt-3 mt-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Colunas personalizadas</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {customColumns.map((c) => (
-                  <div key={c.id}>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">{c.name || "(sem nome)"}</label>
+                  <div key={c.id} className="min-w-0">
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block break-words">{c.name || "(sem nome)"}</label>
                     <Input
                       value={customDraft[String(c.id)] ?? ""}
                       onChange={(e) => setCustomDraft((p) => ({ ...p, [String(c.id)]: e.target.value }))}

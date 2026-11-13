@@ -174,7 +174,7 @@ export default function Painel() {
   if (conn.isLoading && conn.data === undefined) {
     return (
       <PageShell>
-        <Skeleton className="h-9 w-72" />
+        <Skeleton className="h-9 w-72 max-w-full" />
         <KpiSkeletonRow count={4} />
       </PageShell>
     );
@@ -232,9 +232,9 @@ export default function Painel() {
       <BrandHero
         subtitle={`Visão geral da conta ${conn.data?.nickname ?? "conectada"} no Mercado Livre — vendas, anúncios e reputação.`}
         actions={
-          <>
+          <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:flex-col md:items-stretch xl:flex-row xl:items-center">
             {connectionStale && <ConnectionReminder />}
-            <Button variant="outline" size="sm" onClick={() => void retryAll()} disabled={anyRefetching} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => void retryAll()} disabled={anyRefetching} className="h-auto min-h-11 whitespace-normal gap-1.5 border-white/30 bg-white/5 text-white hover:bg-white/15 hover:text-white sm:h-8 sm:min-h-0">
               <RefreshCw className={cn("h-3.5 w-3.5", anyRefetching && "animate-spin")} />
               {anyRefetching ? "Atualizando…" : "Atualizar agora"}
             </Button>
@@ -244,7 +244,7 @@ export default function Painel() {
               positive={r?.ratingsPositive ?? 0}
               negative={r?.ratingsNegative ?? 0}
             />
-          </>
+          </div>
         }
       />
 
@@ -264,7 +264,7 @@ export default function Painel() {
             variant="outline"
             onClick={retryAll}
             disabled={anyRefetching}
-            className="shrink-0 border-amber-400 bg-white/70 text-amber-900 hover:bg-white dark:bg-transparent dark:text-amber-100"
+            className="h-auto min-h-11 whitespace-normal shrink-0 border-amber-400 bg-white/70 text-amber-900 hover:bg-white sm:h-8 sm:min-h-0 dark:bg-transparent dark:text-amber-100"
           >
             <RefreshCw className={cn("mr-1.5 h-4 w-4", anyRefetching && "animate-spin")} />
             {anyRefetching ? "Atualizando…" : "Atualizar agora"}
@@ -275,7 +275,7 @@ export default function Painel() {
       {(listings.error || listings.data?.stale) && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-700" role="status">
           <p>{listings.data ? "A atualização dos anúncios não foi concluída. Exibindo o último resultado confirmado desta conta." : "Os anúncios estão indisponíveis nesta consulta. Isso não significa que sua loja tenha zero anúncios."}</p>
-          <Button variant="outline" size="sm" onClick={() => void retryAll()} disabled={anyRefetching}>Atualizar anúncios</Button>
+          <Button variant="outline" size="sm" className="h-auto min-h-11 whitespace-normal sm:h-8 sm:min-h-0" onClick={() => void retryAll()} disabled={anyRefetching}>Atualizar anúncios</Button>
         </div>
       )}
 
@@ -376,7 +376,7 @@ export default function Painel() {
         ) : (
           <>
             {/* Summary mini-cards inside the chart card */}
-            <div className="mb-5 grid grid-cols-2 gap-3">
+            <div className="mb-5 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <SummaryStat
                 label="Vendas totais"
                 value={formatBRL(totalRevenue)}
@@ -393,7 +393,7 @@ export default function Painel() {
                 day number centered below and two thick bars (revenue + cancelled)
                 inside. For long periods we enable horizontal scroll so the bars
                 stay wide and readable instead of shrinking to invisible slivers. */}
-            <div className="overflow-x-auto pb-1">
+            <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1" tabIndex={0} role="region" aria-label="Gráfico de faturamento e cancelamentos por dia, com rolagem horizontal">
               <div
                 className="h-56"
                 style={{ minWidth: `${Math.max(bars.length * perDayWidth, 320)}px`, width: "100%" }}
@@ -467,7 +467,7 @@ export default function Painel() {
                 Dica: arraste o gráfico para o lado para ver todos os dias.
               </p>
             )}
-            <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Faturamento
               </span>
@@ -493,14 +493,14 @@ export default function Painel() {
       <SectionCard
           title={`Top 10 produtos (${periodTitle.toLowerCase()})`}
           actions={
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
               <Link href="/anuncios" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
                 Meus anúncios <ArrowUpRight className="h-3.5 w-3.5" />
               </Link>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 bg-secondary/40"
+                className="h-auto min-h-11 whitespace-normal gap-1.5 bg-secondary/40 sm:h-8 sm:min-h-0"
                 onClick={() => setTopOpen((v) => !v)}
                 aria-expanded={topOpen}
               >
@@ -522,7 +522,7 @@ export default function Painel() {
             <button
               type="button"
               onClick={() => setTopOpen(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-secondary/40 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-secondary/40 px-2 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground sm:min-h-0"
             >
               <ChevronDown className="h-3.5 w-3.5" />
               Ver Top 10 produtos do período
@@ -534,8 +534,8 @@ export default function Painel() {
               ))}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain" tabIndex={0} role="region" aria-label="Top 10 produtos, tabela com rolagem horizontal">
+              <table className="w-full min-w-[600px] text-sm">
                 <thead>
                   <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
                     <th className="py-2.5 pr-2 text-left font-semibold">#</th>
@@ -593,7 +593,8 @@ export default function Painel() {
                             title={p.title}
                             thumbnail={p.thumbnail}
                             permalink={p.permalink}
-                            titleClassName="max-w-[260px]"
+                            clampTitle={false}
+                            titleClassName="max-w-[260px] break-words sm:line-clamp-2"
                           />
                         </td>
                         <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">
@@ -631,7 +632,7 @@ function RevenueTooltip({ active, payload, label }: any) {
     cancelledAmount: number;
   };
   return (
-    <div className="rounded-xl border bg-background p-3 text-xs shadow-sm" style={{ borderColor: "var(--border)" }}>
+    <div className="max-w-[calc(100vw-3rem)] break-words rounded-xl border bg-background p-3 text-xs shadow-sm" style={{ borderColor: "var(--border)" }}>
       <p className="font-medium">{isoToWeekdayLong(String(label))}</p>
       {d.revenue === 0 && (d.cancelled ?? 0) === 0 ? (
         <p className="mt-1 text-muted-foreground">Sem movimento</p>
@@ -674,11 +675,11 @@ function SummaryStat({
   const dot =
     tone === "emerald" ? "bg-emerald-500" : tone === "rose" ? "bg-rose-500" : "bg-muted-foreground";
   return (
-    <div className={`rounded-xl p-3.5 ${bgCls}`}>
+    <div className={`min-w-0 rounded-xl p-3.5 ${bgCls}`}>
       <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <span className={`h-2 w-2 rounded-full ${dot}`} /> {label}
+        <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} /> {label}
       </p>
-      <p className={`mt-1.5 font-display text-xl font-bold leading-none tracking-tight ${toneCls}`}>
+      <p className={`mt-1.5 break-words [overflow-wrap:anywhere] font-display text-xl font-bold leading-tight tracking-tight ${toneCls}`}>
         {value}
       </p>
     </div>
@@ -709,7 +710,7 @@ function AccountHealthBadge({
   const posPct = total > 0 ? Math.round((positive / total) * 100) : null;
   return (
     <div
-      className="flex items-center gap-2.5 rounded-xl border bg-card px-3 py-1.5"
+      className="flex min-w-0 max-w-full items-center gap-2.5 rounded-xl border bg-card px-3 py-1.5"
       style={{ borderColor: "var(--border)" }}
       title="Resumo da reputação da conta"
     >
@@ -720,7 +721,7 @@ function AccountHealthBadge({
             Saúde da conta
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-display text-sm leading-none tracking-tight">
             {levelId ? reputationLabel(levelId) : "—"}
           </span>
@@ -830,12 +831,12 @@ function DaySales({
   const visibleProducts = expanded ? products : products.slice(0, COLLAPSED_COUNT);
 
   return (
-    <div id="produtos-por-dia" className="scroll-mt-4">
+    <div id="produtos-por-dia" className="min-w-0 max-w-full scroll-mt-4">
     <SectionCard
       title="Produtos vendidos por dia"
       description="Selecione um dia (ou clique numa barra do gráfico acima) para ver exatamente quais produtos foram vendidos."
       actions={
-        <div className="flex items-center gap-3">
+        <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
           <Select
             value={effectiveDay}
             onValueChange={(v) => {
@@ -844,8 +845,8 @@ function DaySales({
               setOpen(true);
             }}
           >
-            <SelectTrigger className="h-10 w-[230px] gap-1.5">
-              <CalendarDays className="h-4 w-4 text-primary" />
+            <SelectTrigger className="h-auto min-h-11 w-full min-w-0 max-w-full gap-1.5 whitespace-normal sm:h-10 sm:min-h-0 sm:w-[230px]">
+              <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
               <SelectValue placeholder="Escolha um dia" />
             </SelectTrigger>
             <SelectContent className="max-h-96">
@@ -875,7 +876,7 @@ function DaySales({
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5 bg-secondary/40"
+            className="h-auto min-h-11 whitespace-normal gap-1.5 bg-secondary/40 sm:h-8 sm:min-h-0"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
           >
@@ -897,7 +898,7 @@ function DaySales({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-secondary/40 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-secondary/40 px-2 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground sm:min-h-0"
         >
           <ChevronDown className="h-3.5 w-3.5" />
           Ver produtos vendidos por dia
@@ -905,8 +906,8 @@ function DaySales({
       ) : (
       <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
-          <CalendarDays className="h-4 w-4" /> {capitalize(dayLongLabel(effectiveDay))}
+        <div className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
+          <CalendarDays className="h-4 w-4 shrink-0" /> {capitalize(dayLongLabel(effectiveDay))}
         </div>
         {!dayQuery.isLoading && data && (
           <div className="flex flex-wrap items-center gap-2">
@@ -941,8 +942,8 @@ function DaySales({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain" tabIndex={0} role="region" aria-label="Produtos vendidos no dia, tabela com rolagem horizontal">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
                 <th className="py-2.5 pr-2 text-left font-semibold">Produto</th>
@@ -961,7 +962,8 @@ function DaySales({
                         title={p.title}
                         thumbnail={p.thumbnail}
                         permalink={p.permalink}
-                        titleClassName="max-w-[280px]"
+                        clampTitle={false}
+                        titleClassName="max-w-[280px] break-words sm:line-clamp-2"
                       />
                     </td>
                     <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">
@@ -983,7 +985,7 @@ function DaySales({
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 bg-secondary/40"
+                className="h-auto min-h-11 max-w-full whitespace-normal gap-1.5 bg-secondary/40 sm:h-8 sm:min-h-0"
                 onClick={() => setExpanded((v) => !v)}
               >
                 {expanded ? (
@@ -1002,9 +1004,9 @@ function DaySales({
       )}
 
       {!dayQuery.isLoading && cancelledProducts.length > 0 && (
-        <div className="mt-5 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-rose-600" />
+        <div className="mt-5 min-w-0 max-w-full rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-3 sm:p-4">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
             <p className="font-display text-sm font-semibold tracking-tight text-rose-700">
               Produtos cancelados neste dia
             </p>
@@ -1012,8 +1014,8 @@ function DaySales({
               · {formatNumber(data?.cancelledUnits ?? 0)} un. · {formatBRL(data?.cancelledRevenue ?? 0)}
             </span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain" tabIndex={0} role="region" aria-label="Produtos cancelados no dia, tabela com rolagem horizontal">
+            <table className="w-full min-w-[480px] text-sm">
               <thead>
                 <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="py-2.5 pr-2 text-left font-semibold">Produto</th>
@@ -1029,7 +1031,8 @@ function DaySales({
                         title={p.title}
                         thumbnail={p.thumbnail}
                         permalink={p.permalink}
-                        titleClassName="max-w-[280px]"
+                        clampTitle={false}
+                        titleClassName="max-w-[280px] break-words sm:line-clamp-2"
                       />
                     </td>
                     <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap font-medium">
@@ -1070,8 +1073,8 @@ function DayBadge({
           ? "bg-rose-500/10 text-rose-700 ring-rose-500/20"
           : "bg-secondary text-foreground ring-border";
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1", cls)}>
-      <ShoppingCart className="h-3.5 w-3.5" />
+    <span className={cn("inline-flex max-w-full flex-wrap items-center gap-1.5 break-words [overflow-wrap:anywhere] rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1", cls)}>
+      <ShoppingCart className="h-3.5 w-3.5 shrink-0" />
       {label} <span className="font-normal opacity-70">{hint}</span>
     </span>
   );
@@ -1169,9 +1172,9 @@ function LifetimeCard({
   ];
 
   return (
-    <Card className="card-soft overflow-hidden border-0 rounded-2xl">
+    <Card className="card-soft min-w-0 max-w-full overflow-hidden border-0 rounded-2xl">
       <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "var(--border)" }}>
-        <div className="brand-gradient flex h-5 w-5 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
+        <div className="brand-gradient flex h-5 w-5 shrink-0 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
           <Store className="h-3 w-3" />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2">
@@ -1179,19 +1182,19 @@ function LifetimeCard({
           <p className="text-[10px] text-muted-foreground">Desde o início da loja</p>
         </div>
       </div>
-      <div className="grid grid-cols-3 lg:grid-cols-6 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
+      <div className="grid min-w-0 grid-cols-1 sm:grid-cols-3 xl:grid-cols-6 divide-y divide-x xl:divide-y-0" style={{ borderColor: "var(--border)" }}>
         {items.map((it) => (
-          <div key={it.label} className="px-3 py-1.5 transition-colors hover:bg-secondary/40">
+          <div key={it.label} className="min-w-0 px-3 py-1.5 transition-colors hover:bg-secondary/40">
             <p className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
-              <span className={`flex h-4 w-4 items-center justify-center rounded ${it.tint}`}>
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${it.tint}`}>
                 <it.icon className="h-2.5 w-2.5" />
               </span>
-              <span className="truncate">{it.label}</span>
+              <span className="min-w-0 break-words">{it.label}</span>
             </p>
             {loading ? (
               <Skeleton className="mt-1 h-6 w-20" />
             ) : (
-              <p className={cn("mt-0.5 font-display text-lg font-bold leading-tight tracking-tight tabular-nums", it.valueClass)}>
+              <p className={cn("mt-0.5 break-words [overflow-wrap:anywhere] font-display text-lg font-bold leading-tight tracking-tight tabular-nums", it.valueClass)}>
                 {it.value}
               </p>
             )}
@@ -1294,17 +1297,17 @@ function HistoricProfitCard({
   // Use exactly as many columns as there are cells so the dividers fall between
   // equal-width columns (no leftover empty slot). Maps to fixed Tailwind classes.
   const lgColsMap: Record<number, string> = {
-    5: "lg:grid-cols-5",
-    6: "lg:grid-cols-6",
-    7: "lg:grid-cols-7",
-    8: "lg:grid-cols-8",
+    5: "xl:grid-cols-5",
+    6: "xl:grid-cols-6",
+    7: "xl:grid-cols-7",
+    8: "xl:grid-cols-8",
   };
-  const colsClass = cn("grid-cols-3", lgColsMap[cells.length] ?? "lg:grid-cols-7");
+  const colsClass = cn("grid-cols-1 sm:grid-cols-3", lgColsMap[cells.length] ?? "xl:grid-cols-7");
 
   return (
-    <Card className="card-soft overflow-hidden border-0 rounded-2xl">
+    <Card className="card-soft min-w-0 max-w-full overflow-hidden border-0 rounded-2xl">
       <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "var(--border)" }}>
-        <div className="brand-gradient flex h-5 w-5 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
+        <div className="brand-gradient flex h-5 w-5 shrink-0 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
           <Wallet className="h-3 w-3" />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2">
@@ -1321,7 +1324,7 @@ function HistoricProfitCard({
           </p>
         </div>
       ) : loading ? (
-        <div className="grid grid-cols-4 lg:grid-cols-7 divide-y divide-x sm:divide-y-0" style={{ borderColor: "var(--border)" }}>
+        <div className="grid min-w-0 grid-cols-1 sm:grid-cols-3 xl:grid-cols-7 divide-y divide-x xl:divide-y-0" style={{ borderColor: "var(--border)" }}>
           {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="px-3 py-1.5">
               <Skeleton className="h-2.5 w-12" />
@@ -1330,19 +1333,19 @@ function HistoricProfitCard({
           ))}
         </div>
       ) : breakdown ? (
-        <div className={cn("grid divide-y divide-x sm:divide-y-0", colsClass)} style={{ borderColor: "var(--border)" }}>
+        <div className={cn("grid min-w-0 divide-y divide-x xl:divide-y-0", colsClass)} style={{ borderColor: "var(--border)" }}>
           {cells.map((c) => (
-            <div key={c.label} className="px-3 py-1.5 transition-colors hover:bg-secondary/40">
+            <div key={c.label} className="min-w-0 px-3 py-1.5 transition-colors hover:bg-secondary/40">
               <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
                 <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${c.tint}`}>
                   <c.icon className="h-2.5 w-2.5" />
                 </span>
-                <span className="truncate">{c.label}</span>
+                <span className="min-w-0 break-words">{c.label}</span>
               </p>
-              <p className={cn("mt-0.5 font-display text-lg font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
+              <p className={cn("mt-0.5 break-words [overflow-wrap:anywhere] font-display text-lg font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
                 {c.value}
               </p>
-              <p className="text-[13px] font-semibold text-muted-foreground tabular-nums">{c.pctOnly}</p>
+              <p className="break-words [overflow-wrap:anywhere] text-[13px] font-semibold text-muted-foreground tabular-nums">{c.pctOnly}</p>
             </div>
           ))}
         </div>
@@ -1484,15 +1487,15 @@ function PeriodFlowStrip({
 
   const count = cells.length; // 8 (Anúncios ativos, Receita, 5 custos, Resultado)
   const lgColsMap: Record<number, string> = {
-    7: "lg:grid-cols-7",
-    8: "lg:grid-cols-8",
+    7: "xl:grid-cols-7",
+    8: "xl:grid-cols-8",
   };
-  const colsClass = cn("grid-cols-3", lgColsMap[count] ?? "lg:grid-cols-8");
+  const colsClass = cn("grid-cols-1 sm:grid-cols-3 lg:grid-cols-4", lgColsMap[count] ?? "xl:grid-cols-8");
 
   return (
-    <Card className="card-soft overflow-hidden border-0 rounded-2xl">
+    <Card className="card-soft min-w-0 max-w-full overflow-hidden border-0 rounded-2xl">
       <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "var(--border)" }}>
-        <div className="brand-gradient flex h-5 w-5 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
+        <div className="brand-gradient flex h-5 w-5 shrink-0 items-center justify-center rounded-lg text-primary-foreground shadow-sm">
           <TrendingUp className="h-3 w-3" />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2">
@@ -1501,14 +1504,14 @@ function PeriodFlowStrip({
         </div>
       </div>
 
-      <div className={cn("grid divide-y divide-x sm:divide-y-0", colsClass)} style={{ borderColor: "var(--border)" }}>
+      <div className={cn("grid min-w-0 divide-y divide-x xl:divide-y-0", colsClass)} style={{ borderColor: "var(--border)" }}>
         {cells.map((c) => (
-          <div key={c.label} className="px-3 py-1.5 transition-colors hover:bg-secondary/40">
+          <div key={c.label} className="min-w-0 px-3 py-1.5 transition-colors hover:bg-secondary/40">
             <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
               <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${c.tint}`}>
                 <c.icon className="h-2.5 w-2.5" />
               </span>
-              <span className="truncate">{c.label}</span>
+              <span className="min-w-0 break-words">{c.label}</span>
             </p>
             {c.loading ? (
               <>
@@ -1517,10 +1520,10 @@ function PeriodFlowStrip({
               </>
             ) : (
               <>
-                <p className={cn("mt-0.5 font-display text-lg font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
+                <p className={cn("mt-0.5 break-words [overflow-wrap:anywhere] font-display text-lg font-bold leading-tight tracking-tight tabular-nums", c.valueClass)}>
                   {c.value}
                 </p>
-                <p className="text-[13px] font-semibold text-muted-foreground tabular-nums">{c.sub}</p>
+                <p className="break-words [overflow-wrap:anywhere] text-[13px] font-semibold text-muted-foreground tabular-nums">{c.sub}</p>
               </>
             )}
           </div>
@@ -1543,12 +1546,12 @@ function ConnectionReminder() {
       onClick={() => setLocation("/configuracoes")}
       title="Sua conexão com o Mercado Livre expirou. Clique para reconectar em Configurações."
       className={cn(
-        "group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium",
+        "group inline-flex min-h-11 min-w-0 max-w-full items-center justify-center gap-2 whitespace-normal rounded-full border px-3 py-1.5 text-xs font-medium sm:min-h-0",
         "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
         "transition-colors hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
       )}
     >
-      <span className="relative flex h-2 w-2">
+      <span className="relative flex h-2 w-2 shrink-0">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500/60" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
       </span>

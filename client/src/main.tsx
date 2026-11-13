@@ -1,12 +1,23 @@
 import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
+import { UNAUTHED_ERR_MSG } from "@shared/const";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
+import { toast } from "sonner";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
+import { registerMercatoWorker, trackMercatoViewport } from "./lib/mercatoPwa";
+import {
+  createMercatoMutationCache,
+  installOnlineInteractionGuard,
+  MERCATO_OFFLINE_MESSAGE,
+} from "./lib/mercatoOnlineMutations";
+
+void registerMercatoWorker(import.meta.env.PROD);
+trackMercatoViewport();
+installOnlineInteractionGuard(message => toast.warning(message));
 
 /**
  * Defensive DOM patch for browser translation extensions (e.g. Google Translate).
@@ -19,7 +30,10 @@ import "./index.css";
  */
 if (typeof Node === "function" && Node.prototype) {
   const originalRemoveChild = Node.prototype.removeChild;
-  Node.prototype.removeChild = function <T extends Node>(this: Node, child: T): T {
+  Node.prototype.removeChild = function <T extends Node>(
+    this: Node,
+    child: T
+  ): T {
     if (child.parentNode !== this) {
       return child;
     }
@@ -31,13 +45,16 @@ if (typeof Node === "function" && Node.prototype) {
   Node.prototype.insertBefore = function <T extends Node>(
     this: Node,
     newNode: T,
-    referenceNode: Node | null,
+    referenceNode: Node | null
   ): T {
     if (referenceNode && referenceNode.parentNode !== this) {
       return newNode;
     }
     // eslint-disable-next-line prefer-rest-params
-    return originalInsertBefore.apply(this, arguments as unknown as [T, Node | null]) as T;
+    return originalInsertBefore.apply(
+      this,
+      arguments as unknown as [T, Node | null]
+    ) as T;
   };
 }
 
@@ -70,7 +87,10 @@ const isAbortError = (error: unknown): boolean => {
 };
 
 const queryClient = new QueryClient({
+  mutationCache: createMercatoMutationCache(),
   defaultOptions: {
+    // Never retain new writes while offline or replay them on reconnection.
+    mutations: { networkMode: "always", retry: false },
     queries: {
       // Keep previously fetched data on screen while refetching, so a brief
       // session/cookie hiccup in the preview does not blank the UI.
@@ -82,7 +102,10 @@ const queryClient = new QueryClient({
         // Never auto-retry a rate limit: the server already retried with backoff,
         // and hammering ML again only deepens the throttle. The user retries
         // manually via the on-screen "Atualizar agora" button instead.
-        if (error instanceof TRPCClientError && error.data?.code === "TOO_MANY_REQUESTS") {
+        if (
+          error instanceof TRPCClientError &&
+          error.data?.code === "TOO_MANY_REQUESTS"
+        ) {
           return false;
         }
         return failureCount < 2;
@@ -110,7 +133,10 @@ queryClient.getQueryCache().subscribe(event => {
     // app errors (avoids the global "1 error" badge for a transient condition).
     if (isAuthError(error)) return;
     if (isHandledTransient(error)) {
-      console.warn("[API Query] estado transitório do Mercado Livre (429/indisponível) — tratado na UI", error);
+      console.warn(
+        "[API Query] estado transitório do Mercado Livre (429/indisponível) — tratado na UI",
+        error
+      );
       return;
     }
     // Cancelled/aborted requests are expected lifecycle noise, not failures.
@@ -122,10 +148,17 @@ queryClient.getQueryCache().subscribe(event => {
 queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
+    if (error instanceof Error && error.message === MERCATO_OFFLINE_MESSAGE) {
+      toast.warning(MERCATO_OFFLINE_MESSAGE);
+      return;
+    }
     redirectToLoginIfUnauthorized(error);
     if (isAuthError(error)) return;
     if (isHandledTransient(error)) {
-      console.warn("[API Mutation] estado transitório do Mercado Livre (429/indisponível) — tratado na UI", error);
+      console.warn(
+        "[API Mutation] estado transitório do Mercado Livre (429/indisponível) — tratado na UI",
+        error
+      );
       return;
     }
     if (isAbortError(error)) return;
@@ -153,13 +186,22 @@ const trpcClient = trpc.createClient({
         // (so component unmount / query cancellation still aborts the request).
         const controller = new AbortController();
         const timer = setTimeout(
-          () => controller.abort(new DOMException("Tempo limite da requisição excedido", "TimeoutError")),
-          CLIENT_REQUEST_TIMEOUT_MS,
+          () =>
+            controller.abort(
+              new DOMException(
+                "Tempo limite da requisição excedido",
+                "TimeoutError"
+              )
+            ),
+          CLIENT_REQUEST_TIMEOUT_MS
         );
         const upstream = init?.signal;
         if (upstream) {
           if (upstream.aborted) controller.abort();
-          else upstream.addEventListener("abort", () => controller.abort(), { once: true });
+          else
+            upstream.addEventListener("abort", () => controller.abort(), {
+              once: true,
+            });
         }
         return globalThis
           .fetch(input, {

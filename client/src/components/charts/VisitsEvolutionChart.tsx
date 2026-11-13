@@ -61,10 +61,10 @@ export function VisitsEvolutionChart({
   const total = series.reduce((s, p) => s + p.visits, 0);
   if (error && series.length === 0) {
     return (
-      <div className="flex h-52 flex-col items-center justify-center gap-3 text-center" role="alert">
+      <div className="flex min-h-52 min-w-0 flex-col items-center justify-center gap-3 py-4 text-center" role="alert">
         <AlertCircle className="h-8 w-8 text-amber-600" />
         <p className="text-sm font-medium text-foreground">Visitas indisponíveis no momento</p>
-        <p className="max-w-xl text-xs text-muted-foreground">{error} Isso não significa que seus anúncios tiveram zero visitas.</p>
+        <p className="max-w-xl break-words text-xs text-muted-foreground">{error} Isso não significa que seus anúncios tiveram zero visitas.</p>
         {onRetry && <Button variant="outline" size="sm" onClick={onRetry} disabled={refreshing} className="gap-1.5">
           <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           {refreshing ? "Atualizando…" : "Tentar novamente"}
@@ -77,7 +77,7 @@ export function VisitsEvolutionChart({
   // rate limit). This is NOT a real zero — be honest and offer a refresh.
   if (pending) {
     return (
-      <div className="flex h-52 flex-col items-center justify-center gap-3 text-center">
+      <div className="flex min-h-52 min-w-0 flex-col items-center justify-center gap-3 py-4 text-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
         <div className="space-y-1">
           <p className="text-sm font-medium text-foreground">Carregando as visitas dos seus anúncios…</p>
@@ -98,7 +98,7 @@ export function VisitsEvolutionChart({
 
   if (series.length === 0 || total === 0) {
     return (
-      <div className="flex h-52 flex-col items-center justify-center gap-2 text-center">
+      <div className="flex min-h-52 min-w-0 flex-col items-center justify-center gap-2 py-4 text-center">
         <TrendingUp className="h-8 w-8 text-muted-foreground/40" />
         <p className="text-sm text-muted-foreground">
           {partial
@@ -142,7 +142,7 @@ export function VisitsEvolutionChart({
   const showMA = series.length >= 7;
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       {(partial || stale || error) && (
         <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
           {stale || error ? "Exibindo o último resultado disponível; a atualização atual não foi confirmada. " : ""}
@@ -242,7 +242,7 @@ function SummaryMini({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 rounded-lg border px-3 py-2",
+        "flex min-w-0 flex-col gap-1 rounded-lg border px-3 py-2",
         tone === "primary"
           ? "border-primary/30 bg-primary/5"
           : "border-border bg-muted/30",
@@ -253,7 +253,7 @@ function SummaryMini({
       </span>
       <span
         className={cn(
-          "font-display text-xl leading-none tabular-nums",
+          "break-words font-display text-xl leading-none tabular-nums",
           tone === "primary" ? "text-primary" : "text-foreground",
         )}
       >
@@ -280,7 +280,7 @@ function VisitsTooltip({ active, payload, todayKey }: any) {
   const isToday = d.date === todayKey;
   return (
     <div
-      className="rounded-xl border bg-background px-3 py-2 text-xs shadow-md"
+      className="max-w-[min(16rem,calc(100vw-2rem))] break-words rounded-xl border bg-background px-3 py-2 text-xs shadow-md"
       style={{ borderColor: "var(--border)" }}
     >
       <p className="font-medium text-foreground">

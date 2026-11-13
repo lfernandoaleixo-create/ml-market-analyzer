@@ -93,7 +93,7 @@ function ModelCard({ model, onSelect }: { model: Model; onSelect: () => void }) 
       type="button"
       onClick={onSelect}
       className={cn(
-        "group flex h-full flex-col rounded-2xl border border-border bg-card p-6 text-left",
+        "group flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4 text-left break-words sm:p-6",
         "transition-all hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "active:scale-[0.99]",
       )}
@@ -137,7 +137,7 @@ export default function Calculadora() {
           <button
             type="button"
             onClick={() => setLocation("/calculadora")}
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
             Calculadoras
@@ -148,14 +148,14 @@ export default function Calculadora() {
           subtitle={active.description}
         />
         {/* Alternador rápido entre os modelos */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
           {MODELS.map((m) => (
             <Button
               key={m.key}
               variant={m.key === active.key ? "default" : "outline"}
               size="sm"
               onClick={() => setLocation(m.path)}
-              className={m.key === active.key ? "" : "bg-card"}
+              className={cn("h-auto min-h-11 min-w-0 justify-start whitespace-normal text-left sm:justify-center", m.key !== active.key && "bg-card")}
             >
               <m.icon className="h-4 w-4" />
               {m.title}
@@ -175,7 +175,7 @@ export default function Calculadora() {
         title="Calculadoras"
         subtitle="Escolha a calculadora que você precisa. Na Calculadora Final, os PDFs são salvos no Mercato e podem ser anexados ao produto do Projeto."
       />
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-5 md:grid-cols-2 xl:grid-cols-3">
         {MODELS.map((m) => (
           <ModelCard key={m.key} model={m} onSelect={() => setLocation(m.path)} />
         ))}

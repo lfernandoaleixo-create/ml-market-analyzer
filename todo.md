@@ -2137,3 +2137,17 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Acrescentar 23 regressões de provedor/validação/SSR da tela real; TypeScript, build e suíte sem live de 146 arquivos / 2.041 testes aprovados
 - [x] Auditoria SHA-256 confirma preservedAll=true e changed=[] nas 11 tabelas comerciais; diff e scan aprovados; nenhum anúncio, preço, SKU, produto, credencial, schema ou contrato de API alterado
 - [ ] Publicar exatamente o checkpoint desta correção e atualizar a página de Vendas para aplicar os links corretos no site da equipe
+
+## Mercato — app instalável Toujours para celular, tablet e desktop (13/nov)
+- [x] Adaptar o projeto existente como PWA, sem criar outro banco, cadastro ou cópia de funcionalidades; manifesto standalone Mercato — Toujours, escopo raiz e todas as rotas existentes preservadas
+- [x] Reutilizar a imagem original Toujours em ícones 192/512/maskable e apple-touch 180 pelo armazenamento do projeto; somente favicon pequeno no public, sem mídia pesada local no deploy
+- [x] Acrescentar Instalar app com prompt nativo quando suportado e instruções iPhone/iPad/Android/Windows/Mac; instalação requer domínio publicado, HTTPS/navegador compatível e pode exigir novo login na janela do app
+- [x] Adaptar Painel, Vendas/margem, Anúncios/ficha técnica, Projeto, Planilha SKU/Embalagens, três calculadoras, ADS e Configurações/chaves; tabelas completas em rolagem própria, menu móvel completo e fechado após navegação, controles tocáveis e janelas dentro da área do teclado
+- [x] Worker de produção guarda exclusivamente aviso público offline; APIs/OAuth/documentos/credenciais/páginas privadas e gravações não entram no cache, sem skipWaiting/recarga que interrompa rascunhos
+- [x] Corrigir risco concreto de fila offline do TanStack: MutationCache rejeita antes do onMutate otimista, mutations usam networkMode=always/retry=false e captura de interação impede alteração otimista de SKU offline; navegação/cancelamento/cópia continuam disponíveis e reconectar não reproduz a ação bloqueada
+- [x] Corrigir diálogo móvel com translação dupla e manter janelas Alpha/fluxograma no visualViewport; melhorar contraste do Atualizar agora sobre a marca preta; teste SWR com TTL curto convertido a relógio controlado sem mudar o cache real
+- [x] TypeScript e build aprovados; suíte sem live com 158 arquivos / 2.169 testes aprovados, incluindo 128 testes novos de apresentação/instalação/rede
+- [x] Validar 62 cenários em Chromium real com dados sintéticos nas larguras 360/390/768/1024/1440: sem erro de página, controles fora da largura, diálogo fora da tela ou menu incompleto; guia e ajuda fecham corretamente em janela de teclado de 320px
+- [x] Validar cliente de produção em servidor local temporário com APIs fictícias: manifesto sem erros, worker ativo, cache somente /mercato-offline.html, Nova linha offline não gera chamada nem fila e navegação offline não mostra SKU privado
+- [x] Revisão independente confirmou risco offline resolvido; auditoria SHA-256 mantém 11 tabelas comerciais idênticas (preservedAll=true/changed=[]); diff/scan sem segredos e sem alteração em schema, APIs, motor de preços, SKUs, produtos, anúncios ou credenciais
+- [ ] Publicar exatamente este checkpoint no domínio do Mercato e instalar em cada dispositivo; não afirmar instalação física em iOS/Android/Windows/Mac nem validação de hardware que não foi realizada

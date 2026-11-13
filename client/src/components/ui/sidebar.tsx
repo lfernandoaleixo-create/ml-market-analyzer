@@ -191,14 +191,14 @@ function Sidebar({
           className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
           style={
             {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+              "--sidebar-width": "min(18rem, calc(100vw - 2rem))",
             } as React.CSSProperties
           }
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>Menu do Mercato</SheetTitle>
+            <SheetDescription>Acesse todas as funcionalidades do Mercato.</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -281,7 +281,7 @@ function SidebarTrigger({
       {...props}
     >
       <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">Abrir ou fechar menu</span>
     </Button>
   );
 }
@@ -731,4 +731,3 @@ export {
   SidebarTrigger,
   useSidebar
 };
-

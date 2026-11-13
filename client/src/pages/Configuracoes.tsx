@@ -45,10 +45,13 @@ export default function Configuracoes() {
         description="Gerencie a integração com o Mercado Livre, o monitoramento automático e os limiares que disparam os alertas."
       />
       <DataSourceBanner />
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         <CredentialsCard />
         <ScheduleCard />
-        <DriveBackupCard />
+        {/* Ajustes de apresentação do backup ficam locais, sem alterar seu fluxo. */}
+        <div className="flex min-w-0 flex-col [overflow-wrap:anywhere] [&>[data-slot=card]]:min-w-0 [&>[data-slot=card]]:flex-1 [&>[data-slot=card]>div:first-child]:flex-wrap [&>[data-slot=card]>div:first-child>div:first-child]:shrink-0 [&>[data-slot=card]>div:first-child>div:nth-child(2)]:min-w-0 [&>[data-slot=card]>div:first-child>div:nth-child(2)]:flex-1 [&>[data-slot=card]>div:first-child>div:nth-child(2)]:basis-[12rem] [&_[data-slot=button]]:h-auto [&_[data-slot=button]]:min-h-9 [&_[data-slot=button]]:whitespace-normal [&_[data-slot=button]]:py-2 [&_[data-slot=select-trigger]]:w-full [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=switch]]:shrink-0 [&_[data-slot=switch]]:ml-3">
+          <DriveBackupCard />
+        </div>
         <ThresholdsCard />
         <MethodologyCard />
         <ReadApiKeysCard />
@@ -133,12 +136,12 @@ function CredentialsCard() {
   };
 
   return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <Card className="min-w-0 p-5 [overflow-wrap:anywhere]">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <KeyRound className="h-4 w-4" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1 basis-[12rem]">
           <h2 className="font-display text-lg font-600">Credenciais do Mercado Livre</h2>
           <p className="text-xs text-muted-foreground">Integração oficial (OAuth / App ID)</p>
         </div>
@@ -180,7 +183,7 @@ function CredentialsCard() {
         <div className="space-y-1.5">
           <Label htmlFor="site">Site</Label>
           <Select value={siteId} onValueChange={setSiteId}>
-            <SelectTrigger id="site">
+            <SelectTrigger id="site" className="w-full min-w-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -197,9 +200,9 @@ function CredentialsCard() {
           <p className="text-xs text-muted-foreground">{creds.data.statusMessage}</p>
         )}
 
-        <div className="flex gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1">
           <Button
-            className="flex-1"
+            className="h-auto min-h-9 min-w-0 flex-1 basis-[10rem] whitespace-normal py-2"
             onClick={() => save.mutate({ appId, clientSecret, siteId })}
             disabled={save.isPending}
           >
@@ -208,7 +211,7 @@ function CredentialsCard() {
           </Button>
           <Button
             variant="outline"
-            className="flex-1"
+            className="h-auto min-h-9 min-w-0 flex-1 basis-[10rem] whitespace-normal py-2"
             onClick={() => test.mutate()}
             disabled={test.isPending}
           >
@@ -219,7 +222,7 @@ function CredentialsCard() {
 
         {/* Etapa 2: autorizar via OAuth para liberar dados ao vivo. */}
         <div className="rounded-lg border border-border/70 p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium">Conexão OAuth (dados ao vivo)</p>
             {oauthConnected ? (
               <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-500">
@@ -235,7 +238,7 @@ function CredentialsCard() {
             automaticamente.
           </p>
           <Button
-            className="w-full"
+            className="h-auto min-h-9 w-full whitespace-normal py-2"
             variant={oauthConnected ? "outline" : "default"}
             onClick={handleConnect}
             disabled={!canConnect || redirecting}
@@ -315,24 +318,25 @@ function ScheduleCard() {
   const enabled = schedule.data?.enabled ?? false;
 
   return (
-    <Card className="p-5">
+    <Card className="min-w-0 p-5">
       <div className="mb-4 flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Clock className="h-4 w-4" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h2 className="font-display text-lg font-600">Monitoramento automático</h2>
           <p className="text-xs text-muted-foreground">Captura periódica via agendamento</p>
         </div>
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-center justify-between rounded-lg border border-border/70 p-3">
-          <div>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 p-3">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">Ativar captura recorrente</p>
             <p className="text-xs text-muted-foreground">Registra preço, vendas e posição automaticamente.</p>
           </div>
           <Switch
+            className="shrink-0"
             checked={enabled}
             onCheckedChange={(v) => setSchedule.mutate({ enabled: v, cron })}
             disabled={setSchedule.isPending}
@@ -342,7 +346,7 @@ function ScheduleCard() {
         <div className="space-y-1.5">
           <Label>Frequência</Label>
           <Select value={cron} onValueChange={setCron} disabled={enabled}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full min-w-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -395,12 +399,12 @@ function ThresholdsCard() {
   });
 
   return (
-    <Card className="p-5">
+    <Card className="min-w-0 p-5">
       <div className="mb-4 flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <SlidersHorizontal className="h-4 w-4" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h2 className="font-display text-lg font-600">Limiares de alerta</h2>
           <p className="text-xs text-muted-foreground">Quando notificar uma variação</p>
         </div>
@@ -478,7 +482,7 @@ function Field({
 
 function MethodologyCard() {
   return (
-    <Card className="p-5">
+    <Card className="min-w-0 p-5">
       <h2 className="mb-3 font-display text-lg font-600">Critérios de potencial</h2>
       <p className="mb-3 text-sm text-muted-foreground leading-relaxed">
         O índice de potencial de cada produto combina os fatores abaixo. Eles também são exibidos,

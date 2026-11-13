@@ -44,6 +44,8 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
+import { InstallAppButton } from "./app/InstallAppButton";
+import { NetworkStatus } from "./app/NetworkStatus";
 
 const menuIcons: Record<MercatoNavId, typeof LayoutGrid> = {
   painel: LayoutGrid,
@@ -117,8 +119,8 @@ function AccessGate() {
   }
 
   return (
-    <div className="canvas-wash flex items-center justify-center min-h-screen bg-background">
-      <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full animate-rise">
+    <div className="canvas-wash flex items-center justify-center min-h-svh bg-background">
+      <div className="flex flex-col items-center gap-6 p-5 sm:p-8 max-w-md w-full animate-rise">
         <Wordmark />
         <div className="flex flex-col items-center gap-3">
           <h1 className="text-3xl font-display font-bold tracking-tight text-center">
@@ -185,6 +187,8 @@ function AccessGate() {
             Entrar para começar
           </Button>
         )}
+        <InstallAppButton />
+        <NetworkStatus />
       </div>
     </div>
   );
@@ -228,13 +232,13 @@ type DashboardLayoutContentProps = {
 function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
-  const { state, toggleSidebar } = useSidebar();
-  const isCollapsed = state === "collapsed";
+  const { state, toggleSidebar, setOpenMobile } = useSidebar();
+  const isMobile = useIsMobile();
+  const isCollapsed = !isMobile && state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const activeMenuItem = menuItems.find((item) => isMercatoNavItemActive(item, location));
-  const isMobile = useIsMobile();
 
   // Always scroll back to the top of the page whenever the route changes, so
   // navigating between menu items never lands the user halfway down a page.
@@ -317,9 +321,9 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                       <SidebarMenuItem key={item.path}>
                         <SidebarMenuButton
                           isActive={isActive}
-                          onClick={() => setLocation(item.path)}
+                          onClick={() => { setLocation(item.path); if (isMobile) setOpenMobile(false); }}
                           tooltip={item.label}
-                          className="relative h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground"
+                          className="relative h-11 md:h-9.5 transition-all data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground"
                         >
                           {isActive && (
                             <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary group-data-[collapsible=icon]:hidden" aria-hidden />
@@ -369,7 +373,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
             </DropdownMenu>
           </SidebarFooter>
         </Sidebar>
-        {!isCollapsed && (
+        {!isCollapsed && !isMobile && (
           <div
             role="separator"
             aria-orientation="vertical"
@@ -403,18 +407,18 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
         )}
       </div>
 
-      <SidebarInset>
-        {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <span className="font-display tracking-tight text-foreground">
-                {activeMenuItem?.label ?? "Mercato"}
-              </span>
-            </div>
+      <SidebarInset className="min-w-0">
+        <div className="mercato-app-header sticky md:static top-0 z-40 flex min-h-14 items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
+          <div className="flex min-w-0 items-center gap-2">
+            {isMobile && <SidebarTrigger className="h-11 w-11 shrink-0 rounded-lg bg-background" aria-label="Abrir menu do Mercato" />}
+            <span className="min-w-0 truncate font-display text-sm tracking-tight text-foreground">
+              {isMobile ? activeMenuItem?.label ?? "Mercato" : "Mercato · Toujours"}
+            </span>
           </div>
-        )}
-        <main ref={mainRef} className="flex-1 pl-6">{children}</main>
+          <InstallAppButton compact={isMobile} />
+        </div>
+        <NetworkStatus />
+        <main ref={mainRef} className="mercato-app-main min-w-0 flex-1">{children}</main>
       </SidebarInset>
     </>
   );

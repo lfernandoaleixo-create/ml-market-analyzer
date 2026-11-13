@@ -54,13 +54,14 @@ export function PeriodSelector({
       </div>
 
       {value === "custom" && (
-        <div className="flex items-center gap-2">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
           <Input
             type="date"
             value={fromIso}
             max={toIso || todayIsoBrt()}
             onChange={(e) => onFromIso(e.target.value)}
-            className="h-9 w-[150px]"
+            className="h-11 min-w-0 flex-1 sm:h-9 sm:w-[150px] sm:flex-none"
+            aria-label="Data inicial do período"
           />
           <span className="text-sm text-muted-foreground">até</span>
           <Input
@@ -69,14 +70,15 @@ export function PeriodSelector({
             min={fromIso}
             max={todayIsoBrt()}
             onChange={(e) => onToIso(e.target.value)}
-            className="h-9 w-[150px]"
+            className="h-11 min-w-0 flex-1 sm:h-9 sm:w-[150px] sm:flex-none"
+            aria-label="Data final do período"
           />
         </div>
       )}
 
       {!hideTitle && (
-        <span className="ml-auto inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
-          <CalendarRange className="h-4 w-4" /> {title}
+        <span className="ml-auto inline-flex max-w-full items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 font-display text-sm font-bold tracking-tight text-primary ring-1 ring-primary/20">
+          <CalendarRange className="h-4 w-4 shrink-0" /> <span className="min-w-0 break-words">{title}</span>
         </span>
       )}
     </div>

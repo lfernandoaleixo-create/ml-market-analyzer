@@ -71,7 +71,7 @@ export function DayVisitsBreakdownDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg overflow-hidden">
+      <DialogContent className="max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Eye className="h-4 w-4 text-primary" />
@@ -116,7 +116,7 @@ export function DayVisitsBreakdownDialog({
             </p>
           </div>
         ) : (
-          <div className="-mr-2 max-h-[55vh] w-full overflow-y-auto overflow-x-hidden pr-2">
+          <div className="max-h-[55dvh] w-full min-w-0 overflow-y-auto pr-1">
             <ul className="w-full space-y-1.5">
               {rows.map((r, i) => {
                 const pct = dayTotal > 0 ? (r.visits / dayTotal) * 100 : 0;
@@ -141,7 +141,7 @@ export function DayVisitsBreakdownDialog({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground" title={r.title}>
+                      <p className="break-words text-sm font-medium text-foreground" title={r.title}>
                         {r.title}
                       </p>
                       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -165,7 +165,7 @@ export function DayVisitsBreakdownDialog({
                         href={r.permalink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="shrink-0 text-muted-foreground transition-colors hover:text-primary"
+                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-primary"
                         title="Abrir anúncio no Mercado Livre"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />

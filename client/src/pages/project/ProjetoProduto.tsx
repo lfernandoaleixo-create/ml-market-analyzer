@@ -283,17 +283,17 @@ export default function ProjetoProduto({
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-4 mb-6">
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-6">
         <button
           onClick={() => setLocation(basePath)}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm"
+          className="flex shrink-0 items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Voltar ao painel</span>
         </button>
         <div className="w-px h-5 bg-border" />
-        <h1 className="font-display font-semibold text-foreground truncate flex-1 min-w-0">{product.name}</h1>
+        <h1 className="font-display font-semibold text-foreground break-words basis-full order-last sm:order-none sm:basis-auto sm:truncate flex-1 min-w-0">{product.name}</h1>
         <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border ${pConfig.className}`}>
           {pConfig.label}
         </span>
@@ -301,12 +301,12 @@ export default function ProjetoProduto({
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Coluna esquerda */}
-        <div className="xl:col-span-2 space-y-6">
+        <div className="min-w-0 xl:col-span-2 space-y-6">
           {/* Dossiê */}
-          <div className="rounded-2xl bg-card card-soft p-6">
-            <div className="flex items-center justify-between mb-6">
+          <div className="rounded-2xl bg-card card-soft p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
               <h2 className="font-display font-semibold text-lg text-foreground">Dossiê do Produto</h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {editing ? (
                   <>
                     <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="text-muted-foreground gap-1.5">
@@ -341,7 +341,7 @@ export default function ProjetoProduto({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid min-w-0 grid-cols-1 md:grid-cols-2 gap-5 [&>div]:min-w-0 [&_p]:break-words">
               <div className="md:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Nome do Produto</label>
                 {editing ? (
@@ -423,8 +423,8 @@ export default function ProjetoProduto({
           </div>
 
           {/* Linha do Tempo */}
-          <div className="rounded-2xl bg-card card-soft p-6">
-            <div className="flex items-center justify-between mb-6">
+          <div className="rounded-2xl bg-card card-soft p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
               <div>
                 <h2 className="font-display font-semibold text-lg text-foreground">Linha do Tempo</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -454,9 +454,9 @@ export default function ProjetoProduto({
                     <button
                       key={step.stageId}
                       onClick={() => requireGuestName(() => openStepEdit(step))}
-                      className={`w-full text-left rounded-xl p-4 transition-all duration-200 hover:bg-accent group ${isCurrentStep ? "ring-1 ring-primary/30 bg-primary/5" : ""}`}
+                      className={`w-full text-left rounded-xl p-3 sm:p-4 transition-all duration-200 hover:bg-accent group ${isCurrentStep ? "ring-1 ring-primary/30 bg-primary/5" : ""}`}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="grid grid-cols-[auto_minmax(0,1fr)] sm:flex items-center gap-3 sm:gap-4">
                         <div className="flex flex-col items-center shrink-0">
                           <div
                             className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold"
@@ -487,7 +487,7 @@ export default function ProjetoProduto({
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-foreground text-sm">{step.label}</span>
+                            <span className="min-w-0 break-words font-medium text-foreground text-sm">{step.label}</span>
                             {isCurrentStep && <span className="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary">Atual</span>}
                             {(() => {
                               const counts = step as unknown as { itemCount?: number; answeredCount?: number };
@@ -498,21 +498,21 @@ export default function ProjetoProduto({
                               ) : null;
                             })()}
                           </div>
-                          {step.note && <p className="text-xs text-muted-foreground mt-0.5 truncate">{step.note}</p>}
+                          {step.note && <p className="text-xs text-muted-foreground mt-0.5 break-words sm:truncate">{step.note}</p>}
                         </div>
-                        <div className="shrink-0 flex items-center gap-1.5">
+                        <div className="col-start-2 shrink-0 flex items-center gap-1.5">
                           {step.done ? (
                             <CheckCircle2 className="w-4 h-4" style={{ color: "var(--success)" }} />
                           ) : (
                             <Circle className="w-4 h-4 text-muted-foreground" />
                           )}
                           <span
-                            className="text-xs hidden sm:block"
+                            className="text-xs"
                             style={{ color: step.done ? "var(--success)" : "var(--muted-foreground)" }}
                           >
                             {step.done ? "Concluída" : "Pendente"}
                           </span>
-                          <Edit2 className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                          <Edit2 className="w-3.5 h-3.5 text-muted-foreground opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity ml-1" />
                         </div>
                       </div>
                     </button>
@@ -524,11 +524,11 @@ export default function ProjetoProduto({
         </div>
 
         {/* Coluna direita */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* Resumo */}
           <div className="rounded-2xl bg-card card-soft p-5">
             <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-4">Resumo</h3>
-            <div className="space-y-3">
+            <div className="space-y-3 [&>div]:gap-3 [&>div]:items-start [&>div>span:first-child]:shrink-0 [&>div>span:last-child]:min-w-0 [&>div>span:last-child]:break-words [&>div>span:last-child]:text-right">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Etapa atual</span>
                 <span className="text-sm font-medium text-foreground">
@@ -575,14 +575,14 @@ export default function ProjetoProduto({
             ) : todosData && todosData.length > 0 ? (
               <div className="space-y-2">
                 {todosData.map((todo) => (
-                  <div key={todo.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent transition-colors group">
-                    <button onClick={() => requireGuestName(() => toggleTodo(todo))} className="mt-0.5 shrink-0">
+                  <div key={todo.id} className="flex items-start gap-2 p-2 sm:gap-3 sm:p-3 rounded-lg hover:bg-accent transition-colors group">
+                    <button aria-label={todo.completed ? "Reabrir tarefa" : "Concluir tarefa"} onClick={() => requireGuestName(() => toggleTodo(todo))} className="mt-0.5 shrink-0 p-2 sm:p-1">
                       {todo.completed ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Circle className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm leading-snug ${todo.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>{todo.title}</p>
+                      <p className={`text-sm leading-snug break-words ${todo.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>{todo.title}</p>
                     </div>
-                    <button onClick={() => requireGuestName(() => deleteTodoMutation.mutate({ id: todo.id }))} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive">
+                    <button aria-label="Excluir tarefa" onClick={() => requireGuestName(() => deleteTodoMutation.mutate({ id: todo.id }))} className="shrink-0 p-2 sm:p-1 opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-destructive">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -634,17 +634,17 @@ export default function ProjetoProduto({
             ) : documents && documents.length > 0 ? (
               <div className="space-y-2">
                 {documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors group">
+                  <div key={doc.id} className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3 rounded-lg hover:bg-accent transition-colors group">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-primary/15">
                       {doc.type === "foto" ? <ImageIcon className="w-4 h-4 text-primary" /> : <FileText className="w-4 h-4 text-primary" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-foreground hover:text-primary transition-colors truncate block">
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-foreground hover:text-primary transition-colors break-words block">
                         {doc.name}
                       </a>
                       <p className="text-xs text-muted-foreground capitalize">{doc.type}</p>
                     </div>
-                    <button onClick={() => requireGuestName(() => deleteDocMutation.mutate({ id: doc.id }))} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive">
+                    <button aria-label="Excluir documento" onClick={() => requireGuestName(() => deleteDocMutation.mutate({ id: doc.id }))} className="shrink-0 p-2 sm:p-1 opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-destructive">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -687,13 +687,13 @@ export default function ProjetoProduto({
                     <div key={c.id} className="flex gap-2.5 group">
                       <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold bg-primary/20 text-primary">{initials}</div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-xs font-semibold text-foreground">{c.authorName ?? "Usuário"}</span>
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <span className="min-w-0 break-words text-xs font-semibold text-foreground">{c.authorName ?? "Usuário"}</span>
                           <span className="text-xs text-muted-foreground">
                             {new Date(c.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                           </span>
                           {isOwn && (
-                            <button onClick={() => deleteCommentMutation.mutate({ id: c.id })} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive">
+                            <button aria-label="Excluir comentário" onClick={() => deleteCommentMutation.mutate({ id: c.id })} className="ml-auto shrink-0 p-2 sm:p-1 opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-destructive">
                               <Trash2 className="w-3 h-3" />
                             </button>
                           )}
@@ -753,9 +753,9 @@ export default function ProjetoProduto({
 
       {/* Dialog: editar etapa */}
       <Dialog open={editingStageId != null} onOpenChange={(open) => !open && setEditingStageId(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display">{editingStage?.label ?? "Etapa"}</DialogTitle>
+        <DialogContent className="sm:max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
+          <DialogHeader className="pr-6">
+            <DialogTitle className="font-display break-words">{editingStage?.label ?? "Etapa"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <button
@@ -793,7 +793,7 @@ export default function ProjetoProduto({
 
       {/* Dialog: nova tarefa */}
       <Dialog open={showNewTodo} onOpenChange={setShowNewTodo}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">Nova Tarefa</DialogTitle>
           </DialogHeader>

@@ -17,7 +17,7 @@ export default function Projeto() {
   const [isDetail] = useRoute("/projeto/produto/:id");
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-6">
         <h1 className="text-2xl font-display font-semibold text-foreground">Projeto</h1>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -34,13 +34,13 @@ export default function Projeto() {
               <button
                 key={tab.path}
                 onClick={() => setLocation(tab.path)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                className={`flex min-w-0 flex-1 sm:flex-none justify-center items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   active
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4 shrink-0" />
                 {tab.label}
               </button>
             );

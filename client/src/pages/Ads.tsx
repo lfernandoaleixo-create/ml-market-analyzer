@@ -147,8 +147,8 @@ export default function Ads() {
     <PageShell>
       <PageHeader
         title={
-          <span className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/12 text-primary">
+          <span className="flex min-w-0 items-center gap-2.5 break-words">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
               <Megaphone className="h-5 w-5" />
             </span>
             Publicidade Mercado Livre
@@ -176,44 +176,44 @@ export default function Ads() {
         </div>
       )}
 
-      <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-        <TabsList className="bg-muted/60 w-full justify-start overflow-x-auto">
-          <TabsTrigger value="dashboard" className="gap-1.5">
+      <Tabs value={tab} onValueChange={setTab} className="min-w-0 space-y-6">
+        <TabsList className="grid h-auto w-full min-w-0 grid-cols-2 gap-1 bg-muted/60 sm:grid-cols-3 xl:flex xl:h-9 xl:justify-start">
+          <TabsTrigger value="dashboard" className="min-h-11 min-w-0 gap-1.5 whitespace-normal xl:min-h-0 xl:whitespace-nowrap">
             <Layers className="h-4 w-4" /> Resumo
           </TabsTrigger>
-          <TabsTrigger value="campaigns" className="gap-1.5">
+          <TabsTrigger value="campaigns" className="min-h-11 min-w-0 gap-1.5 whitespace-normal xl:min-h-0 xl:whitespace-nowrap">
             <Target className="h-4 w-4" /> Campanhas
           </TabsTrigger>
-          <TabsTrigger value="ads" className="gap-1.5">
+          <TabsTrigger value="ads" className="min-h-11 min-w-0 gap-1.5 whitespace-normal xl:min-h-0 xl:whitespace-nowrap">
             <ShoppingCart className="h-4 w-4" /> Anúncios
           </TabsTrigger>
-          <TabsTrigger value="categories" className="gap-1.5">
+          <TabsTrigger value="categories" className="min-h-11 min-w-0 gap-1.5 whitespace-normal xl:min-h-0 xl:whitespace-nowrap">
             <Boxes className="h-4 w-4" /> Categorias
           </TabsTrigger>
-          <TabsTrigger value="audit" className="gap-1.5">
+          <TabsTrigger value="audit" className="min-h-11 min-w-0 gap-1.5 whitespace-normal xl:min-h-0 xl:whitespace-nowrap">
             <ShieldQuestion className="h-4 w-4" /> Auditoria Mamba
           </TabsTrigger>
-          <TabsTrigger value="intel" className="gap-1.5">
+          <TabsTrigger value="intel" className="min-h-11 min-w-0 gap-1.5 whitespace-normal xl:min-h-0 xl:whitespace-nowrap">
             <Lightbulb className="h-4 w-4" /> Inteligência
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dashboard">
+        <TabsContent value="dashboard" className="min-w-0">
           <DashboardTab period={tabPeriod} />
         </TabsContent>
-        <TabsContent value="campaigns">
+        <TabsContent value="campaigns" className="min-w-0">
           <CampaignsTab period={tabPeriod} />
         </TabsContent>
-        <TabsContent value="ads">
+        <TabsContent value="ads" className="min-w-0">
           <AdsTab period={tabPeriod} />
         </TabsContent>
-        <TabsContent value="categories">
+        <TabsContent value="categories" className="min-w-0">
           <CategoriesTab period={tabPeriod} />
         </TabsContent>
-        <TabsContent value="audit">
+        <TabsContent value="audit" className="min-w-0">
           <AuditTab period={tabPeriod} />
         </TabsContent>
-        <TabsContent value="intel">
+        <TabsContent value="intel" className="min-w-0">
           <IntelTab period={tabPeriod} />
         </TabsContent>
       </Tabs>
@@ -263,7 +263,7 @@ function DashboardTab({ period }: { period: TabPeriod }) {
               Receita não é lucro: estes números não descontam produto, impostos, comissão e frete.
             </p>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => q.refetch()} disabled={q.isFetching}>
+          <Button variant="outline" size="sm" className="min-h-11 w-full gap-1.5 sm:min-h-0 sm:w-auto" onClick={() => q.refetch()} disabled={q.isFetching}>
             <RefreshCw className={cn("h-3.5 w-3.5", q.isFetching && "animate-spin")} />
             Atualizar resumo
           </Button>
@@ -279,7 +279,7 @@ function DashboardTab({ period }: { period: TabPeriod }) {
         </details>
       </SectionCard>
       {/* Primary KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Gasto em publicidade"
           value={formatBRL(m.cost)}
@@ -312,7 +312,7 @@ function DashboardTab({ period }: { period: TabPeriod }) {
       </div>
 
       {/* Secondary KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Cliques" value={formatNumber(m.clicks)} icon={MousePointerClick} accent="violet" sublabel={`CPC médio ${formatBRL(m.cpc)}`} />
         <KpiCard label="Impressões" value={formatCompact(m.prints)} icon={Eye} accent="blue" sublabel={`CTR ${formatRatePct(m.ctr, 2)}`} />
         <KpiCard label="Unidades vendidas" value={formatNumber(m.units)} icon={ShoppingCart} accent="emerald" sublabel={`Conversão ${d.conversionRate != null ? formatRatePct(d.conversionRate) : "—"}`} />
@@ -389,8 +389,8 @@ function CampaignTable({ campaigns, compact = false }: { campaigns: AdsCampaign[
     return <p className="py-6 text-center text-sm text-muted-foreground">Sem campanhas no período.</p>;
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="min-w-0 max-w-full overflow-x-auto rounded-md focus-visible:outline-2 focus-visible:outline-primary" role="region" aria-label="Tabela de campanhas — role horizontalmente para ver todas as colunas" tabIndex={0}>
+      <table className="w-full min-w-[760px] text-sm [&_th]:whitespace-nowrap [&_td:not(:first-child)]:whitespace-nowrap">
         <thead>
           <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground" style={{ borderColor: "var(--border)" }}>
             <th className="py-2.5 pr-3 font-semibold">Campanha</th>
@@ -411,8 +411,8 @@ function CampaignTable({ campaigns, compact = false }: { campaigns: AdsCampaign[
             return (
               <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30" style={{ borderColor: "var(--border)" }}>
                 <td className="py-3 pr-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{c.name}</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="max-w-[280px] break-words font-medium [overflow-wrap:anywhere]">{c.name}</span>
                     <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", st.cls)}>{st.label}</Badge>
                   </div>
                 </td>
@@ -466,6 +466,7 @@ function AdsTab({ period }: { period: TabPeriod }) {
         <Button
           variant={onlyActive ? "default" : "outline"}
           size="sm"
+          className="min-h-11 whitespace-normal sm:min-h-0"
           onClick={() => setOnlyActive((v) => !v)}
         >
           {onlyActive ? "Mostrando com gasto" : "Só com gasto"}
@@ -482,8 +483,8 @@ function AdsTable({ ads, compact = false }: { ads: AdsAdRow[]; compact?: boolean
     return <p className="py-6 text-center text-sm text-muted-foreground">Nenhum anúncio para exibir.</p>;
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="min-w-0 max-w-full overflow-x-auto rounded-md focus-visible:outline-2 focus-visible:outline-primary" role="region" aria-label="Tabela de anúncios — role horizontalmente para ver todas as colunas" tabIndex={0}>
+      <table className="w-full min-w-[700px] text-sm [&_th]:whitespace-nowrap [&_td:not(:first-child)]:whitespace-nowrap">
         <thead>
           <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground" style={{ borderColor: "var(--border)" }}>
             <th className="py-2.5 pr-3 font-semibold">Anúncio</th>
@@ -506,11 +507,11 @@ function AdsTable({ ads, compact = false }: { ads: AdsAdRow[]; compact?: boolean
                     <div className="h-9 w-9 shrink-0 rounded-md bg-muted" />
                   )}
                   <div className="min-w-0">
-                    <p className="truncate max-w-[280px] font-medium">{a.title}</p>
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <p className="max-w-[280px] whitespace-normal break-words font-medium [overflow-wrap:anywhere]">{a.title}</p>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                       {a.buyBoxWinner && <span className="text-emerald-600">Ganha Buy Box</span>}
                       {a.permalink && (
-                        <a href={a.permalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 hover:text-primary">
+                        <a href={a.permalink} target="_blank" rel="noreferrer" className="inline-flex min-h-11 min-w-11 items-center justify-center gap-0.5 rounded px-2 text-xs hover:text-primary focus-visible:outline-2 focus-visible:outline-primary sm:min-h-0 sm:min-w-0 sm:px-0 sm:text-[10px]">
                           ver <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       )}
@@ -588,13 +589,13 @@ function IntelTab({ period }: { period: TabPeriod }) {
             const meta = SEVERITY_META[it.severity];
             const Icon = meta.icon;
             return (
-              <div key={it.id} className={cn("rounded-2xl border bg-card p-5 card-soft", meta.ring)}>
+              <div key={it.id} className={cn("min-w-0 rounded-2xl border bg-card p-5 card-soft [overflow-wrap:anywhere]", meta.ring)}>
                 <div className="flex items-start gap-3">
                   <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", meta.cls)}>
                     <Icon className="h-4.5 w-4.5" />
                   </div>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-display text-sm tracking-tight">{it.title}</h3>
                       <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", meta.cls)}>{meta.label}</Badge>
                     </div>
@@ -653,8 +654,8 @@ function CategoriesTab({ period }: { period: TabPeriod }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/[0.05] px-5 py-3.5 flex-1 min-w-[260px]">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-start gap-3 rounded-2xl border border-primary/20 bg-primary/[0.05] px-5 py-3.5">
           <Boxes className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="text-sm">
             <p className="font-semibold">Rastreio por categoria — em tempo real</p>
@@ -664,7 +665,7 @@ function CategoriesTab({ period }: { period: TabPeriod }) {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => q.refetch()} disabled={q.isFetching} className="gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => q.refetch()} disabled={q.isFetching} className="min-h-11 w-full gap-1.5 sm:min-h-0 sm:w-auto sm:shrink-0">
           <RefreshCw className={cn("h-3.5 w-3.5", q.isFetching && "animate-spin")} />
           Atualizar
         </Button>
@@ -675,15 +676,15 @@ function CategoriesTab({ period }: { period: TabPeriod }) {
           const accent = CATEGORY_ACCENT[c.key] ?? CATEGORY_ACCENT.outros;
           const isOpen = openKey === c.key;
           return (
-            <div key={c.key} className={cn("rounded-2xl border bg-gradient-to-br p-5 card-soft", accent)}>
+            <div key={c.key} className={cn("min-w-0 rounded-2xl border bg-gradient-to-br p-5 card-soft [overflow-wrap:anywhere]", accent)}>
               <div className="flex items-start justify-between gap-2">
-                <div>
+                <div className="min-w-0">
                   <h3 className="font-display text-lg tracking-tight text-foreground">{c.label}</h3>
                   <p className="text-xs text-muted-foreground">
                     {c.adCount} anúncio(s) · {c.activeAdCount} ativo(s)
                   </p>
                 </div>
-                <Boxes className="h-5 w-5 opacity-70" />
+                <Boxes className="h-5 w-5 shrink-0 opacity-70" />
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3 text-foreground">
@@ -700,14 +701,14 @@ function CategoriesTab({ period }: { period: TabPeriod }) {
                 <CatMetric label="Unidades" value={formatNumber(c.metrics.units)} icon={ShoppingCart} />
               </div>
 
-              <div className="mt-3 flex items-center justify-between border-t pt-3 text-xs" style={{ borderColor: "var(--border)" }}>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs" style={{ borderColor: "var(--border)" }}>
                 <span className="text-muted-foreground">
                   CTR {c.metrics.ctr ? formatRatePct(c.metrics.ctr, 2) : "—"} · Conv.{" "}
                   {c.derived.conversionRate != null ? formatRatePct(c.derived.conversionRate) : "—"}
                 </span>
                 <button
                   onClick={() => setOpenKey(isOpen ? null : c.key)}
-                  className="inline-flex items-center gap-1 font-medium hover:underline"
+                  className="inline-flex min-h-11 items-center gap-1 rounded px-2 font-medium hover:underline focus-visible:outline-2 focus-visible:outline-primary sm:min-h-0 sm:px-0"
                 >
                   {isOpen ? "Ocultar" : "Ver anúncios"} <ArrowRight className="h-3 w-3" />
                 </button>
@@ -716,14 +717,14 @@ function CategoriesTab({ period }: { period: TabPeriod }) {
               {isOpen && c.sampleAds.length > 0 && (
                 <div className="mt-3 space-y-2 border-t pt-3" style={{ borderColor: "var(--border)" }}>
                   {c.sampleAds.map((a) => (
-                    <div key={a.itemId} className="flex items-center gap-2 text-xs">
+                    <div key={a.itemId} className="flex min-w-0 items-start gap-2 text-xs">
                       {a.thumbnail ? (
                         <img src={a.thumbnail.replace("http://", "https://")} alt="" className="h-7 w-7 shrink-0 rounded object-cover" />
                       ) : (
                         <div className="h-7 w-7 shrink-0 rounded bg-muted" />
                       )}
-                      <span className="truncate flex-1 text-foreground/80">{a.title}</span>
-                      <span className="tabular-nums font-medium">{formatBRL(a.metrics.cost)}</span>
+                      <span className="min-w-0 flex-1 break-words text-foreground/80">{a.title}</span>
+                      <span className="shrink-0 whitespace-nowrap tabular-nums font-medium">{formatBRL(a.metrics.cost)}</span>
                     </div>
                   ))}
                 </div>
@@ -752,11 +753,11 @@ function CatMetric({
   valueClass?: string;
 }) {
   return (
-    <div>
-      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-        <Icon className="h-3 w-3" /> {label}
+    <div className="min-w-0">
+      <div className="flex items-center gap-1 break-words text-[11px] text-muted-foreground">
+        <Icon className="h-3 w-3 shrink-0" /> {label}
       </div>
-      <div className={cn("font-semibold tabular-nums", valueClass)}>{value}</div>
+      <div className={cn("break-words font-semibold tabular-nums [overflow-wrap:anywhere]", valueClass)}>{value}</div>
     </div>
   );
 }
@@ -814,7 +815,7 @@ function AuditTab({ period }: { period: TabPeriod }) {
       </div>
 
       {/* Headline KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Dias monitorados"
           value={String(data.daysTracked)}
@@ -874,7 +875,7 @@ function AuditTab({ period }: { period: TabPeriod }) {
               const vm = VERDICT_META[ch.verdict];
               const VIcon = vm.icon;
               return (
-                <div key={ch.id} className={cn("rounded-xl border p-4", vm.cls)}>
+                <div key={ch.id} className={cn("min-w-0 rounded-xl border p-4 [overflow-wrap:anywhere]", vm.cls)}>
                   <div className="flex flex-wrap items-center gap-2 text-foreground">
                     <span className="font-semibold">{ch.campaignName}</span>
                     <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", vm.cls)}>
@@ -885,12 +886,12 @@ function AuditTab({ period }: { period: TabPeriod }) {
                       {new Date(ch.detectedDay + "T00:00:00-03:00").toLocaleDateString("pt-BR")}
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center gap-2 text-sm">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                     <span className="text-muted-foreground">{FIELD_LABEL[ch.field] ?? ch.field}:</span>
                     <span className="rounded bg-background/60 px-1.5 py-0.5 font-medium line-through opacity-70">
                       {ch.oldValue ?? "—"}
                     </span>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="rounded bg-background/60 px-1.5 py-0.5 font-semibold">
                       {ch.newValue ?? "—"}
                     </span>
@@ -927,7 +928,7 @@ function AuditTab({ period }: { period: TabPeriod }) {
               const vm = VERDICT_META[c.ourVerdict];
               const VIcon = vm.icon;
               return (
-                <div key={c.campaignId} className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
+                <div key={c.campaignId} className="min-w-0 rounded-xl border p-4 [overflow-wrap:anywhere]" style={{ borderColor: "var(--border)" }}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">{c.name}</span>
                     {c.managedByMamba && (

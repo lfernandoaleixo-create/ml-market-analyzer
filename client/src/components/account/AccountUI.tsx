@@ -17,12 +17,12 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="space-y-1">
+    <div className="flex min-w-0 flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0 max-w-full space-y-1 break-words">
         <h1 className="font-display text-2xl md:text-3xl tracking-tight">{title}</h1>
         {subtitle && <p className="text-sm text-muted-foreground max-w-2xl">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
@@ -88,7 +88,7 @@ export function KpiCard({
               // Proportional, uniform size across every card. clamp() keeps long
               // numbers from overflowing narrow cards while staying readable on
               // wide ones. All cards share the same baseline.
-              "font-display leading-none tracking-tight tabular-nums whitespace-nowrap",
+              "font-display leading-tight tracking-tight tabular-nums break-words",
               "text-[clamp(1.35rem,1.9vw,1.7rem)]",
               valueClassName,
             )}
@@ -179,9 +179,9 @@ export function SectionCard({
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {actions && (
-          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex max-w-full flex-wrap items-center gap-2">
+        {actions && !collapsible && (
+          <div className="flex max-w-full flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
             {actions}
           </div>
         )}
@@ -203,28 +203,33 @@ export function SectionCard({
     <Card className={cn("card-soft border-0 rounded-2xl", className)}>
       {showHeader &&
         (collapsible ? (
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
+          <div
             className={cn(
-              "flex w-full items-center justify-between gap-3 px-5 text-left transition-colors hover:bg-muted/30",
+              "flex w-full flex-wrap items-center justify-between gap-3 px-4 sm:px-5",
               // Slim header; only show the bottom divider when expanded.
               open ? "border-b py-3 rounded-t-2xl" : "py-3 rounded-2xl",
             )}
             style={{ borderColor: "var(--border)" }}
           >
-            {headerInner}
-          </button>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg py-1 text-left transition-colors hover:bg-muted/30"
+            >
+              {headerInner}
+            </button>
+            {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
+          </div>
         ) : (
           <div
-            className="flex items-center justify-between gap-3 border-b px-5 py-4"
+            className="flex flex-wrap items-center justify-between gap-3 border-b px-4 sm:px-5 py-4"
             style={{ borderColor: "var(--border)" }}
           >
             {headerInner}
           </div>
         ))}
-      {(!collapsible || open) && <div className={cn("p-5", bodyClassName)}>{children}</div>}
+      {(!collapsible || open) && <div className={cn("min-w-0 p-4 sm:p-5", bodyClassName)}>{children}</div>}
     </Card>
   );
 }
@@ -292,8 +297,8 @@ export function ErrorState({
 /** Page-level container with consistent padding/spacing. */
 export function PageShell({ children }: { children: ReactNode }) {
   return (
-    <div className="canvas-wash min-h-full">
-      <div className="container max-w-[1320px] py-6 md:py-8 space-y-6 animate-rise">{children}</div>
+    <div className="canvas-wash min-h-full min-w-0">
+      <div className="container min-w-0 max-w-[1320px] py-5 md:py-8 space-y-5 md:space-y-6 animate-rise">{children}</div>
     </div>
   );
 }

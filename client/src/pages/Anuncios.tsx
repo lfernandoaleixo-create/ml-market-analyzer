@@ -417,14 +417,14 @@ export default function Anuncios() {
         title="Meus anúncios"
         subtitle={`Veja quais anúncios estão na conta${conn.data?.nickname ? ` ${conn.data.nickname}` : " conectada"}, quantos são e o desempenho de visitas.`}
         actions={
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2.5 sm:w-auto">
             {!isLoading && (data?.stale || (error && data)) ? (
-              <span className="hidden items-center gap-1.5 text-xs text-amber-600 sm:inline-flex" title="O Mercado Livre estava congestionado; exibindo os últimos dados confirmados.">
+              <span className="inline-flex w-full items-center gap-1.5 text-xs text-amber-600 sm:w-auto" title="O Mercado Livre estava congestionado; exibindo os últimos dados confirmados.">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                 {`Dados em cache · ${data?.asOf ? `de ${new Date(data.asOf).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "recentes"}`}
               </span>
             ) : !isLoading && dataUpdatedAt ? (
-              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
+              <span className="inline-flex w-full items-center gap-1.5 text-xs text-muted-foreground sm:w-auto">
                 <span className={cn("h-1.5 w-1.5 rounded-full", isFetching ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
                 {isFetching ? "Atualizando…" : `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
               </span>
@@ -432,7 +432,7 @@ export default function Anuncios() {
             <Button
               size="sm"
               variant="outline"
-              className="h-9 gap-1.5 bg-card"
+              className="h-10 flex-1 gap-1.5 bg-card sm:h-9 sm:flex-none"
               onClick={() => void updateDashboard()}
               disabled={isLoading || isFetching || visits.isFetching || refreshDashboard.isPending}
               title="Buscar os dados mais recentes agora"
@@ -443,7 +443,7 @@ export default function Anuncios() {
             <Button
               size="sm"
               variant="outline"
-              className="h-9 gap-1.5 bg-card"
+              className="h-10 flex-1 gap-1.5 bg-card sm:h-9 sm:flex-none"
               onClick={exportPdf}
               disabled={isLoading || sorted.length === 0}
               title="Baixar PDF dos anúncios filtrados (com todas as colunas)"
@@ -457,7 +457,7 @@ export default function Anuncios() {
       {/* Keep the restored Raio-X visible before the other analytics. */}
       <TechSpecsCard connected={conn.data?.connected === true} />
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Anúncios consultados" value={s ? formatNumber(s.total) : "—"} loading={isLoading} icon={Package} accent="blue" />
         <KpiCard label="Ativos" value={s ? formatNumber(s.active) : "—"} loading={isLoading} icon={PlayCircle} accent="emerald" />
         <KpiCard label="Pausados" value={s ? formatNumber(s.paused) : "—"} loading={isLoading} icon={PauseCircle} accent="amber" />
@@ -521,8 +521,8 @@ export default function Anuncios() {
             : `${formatNumber(filtered.length)} de ${formatNumber(items.length)} anúncios`
         }
         actions={
-          <div className="flex items-center gap-2">
-            <div className="relative w-44 md:w-64">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+            <div className="relative w-full min-w-0 sm:w-44 md:w-64">
               <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={filters.search ?? ""}
@@ -533,7 +533,7 @@ export default function Anuncios() {
               {filters.search && (
                 <button
                   onClick={() => setFilters((p) => ({ ...p, search: "" }))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-0 top-1/2 flex h-9 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   aria-label="Limpar busca"
                 >
                   <X className="h-4 w-4" />
@@ -552,7 +552,7 @@ export default function Anuncios() {
               <Badge
                 key={label}
                 variant="outline"
-                className="border-primary/30 bg-primary/10 text-primary"
+                className="max-w-full whitespace-normal break-words border-primary/30 bg-primary/10 text-primary"
               >
                 {label}
               </Badge>
@@ -597,7 +597,7 @@ export default function Anuncios() {
             Frete grátis
           </FilterChip>
           <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          <div className="flex items-center gap-1.5">
+          <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
             <span className="text-xs text-muted-foreground">Visualizações</span>
             <Select
               value={(filters.visitBucketIds && filters.visitBucketIds[0]) ?? "all"}
@@ -605,7 +605,7 @@ export default function Anuncios() {
                 setFilters((p) => ({ ...p, visitBucketIds: v === "all" ? [] : [v] }))
               }
             >
-              <SelectTrigger className="h-8 w-[150px] px-2.5 text-xs">
+              <SelectTrigger className="h-10 min-w-0 flex-1 px-2.5 text-xs sm:h-8 sm:w-[150px] sm:flex-none">
                 <SelectValue placeholder="Todas as faixas" />
               </SelectTrigger>
               <SelectContent>
@@ -619,7 +619,7 @@ export default function Anuncios() {
             </Select>
           </div>
           <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          <div className="flex items-center gap-1.5">
+          <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
             <span className="text-xs text-muted-foreground">Preço</span>
             <Input
               type="number"
@@ -629,7 +629,7 @@ export default function Anuncios() {
                 setFilters((p) => ({ ...p, priceMin: e.target.value === "" ? null : Number(e.target.value) }))
               }
               placeholder="mín"
-              className="h-8 w-20 px-2.5 text-xs"
+              className="h-10 min-w-0 flex-1 px-2.5 text-xs sm:h-8 sm:w-20 sm:flex-none"
             />
             <span className="text-xs text-muted-foreground">–</span>
             <Input
@@ -640,7 +640,7 @@ export default function Anuncios() {
                 setFilters((p) => ({ ...p, priceMax: e.target.value === "" ? null : Number(e.target.value) }))
               }
               placeholder="máx"
-              className="h-8 w-20 px-2.5 text-xs"
+              className="h-10 min-w-0 flex-1 px-2.5 text-xs sm:h-8 sm:w-20 sm:flex-none"
             />
           </div>
           {activeFilterCount > 0 && (
@@ -687,7 +687,7 @@ export default function Anuncios() {
         title={`Visualizações por status (${visitWindow}d)`}
         description="Como as visitas do período se distribuem entre anúncios ativos, pausados e encerrados — e quantos ativos estão realmente recebendo tráfego."
       >
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <KpiCard
             label="Visitas · ativos"
             value={visitVal(s?.visitsActive)}
@@ -866,7 +866,7 @@ function FilterChip({
     <button
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors",
+        "inline-flex min-h-10 items-center rounded-full border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-8",
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-foreground/30",
@@ -920,7 +920,7 @@ function DistributionCard({
                 key={b.id}
                 onClick={() => onToggle(b.id)}
                 className={cn(
-                  "group flex w-full items-center gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-secondary",
+                  "group flex min-h-10 w-full items-center gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-0",
                   active && "bg-secondary ring-1 ring-primary/40",
                 )}
               >
@@ -966,7 +966,7 @@ function SortableTh({
       <button
         onClick={() => onSort(k)}
         className={cn(
-          "inline-flex items-center gap-1 transition-colors hover:text-foreground",
+          "inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-0",
           align === "right" && "flex-row-reverse",
           align === "center" && "justify-center",
           active && "text-foreground",
@@ -1006,7 +1006,7 @@ function DailyHeader({
               key={key}
               onClick={() => onSort(key)}
               className={cn(
-                "flex w-12 shrink-0 flex-col items-center justify-end gap-1 rounded-md py-1 transition-colors hover:text-foreground",
+                "flex min-h-10 w-12 shrink-0 flex-col items-center justify-end gap-1 rounded-md py-1 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-0",
                 active ? "bg-muted/60 text-foreground" : "text-muted-foreground",
                 isToday && !active && "text-primary",
               )}
@@ -1125,8 +1125,8 @@ function ListingsTable({
     return labels;
   }, [sampleSeries, todayKey]);
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40" role="region" aria-label="Lista de anúncios: role horizontalmente para acessar todas as colunas" tabIndex={0}>
+      <table className="w-full min-w-[1040px] text-sm">
         <thead>
           <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
             <SortableTh label="Anúncio" k="title" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="pr-3" align="left" />
@@ -1143,9 +1143,9 @@ function ListingsTable({
           {rows.map((r, rowIndex) => (
             <tr key={r.itemId} className="group">
               <td className="py-3 pr-3">
-                <ProductCell title={r.title} thumbnail={r.thumbnail} permalink={r.permalink} titleClassName="min-w-[220px]" clampTitle={false} />
+                <ProductCell title={r.title} thumbnail={r.thumbnail} permalink={r.permalink} titleClassName="w-64 max-w-96 break-words" clampTitle={false} />
               </td>
-              <td className="px-3 text-center tabular-nums">{formatBRL(r.price)}</td>
+              <td className="whitespace-nowrap px-3 text-center tabular-nums">{formatBRL(r.price)}</td>
               <td className="px-3 text-center tabular-nums">
                 {r.availableQuantity === 0 ? (
                   <span className="text-rose-600 font-medium">0</span>

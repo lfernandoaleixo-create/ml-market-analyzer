@@ -15,15 +15,15 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <div className="flex flex-col gap-4 border-b border-border/70 pb-6 sm:flex-row sm:items-end sm:justify-between">
-      <div className="space-y-1.5">
+    <div className="flex min-w-0 flex-col flex-wrap gap-4 border-b border-border/70 pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0 max-w-full space-y-1.5 break-words">
         {eyebrow && (
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-primary">{eyebrow}</div>
         )}
         <h1 className="text-2xl font-display font-600 tracking-tight sm:text-3xl">{title}</h1>
         {description && <p className="max-w-2xl text-sm text-muted-foreground leading-relaxed">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
@@ -53,13 +53,13 @@ export function DataSourceBanner() {
         ? "Dados reais"
         : "Conectar";
   return (
-    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${tone}`}>
+    <div className={`flex min-w-0 flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm ${tone}`}>
       {isDemo ? (
         <Database className="h-4 w-4 shrink-0" />
       ) : (
         <Radio className="h-4 w-4 shrink-0" />
       )}
-      <span className="leading-snug">{data.message}</span>
+      <span className="min-w-0 flex-1 basis-48 break-words leading-snug">{data.message}</span>
       <Badge variant="outline" className="ml-auto shrink-0 capitalize">
         {label}
       </Badge>

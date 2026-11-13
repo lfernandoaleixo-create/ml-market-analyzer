@@ -167,7 +167,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
       ) : null}
 
       {/* Summary KPIs */}
-      <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Fichas completas"
           value={isLoading ? "" : summary ? `${formatNumber(summary.complete)} / ${formatNumber(summary.total)}` : "—"}
@@ -203,8 +203,8 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
       </div>
 
       {/* Toolbar */}
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-xs">
+      <div className="mt-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="relative w-full min-w-0 sm:max-w-xs">
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
@@ -213,7 +213,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
             className="h-9 bg-card pl-9"
           />
         </div>
-        <div className="flex items-center gap-1 rounded-xl bg-secondary p-1">
+        <div className="flex max-w-full flex-wrap items-center gap-1 rounded-xl bg-secondary p-1">
           {(
             [
               { key: "incomplete", label: "Pendentes" },
@@ -225,7 +225,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
               key={t.key}
               size="sm"
               variant={mode === t.key ? "default" : "ghost"}
-              className="h-8 rounded-lg px-3 text-xs"
+              className="h-auto min-h-10 min-w-0 rounded-lg px-3 py-2 text-xs whitespace-normal sm:min-h-8 sm:py-1"
               onClick={() => setMode(t.key)}
             >
               {t.label}
@@ -257,19 +257,20 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
               key={it.itemId}
               onClick={() => setOpenId(it.itemId)}
               className={cn(
-                "flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left transition-all",
+                "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border bg-card p-3 text-left transition-all sm:flex",
                 "hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
               )}
             >
-              <div className="min-w-0 flex-1">
+              <div className="col-span-2 min-w-0 sm:flex-1">
                 <ProductCell
                   title={it.title}
                   thumbnail={it.thumbnail}
                   permalink={undefined}
-                  titleClassName="max-w-full pr-2"
+                  titleClassName="min-w-0 max-w-full break-words pr-2"
+                  clampTitle={false}
                 />
               </div>
-              <div className="hidden w-36 shrink-0 sm:block">
+              <div className="col-span-2 w-full min-w-0 sm:w-36 sm:shrink-0">
                 <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>{it.filledAttributes}/{it.totalAttributes}</span>
                   <span className="tabular-nums">{Math.round(it.completeness * 100)}%</span>
@@ -281,7 +282,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
                   />
                 </div>
               </div>
-              <div className="shrink-0">
+              <div className="min-w-0 sm:shrink-0">
                 {it.complete ? (
                   <Badge className="border-emerald-500/20 bg-emerald-500/12 text-emerald-700">
                     Completa
@@ -334,7 +335,7 @@ export function TechSpecsCard({ connected }: { connected: boolean }) {
 
       {/* Correction drawer */}
       <Sheet open={openId != null} onOpenChange={(o) => !o && setOpenId(null)}>
-        <SheetContent className="flex w-full flex-col overflow-y-auto p-0 sm:max-w-lg">
+        <SheetContent className="flex h-dvh max-h-dvh w-full min-w-0 flex-col gap-0 overflow-y-auto overscroll-y-contain p-0 sm:max-w-lg">
           {selected && <TechSpecCorrection item={selected} />}
         </SheetContent>
       </Sheet>
@@ -421,7 +422,7 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
 
   return (
     <>
-      <SheetHeader className="space-y-3 border-b p-5 pr-12 text-left">
+      <SheetHeader className="shrink-0 space-y-3 border-b p-4 pr-12 text-left sm:p-5 sm:pr-12">
         <SheetTitle className="flex items-center gap-2 text-base leading-tight">
           <Stethoscope className="h-4 w-4 shrink-0 text-primary" />
           <span>Corrigir Ficha Técnica</span>
@@ -431,7 +432,8 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
             title={item.title}
             thumbnail={item.thumbnail}
             permalink={item.permalink}
-            titleClassName="max-w-full"
+            titleClassName="min-w-0 max-w-full break-words"
+            clampTitle={false}
           />
         </div>
         <SheetDescription asChild>
@@ -454,11 +456,11 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
         </SheetDescription>
       </SheetHeader>
 
-      <div className="flex-1 space-y-6 p-5">
+      <div className="min-w-0 shrink-0 space-y-6 p-4 sm:p-5">
         {/* Progress to OK */}
         {missing.length > 0 && (
           <div>
-            <div className="mb-1.5 flex items-center justify-between text-xs">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-medium">Preenchimento dos faltantes</span>
               <span className="tabular-nums text-muted-foreground">{resolvedNow}/{missing.length}</span>
             </div>
@@ -496,10 +498,10 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
                       done ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/20 bg-amber-500/5",
                     )}
                   >
-                    <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
                         <TypeIcon className={cn("h-3.5 w-3.5 shrink-0", done ? "text-emerald-600" : "text-amber-600")} />
-                        <span className="truncate text-sm font-medium">{a.name}</span>
+                        <span className="min-w-0 break-words text-sm font-medium">{a.name}</span>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         {done && <Check className="h-3.5 w-3.5 text-emerald-600" />}
@@ -526,9 +528,9 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
                       />
                     )}
 
-                    <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="mt-2 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                       {a.hint && !isNA ? (
-                        <p className="truncate text-[11px] text-muted-foreground">Ex.: {a.hint}</p>
+                        <p className="min-w-0 break-words text-[11px] text-muted-foreground">Ex.: {a.hint}</p>
                       ) : (
                         <span />
                       )}
@@ -536,7 +538,7 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
                         type="button"
                         onClick={() => toggleNA(a.id)}
                         className={cn(
-                          "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+                          "flex min-h-10 shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-0",
                           isNA
                             ? "bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/20"
                             : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -570,9 +572,9 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
             </h3>
             <ul className="space-y-1.5">
               {filled.map((a) => (
-                <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
-                  <span className="truncate text-sm text-muted-foreground">{a.name}</span>
-                  <span className="ml-2 shrink-0 truncate text-sm font-medium" title={a.valueName ?? undefined}>
+                <li key={a.id} className="flex min-w-0 flex-col items-start gap-1 rounded-lg border bg-card px-3 py-2 sm:flex-row sm:justify-between sm:gap-2">
+                  <span className="min-w-0 break-words text-sm text-muted-foreground">{a.name}</span>
+                  <span className="min-w-0 max-w-full break-words text-sm font-medium sm:text-right" title={a.valueName ?? undefined}>
                     {a.valueName ?? "—"}
                   </span>
                 </li>
@@ -583,7 +585,7 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
       </div>
 
       {/* Sticky footer: copy full sheet */}
-      <div className="sticky bottom-0 space-y-2 border-t bg-background/95 p-4 backdrop-blur">
+      <div className="min-w-0 shrink-0 space-y-2 border-t bg-background/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur sm:sticky sm:bottom-0">
         {isOk ? (
           <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
@@ -595,9 +597,9 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
             Preencha os {stillMissing.length} atributo{stillMissing.length === 1 ? "" : "s"} faltante{stillMissing.length === 1 ? "" : "s"} para liberar a ficha completa.
           </div>
         )}
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
-            className="flex-1 gap-1.5"
+            className="h-auto min-h-10 min-w-0 gap-1.5 whitespace-normal sm:flex-1"
             disabled={!isOk}
             onClick={copyFullSheet}
           >
@@ -605,7 +607,7 @@ function TechSpecCorrection({ item }: { item: TechSpecListing }) {
             {copied ? "Copiado!" : "Copiar ficha completa"}
           </Button>
           {item.permalink && (
-            <Button asChild variant="outline" className="gap-1.5 bg-card">
+            <Button asChild variant="outline" className="min-h-10 gap-1.5 bg-card">
               <a href={item.permalink} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4" /> Abrir no ML
               </a>
@@ -684,7 +686,7 @@ function AttributeInput({
           value={value}
           onChange={(e) => onValue(e.target.value)}
           placeholder="Valor"
-          className="h-9 flex-1 bg-card"
+          className="h-9 min-w-0 flex-1 bg-card"
         />
         {hasUnits ? (
           <Select value={unit} onValueChange={onUnit}>

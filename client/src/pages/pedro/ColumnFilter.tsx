@@ -61,7 +61,7 @@ export default function ColumnFilter({
           <button
             type="button"
             aria-label={`Filtrar ${label}`}
-            className={`relative inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+            className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors sm:h-6 sm:w-6 ${
               active
                 ? "bg-white/25 text-white"
                 : "text-white/60 hover:bg-white/15 hover:text-white"
@@ -77,20 +77,20 @@ export default function ColumnFilter({
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="w-60 p-0 text-foreground"
+          className="w-60 max-w-[calc(100vw-24px)] max-h-[min(calc(100dvh-24px),var(--radix-popover-content-available-height))] overflow-y-auto p-0 text-foreground whitespace-normal"
           onOpenAutoFocus={(e) => {
             if (!searchable) e.preventDefault();
           }}
         >
-          <div className="flex items-center justify-between border-b border-border px-3 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <span className="min-w-0 break-words text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {label}
             </span>
             {active && (
               <button
                 type="button"
                 onClick={onClear}
-                className="inline-flex items-center gap-1 rounded text-xs font-medium text-primary hover:underline"
+                className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded text-xs font-medium text-primary hover:underline sm:min-h-0"
               >
                 <X className="h-3 w-3" />
                 Limpar
@@ -106,6 +106,7 @@ export default function ColumnFilter({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Buscar…"
+                  aria-label={`Buscar opções de ${label}`}
                   className="h-8 pl-7 text-sm"
                 />
               </div>
@@ -125,7 +126,8 @@ export default function ColumnFilter({
                   key={opt.value || "__empty__"}
                   type="button"
                   onClick={() => onToggle(opt.value)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                  aria-pressed={checked}
+                  className="flex min-h-10 w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground sm:min-h-0"
                 >
                   <span
                     className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
@@ -136,7 +138,7 @@ export default function ColumnFilter({
                   >
                     {checked && <Check className="h-3 w-3" />}
                   </span>
-                  <span className="truncate">{opt.label}</span>
+                  <span className="min-w-0 whitespace-normal break-words">{opt.label}</span>
                 </button>
               );
             })}

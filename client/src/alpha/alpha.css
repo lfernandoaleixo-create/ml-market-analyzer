@@ -2616,3 +2616,306 @@ fieldset:disabled button {
     text-align: left;
   }
 }
+
+/* Mercato instalável: adaptação local sem containment nos ancestrais dos overlays. */
+.alpha-calculator .header-inner,
+.alpha-calculator .header-actions,
+.alpha-calculator .workspace,
+.alpha-calculator .panel-heading,
+.alpha-calculator .field-row {
+  flex-wrap: wrap;
+}
+.alpha-calculator .header-actions {
+  gap: 10px 16px;
+}
+.alpha-calculator .header-actions button {
+  min-width: 0;
+  text-align: left;
+}
+.alpha-calculator .input-column {
+  flex: 1 1 440px;
+  max-width: 100%;
+}
+.alpha-calculator .result-column {
+  max-width: 100%;
+  min-width: 0;
+}
+.alpha-calculator .panel-heading h2,
+.alpha-calculator .panel-heading .trailing,
+.alpha-calculator .category-row input,
+.alpha-calculator .compare-cell,
+.alpha-calculator .cost-name,
+.alpha-calculator .target-price {
+  min-width: 0;
+}
+.alpha-calculator .section-no,
+.alpha-calculator button > svg {
+  flex-shrink: 0;
+}
+.alpha-calculator .panel-heading .trailing {
+  max-width: 100%;
+}
+.alpha-calculator .panel-heading .trailing:has(button) {
+  flex: 1 1 210px;
+}
+.alpha-calculator .field-row > * {
+  flex: 1 1 240px;
+}
+.alpha-calculator .field-row.four-fields > * {
+  flex-basis: 150px;
+}
+.alpha-calculator .field input,
+.alpha-calculator .field select,
+.alpha-calculator .field textarea,
+.alpha-calculator .kit-item-text-input {
+  min-width: 0;
+  max-width: 100%;
+}
+.alpha-calculator .quantity-cost-row .field input.with-suffix {
+  padding-right: 76px;
+}
+.alpha-calculator .segment button {
+  min-width: 0;
+  white-space: normal;
+}
+.alpha-calculator .kit-item-number-fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+}
+.alpha-calculator .kit-items-header,
+.alpha-calculator .shipping-estimate,
+.alpha-calculator .profit-box,
+.alpha-calculator .cost-heading,
+.alpha-calculator .total-line,
+.alpha-calculator .calculated-cost-total,
+.alpha-calculator .kit-items-summary > div,
+.alpha-calculator .footer {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.alpha-calculator .result-description,
+.alpha-calculator .panel-body,
+.alpha-calculator .modal-body,
+.alpha-calculator .history-item,
+.alpha-calculator .cost-name,
+.alpha-calculator .target-price,
+.alpha-calculator .compare-cell,
+.alpha-calculator .item-cost-total {
+  overflow-wrap: anywhere;
+}
+.alpha-calculator .result-actions button {
+  flex: 1 1 95px;
+}
+.alpha-calculator .project-product-suggestions .flex {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.alpha-calculator .project-product-suggestions span {
+  overflow-wrap: anywhere;
+}
+.alpha-calculator .modal-backdrop {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.alpha-calculator .modal,
+.alpha-calculator .modal:has(.catalog-dialog) {
+  min-width: 0;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.alpha-calculator .modal-header {
+  gap: 12px;
+}
+.alpha-calculator .modal-header h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.alpha-calculator .modal-header button {
+  flex-shrink: 0;
+}
+.alpha-calculator .modal-body fieldset {
+  min-width: 0;
+}
+.alpha-calculator .catalog-search-row,
+.alpha-calculator .catalog-filters,
+.alpha-calculator .catalog-card-heading {
+  flex-wrap: wrap;
+}
+.alpha-calculator .catalog-search {
+  min-width: 0;
+}
+.alpha-calculator .catalog-select-wrap {
+  flex: 1 1 112px;
+  min-width: 0;
+}
+.alpha-calculator .catalog-card h3,
+.alpha-calculator .catalog-card-details .catalog-category {
+  max-width: 100%;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.alpha-calculator .catalog-sku {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media screen and (max-width: 1100px) {
+  .alpha-calculator .header-actions {
+    flex: 1 1 100%;
+  }
+  .alpha-calculator .page-intro {
+    flex-wrap: wrap;
+  }
+  .alpha-calculator .workspace {
+    flex-direction: column;
+  }
+  .alpha-calculator .input-column {
+    flex-basis: auto;
+  }
+  .alpha-calculator .input-column,
+  .alpha-calculator .result-column {
+    width: 100%;
+  }
+  .alpha-calculator .result-column {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .alpha-calculator .result-card,
+  .alpha-calculator .result-column > .panel {
+    flex: 1 1 300px;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+@media screen and (max-width: 680px) {
+  .alpha-calculator .kit-item-number-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media screen and (max-width: 600px) {
+  .alpha-calculator .header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .alpha-calculator .header-actions button {
+    min-height: 44px;
+    padding: 8px;
+  }
+  .alpha-calculator .header-actions button .nav-text {
+    display: inline;
+  }
+  .alpha-calculator .field-row > *,
+  .alpha-calculator .field-row.four-fields > * {
+    flex-basis: 100%;
+  }
+  .alpha-calculator .field-row > button {
+    align-self: stretch;
+  }
+  .alpha-calculator .packaging-presets,
+  .alpha-calculator .catalog-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .alpha-calculator .compare-row,
+  .alpha-calculator .obtained-result,
+  .alpha-calculator .weight-info {
+    flex-direction: column;
+  }
+  .alpha-calculator .weight-info .billable {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .alpha-calculator .result-topline {
+    flex-wrap: wrap;
+  }
+  .alpha-calculator .result-column {
+    display: block;
+  }
+  .alpha-calculator .margin-option {
+    flex-wrap: wrap;
+  }
+  .alpha-calculator .margin-option .target-price {
+    flex: 1 1 130px;
+  }
+  .alpha-calculator .margin-option .target-profit {
+    flex-basis: 100%;
+    text-align: left;
+  }
+  .alpha-calculator .cost-line {
+    display: grid;
+    grid-template-columns: 5px minmax(0, 1fr) auto;
+  }
+  .alpha-calculator .cost-line .cost-name {
+    grid-column: 2 / -1;
+  }
+  .alpha-calculator .cost-line .cost-value {
+    grid-column: 2;
+  }
+  .alpha-calculator .modal,
+  .alpha-calculator .modal:has(.catalog-dialog) {
+    max-height: calc(100dvh - 20px);
+  }
+}
+@media screen and (max-width: 850px), (pointer: coarse) {
+  .alpha-calculator .field input,
+  .alpha-calculator .field select,
+  .alpha-calculator .field textarea,
+  .alpha-calculator .kit-item-text-input,
+  .alpha-calculator .catalog-search input,
+  .alpha-calculator .catalog-select-wrap select {
+    font-size: 16px;
+  }
+  .alpha-calculator .result-price .field input,
+  .alpha-calculator .automatic-price-output .field input {
+    font-size: 28px;
+  }
+  .alpha-calculator .header-actions button,
+  .alpha-calculator .segment button,
+  .alpha-calculator .result-actions button,
+  .alpha-calculator .link-button,
+  .alpha-calculator .btn,
+  .alpha-calculator .kit-items-add,
+  .alpha-calculator .kit-item-remove,
+  .alpha-calculator .modal-header button,
+  .alpha-calculator .catalog-clear-search,
+  .alpha-calculator .catalog-card-actions button,
+  .alpha-calculator .catalog-utility-actions button,
+  .alpha-calculator .catalog-file-label,
+  .alpha-calculator .catalog-select-wrap select,
+  .alpha-calculator .history-item button {
+    min-height: 44px;
+  }
+  .alpha-calculator .kit-item-remove,
+  .alpha-calculator .modal-header button,
+  .alpha-calculator .catalog-clear-search {
+    min-width: 44px;
+  }
+}
+/* FlowExplorer.css é lazy: a especificidade local mantém esta rolagem após carregá-lo. */
+@media screen and (max-width: 700px), screen and (max-height: 700px) {
+  .alpha-calculator .flow-explorer__overlay .flow-explorer__dialog {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .alpha-calculator .flow-explorer__dialog .flow-explorer__viewport {
+    flex: 0 0 45dvh;
+    min-height: 260px;
+  }
+  .alpha-calculator .flow-explorer__dialog .flow-explorer__zoom-group {
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .alpha-calculator .flow-explorer__dialog .flow-explorer__footer-actions {
+    justify-content: flex-start;
+  }
+  .alpha-calculator .flow-explorer__dialog .flow-explorer__tool-button,
+  .alpha-calculator .flow-explorer__dialog .flow-explorer__cancel,
+  .alpha-calculator .flow-explorer__dialog .flow-explorer__apply {
+    min-height: 44px;
+    white-space: normal;
+  }
+}

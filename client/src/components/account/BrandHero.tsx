@@ -28,13 +28,13 @@ export function BrandHero({
         aria-hidden
       />
 
-      <div className="relative flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between md:gap-8 md:px-10 md:py-8">
+      <div className="relative flex min-w-0 flex-col gap-4 p-4 sm:p-6 xl:flex-row xl:items-center xl:justify-between xl:gap-8 xl:px-10 xl:py-8">
         {/* Logomarca da loja (substitui o nome/"Olá") + microcopy */}
-        <div className="min-w-0 space-y-3">
+        <div className="min-w-0 max-w-full space-y-3">
           <img
             src={WORDMARK_URL}
             alt="TOUJOURS — Sempre presente"
-            className="h-12 w-auto select-none md:h-16"
+            className="h-12 w-auto max-w-full select-none object-contain object-left md:h-16"
             draggable={false}
           />
           {subtitle && (
@@ -44,7 +44,7 @@ export function BrandHero({
 
         {/* Ações (badge de saúde, lembretes de conexão, etc.) */}
         {actions && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div>
         )}
       </div>
 
