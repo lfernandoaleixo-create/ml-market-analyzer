@@ -1,14 +1,16 @@
 # Mercato — guia da API de leitura
 
 **Autoria:** Manus e Fernando  
-**Versão da documentação:** 1.1 — 12/11/2026, atualização após a criação de Margem por pedido\
+**Versão da documentação:** 1.2 — 16/11/2026, impostos retidos, taxas discriminadas e margem por pedido\
 **Contrato externo:** OpenAPI 3.0.3; rotas e autenticação preservadas
 
 Esta API permite que outra IA ou integração consulte o Mercato pela internet com uma chave própria. Ela não oferece comandos para editar, criar ou excluir anúncios, campanhas, produtos, linhas SKU ou documentos. A chave de leitura não é a senha do Mercato nem uma credencial do Mercado Livre.
 
-**O que mudou nesta revisão:** o Mercato ganhou a aba **Vendas → Margem por pedido**, com novas consultas internas de pedidos e pagamentos. A API externa com chave não foi modificada: URL base, Bearer, permissões, parâmetros e respostas existentes continuam iguais. A versão 1.1 é da documentação, não uma nova versão do protocolo ou das rotas.
+**Detalhamento financeiro disponível:** a aba **Vendas → Margem por pedido** diferencia o valor bruto, o líquido informado pelo Mercado Pago, as cobranças individualizadas fornecidas pela API e os impostos retidos quando a fonte os informa. Isso ajuda a explicar o que foi descontado e a calcular o resultado depois dos custos conhecidos. Tarifa de venda e frete não são impostos; a diferença total entre bruto e líquido também não deve ser apresentada como imposto.
 
-**O que ainda não existe:** não há rota externa de margem. `GET /sales` continua sendo o resumo agregado de vendas; não entrega os dados financeiros por pedido da nova aba. Uma chave com `vendas:read` não libera procedimentos internos nem autoriza salvar custos ou importar relatórios. A seção 12 descreve a nova funcionalidade e seus limites.
+**O que mudou nesta revisão:** a documentação agora detalha as fontes de cada campo, o tratamento de impostos não informados e o cálculo sem descontar a mesma cobrança duas vezes. A API externa com chave não foi modificada: URL base, Bearer, permissões, parâmetros e respostas existentes continuam iguais. A versão 1.2 é da documentação, não uma nova versão do protocolo ou das rotas.
+
+**Limite importante:** esse detalhamento pertence à aba interna autenticada. Não há rota externa de margem. `GET /sales` continua sendo o resumo agregado de vendas; não entrega `charges`, `taxesWithheld` ou a margem por pedido. Uma chave com `vendas:read` não libera procedimentos internos nem autoriza salvar custos ou importar relatórios. A seção 12 explica o que está implementado, inclusive o limite da discriminação fiscal.
 
 ## 1. Publicar e gerar sua chave
 
@@ -181,6 +183,8 @@ Esses estados podem existir juntos. Em métricas de visita, confira também quan
 
 > A aba Margem por pedido existe dentro do Mercato, mas não tem rota na API externa desta versão. GET /sales fornece resumo agregado de vendas, não os custos ou a margem dessa aba. Se a pergunta exigir esses dados, informe essa limitação; não invente resultados nem tente usar a chave externa em rotas internas.
 
+> Em um relatório financeiro obtido por um canal autorizado, diferencie comissão, processamento, frete, financiamento e imposto retido. Não classifique toda dedução como imposto, não trate imposto não informado como zero e não subtraia novamente encargos já refletidos no líquido. Sem custo total e despesas extras conhecidos, não declare lucro ou margem confirmados.
+
 ## 7. Limites e erros
 
 O limite por instância é de **60 requisições por minuto por chave**, com até **duas consultas de dados simultâneas por chave**. Há também proteção contra excesso geral de consultas. Não compartilhe a mesma chave entre muitas integrações; crie uma para cada ferramenta. Os limites em memória reiniciam quando a instância reinicia e não são uma cota global distribuída entre servidores.
@@ -227,7 +231,7 @@ Os testes verificam separação de papéis, rejeição de métodos de escrita, a
 
 A própria OWASP recomenda exigir chaves nas consultas protegidas, aplicar controle de acesso por endpoint, retornar 429 quando houver excesso e evitar segredos na URL. Também alerta que uma chave isolada não deve ser a única proteção de recursos críticos ou de alto valor. Esta implementação acrescenta validação de escopos, expiração, revogação, projeções explícitas, isolamento da gestão administrativa e limites, mas não substitui políticas organizacionais, autenticação multifator do administrador ou controles adicionais exigidos por dados especialmente sensíveis. [2]
 
-O histórico de diagnóstico reforçou um cuidado importante: uma conexão válida com o Mercado Livre pode ser da conta pessoal em vez da loja. Na validação realizada em **06/11/2026**, a autorização correta da Toujours, vendedor 3308178634, confirmou 47 anúncios ativos, 28 fichas completas, 19 incompletas e 2.018 visitas na série de 30 dias então consultada. Esses números são uma fotografia daquela consulta, não valores fixos nem métricas atualizadas de 12/11/2026. A API deve consultar o vendedor correto e declarar o período a cada análise.
+O histórico de diagnóstico reforçou um cuidado importante: uma conexão válida com o Mercado Livre pode ser da conta pessoal em vez da loja. Na validação realizada em **06/11/2026**, a autorização correta da Toujours, vendedor 3308178634, confirmou 47 anúncios ativos, 28 fichas completas, 19 incompletas e 2.018 visitas na série de 30 dias então consultada. Esses números são uma fotografia daquela consulta, não valores fixos nem métricas atualizadas de 16/11/2026. A API deve consultar o vendedor correto e declarar o período a cada análise.
 
 A leitura não é necessariamente instantânea nem contínua. O Mercado Livre pode impor limites, indisponibilidade ou demora, e o cache pode servir um último resultado válido. A outra IA deve explicar esse contexto e não apresentar zeros, dados parciais ou snapshots antigos como totais atuais. O acesso a arquivos depende também das capacidades da ferramenta: receber um link de PDF não significa que a IA já extraiu seu conteúdo corretamente.
 
@@ -243,7 +247,7 @@ A chave inicial solicitada por Fernando foi criada com apenas `mercado:read` e v
 
 Na validação da criação da API externa, **135 arquivos de teste e 1.747 testes passaram**, sem executar arquivos `.live.test.ts`. TypeScript e o build de produção também passaram. A comparação SHA-256 das **11 tabelas comerciais** com o baseline do início daquela tarefa não encontrou alterações. O scan confirmou que a chave inicial não foi incluída no código, no OpenAPI ou neste PDF. Esses resultados históricos não substituem a verificação de publicação no ambiente de produção.
 
-## 12. Atualização: Margem por pedido e requisições internas
+## 12. Margem por pedido: impostos, taxas e custos discriminados
 
 ### O que foi acrescentado — e o que não mudou
 
@@ -259,11 +263,43 @@ O servidor confirma a identidade da Toujours em `GET /users/me`, consulta pedido
 
 O líquido financeiro confirmado é a referência da operação. As tarifas e os impostos já incluídos nesse líquido não são subtraídos novamente. O relatório oficial Por venda organiza as operações pela data da venda, enquanto o relatório Por liberação acompanha movimentos de dinheiro por outra data. Uma operação pode ter várias linhas legítimas de venda, frete, ajuste ou devolução; por isso o valor de uma única linha não equivale necessariamente ao resultado final da operação. [3]
 
+### Campos financeiros e tributos: o que cada valor significa
+
+No contrato interno, `gross` é o valor bruto da operação, `net` é o líquido financeiro confirmado e `deductions` é a diferença **bruto − líquido**. Essa diferença resume o impacto dos descontos e ajustes, não identifica sozinha a natureza fiscal de cada parcela. Os valores monetários são expressos em reais. Bruto e líquido de um relatório devem ser interpretados conforme a base e os eventos daquele relatório, não confundidos automaticamente com preço unitário do produto.
+
+`charges` contém cobranças individualizadas quando elas estão disponíveis em `charges_details` dos pagamentos. Cada entrada possui `key`, o identificador ou nome de origem; `label`, o nome recebido; `category`, a categoria de apresentação; e `amount`, o valor da cobrança após a devolução informada. São incluídas somente cobranças explicitamente atribuídas ao vendedor autorizado. A categoria é inferida pelo nome/tipo recebido e não é uma classificação fiscal validada pelo contador.
+
+As categorias existentes são `sale` para venda/comissão, `processing` para processamento do pagamento, `shipping` para frete, `financing` para financiamento/parcelamento, `tax` para cobranças identificadas como imposto ou retenção e `other` para as demais. O nome recebido da fonte é preservado para conferência. O módulo não presume que uma comissão seja tributo nem converte uma cobrança genérica em ICMS, PIS ou COFINS.
+
+`taxesWithheld` representa o **total de impostos retidos informado pela fonte**, não todo o imposto devido pela empresa. Na consulta automática, vem de `taxes_amount` e só é totalizado quando todos os pagamentos contabilizados fornecem um valor numérico válido. Na importação de dinheiro em conta, vem de `TAXES_AMOUNT` e só é conhecido quando todas as linhas contabilizadas fornecem esse valor. Se faltar informação, permanece `null`, isto é, não informado. Zero explícito pode ser mostrado como zero retido naquela fonte, mas não prova isenção fiscal nem ausência de tributos a recolher fora do Mercado Pago.
+
+O glossário brasileiro do Mercado Pago distingue `FEE_AMOUNT`, o agregado de tarifas, de `TAXES_AMOUNT`, os impostos cobrados por retenções. Também documenta `TAX_DETAIL`, descrição do imposto retido, e `TAXES_DISAGGREGATED`, detalhamento dos impostos em JSON. **Esses dois últimos campos existem na documentação do provedor, mas não são lidos nem expostos pelo importador atual do Mercato.** O importador atual conserva o total retido quando informado e uma cobrança agregada de descontos; a coluna Detalhes de tarifas também não é convertida em uma lista individualizada. Portanto, importar um relatório não garante a mesma discriminação disponível em `charges_details` da consulta automática. [4]
+
+Não há campos próprios de II, IPI, ICMS, PIS ou COFINS no contrato de margem. Um nome de imposto eventualmente recebido na lista de cobranças pode ajudar na conferência, mas não transforma o módulo em um cálculo tributário completo. A existência de campos fiscais no provedor não prova que a conta Toujours preencha esses campos em todas as vendas.
+
+### Conciliação: por que os impostos não são descontados duas vezes
+
+O cálculo parte do líquido já confirmado. `charges` e `taxesWithheld` explicam os valores quando disponíveis; não são parcelas que o motor subtrai novamente de `net`. Tampouco se deve somar os impostos retidos ao custo extra se eles já impactaram o líquido.
+
+Uma lista `charges` vazia significa que não há detalhes válidos retornados para exibir; não significa venda sem taxas. Também não existe garantia de que a soma da lista seja igual a `deductions`, ou de que as entradas `tax` sejam idênticas a `taxesWithheld`. Se o detalhamento não explicar o total, a conferência deve usar os relatórios e as faturas correspondentes, sem criar uma cobrança fictícia para fechar a diferença. O portal oficial orienta conferir os detalhes de tarifas e somar os eventos vinculados ao mesmo número da operação. [3]
+
 O custo informado é o **custo total dos produtos daquele pedido**, não o custo unitário presumido de cada SKU. Despesas extras correspondem ao que ainda não está descontado no líquido, como embalagem, tributos não retidos ou outros gastos conhecidos. Publicidade, armazenamento Full e cobranças posteriores podem vir em fatura separada: só devem entrar novamente se ainda não estiverem no líquido conciliado. Não há estimativa automática de alíquota nem rateio automático de ADS ou despesas gerais.
+
+Para mercadorias importadas, informe o custo efetivo de aquisição considerando os tributos e benefícios fiscais realmente aplicáveis, inclusive eventual **TTS — Tratamento Tributário Diferenciado**, conforme a documentação e a apuração da empresa. O módulo não aplica uma alíquota genérica de importação nem calcula sozinho o benefício do TTS. Tributos já incorporados ao custo de aquisição também não devem ser lançados novamente como despesas extras.
 
 As fórmulas implementadas são: **percentual que restou = líquido ÷ bruto × 100**; **resultado após custos = líquido − custo total dos produtos − despesas extras**; **margem após custos = resultado ÷ bruto × 100**. O resultado é arredondado a centavos, e percentuais não são calculados quando o bruto não é positivo. A margem agregada usa a razão entre somas confirmadas, não a média simples dos percentuais dos pedidos.
 
 Sem financeiro confirmado, SKU identificável ou os dois campos de custo conhecidos, o resultado permanece pendente. Campo em branco não vira zero; informar zero é uma decisão explícita, confirmada na interface. Pagamentos parciais, pagamentos não finalizados, estornos e contestações não são tratados como operações financeiramente completas. **O líquido antes dos custos não é lucro, e o resultado após os custos conhecidos não é uma apuração completa de lucro contábil.**
+
+### Exemplo didático de margem com imposto retido
+
+Suponha uma operação com bruto de **R$ 200,00**, comissão de **R$ 26,00**, processamento de **R$ 2,00**, frete do vendedor de **R$ 20,00** e imposto retido explicitamente informado de **R$ 8,00**. As deduções somam **R$ 56,00** e o líquido é **R$ 144,00**, equivalente a **72%** do bruto. Estes números são hipotéticos: não representam uma venda da Toujours, uma alíquota contratada ou uma estimativa fiscal da empresa.
+
+Com custo total dos produtos de **R$ 60,00** e despesas extras ainda não descontadas de **R$ 4,00**, o resultado é **R$ 80,00** e a margem após custos conhecidos é **40%**. Os R$ 8,00 retidos já estão incluídos na passagem do bruto para o líquido; descontá-los novamente produziria um resultado errado. Se ainda faltar um tributo devido fora da plataforma, ele precisa ser apurado e incluído no custo adequado antes de chamar o resultado de lucro completo.
+
+### Exemplo histórico de discriminação efetivamente recebida
+
+Na auditoria somente leitura de **12/11/2026 às 10:48 BRT**, uma operação real da Toujours apresentou bruto de **R$ 111,93** e líquido de **R$ 79,91**. Os detalhes recebidos foram `ml_sale_fee`, **R$ 12,76** de venda; `mp_processing_fee`, **R$ 0,11** de processamento; e `shp_cross_docking`, **R$ 19,15** de envio. Esses valores somavam **R$ 32,02**, exatamente a diferença entre bruto e líquido naquela consulta. O registro não preservou o valor de `taxes_amount`, apenas a existência do campo: ele não comprova imposto retido zero nem discriminação de tributos nessa operação. É um exemplo histórico de taxas e frete individualizados, não uma consulta financeira nova feita em 16/11.
 
 ### Importação dos relatórios oficiais
 
@@ -286,11 +322,11 @@ A suíte final desse release passou com **141 arquivos e 1.973 testes**, sem `.l
 1. [OpenAPI Initiative — Describing API Security](https://learn.openapis.org/specification/security.html). Documentação oficial de autenticação e requisitos de segurança.
 2. [OWASP — REST Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html). Orientações de proteção de endpoints, chaves, métodos e erros.
 3. [Mercado Livre — Como conciliar usando os relatórios de venda e liberação de dinheiro](https://vendedores.mercadolivre.com.br/aprender/nota/como-conciliar-usando-os-relatorios-de-venda-e-liberacao-de-dinheiro). Organização por data, eventos de uma mesma operação e conciliação do líquido.
-4. [Mercado Pago Developers — Report fields: account money](https://www.mercadopago.com.br/developers/en/docs/reports/account-money/report-fields). Significado das referências, tarifas e valores líquidos do relatório.
+4. [Mercado Pago Developers — Glossário do relatório de dinheiro em conta](https://www.mercadopago.com.br/developers/pt/docs/reports/account-money/report-fields). Referências, tarifas, líquido, impostos retidos e campos de detalhe fiscal; verificação em 16/11/2026.
 
 [1]: https://learn.openapis.org/specification/security.html "OpenAPI Initiative — Describing API Security"
 [2]: https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html "OWASP — REST Security Cheat Sheet"
 [3]: https://vendedores.mercadolivre.com.br/aprender/nota/como-conciliar-usando-os-relatorios-de-venda-e-liberacao-de-dinheiro "Mercado Livre — Relatórios por venda e liberação"
-[4]: https://www.mercadopago.com.br/developers/en/docs/reports/account-money/report-fields "Mercado Pago Developers — Campos do relatório de dinheiro em conta"
+[4]: https://www.mercadopago.com.br/developers/pt/docs/reports/account-money/report-fields "Mercado Pago Developers — Campos e impostos do relatório de dinheiro em conta"
 
-As descrições dos arquivos, migrações, permissões e testes referem-se ao código dos releases documentados do Mercato. Os números de 06/11 e da manhã de 12/11 são evidências históricas de consultas somente leitura, sem expor tokens. As referências públicas fundamentam segurança, interoperabilidade e conciliação; não auditam ou certificam este projeto. A revisão 1.1 atualiza a documentação e não modifica a chave, as requisições ou o OpenAPI da API externa.
+As descrições dos arquivos, migrações, permissões e testes referem-se ao código dos releases documentados do Mercato, conferido em 16/11/2026. Os números de 06/11 e de 12/11 são evidências históricas de consultas somente leitura, sem expor tokens. O exemplo de R$ 200,00 é didático. As referências públicas fundamentam segurança, interoperabilidade e conciliação; não auditam ou certificam este projeto. A revisão 1.2 atualiza a documentação e não modifica a chave, as requisições, o OpenAPI ou a implementação financeira.

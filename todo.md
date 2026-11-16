@@ -2151,3 +2151,11 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Validar cliente de produção em servidor local temporário com APIs fictícias: manifesto sem erros, worker ativo, cache somente /mercato-offline.html, Nova linha offline não gera chamada nem fila e navegação offline não mostra SKU privado
 - [x] Revisão independente confirmou risco offline resolvido; auditoria SHA-256 mantém 11 tabelas comerciais idênticas (preservedAll=true/changed=[]); diff/scan sem segredos e sem alteração em schema, APIs, motor de preços, SKUs, produtos, anúncios ou credenciais
 - [ ] Publicar exatamente este checkpoint no domínio do Mercato e instalar em cada dispositivo; não afirmar instalação física em iOS/Android/Windows/Mac nem validação de hardware que não foi realizada
+
+## Mercato — documentação API 1.2: impostos retidos e margem (16/nov)
+- [x] Atualizar o guia e o PDF com bruto/líquido/deductions, charges individualizados por categoria e taxesWithheld; diferenciar comissão/frete de imposto e impedir dupla subtração do líquido
+- [x] Conferir fontes oficiais brasileiras: TAXES_AMOUNT versus FEE_AMOUNT; documentar que TAX_DETAIL/TAXES_DISAGGREGATED existem no provedor mas não são processados pelo importador atual, sem prometer discriminação completa de II/IPI/ICMS/PIS/COFINS
+- [x] Explicar ausência/null versus zero retido, custos conhecidos, tributos fora da plataforma e custo real de importação com eventual TTS; exemplo hipotético e fotografia histórica claramente identificados
+- [x] Preservar limite real: detalhamento financeiro pertence ao salesMargin interno autenticado; API externa /sales continua agregada, sem endpoint de margem e sem alteração de Bearer/escopos/OpenAPI
+- [x] Compilar PDF estrito e verificar treze páginas (PASS, sem avisos), revisar todas visualmente e scan sem segredos; arquivo final separado da chave confidencial e versões 1.0/1.1 preservadas
+- [x] Atualização somente documental; nenhuma nova consulta financeira, chave, endpoint, migração, SKU, produto, anúncio ou credencial modificada
