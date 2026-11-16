@@ -6,7 +6,7 @@
 
 A API permite consultar o Mercato pela internet com uma chave própria e apenas operações de leitura. Não oferece criação, edição ou exclusão de anúncios, campanhas, produtos, SKUs ou documentos. A chave externa não é uma senha do Mercato nem um token Mercado Livre.
 
-**Novidade:** foram implementadas `GET /sales/orders`, com detalhe financeiro por pedido, e `GET /sales/history`, com períodos e produtos agrupados. `GET /sales` e os recursos anteriores mantêm seus formatos e parâmetros. A nova versão precisa estar publicada antes de as rotas funcionarem no domínio de produção; a prévia não comprova publicação.
+**Novidade:** foram implementadas `GET /sales/orders`, com detalhe financeiro por pedido, e `GET /sales/history`, com períodos e produtos agrupados. **Publicação e leitura em produção confirmadas em 16/11/2026, aproximadamente 08:46 BRT.** `GET /sales` conserva o formato anterior. O financeiro exige o novo escopo; a chave atual não foi ampliada automaticamente.
 
 ## 1. Endereços e autenticação
 
@@ -343,7 +343,9 @@ A busca global confirmou o primeiro pedido visível em **11/04/2026**. Isso não
 
 O código passou por testes de autenticação/escopos, parâmetros, paginação, estados parcial/anterior, calendário, SKUs, estornos, pagamentos incompletos, projeção sem compradores e coerência de OpenAPI. A contagem final e a auditoria de preservação ficam no registro de release do projeto. Os testes e a prévia não comprovam que as rotas foram publicadas.
 
-**Produção só está confirmada após:** publicar o checkpoint correto, consultar seu `/openapi.json` e verificar os caminhos e escopos novos; usar uma chave válida com as permissões necessárias em `GET /`; consultar uma página de cada rota e verificar seu envelope. Se a produção ainda estiver na versão anterior, as rotas continuarão ausentes/404. Não troque o servidor Node para uma funcionalidade ainda não publicada.
+**Produção confirmada em 16/11/2026, aproximadamente 08:46 BRT:** o domínio oficial retornou OpenAPI **1.1.0**, o índice autenticado listou as rotas com os escopos previstos e uma página de cada rota nova retornou **HTTP 200**, com `requestId` correspondente ao cabeçalho e `asOf` ISO UTC. `GET /sales?days=7` retornou HTTP 200 mantendo `summary`, `daily` e `topProducts`. Sem escopo financeiro, o detalhe retornou HTTP 403 e o histórico ocultou o financeiro; sem chave houve HTTP 401; `/margin` continuou inexistente, HTTP 404.
+
+A validação de produção utilizou duas chaves exclusivamente temporárias, ambas revogadas ao terminar, sem alterar a chave atual do Grupo Fox. **Para ativar a leitura financeira no servidor Node, um administrador deve gerar uma chave com `vendas-detalhe:read`, conservar os demais escopos necessários e atualizar seu segredo após testar a troca.** A publicação não concede esse escopo a uma chave antiga. Esta revisão documental não muda código ou exige uma nova publicação funcional.
 
 ## Referências oficiais
 
