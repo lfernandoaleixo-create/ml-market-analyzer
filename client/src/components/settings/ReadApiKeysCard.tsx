@@ -232,11 +232,20 @@ export default function ReadApiKeysCard() {
             <p className="text-xs leading-relaxed text-muted-foreground">
               A IA pode apenas consultar os dados autorizados. Ela não pode
               alterar anúncios, campanhas ou SKUs. A chave é confidencial:
-              compartilhe somente com uma IA de confiança, nunca em links, logs
-              ou documentos públicos. Revogue o acesso quando não precisar mais
+              shareilhe somente com uma IA de confiança, nunca em links, logs ou
+              documentos públicos. Revogue o acesso quando não precisar mais
               dele.
             </p>
           </div>
+
+          <p className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-relaxed text-muted-foreground">
+            Chaves anteriores continuam funcionando nas rotas já autorizadas e
+            no histórico de vendas. Para acessar detalhes por pedido e os
+            valores financeiros do histórico, gere uma nova chave selecionando
+            <code> vendas-detalhe:read</code> e os outros escopos necessários.
+            As permissões da chave atual não são ampliadas automaticamente.
+            Troque a chave na integração antes de revogar a anterior.
+          </p>
 
           {visibleDisclosure && (
             <section
@@ -311,7 +320,10 @@ export default function ReadApiKeysCard() {
                   onValueChange={value => setExpiresDays(Number(value))}
                   disabled={create.isPending}
                 >
-                  <SelectTrigger id={`${formId}-expires`} className="w-full min-w-0">
+                  <SelectTrigger
+                    id={`${formId}-expires`}
+                    className="w-full min-w-0"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -323,7 +335,10 @@ export default function ReadApiKeysCard() {
                   </SelectContent>
                 </Select>
               </div>
-              <fieldset disabled={create.isPending} className="min-w-0 space-y-2">
+              <fieldset
+                disabled={create.isPending}
+                className="min-w-0 space-y-2"
+              >
                 <legend className="mb-2 text-sm font-medium">
                   Escopos permitidos
                 </legend>
@@ -599,7 +614,11 @@ export default function ReadApiKeysCard() {
                 Exemplos e endpoints disponíveis
               </summary>
               <div className="mt-3 min-w-0 space-y-3">
-                <pre tabIndex={0} aria-label="Exemplo curl com rolagem horizontal" className="max-w-full min-w-0 overflow-x-auto rounded-md bg-muted/50 p-3 text-xs focus-visible:outline-2 focus-visible:outline-ring">
+                <pre
+                  tabIndex={0}
+                  aria-label="Exemplo curl com rolagem horizontal"
+                  className="max-w-full min-w-0 overflow-x-auto rounded-md bg-muted/50 p-3 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                >
                   <code>{curlExample}</code>
                 </pre>
                 <Button

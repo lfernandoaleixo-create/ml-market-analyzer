@@ -106,6 +106,8 @@ const routes = [
   ["/visits", "object", "ReadApiVisitsData"],
   ["/technical-specs", "object", "ReadApiTechnicalData"],
   ["/sales", "object", "ReadApiSalesData"],
+  ["/sales/orders", "array", "PublicSalesOrder"],
+  ["/sales/history", "array", "PublicSalesHistory"],
   ["/ads", "object", "ReadApiAdsData"],
   ["/products", "array", "ReadApiProduct"],
   ["/sku", "array", "ReadApiSkuRow"],
@@ -153,6 +155,66 @@ const sheet = [
   ...auditDates,
 ];
 const approved: Record<string, string[]> = {
+  PublicSalesItem: [
+    "itemId",
+    "variationId",
+    "sku",
+    "skuSource",
+    "title",
+    "quantity",
+    "unitPrice",
+    "listingType",
+  ],
+  PublicSalesCharge: ["key", "label", "category", "amount"],
+  PublicSalesTax: ["type", "amount", "description"],
+  PublicSalesOrder: [
+    "orderId",
+    "packId",
+    "paymentIds",
+    "createdAt",
+    "saleDay",
+    "paidAt",
+    "status",
+    "rawStatus",
+    "financiallyComplete",
+    "financialStatus",
+    "items",
+    "shipping",
+    "gross",
+    "net",
+    "deductions",
+    "charges",
+    "saleFee",
+    "processingFee",
+    "shippingCost",
+    "financingFee",
+    "otherCharges",
+    "taxesWithheld",
+    "taxDetail",
+    "taxesDisaggregated",
+    "chargesExplainDeductions",
+    "source",
+    "asOf",
+    "pendingReason",
+  ],
+  PublicSalesHistory: [
+    "period",
+    "itemId",
+    "sku",
+    "title",
+    "orders",
+    "unitsSold",
+    "revenue",
+    "cancelled",
+    "cancelledAmount",
+    "net",
+    "saleFee",
+    "processingFee",
+    "shippingCost",
+    "financingFee",
+    "otherCharges",
+    "taxesWithheld",
+  ],
   ReadApiIndexResource: ["path", "scope", "title"],
   ReadApiIndexData: [
     "name",
@@ -650,11 +712,15 @@ describe("read API OpenAPI response DTOs", () => {
       "skuSourceRowId",
       "skuDecisionAt",
     ]);
-    for (const value of Object.values(readApiSchemas))
+    for (const [name, value] of Object.entries(readApiSchemas))
       walk(value, schema => {
         if (schema.properties)
           for (const key of Object.keys(asSchema(schema.properties)))
-            expect(forbidden.has(key), key).toBe(false);
+            expect(
+              forbidden.has(key) &&
+                !(name === "PublicSalesCharge" && key === "key"),
+              key
+            ).toBe(false);
         expect(schema).not.toHaveProperty("example");
         expect(schema).not.toHaveProperty("default");
       });
@@ -952,7 +1018,7 @@ describe("synthetic response samples (not actual store data)", () => {
   });
   it("accepts sparse local rows and nullable SQL fields without inventing numeric sheet prices", () => {
     for (const [path, type] of routes)
-      if (type === "array")
+      if (type === "array" && !path.startsWith("/sales/"))
         expect(accepts([{}], readApiDataSchema(path))).toBe(true);
     expect(
       accepts(

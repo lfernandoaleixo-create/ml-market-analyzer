@@ -426,8 +426,13 @@ async function externalData(path: string, ownerUserId: number, query: ReadApiQue
 }
 /** Authorization/scopes belong exclusively to the HTTP layer; owner must be the key owner's account. */
 export async function loadReadApiData(path: string, ownerUserId: number, query: ReadApiQuery): Promise<ReadApiResult> {
-  if (!LOCAL_PATHS.has(path) && !EXTERNAL_PATHS.has(path)) throw new ReadApiDataError(404, "NOT_FOUND", "Recurso não encontrado.");
+  const salesDetail = path === "/sales/orders" || path === "/sales/history";
+  if (!salesDetail && !LOCAL_PATHS.has(path) && !EXTERNAL_PATHS.has(path)) throw new ReadApiDataError(404, "NOT_FOUND", "Recurso não encontrado.");
   if (!Number.isSafeInteger(ownerUserId) || ownerUserId <= 0) throw new ReadApiDataError(403, "INVALID_OWNER", "Conta não autorizada.");
+  if (salesDetail) {
+    const { loadPublicSalesData } = await import("./publicSalesData");
+    return loadPublicSalesData(path as "/sales/orders" | "/sales/history", ownerUserId, query);
+  }
   const bounded = normalizeQuery(query);
   try {
     return EXTERNAL_PATHS.has(path) ? await externalData(path, ownerUserId, bounded) : await localData(path, ownerUserId, bounded);

@@ -1,0 +1,107 @@
+import type { MarginCharge } from "./salesMargin";
+
+export const PUBLIC_SALES_MAX_WINDOW_DAYS = 366;
+export const PUBLIC_SALES_TIMEZONE = "America/Sao_Paulo";
+export type PublicSalesGranularity = "hour" | "day" | "week" | "month";
+export type PublicSalesGroupBy = "item" | "sku" | "none";
+export type PublicSalesQuery = {
+  limit: number;
+  offset: number;
+  days: number;
+  from?: string;
+  to?: string;
+  itemId?: string;
+  sku?: string;
+  status?: string;
+  granularity?: PublicSalesGranularity;
+  groupBy?: PublicSalesGroupBy;
+  includeFinancial?: boolean;
+};
+export type PublicSalesBounds = {
+  from: string;
+  to: string;
+  fromMs: number;
+  toMs: number;
+};
+export type PublicSaleItem = {
+  itemId: string | null;
+  variationId: string | null;
+  sku: string | null;
+  skuSource: "sheet" | "mercado_livre" | "ambiguous" | null;
+  title: string | null;
+  quantity: number | null;
+  unitPrice: number | null;
+  listingType: string | null;
+};
+export type PublicTaxDetail = {
+  type: string | null;
+  amount: number | null;
+  description: string | null;
+};
+export type PublicSalesOrder = {
+  orderId: string;
+  packId: string | null;
+  paymentIds: string[] | null;
+  createdAt: string | null;
+  saleDay: string | null;
+  paidAt: string | null;
+  status: string | null;
+  rawStatus: string | null;
+  financiallyComplete: boolean;
+  financialStatus: "confirmed" | "pending" | "refund_pending";
+  items: PublicSaleItem[];
+  shipping: {
+    logisticType: string | null;
+    payer: "buyer" | "seller" | "both" | null;
+  };
+  gross: number | null;
+  net: number | null;
+  deductions: number | null;
+  charges: MarginCharge[];
+  saleFee: number | null;
+  processingFee: number | null;
+  shippingCost: number | null;
+  financingFee: number | null;
+  otherCharges: number | null;
+  taxesWithheld: number | null;
+  taxDetail: PublicTaxDetail[] | null;
+  taxesDisaggregated: PublicTaxDetail[] | null;
+  chargesExplainDeductions: boolean | null;
+  source: "automatic" | "imported_report";
+  asOf: string;
+  pendingReason: string | null;
+};
+export type PublicSalesSnapshot = {
+  ownerUserId: number;
+  sellerId: string;
+  nickname: string;
+  orders: PublicSalesOrder[];
+  asOf: number;
+  stale: boolean;
+  partial: boolean;
+  capped: boolean;
+  ordersPartial?: boolean;
+  dataStartConfirmed?: boolean;
+  dataStart: string | null;
+  coverageFrom: string | null;
+  coverageTo: string | null;
+  warnings: string[];
+};
+export type PublicSalesHistoryRow = {
+  period: string;
+  itemId: string | null;
+  sku: string | null;
+  title: string | null;
+  orders: number | null;
+  unitsSold: number | null;
+  revenue: number | null;
+  cancelled: number | null;
+  cancelledAmount: number | null;
+  net: number | null;
+  saleFee: number | null;
+  processingFee: number | null;
+  shippingCost: number | null;
+  financingFee: number | null;
+  otherCharges: number | null;
+  taxesWithheld: number | null;
+};

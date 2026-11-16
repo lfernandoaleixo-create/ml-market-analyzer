@@ -4,6 +4,10 @@
  * Optional scalar properties preserve missing source values; no defaults/examples
  * imply that an unavailable metric is a confirmed zero.
  */
+import {
+  publicSalesSchemas,
+  publicSalesDataSchema,
+} from "./publicSalesSchemas";
 type Schema = Record<string, unknown>;
 
 const ref = (name: string): Schema => ({
@@ -180,6 +184,7 @@ const categoryAnswer = object(
 );
 
 export const readApiSchemas: Record<string, unknown> = {
+  ...publicSalesSchemas,
   ReadApiIndexResource: object(
     "Recurso de leitura disponível para as permissões da chave atual.",
     {
@@ -868,6 +873,8 @@ const dataByPath: Record<string, Schema> = {
 
 /** Schema for the envelope's data property, not an envelope or its metadata. */
 export function readApiDataSchema(path: string): unknown {
+  if (path === "/sales/orders" || path === "/sales/history")
+    return publicSalesDataSchema(path);
   if (!Object.prototype.hasOwnProperty.call(dataByPath, path)) {
     throw new Error(`No read API data schema registered for path: ${path}`);
   }

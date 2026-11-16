@@ -2159,3 +2159,19 @@ Regra única: Mês atual · Mês anterior · 60 dias · Base histórica (desde a
 - [x] Preservar limite real: detalhamento financeiro pertence ao salesMargin interno autenticado; API externa /sales continua agregada, sem endpoint de margem e sem alteração de Bearer/escopos/OpenAPI
 - [x] Compilar PDF estrito e verificar treze páginas (PASS, sem avisos), revisar todas visualmente e scan sem segredos; arquivo final separado da chave confidencial e versões 1.0/1.1 preservadas
 - [x] Atualização somente documental; nenhuma nova consulta financeira, chave, endpoint, migração, SKU, produto, anúncio ou credencial modificada
+
+## Mercato — API externa de vendas detalhadas e histórico Grupo Fox (16/nov)
+- [x] Implementar GET /sales/orders e GET /sales/history, preservando GET /sales, o envelope antigo, Bearer, prefixo /api/public/v1 e os clientes existentes
+- [x] Separar vendas-detalhe:read: detalhe exige o escopo novo; histórico exige vendas:read e só lê financeiro com ambos, em janelas de até 31 dias; chave atual não ganha permissão nem é revogada automaticamente
+- [x] Expor campos financeiros projetados, charges originais, retenção/detalhe tributário quando recebidos, frete explícito, datas reais, status de pagamento/estorno e source/asOf; ausência continua null, sem compradores ou payloads privados
+- [x] Implementar calendário IANA BRT, janelas até 366 dias, paginação após filtro/agregação, granularidades hora/dia/semana/mês, groupBy item/sku/none e filtros exatos sem reconstruir SKUs
+- [x] Reutilizar fotografias existentes por operação, preservando metadados reais e rejeitando líquido antigo após evento posterior; referência importada só aparece comoorderId quando confirmada na API, sem confundir pack/payment IDs ou somar relatórios sobrepostos
+- [x] Separar cobertura comercial e financeira; pedidos pagos posteriormente estornados não desaparecem do faturamento histórico; cobranças incompletas não viram subtotais tratados como totais, sem rateio financeiro entre produtos ou zero inventado
+- [x] Expor dataStart observado/confirmado, coverage, availableHistory não contínuo, partial/stale/capped e motivos; explicitar retenção da fonte de até 12 meses, tetos de 1.000/10.000 pedidos e ausência de novo arquivo histórico permanente
+- [x] Validar leitura real de 11/11: 15 pedidos, 16 unidades, bruto R$2.070,61 e líquido R$1.488,97, sem divergência observada com a aba Margem; primeiro pedido visível em 11/04/2026 não comprova criação da conta e taxas incompletas mantêm partial=true
+- [x] Validar HTTP na prévia pela internet: duas rotas HTTP200, requestId/header e asOf UTC, 403 sem escopo, financeiro oculto no histórico legado, 401 sem chave e 404 na rota inexistente; duas chaves exclusivamente temporárias de QA criadas/revogadas, sem alterar a chave do Grupo Fox
+- [x] Revisão independente apontou dois P1 de estorno/subtotal; ambos corrigidos e cobertos; TypeScript, build e suíte sem live definitivos: 164 arquivos / 2.434 testes aprovados; OpenAPI 1.1.0 com 18 caminhos e 206 referências válidas
+- [x] Atualizar guia/PDF revisão 1.3 com exemplos declaradamente fictícios, Node, escopos, custos e publicação; compilação/verify PASS e revisão visual de 12 páginas; especificação integral e fontes preservadas no projeto
+- [x] Auditoria SHA-256 mantém preservedAll=true e changed=[] nas 11 tabelas comerciais; scan sem segredos; sem migração, mutação de anúncios, SKUs, produtos, custos, relatórios ou campanhas; arquivos temporários e dados de QA ficam fora do checkpoint
+- [ ] Publicar exatamente este checkpoint e verificar o OpenAPI e as novas rotas no domínio de produção; nenhum deploy separado disponível nesta sessão, não tratar a prévia como produção
+- [ ] Administrador gerar chave com vendas-detalhe:read e atualizar o segredo no servidor Node do Grupo Fox após validar a publicação; manter a chave anterior até testar a troca

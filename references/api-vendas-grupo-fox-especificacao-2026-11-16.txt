@@ -1,0 +1,36 @@
+Contexto: o Grupo Fox (sistema próprio, servidor Node) já consome a API externa de leitura do Mercato (/api/public/v1, Bearer, somente GET) com uma chave que tem todos os escopos atuais (vendas:read, ads:read, mercado:read, projeto:read, sku:read, documentos:read, calculadora:read). Lemos a documentação 1.2 ("Margem por pedido"). Hoje GET /sales só traz o resumo agregado, e /sales/orders, /sales/margin, /margin e /orders respondem 404. Precisamos que a API externa passe a expor (1) o detalhe financeiro de cada venda e (2) o histórico de vendas por produto.
+
+REGRAS GERAIS (manter o padrão da API atual)
+- Somente leitura (GET/OPTIONS), mesma URL base, mesmo Bearer, mesmos limites (60 req/min, 2 simultâneas), mesmo envelope { data, meta } com partial, stale, asOf, capped, generatedAt e requestId.
+- NÃO alterar as rotas existentes nem o formato atual de GET /sales (já temos integração em produção usando).
+- Novo escopo para os dados financeiros: vendas-detalhe:read (separado de vendas:read), configurável em Configurações → API de leitura. Avisar se a nossa chave atual precisa ser trocada para ganhar o escopo.
+- Sem dados pessoais de compradores (nome, documento, endereço, telefone, e-mail, apelido).
+- Valores em reais (BRL, não centavos), datas em ISO e "dia" sempre no fuso America/Sao_Paulo.
+- Valor não informado pela fonte = null (nunca zero). Não inventar, estimar nem ratear valores.
+- Paginação limit/offset (até 100) com meta.hasMore. Além de days (7/30/90), aceitar from e to (YYYY-MM-DD, Brasília), com janela máxima documentada.
+- Atualizar o openapi.json (schemas e descrições de cada campo), o índice GET / e o PDF da documentação; testes automatizados como nas rotas atuais (auth, escopo, 401/403/404/405/429, paginação, partial/stale).
+
+1) GET /sales/orders — vendas com o detalhe financeiro (escopo vendas-detalhe:read)
+Uma linha por operação/pedido do Mercado Livre no período, com os mesmos dados da aba Vendas → Margem por pedido:
+- orderId (id do pedido ML), packId (quando houver), paymentIds[]
+- createdAt (data e hora da venda) e paidAt; status (paid, cancelled, refunded, partially_refunded, in_mediation...) e se a operação está financeiramente completa
+- items[]: itemId (MLB), variationId, sku (como está na planilha SKU), title, quantity, unitPrice, listingType (gold_special/gold_pro)
+- shipping: logisticType (fulfillment, cross_docking, self_service...), e quem pagou o frete
+- gross (bruto da operação), net (líquido confirmado pelo Mercado Pago), deductions (gross − net)
+- charges[]: { key, label, category: sale|processing|shipping|financing|tax|other, amount } — os mesmos de charges_details, nome original preservado
+- totais por categoria já somados: saleFee, processingFee, shippingCost, financingFee, otherCharges (null se a fonte não informou)
+- taxesWithheld (total retido informado pela fonte; null se não informado) e, se possível, taxDetail/taxesDisaggregated do Mercado Pago (TAX_DETAIL / TAXES_DISAGGREGATED) com o tipo de cada imposto retido
+- chargesExplainDeductions: true/false (se a soma de charges fecha com deductions)
+- source: "automatic" | "imported_report" e asOf da fotografia financeira
+- Filtros opcionais: itemId, sku, status.
+
+2) GET /sales/history — histórico de vendas por produto (escopo vendas:read)
+Para montarmos gráficos de vendas (por hora, dia, semana, mês):
+- Parâmetros: from, to (YYYY-MM-DD), granularity = hour|day|week|month (semana de segunda a domingo, fuso Brasília), itemId e/ou sku opcionais (sem filtro = todos os produtos), groupBy = item|sku|none.
+- Para cada período (e produto, conforme groupBy): period (início do período), itemId, sku, title, orders, unitsSold, revenue (bruto dos pagos), cancelled, cancelledAmount; e, quando houver o detalhe financeiro, net e totais de tarifas, frete e processamento do período.
+- Histórico o mais longo possível (idealmente desde o início da conta ou pelo menos 12 meses), a partir dos dados que o Mercato já guarda; informar em meta o primeiro dia disponível (dataStart) e marcar partial quando a janela pedida passar do que existe.
+- Dia/hora sem dado confirmado não vira zero: vem ausente/null com o motivo em meta.
+
+ENTREGA
+- Publicar em produção e confirmar: GET / listando as rotas novas com seus escopos, openapi.json atualizado e um exemplo de resposta de cada rota (com dados fictícios na documentação).
+- Nos avisar o nome final das rotas, dos campos e do escopo, e se a chave atual precisa ser regenerada.

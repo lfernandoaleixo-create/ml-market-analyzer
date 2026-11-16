@@ -297,7 +297,8 @@ function validPayment(
 }
 async function collectOrder(
   order: Json,
-  account: VerifiedMarginAccount
+  account: VerifiedMarginAccount,
+  observeVerifiedPayment?: (payment: Json) => void
 ): Promise<{ sale: MarginSale; cutoff: boolean }> {
   const base = pendingOrder(
     order,
@@ -386,6 +387,7 @@ async function collectOrder(
         unknown = true;
         continue;
       }
+      observeVerifiedPayment?.(payment);
       if (hasRefund(payment)) {
         refund = true;
         continue;
@@ -461,6 +463,119 @@ async function collectOrder(
     },
     cutoff,
   };
+}
+
+export type PublicFinancialMetadata = {
+  paidAt: string | null;
+  refundStatus: "refunded" | "partially_refunded" | "refund_pending" | null;
+  mediation: boolean;
+  chargesComplete: boolean;
+  taxDetail: { type: string | null; description: string | null; amount: number | null }[] | null;
+  taxesDisaggregated: { type: string | null; description: string | null; amount: number | null }[] | null;
+};
+/** Exact string fields only. Unknown metadata objects are never exposed or recursively flattened. */
+function publicTaxEntries(value: unknown): PublicFinancialMetadata["taxDetail"] {
+  const entries = Array.isArray(value) ? value : value && typeof value === "object" ? [value] : null;
+  if (!entries || entries.length > 100) return null;
+  if (!entries.length) return [];
+  const safe = entries.flatMap(entry => {
+    const row = obj(entry);
+    const type = typeof row.type === "string" ? row.type : null;
+    const description = typeof row.description === "string" ? row.description : null;
+    const value = amount(row.amount);
+    return type === null && description === null && value === null
+      ? [] : [{ type, description, amount: value }];
+  });
+  return safe.length ? safe : null;
+}
+function publicRefund(value: Json): PublicFinancialMetadata["refundStatus"] {
+  if (value.status === "partially_refunded") return "partially_refunded";
+  if (value.status === "refunded" || value.status === "returned") return "refunded";
+  const refunded = amount(value.transaction_amount_refunded) ?? amount(value.refunded_amount);
+  if (refunded !== null && refunded > 0) {
+    const total = amount(value.transaction_amount) ?? amount(value.total_amount);
+    return total === null ? "refund_pending" : refunded >= total ? "refunded" : "partially_refunded";
+  }
+  if (value.status === "charged_back" || value.status === "chargeback") return "refund_pending";
+  return null;
+}
+function publicMediation(value: Json): boolean {
+  return value.status === "in_mediation" || value.status_detail === "in_mediation" ||
+    (Array.isArray(value.mediations) && value.mediations.length > 0);
+}
+function publicChargesComplete(payment: Json): boolean {
+  if (!Array.isArray(payment.charges_details)) return false;
+  return payment.charges_details.every(raw => {
+    const charge = obj(raw), from = obj(charge.accounts).from, account = obj(from);
+    // An unidentified account is not evidence of a buyer charge.
+    const identified = ["collector", "seller", "payer", "buyer"].includes(String(from)) ||
+      (typeof from === "number" && id(from) !== null) || (typeof from === "string" && /^\d+$/.test(from)) ||
+      id(account.id) !== null || ["collector", "seller", "payer", "buyer"].includes(String(account.type));
+    if (!identified) return false;
+    if (!sellerCharge(charge)) return true;
+    return (typeof charge.name === "string" || typeof charge.type === "string") && paymentCharges({ charges_details: [charge] }).length === 1;
+  });
+}
+/** Public read-only adapter. The existing UI's collectOrder result/rules remain unchanged. */
+export async function collectPublicSalesOrderFinancial(
+  order: Record<string, unknown>,
+  account: VerifiedMarginAccount
+): Promise<{ sale: MarginSale; cutoff: boolean; metadata: PublicFinancialMetadata }> {
+  const refs = Array.isArray(order.payments) ? order.payments.map(obj) : [];
+  const refunds = [order, ...refs].map(publicRefund).filter(value => value !== null);
+  const initialRefund = refunds.includes("partially_refunded") ? "partially_refunded" : refunds[0] ?? null;
+  const metadata: PublicFinancialMetadata = {
+    paidAt: null, refundStatus: initialRefund,
+    mediation: [order, ...refs].some(publicMediation), chargesComplete: false,
+    taxDetail: null, taxesDisaggregated: null,
+  };
+  // Additional explicit refund/mediation states must not be promoted to confirmed finance.
+  if (initialRefund || metadata.mediation || refs.length > 20) {
+    return {
+      sale: pendingOrder(order, initialRefund ? REFUND_REASON : "Informação financeira ainda não confirmada pela fonte.", !!initialRefund),
+      cutoff: false, metadata,
+    };
+  }
+  const verified: Json[] = [];
+  const result = await collectOrder(order, account, payment => verified.push(payment));
+  const verifiedRefunds = verified.map(publicRefund).filter(value => value !== null);
+  metadata.refundStatus = verifiedRefunds.includes("partially_refunded") ? "partially_refunded" : verifiedRefunds[0] ?? null;
+  metadata.mediation = verified.some(publicMediation);
+  if (metadata.refundStatus || metadata.mediation) {
+    return {
+      sale: pendingOrder(order, metadata.refundStatus ? REFUND_REASON : "Informação financeira ainda não confirmada pela fonte.", !!metadata.refundStatus),
+      cutoff: result.cutoff, metadata,
+    };
+  }
+  if (result.sale.financialStatus === "confirmed") {
+    metadata.chargesComplete = verified.length > 0 && verified.every(publicChargesComplete);
+    const dates = verified.map(payment => typeof payment.date_approved === "string" &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(payment.date_approved) &&
+      Number(payment.date_approved.slice(11, 13)) <= 23 && Number(payment.date_approved.slice(14, 16)) <= 59 && Number(payment.date_approved.slice(17, 19)) <= 59 &&
+      Number.isFinite(Date.parse(`${payment.date_approved.slice(0, 10)}T00:00:00Z`)) &&
+      new Date(`${payment.date_approved.slice(0, 10)}T00:00:00Z`).toISOString().slice(0, 10) === payment.date_approved.slice(0, 10) &&
+      Number.isFinite(Date.parse(payment.date_approved)) ? Date.parse(payment.date_approved) : null);
+    if (dates.length && dates.every(value => value !== null)) metadata.paidAt = new Date(Math.max(...dates as number[])).toISOString();
+    for (const [field, lower, upper] of [
+      ["taxDetail", "tax_detail", "TAX_DETAIL"],
+      ["taxesDisaggregated", "taxes_disaggregated", "TAXES_DISAGGREGATED"],
+    ] as const) {
+      const parts = verified.map(payment => {
+        const meta = obj(payment.metadata);
+        return publicTaxEntries(payment[lower] ?? payment[upper] ?? meta[upper] ?? meta[lower]);
+      });
+      metadata[field] = parts.length && parts.every(part => part !== null) ? parts.flatMap(part => part!) : null;
+    }
+    // Keep original charge names, but never publish the UI's fallback name for unnamed records.
+    const charges = verified.flatMap(payment => paymentCharges({ charges_details:
+      Array.isArray(payment.charges_details) ? payment.charges_details.filter(raw => {
+        const charge = obj(raw);
+        return typeof charge.name === "string" || typeof charge.type === "string";
+      }) : [],
+    }));
+    return { ...result, sale: { ...result.sale, charges }, metadata };
+  }
+  return { ...result, metadata };
 }
 
 async function collect(
